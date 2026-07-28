@@ -8,6 +8,7 @@ import 'providers/firebase_service.dart';
 import 'screens/splash_screen.dart';
 import 'utils/theme.dart';
 
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: const FirebaseOptions(
@@ -34,8 +35,6 @@ void main() async {
   );
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  await Future.delayed(const Duration(milliseconds: 500));
 
   runApp(const ZadGoApp());
 }
