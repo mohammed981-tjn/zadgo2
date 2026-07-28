@@ -53,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
             begin: Alignment.topCenter, end: Alignment.bottomCenter)),
         child: SafeArea(child: Column(children: [
           const SizedBox(height: 40),
-          const Text('🛵', style: TextStyle(fontSize: 64)),
+          Image.asset('assets/images/logo_square.png', width: 90, height: 90),
           const SizedBox(height: 12),
           const Text('ZadGo', style: TextStyle(color: Colors.white, fontSize: 30,
               fontWeight: FontWeight.bold, letterSpacing: 1.5)),
