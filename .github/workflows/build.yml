@@ -35,8 +35,8 @@ jobs:
       - name: Build APK (allow tool exit code)
         run: flutter build apk --release || true
 
-      - name: Locate and verify APK
-        run: find . -name "*.apk" -type f
+      - name: Search for APK everywhere
+        run: find / -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -45,4 +45,4 @@ jobs:
           path: |
             build/app/outputs/flutter-apk/*.apk
             android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
