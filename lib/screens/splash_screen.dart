@@ -41,12 +41,12 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: const Color(0xFFE63946),
-    body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: const [
-      Text('🛵', style: TextStyle(fontSize: 64)),
-      SizedBox(height: 16),
-      Text('ZadGo', style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-      SizedBox(height: 24),
-      CircularProgressIndicator(color: Colors.white),
+    body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Image.asset('assets/images/logo_square.png', width: 120, height: 120),
+      const SizedBox(height: 16),
+      const Text('ZadGo', style: TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+      const SizedBox(height: 24),
+      const CircularProgressIndicator(color: Colors.white),
     ])),
   );
 }
