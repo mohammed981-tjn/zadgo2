@@ -53,15 +53,26 @@ class _ItemTile extends StatelessWidget {
         Text(item.emoji, style: const TextStyle(fontSize: 28)),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
           Text(formatCurrency(item.price), style: const TextStyle(color: AppColors.primary)),
         ])),
-        if (qty == 0) ElevatedButton(onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee), child: const Text('أضف'))
-        else Row(children: [
-          IconButton(icon: const Icon(Icons.remove), onPressed: () => context.read<CartProvider>().remove(item.id)),
-          Text('$qty'),
-          IconButton(icon: const Icon(Icons.add), onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee)),
-        ]),
+        if (qty == 0)
+          ElevatedButton(
+            onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+            child: const Text('أضف'),
+          )
+        else
+          Row(children: [
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline, color: AppColors.primary),
+              onPressed: () => context.read<CartProvider>().remove(item.id),
+            ),
+            Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 16)),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+              onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+            ),
+          ]),
       ]));
   }
 }
