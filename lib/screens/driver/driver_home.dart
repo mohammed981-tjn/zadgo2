@@ -26,8 +26,6 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   void initState() {
     super.initState();
-    // ✅ محاكاة تتبع حي: كل 8 ثوانٍ نحدّث موقع السائق قليلاً
-    // (بديل مؤقت بدون geolocator بسبب مشاكل توافقيته السابقة)
     _locationTimer = Timer.periodic(const Duration(seconds: 8), (_) => _pushLocation());
   }
 
@@ -42,7 +40,6 @@ class _DriverHomeState extends State<DriverHome> {
     final service = context.read<FirebaseService>();
     final driverId = auth.user?.uid;
     if (driverId == null) return;
-    // حركة طفيفة عشوائية لمحاكاة التحرك (يمكن استبدالها بـ geolocator لاحقاً)
     _simLat += (0.0003 * (DateTime.now().second.isEven ? 1 : -1));
     _simLng += (0.0003 * (DateTime.now().second.isOdd ? 1 : -1));
     service.updateDriverLocation(driverId, _simLat, _simLng);
@@ -101,6 +98,7 @@ class _AvailableOrdersTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
+    final isOnline = driver?.isOnline ?? false;
 
     return StreamBuilder<List<Order>>(
       stream: service.streamAllOrders(),
@@ -110,15 +108,24 @@ class _AvailableOrdersTab extends StatelessWidget {
 
         final myOrders = all.where((o) => o.driverId == driverId && o.status.isActive).toList();
 
-        final available = all.where((o) =>
-            o.driverId == null &&
-            (o.status == OrderStatus.pending ||
-             o.status == OrderStatus.confirmed ||
-             o.status == OrderStatus.preparing ||
-             o.status == OrderStatus.readyForPickup)).toList();
+        // ✅ الطلبات المتاحة تظهر فقط إذا كان السائق متصلاً فعلياً
+        final available = isOnline
+            ? all.where((o) =>
+                o.driverId == null &&
+                (o.status == OrderStatus.pending ||
+                 o.status == OrderStatus.confirmed ||
+                 o.status == OrderStatus.preparing ||
+                 o.status == OrderStatus.readyForPickup)).toList()
+            : <Order>[];
 
         if (myOrders.isEmpty && available.isEmpty) {
-          return const AppEmpty(emoji: '📦', title: 'لا توجد طلبات الآن', subtitle: 'تأكد أنك متصل لاستقبال الطلبات');
+          return AppEmpty(
+            emoji: isOnline ? '📦' : '🔌',
+            title: isOnline ? 'لا توجد طلبات الآن' : 'أنت غير متصل',
+            subtitle: isOnline
+                ? 'ستظهر الطلبات هنا فور توفرها'
+                : 'فعّل زر "متصل" في الأعلى لاستقبال طلبات جديدة',
+          );
         }
 
         return ListView(padding: const EdgeInsets.all(12), children: [
@@ -131,6 +138,22 @@ class _AvailableOrdersTab extends StatelessWidget {
             const SectionHeader(title: 'طلبات متاحة للقبول'),
             ...available.map((o) => _OrderCard(order: o, mode: _CardMode.available)),
           ],
+          if (!isOnline && myOrders.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Card(
+                color: AppColors.warning.withOpacity(0.1),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(children: [
+                    const Icon(Icons.info_outline, color: AppColors.warning),
+                    const SizedBox(width: 10),
+                    const Expanded(child: Text('أنت غير متصل — لن تستقبل طلبات جديدة حتى تفعّل الاتصال',
+                        style: TextStyle(fontSize: 13))),
+                  ]),
+                ),
+              ),
+            ),
         ]);
       },
     );
