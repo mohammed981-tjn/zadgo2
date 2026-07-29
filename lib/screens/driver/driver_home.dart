@@ -219,9 +219,7 @@ class _OrderCard extends StatelessWidget {
           if (ok == true) {
             await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
             if (ctx.mounted) {
-              showSuccess(ctx, 'تم قبول الطلب! توجّه للمطعم');
-              // ✅ فتح الخريطة تلقائياً بعد القبول
-              Navigator.push(ctx, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)));
+              await Navigator.push(ctx, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)));
             }
           }
         },
@@ -240,8 +238,7 @@ class _OrderCard extends StatelessWidget {
           if (ok == true) {
             await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
             if (ctx.mounted) {
-              // ✅ فتح الخريطة تلقائياً للتوجه للعميل بعد الاستلام
-              Navigator.push(ctx, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)));
+              await Navigator.push(ctx, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)));
             }
           }
         },
