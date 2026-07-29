@@ -26,4 +26,10 @@
         <meta-data android:name="flutterEmbedding" android:value="2"/>
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="zadgo_channel"/>
     </application>
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 </manifest>
