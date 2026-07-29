@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -30,26 +30,23 @@ jobs:
       - name: Create local.properties
         run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
 
-      - name: Clean previous builds
-        run: flutter clean
-
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: List all build outputs
-        if: always()
+      - name: Build APK directly via Gradle
+        working-directory: android
         run: |
-          echo "=== Contents of android/app/build/outputs ==="
-          find android/app/build/outputs -type f 2>/dev/null || echo "outputs folder not found"
-          echo "=== Contents of build/ ==="
-          find build -type f -name "*.apk" 2>/dev/null || echo "no apk in build/"
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Verify APK exists
+        run: |
+          ls -la android/app/build/outputs/apk/release/ || echo "Directory not found"
+          find . -name "*.apk" 2>/dev/null
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
-          path: android/app/build/outputs/flutter-apk/app-release.apk
-          if-no-files-found: warn
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
