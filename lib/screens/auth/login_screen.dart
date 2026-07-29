@@ -21,9 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const Color deepBlack = Color(0xFF040E1A);
-  static const Color navyDark = Color(0xFF0F1B2E);
-  static const Color zadgoYellow = Color(0xFFD4A017);
+  static const Color bgDark = Color(0xFF040E1A);
+  static const Color bgDarker = Color(0xFF020810);
+  static const Color zadgoGold = Color(0xFFD4A017);
+  static const Color zadgoGoldLight = Color(0xFFF0C550);
 
   void _navigate(UserRole role) {
     Widget dest;
@@ -47,139 +48,243 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  InputDecoration _fieldDecoration(String label, IconData icon, {Widget? suffix}) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white60, fontSize: 14),
+      prefixIcon: Icon(icon, color: zadgoGold, size: 20),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.06),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.white.withOpacity(0.12), width: 1),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.white.withOpacity(0.12), width: 1),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: zadgoGold, width: 1.6),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              flex: 62,
-              child: Container(
-                width: double.infinity,
-                color: deepBlack,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  child: Image.asset(
-                    'assets/images/logo_square.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.6),
+            radius: 1.4,
+            colors: [bgDark, bgDarker],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(context).size.height -
+                    MediaQuery.of(context).padding.top -
+                    MediaQuery.of(context).padding.bottom,
               ),
-            ),
-            Expanded(
-              flex: 38,
-              child: Container(
-                width: double.infinity,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-                  child: Form(
-                    key: _form,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            'تسجيل الدخول',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: navyDark),
-                          ),
+              child: IntrinsicHeight(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 24),
+                    // ✅ الشعار المصمم بالكود - أيقونة مع توهج ذهبي
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            zadgoGold.withOpacity(0.25),
+                            zadgoGold.withOpacity(0.0),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          textDirection: TextDirection.ltr,
-                          decoration: InputDecoration(
-                            labelText: 'البريد الإلكتروني',
-                            prefixIcon: const Icon(Icons.email_outlined, color: navyDark),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F0F3),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [zadgoGoldLight, zadgoGold],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                          ),
-                          validator: validateEmail,
-                        ),
-                        const SizedBox(height: 10),
-                        TextFormField(
-                          controller: _passCtrl,
-                          obscureText: _obscure,
-                          textDirection: TextDirection.ltr,
-                          decoration: InputDecoration(
-                            labelText: 'كلمة المرور',
-                            prefixIcon: const Icon(Icons.lock_outline, color: navyDark),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                                color: navyDark,
+                            boxShadow: [
+                              BoxShadow(
+                                color: zadgoGold.withOpacity(0.5),
+                                blurRadius: 20,
+                                spreadRadius: 2,
                               ),
-                              onPressed: () => setState(() => _obscure = !_obscure),
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F0F3),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
-                            ),
+                            ],
                           ),
-                          validator: validatePassword,
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: zadgoYellow,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              elevation: 3,
-                              shadowColor: zadgoYellow.withOpacity(0.5),
-                              padding: EdgeInsets.zero,
-                            ),
-                            onPressed: auth.loading ? null : _login,
-                            child: Center(
-                              child: auth.loading
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                    )
-                                  : const Text(
-                                      'دخول',
-                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                    ),
-                            ),
+                          child: const Icon(
+                            Icons.two_wheeler_rounded,
+                            color: bgDarker,
+                            size: 40,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                          ),
-                          child: const Text(
-                            'ليس لديك حساب؟ سجّل الآن',
-                            style: TextStyle(color: navyDark, fontWeight: FontWeight.w700, fontSize: 13),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [zadgoGoldLight, zadgoGold],
+                      ).createShader(bounds),
+                      child: const Text(
+                        'ZadGo',
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'كل احتياجاتك نوصلها لك',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.55),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 40),
+                    // ✅ النموذج - نفس الخلفية الداكنة، حقول شفافة
+                    Form(
+                      key: _form,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'تسجيل الدخول',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          TextFormField(
+                            controller: _emailCtrl,
+                            keyboardType: TextInputType.emailAddress,
+                            textDirection: TextDirection.ltr,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: _fieldDecoration('البريد الإلكتروني', Icons.email_outlined),
+                            validator: validateEmail,
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _passCtrl,
+                            obscureText: _obscure,
+                            textDirection: TextDirection.ltr,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: _fieldDecoration(
+                              'كلمة المرور',
+                              Icons.lock_outline,
+                              suffix: IconButton(
+                                icon: Icon(
+                                  _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                  color: Colors.white54,
+                                  size: 20,
+                                ),
+                                onPressed: () => setState(() => _obscure = !_obscure),
+                              ),
+                            ),
+                            validator: validatePassword,
+                          ),
+                          const SizedBox(height: 26),
+                          SizedBox(
+                            height: 54,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(16),
+                                gradient: const LinearGradient(
+                                  colors: [zadgoGoldLight, zadgoGold],
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: zadgoGold.withOpacity(0.4),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(16),
+                                  onTap: auth.loading ? null : _login,
+                                  child: Center(
+                                    child: auth.loading
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              color: bgDarker,
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'دخول',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: bgDarker,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Center(
+                            child: TextButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                              ),
+                              child: Text(
+                                'ليس لديك حساب؟ سجّل الآن',
+                                style: TextStyle(
+                                  color: zadgoGoldLight,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
