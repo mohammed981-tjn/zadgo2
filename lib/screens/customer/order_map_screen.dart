@@ -2,14 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 
-class OrderMapScreen extends StatelessWidget {
+class OrderMapScreen extends StatefulWidget {
   final Order order;
   const OrderMapScreen({super.key, required this.order});
+
+  @override
+  State<OrderMapScreen> createState() => _OrderMapScreenState();
+}
+
+class _OrderMapScreenState extends State<OrderMapScreen> {
+  final MapController _mapController = MapController();
+
+  Order get order => widget.order;
+
+  bool get _headingToRestaurant =>
+      order.status == OrderStatus.confirmed ||
+      order.status == OrderStatus.preparing ||
+      order.status == OrderStatus.readyForPickup;
+
+  bool get _headingToCustomer => order.status == OrderStatus.outForDelivery;
+
+  Future<void> _openExternalNavigation(double lat, double lng) async {
+    final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,21 +42,13 @@ class OrderMapScreen extends StatelessWidget {
     if (order.driverId != null && order.status == OrderStatus.outForDelivery) {
       return StreamBuilder<Driver?>(
         stream: service.streamDriver(order.driverId!),
-        builder: (ctx, driverSnap) => _buildMap(context, driverSnap.data),
+        builder: (ctx, driverSnap) => _buildScaffold(context, service, driverSnap.data),
       );
     }
-    return _buildMap(context, null);
+    return _buildScaffold(context, service, null);
   }
 
-  // ✅ تحديد الوجهة النشطة حسب حالة الطلب
-  bool get _headingToRestaurant =>
-      order.status == OrderStatus.confirmed ||
-      order.status == OrderStatus.preparing ||
-      order.status == OrderStatus.readyForPickup;
-
-  bool get _headingToCustomer => order.status == OrderStatus.outForDelivery;
-
-  Widget _buildMap(BuildContext context, Driver? liveDriver) {
+  Widget _buildScaffold(BuildContext context, FirebaseService service, Driver? liveDriver) {
     final points = <Marker>[];
     final polyPoints = <LatLng>[];
 
@@ -43,14 +59,8 @@ class OrderMapScreen extends StatelessWidget {
       final p = LatLng(order.restaurantLat!, order.restaurantLng!);
       polyPoints.add(p);
       points.add(Marker(
-        point: p,
-        width: 64,
-        height: 64,
-        child: _buildPin(
-          icon: Icons.restaurant,
-          color: Colors.orange,
-          highlighted: _headingToRestaurant,
-        ),
+        point: p, width: 64, height: 64,
+        child: _buildPin(icon: Icons.restaurant, color: Colors.orange, highlighted: _headingToRestaurant),
       ));
     }
 
@@ -58,23 +68,14 @@ class OrderMapScreen extends StatelessWidget {
       final p = LatLng(order.deliveryLat!, order.deliveryLng!);
       polyPoints.add(p);
       points.add(Marker(
-        point: p,
-        width: 64,
-        height: 64,
-        child: _buildPin(
-          icon: Icons.location_on,
-          color: AppColors.primary,
-          highlighted: _headingToCustomer,
-        ),
+        point: p, width: 64, height: 64,
+        child: _buildPin(icon: Icons.location_on, color: AppColors.primary, highlighted: _headingToCustomer),
       ));
     }
 
     if (liveDriver != null && liveDriver.lat != null && liveDriver.lng != null) {
-      final p = LatLng(liveDriver.lat!, liveDriver.lng!);
       points.add(Marker(
-        point: p,
-        width: 50,
-        height: 50,
+        point: LatLng(liveDriver.lat!, liveDriver.lng!), width: 50, height: 50,
         child: Container(
           decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
           child: const Icon(Icons.delivery_dining, color: Colors.white, size: 26),
@@ -89,30 +90,108 @@ class OrderMapScreen extends StatelessWidget {
       );
     }
 
-    final center = points[0].point;
+    final targetPoint = _headingToRestaurant && hasRestaurant
+        ? LatLng(order.restaurantLat!, order.restaurantLng!)
+        : (hasDelivery ? LatLng(order.deliveryLat!, order.deliveryLng!) : points[0].point);
 
     return Scaffold(
       appBar: AppBar(title: Text(_appBarTitle())),
-      body: Column(
+      body: Stack(
         children: [
-          _buildStatusBanner(),
-          Expanded(
-            child: FlutterMap(
-              options: MapOptions(initialCenter: center, initialZoom: 14),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.zadam.delivery',
+          Column(
+            children: [
+              _buildStatusBanner(),
+              Expanded(
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(initialCenter: targetPoint, initialZoom: 14),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.zadam.delivery',
+                    ),
+                    if (polyPoints.length > 1)
+                      PolylineLayer(polylines: [
+                        Polyline(points: polyPoints, strokeWidth: 4, color: AppColors.primary),
+                      ]),
+                    MarkerLayer(markers: points),
+                  ],
                 ),
-                if (polyPoints.length > 1)
-                  PolylineLayer(polylines: [
-                    Polyline(points: polyPoints, strokeWidth: 4, color: AppColors.primary),
-                  ]),
-                MarkerLayer(markers: points),
-              ],
+              ),
+            ],
+          ),
+          // ✅ زر إعادة التوسيط على الهدف
+          Positioned(
+            bottom: 100,
+            left: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'recenter',
+              backgroundColor: Colors.white,
+              onPressed: () => _mapController.move(targetPoint, 15),
+              child: const Icon(Icons.my_location, color: AppColors.dark),
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // ✅ زر ابدأ الملاحة الخارجية (Google Maps)
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _openExternalNavigation(targetPoint.latitude, targetPoint.longitude),
+                  icon: const Icon(Icons.navigation),
+                  label: const Text('ابدأ الملاحة'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة)
+              if (_headingToRestaurant)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final ok = await showConfirmDialog(context,
+                          title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
+                      if (ok == true) {
+                        await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                        if (context.mounted) Navigator.pop(context);
+                      }
+                    },
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('استلمت الطلب'),
+                  ),
+                ),
+              if (_headingToCustomer)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final ok = await showConfirmDialog(context,
+                          title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
+                      if (ok == true) {
+                        await service.markOrderDelivered(order.id, order.driverId ?? '');
+                        if (context.mounted) {
+                          showSuccess(context, 'تم التوصيل! +10 ر.س أرباح');
+                          Navigator.pop(context);
+                        }
+                      }
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.success,
+                      side: const BorderSide(color: AppColors.success),
+                    ),
+                    icon: const Icon(Icons.done_all_rounded),
+                    label: const Text('تم التوصيل'),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -125,7 +204,6 @@ class OrderMapScreen extends StatelessWidget {
 
   Widget _buildStatusBanner() {
     if (!_headingToRestaurant && !_headingToCustomer) return const SizedBox.shrink();
-
     final isRestaurant = _headingToRestaurant;
     return Container(
       width: double.infinity,
@@ -133,16 +211,12 @@ class OrderMapScreen extends StatelessWidget {
       color: isRestaurant ? Colors.orange.withOpacity(0.15) : AppColors.primary.withOpacity(0.1),
       child: Row(
         children: [
-          Icon(
-            isRestaurant ? Icons.restaurant : Icons.location_on,
-            color: isRestaurant ? Colors.orange : AppColors.primary,
-          ),
+          Icon(isRestaurant ? Icons.restaurant : Icons.location_on,
+              color: isRestaurant ? Colors.orange : AppColors.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              isRestaurant
-                  ? 'توجّه إلى المطعم لاستلام الطلب'
-                  : 'توجّه إلى العميل لتسليم الطلب',
+              isRestaurant ? 'توجّه إلى المطعم لاستلام الطلب' : 'توجّه إلى العميل لتسليم الطلب',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
@@ -152,22 +226,17 @@ class OrderMapScreen extends StatelessWidget {
   }
 
   Widget _buildPin({required IconData icon, required Color color, required bool highlighted}) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: highlighted ? Border.all(color: Colors.white, width: 3) : null,
-            boxShadow: highlighted
-                ? [BoxShadow(color: color.withOpacity(0.6), blurRadius: 12, spreadRadius: 2)]
-                : null,
-          ),
-          child: Icon(icon, color: Colors.white, size: highlighted ? 26 : 20),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: highlighted ? Border.all(color: Colors.white, width: 3) : null,
+        boxShadow: highlighted
+            ? [BoxShadow(color: color.withOpacity(0.6), blurRadius: 12, spreadRadius: 2)]
+            : null,
+      ),
+      child: Icon(icon, color: Colors.white, size: highlighted ? 26 : 20),
     );
   }
 }
