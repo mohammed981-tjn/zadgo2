@@ -21,6 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
+  static const Color navyDark = Color(0xFF0F1B2E);
+  static const Color navyLight = Color(0xFF16243B);
+  static const Color zadgoYellow = Color(0xFFFFC107);
+
   void _navigate(UserRole role) {
     Widget dest;
     switch (role) {
@@ -48,47 +52,133 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: LinearGradient(
-            colors: [Color(0xFFE63946), Color(0xFFc1121f)],
-            begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-        child: SafeArea(child: Column(children: [
-          const SizedBox(height: 40),
-          Image.asset('assets/images/logo_square.png', width: 90, height: 90),
-          const SizedBox(height: 12),
-          const Text('ZadGo', style: TextStyle(color: Colors.white, fontSize: 30,
-              fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-          const SizedBox(height: 32),
-          Expanded(child: Container(
-            decoration: const BoxDecoration(color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
-            padding: const EdgeInsets.all(24),
-            child: Form(key: _form, child: ListView(children: [
-              const Text('تسجيل الدخول', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 24),
-              TextFormField(controller: _emailCtrl, keyboardType: TextInputType.emailAddress,
-                  textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'البريد الإلكتروني',
-                      prefixIcon: Icon(Icons.email_outlined)),
-                  validator: validateEmail),
-              const SizedBox(height: 16),
-              TextFormField(controller: _passCtrl, obscureText: _obscure, textDirection: TextDirection.ltr,
-                  decoration: InputDecoration(labelText: 'كلمة المرور', prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                          onPressed: () => setState(() => _obscure = !_obscure))),
-                  validator: validatePassword),
-              const SizedBox(height: 28),
-              SizedBox(width: double.infinity, height: 52, child: ElevatedButton(
-                  onPressed: auth.loading ? null : _login,
-                  child: auth.loading ? const SizedBox(width: 22, height: 22,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('دخول'))),
-              const SizedBox(height: 16),
-              TextButton(onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                  child: const Text('ليس لديك حساب؟ سجّل الآن', style: TextStyle(color: AppColors.primary))),
-            ])),
-          )),
-        ])),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [navyDark, navyLight],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 40),
+              Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset('assets/images/logo_square.png', fit: BoxFit.cover),
+                ),
+              ),
+              const SizedBox(height: 32),
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+                  child: Form(
+                    key: _form,
+                    child: ListView(
+                      children: [
+                        const Text(
+                          'تسجيل الدخول',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: navyDark),
+                        ),
+                        const SizedBox(height: 28),
+                        TextFormField(
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          textDirection: TextDirection.ltr,
+                          decoration: InputDecoration(
+                            labelText: 'البريد الإلكتروني',
+                            prefixIcon: const Icon(Icons.email_outlined, color: navyDark),
+                            filled: true,
+                            fillColor: const Color(0xFFF5F5F7),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          validator: validateEmail,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passCtrl,
+                          obscureText: _obscure,
+                          textDirection: TextDirection.ltr,
+                          decoration: InputDecoration(
+                            labelText: 'كلمة المرور',
+                            prefixIcon: const Icon(Icons.lock_outline, color: navyDark),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                color: navyDark,
+                              ),
+                              onPressed: () => setState(() => _obscure = !_obscure),
+                            ),
+                            filled: true,
+                            fillColor: const Color(0xFFF5F5F7),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          validator: validatePassword,
+                        ),
+                        const SizedBox(height: 28),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: zadgoYellow,
+                              foregroundColor: navyDark,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              elevation: 0,
+                            ),
+                            onPressed: auth.loading ? null : _login,
+                            child: auth.loading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(color: navyDark, strokeWidth: 2),
+                                  )
+                                : const Text('دخول', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                          ),
+                          child: const Text(
+                            'ليس لديك حساب؟ سجّل الآن',
+                            style: TextStyle(color: navyDark, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
