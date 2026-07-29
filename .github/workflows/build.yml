@@ -1,4 +1,4 @@
-name: Build Flutter APK
+name: Build Flutter APK Debug
 
 on:
   push:
@@ -34,18 +34,15 @@ jobs:
         run: flutter pub get
 
       - name: Build APK (first attempt via flutter tool)
-        run: flutter build apk --release || echo "flutter build reported failure, continuing to check for APK"
-
-      - name: List gradlew after flutter build
-        run: ls -la android/gradlew 2>/dev/null || echo "gradlew still missing after flutter build"
+        run: flutter build apk --debug || echo "flutter build reported failure, continuing to check for APK"
 
       - name: Try direct gradle build if APK missing
         run: |
-          if [ ! -f "android/app/build/outputs/apk/release/app-release.apk" ] && [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+          if [ ! -f "build/app/outputs/flutter-apk/app-debug.apk" ]; then
             echo "APK missing, retrying with gradlew directly"
             cd android
             chmod +x ./gradlew
-            ./gradlew assembleRelease --stacktrace
+            ./gradlew assembleDebug --stacktrace
           else
             echo "APK already exists, skipping direct gradle retry"
           fi
@@ -56,8 +53,8 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zadgo-app-release
+          name: zadgo-app-debug
           path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            android/app/build/outputs/apk/release/app-release.apk
+            build/app/outputs/flutter-apk/app-debug.apk
+            android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: warn
