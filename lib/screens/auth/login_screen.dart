@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const Color deepBlack = Color(0xFF000000);
+  static const Color deepBlack = Color(0xFF040E1A);
   static const Color navyDark = Color(0xFF0F1B2E);
   static const Color zadgoYellow = Color(0xFFD4A017);
 
@@ -57,7 +57,6 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // القسم العلوي - يأخذ 62% من المساحة المتاحة
             Expanded(
               flex: 62,
               child: Container(
@@ -72,7 +71,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-            // القسم السفلي - يأخذ 38% الباقية، ويتمدد إن احتاج لوحة المفاتيح
             Expanded(
               flex: 38,
               child: Container(
