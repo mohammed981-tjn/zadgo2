@@ -33,28 +33,13 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK (first attempt via flutter tool)
-        run: flutter build apk --release || echo "flutter build reported failure, continuing to check for APK"
-
-      - name: Try direct gradle build if APK missing
-        run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK missing, retrying with gradlew directly"
-            cd android
-            chmod +x ./gradlew
-            ./gradlew assembleRelease --stacktrace
-          else
-            echo "APK already exists, skipping direct gradle retry"
-          fi
-
-      - name: Final APK search
-        run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: warn
+          path: android/app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          if-no-files-found: error
+          retention-days: 1
