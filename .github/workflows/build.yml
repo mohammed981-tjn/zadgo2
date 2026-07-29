@@ -30,6 +30,9 @@ jobs:
       - name: Create local.properties
         run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
 
+      - name: Clean previous builds
+        run: flutter clean
+
       - name: Install dependencies
         run: flutter pub get
 
