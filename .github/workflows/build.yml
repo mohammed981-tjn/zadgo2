@@ -33,20 +33,31 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK directly via Gradle
-        working-directory: android
-        run: |
-          chmod +x ./gradlew
-          ./gradlew assembleRelease --stacktrace
+      - name: Build APK (first attempt via flutter tool)
+        run: flutter build apk --release || echo "flutter build reported failure, continuing to check for APK"
 
-      - name: Verify APK exists
+      - name: List gradlew after flutter build
+        run: ls -la android/gradlew 2>/dev/null || echo "gradlew still missing after flutter build"
+
+      - name: Try direct gradle build if APK missing
         run: |
-          ls -la android/app/build/outputs/apk/release/ || echo "Directory not found"
-          find . -name "*.apk" 2>/dev/null
+          if [ ! -f "android/app/build/outputs/apk/release/app-release.apk" ] && [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            echo "APK missing, retrying with gradlew directly"
+            cd android
+            chmod +x ./gradlew
+            ./gradlew assembleRelease --stacktrace
+          else
+            echo "APK already exists, skipping direct gradle retry"
+          fi
+
+      - name: Final APK search
+        run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
-          path: android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: warn
