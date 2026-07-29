@@ -10,6 +10,7 @@ import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
+import '../../main.dart';
 
 class DriverHome extends StatefulWidget {
   const DriverHome({super.key});
@@ -218,9 +219,10 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'قبول الطلب', content: 'هل تريد قبول هذا الطلب والتوجه للمطعم؟', confirmLabel: 'قبول');
           if (ok == true) {
             await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
-            if (ctx.mounted) {
-              await Navigator.push(ctx, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)));
-            }
+            // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+            );
           }
         },
         icon: const Icon(Icons.check_circle_outline),
@@ -237,9 +239,10 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
             await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-            if (ctx.mounted) {
-              await Navigator.push(ctx, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)));
-            }
+            // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+            );
           }
         },
         icon: const Icon(Icons.delivery_dining),
