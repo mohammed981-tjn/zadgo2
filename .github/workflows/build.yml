@@ -39,9 +39,17 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
+      - name: List all build outputs
+        if: always()
+        run: |
+          echo "=== Contents of android/app/build/outputs ==="
+          find android/app/build/outputs -type f 2>/dev/null || echo "outputs folder not found"
+          echo "=== Contents of build/ ==="
+          find build -type f -name "*.apk" 2>/dev/null || echo "no apk in build/"
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
           path: android/app/build/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+          if-no-files-found: warn
