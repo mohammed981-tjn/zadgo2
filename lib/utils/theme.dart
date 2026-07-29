@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  static const primary = Color(0xFFFFC107);         // أصفر ZadGo
-  static const primaryDark = Color(0xFFE6A800);      // أصفر أغمق للتدرجات
-  static const dark = Color(0xFF0F1B2E);             // كحلي داكن
-  static const secondary = Color(0xFF16243B);        // كحلي أفتح قليلاً
+  static const primary = Color(0xFFFFC107);
+  static const primaryDark = Color(0xFFE6A800);
+  static const dark = Color(0xFF0F1B2E);
+  static const secondary = Color(0xFF16243B);
   static const success = Color(0xFF00D084);
+  static const successLight = Color(0xFFE8F9F1);
   static const warning = Color(0xFFFFB020);
-  static const surface = Color(0xFFF5F5F7);          // خلفية فاتحة ناعمة
+  static const surface = Color(0xFFF5F5F7);
   static const textDark = Color(0xFF0F1B2E);
   static const textGray = Color(0xFF8A8A8E);
   static const divider = Color(0xFFEAEAEC);
@@ -21,7 +22,7 @@ class AppTheme {
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
       primary: AppColors.primary,
-      secondary: AppColors.dark,
+      secondary: AppColors.success,
       surface: Colors.white,
       brightness: Brightness.light,
     ),
@@ -46,7 +47,7 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.dark,
-        elevation: 0,
+        elevation: 2,
         shadowColor: AppColors.primary.withOpacity(0.4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
@@ -81,7 +82,7 @@ class AppTheme {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        borderSide: const BorderSide(color: AppColors.success, width: 2),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -101,7 +102,7 @@ class AppTheme {
       thumbColor: WidgetStateProperty.resolveWith((states) =>
           states.contains(WidgetState.selected) ? Colors.white : Colors.white),
       trackColor: WidgetStateProperty.resolveWith((states) =>
-          states.contains(WidgetState.selected) ? AppColors.primary : AppColors.divider),
+          states.contains(WidgetState.selected) ? AppColors.success : AppColors.divider),
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
