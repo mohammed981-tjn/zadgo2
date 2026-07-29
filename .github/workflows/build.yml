@@ -1,60 +1,40 @@
-name: Build Flutter APK
+name: zadam_delivery
+description: ZadGo - نظام إدارة توصيل طلبات
+publish_to: 'none'
+version: 4.0.0+1
 
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
+environment:
+  sdk: '>=3.3.0 <4.0.0'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+dependencies:
+  flutter:
+    sdk: flutter
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  firebase_core: 3.8.0
+  firebase_auth: 5.3.3
+  cloud_firestore: 5.5.0
+  firebase_messaging: 15.1.5
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+  provider: ^6.1.2
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.27.0'
-          channel: 'stable'
-          cache: false
+  google_fonts: ^6.2.1
+  flutter_rating_bar: ^4.0.1
+  badges: ^3.1.2
+  fl_chart: ^0.69.0
 
-      - name: Create local.properties
-        run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
+  uuid: ^4.5.1
+  intl: ^0.19.0
 
-      - name: Install dependencies
-        run: flutter pub get
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  url_launcher: ^6.3.1
 
-      - name: Build APK (first attempt via flutter tool)
-        run: flutter build apk --release || echo "flutter build reported failure, continuing to check for APK"
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
 
-      - name: Try direct gradle build if APK missing
-        run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK missing, retrying with gradlew directly"
-            cd android
-            chmod +x ./gradlew
-            ./gradlew assembleRelease --stacktrace
-          else
-            echo "APK already exists, skipping direct gradle retry"
-          fi
-
-      - name: Final APK search
-        run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zadgo-app-release
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            android/app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: warn
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo_square.png
