@@ -191,7 +191,7 @@ class _OrderCard extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, isDriverView: true))),
               ),
             ],
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
@@ -219,9 +219,10 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'قبول الطلب', content: 'هل تريد قبول هذا الطلب والتوجه للمطعم؟', confirmLabel: 'قبول');
           if (ok == true) {
             await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
+            if (ctx.mounted) showSuccess(ctx, 'تم قبول الطلب! توجّه للمطعم');
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, isDriverView: true)),
             );
           }
         },
@@ -239,9 +240,10 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
             await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+            if (ctx.mounted) showSuccess(ctx, 'الطلب في الطريق نحو العميل');
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, isDriverView: true)),
             );
           }
         },
