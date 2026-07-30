@@ -10,7 +10,8 @@ import '../../utils/helpers.dart';
 
 class OrderMapScreen extends StatefulWidget {
   final Order order;
-  const OrderMapScreen({super.key, required this.order});
+  final bool isDriverView;
+  const OrderMapScreen({super.key, required this.order, this.isDriverView = false});
 
   @override
   State<OrderMapScreen> createState() => _OrderMapScreenState();
@@ -197,6 +198,11 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
   }
 
   String _appBarTitle() {
+    if (widget.isDriverView) {
+      if (_headingToRestaurant) return 'التوجه إلى المطعم';
+      if (_headingToCustomer) return 'التوجه إلى العميل';
+      return 'توجيه التسليم';
+    }
     if (_headingToRestaurant) return 'التوجه إلى المطعم';
     if (_headingToCustomer) return 'التوجه إلى العميل';
     return 'خريطة الطلب';
