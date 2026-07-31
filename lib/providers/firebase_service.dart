@@ -1,6 +1,7 @@
 // lib/providers/firebase_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../models/models.dart' as models;
 
 class FirebaseService {
@@ -302,4 +303,43 @@ class FirebaseService {
   /// Sends a Firebase password-reset email to [email].
   Future<void> sendPasswordResetEmail(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
+
+  // ── Direct Admin Creation ─────────────────────────────────────────────────
+
+  /// Creates a new admin account without signing out the current user.
+  /// Uses a temporary secondary Firebase app so the current admin session
+  /// remains active throughout.
+  Future<void> createAdminAccount({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+  }) async {
+    FirebaseApp? secondaryApp;
+    try {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'adminCreation_${DateTime.now().millisecondsSinceEpoch}',
+        options: Firebase.app().options,
+      );
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+      final cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final uid = cred.user!.uid;
+      final newUser = models.AppUser(
+        uid: uid,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role: models.UserRole.admin,
+        createdAt: DateTime.now(),
+        isApproved: true,
+      );
+      await _users.doc(uid).set(newUser.toMap());
+      await secondaryAuth.signOut();
+    } finally {
+      await secondaryApp?.delete();
+    }
+  }
 }
