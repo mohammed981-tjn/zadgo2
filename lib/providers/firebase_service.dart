@@ -93,6 +93,12 @@ class FirebaseService {
     await createUser(newUser);
   }
 
+  /// يرسل رابط إعادة تعيين كلمة المرور إلى بريد المستخدم — تُستخدم من إدارة
+  /// التطبيق للتحكم الكامل في بيانات اعتماد أي حساب (بما فيه مدير المطعم)
+  /// دون الحاجة لمعرفة كلمة المرور الحالية.
+  Future<void> sendPasswordReset(String email) =>
+      _auth.sendPasswordResetEmail(email: email.trim());
+
   Stream<List<models.Restaurant>> streamRestaurants() =>
       _restaurants.orderBy('name').snapshots().map(
           (s) => s.docs.map((d) => models.Restaurant.fromMap(d.data(), d.id)).toList());

@@ -1,7 +1,8 @@
 // lib/screens/admin/admin_users_tab.dart
 //
 // إدارة المستخدمين — يتيح للمدير العام إنشاء/تعديل/تعطيل الحسابات،
-// وربط حسابات "مدير مطعم" الجديدة بمطعم محدد.
+// وربط حسابات "مدير مطعم" الجديدة بمطعم محدد، والتحكم الكامل في بيانات
+// اعتمادها (إعادة تعيين كلمة المرور) بدلاً من ترك ذلك لإدارة المطعم.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/firebase_service.dart';
@@ -55,6 +56,18 @@ class AdminUsersTab extends StatelessWidget {
                       onSelected: (v) async {
                         if (v == 'toggle') {
                           await service.setUserActive(u.uid, !u.isActive);
+                        } else if (v == 'reset_password') {
+                          try {
+                            await service.sendPasswordReset(u.email);
+                            if (context.mounted) {
+                              showSuccess(context,
+                                  'تم إرسال رابط إعادة تعيين كلمة المرور إلى ${u.email}');
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              showError(context, 'تعذر إرسال رابط إعادة التعيين: $e');
+                            }
+                          }
                         } else if (v == 'delete') {
                           final confirm = await showDialog<bool>(
                             context: context,
@@ -76,6 +89,8 @@ class AdminUsersTab extends StatelessWidget {
                       },
                       itemBuilder: (_) => [
                         PopupMenuItem(value: 'toggle', child: Text(u.isActive ? 'تعطيل' : 'تفعيل')),
+                        const PopupMenuItem(
+                            value: 'reset_password', child: Text('إعادة تعيين كلمة المرور')),
                         const PopupMenuItem(value: 'delete', child: Text('حذف')),
                       ],
                     ),
