@@ -135,66 +135,66 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // ✅ زر ابدأ الملاحة الخارجية (Google Maps)
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _openExternalNavigation(targetPoint.latitude, targetPoint.longitude),
-                  icon: const Icon(Icons.navigation),
-                  label: const Text('ابدأ الملاحة'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
+      bottomNavigationBar: widget.isDriverView
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openExternalNavigation(targetPoint.latitude, targetPoint.longitude),
+                        icon: const Icon(Icons.navigation),
+                        label: const Text('ابدأ الملاحة'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    if (_headingToRestaurant)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final ok = await showConfirmDialog(context,
+                                title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
+                            if (ok == true) {
+                              await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                              if (context.mounted) Navigator.pop(context);
+                            }
+                          },
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('استلمت الطلب'),
+                        ),
+                      ),
+                    if (_headingToCustomer)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final ok = await showConfirmDialog(context,
+                                title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
+                            if (ok == true) {
+                              await service.markOrderDelivered(order.id, order.driverId ?? '');
+                              if (context.mounted) {
+                                showSuccess(context, 'تم التوصيل! +10 ر.س أرباح');
+                                Navigator.pop(context);
+                              }
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.success,
+                            side: const BorderSide(color: AppColors.success),
+                          ),
+                          icon: const Icon(Icons.done_all_rounded),
+                          label: const Text('تم التوصيل'),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة)
-              if (_headingToRestaurant)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await showConfirmDialog(context,
-                          title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
-                      if (ok == true) {
-                        await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-                        if (context.mounted) Navigator.pop(context);
-                      }
-                    },
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('استلمت الطلب'),
-                  ),
-                ),
-              if (_headingToCustomer)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await showConfirmDialog(context,
-                          title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
-                      if (ok == true) {
-                        await service.markOrderDelivered(order.id, order.driverId ?? '');
-                        if (context.mounted) {
-                          showSuccess(context, 'تم التوصيل! +10 ر.س أرباح');
-                          Navigator.pop(context);
-                        }
-                      }
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                      side: const BorderSide(color: AppColors.success),
-                    ),
-                    icon: const Icon(Icons.done_all_rounded),
-                    label: const Text('تم التوصيل'),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : null,
     );
   }
 
