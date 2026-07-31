@@ -7,6 +7,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 import 'admin_restaurants_tab.dart';
 
 class AdminHome extends StatefulWidget {
@@ -22,11 +23,23 @@ class _AdminHomeState extends State<AdminHome> {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
       appBar: AppBar(title: Text('لوحة التحكم — ${auth.user?.name ?? ""}'), actions: [
-        IconButton(icon: const Icon(Icons.logout), onPressed: () async {
-          await auth.logout();
-          if (mounted) Navigator.pushAndRemoveUntil(context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
-        }),
+        PopupMenuButton<String>(
+          onSelected: (value) async {
+            if (value == 'change_password') {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
+            } else if (value == 'logout') {
+              await auth.logout();
+              if (mounted) Navigator.pushAndRemoveUntil(context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'change_password',
+                child: Row(children: [Icon(Icons.lock_reset_outlined, size: 20), SizedBox(width: 8), Text('تغيير كلمة المرور')])),
+            PopupMenuItem(value: 'logout',
+                child: Row(children: [Icon(Icons.logout, size: 20), SizedBox(width: 8), Text('تسجيل الخروج')])),
+          ],
+        ),
       ]),
       body: IndexedStack(index: _tab, children: const [
         _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ChatsTab(), _ComplaintsTab(),
