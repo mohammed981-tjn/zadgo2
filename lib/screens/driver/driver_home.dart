@@ -435,4 +435,3 @@ class DriverPendingScreen extends StatelessWidget {
     );
   }
 }
-}
