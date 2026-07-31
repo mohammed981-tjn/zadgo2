@@ -10,6 +10,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
 import '../../main.dart';
@@ -76,6 +77,23 @@ class _DriverHomeState extends State<DriverHome> {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
                 }
               }),
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'change_password') {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
+                  } else if (value == 'logout') {
+                    if (driver != null) await service.setDriverOnline(driverId, false);
+                    await auth.logout();
+                    if (mounted) {
+                      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+                    }
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'change_password',
+                      child: Row(children: [Icon(Icons.lock_reset_outlined, size: 20), SizedBox(width: 8), Text('تغيير كلمة المرور')])),
+                ],
+              ),
             ],
           ),
           body: IndexedStack(index: _tab, children: [

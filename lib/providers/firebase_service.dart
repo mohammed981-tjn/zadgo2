@@ -30,6 +30,14 @@ class FirebaseService {
 
   Future<void> signOut() => _auth.signOut();
 
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw FirebaseAuthException(code: 'no-user');
+    final credential = EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+  }
+
   Future<void> createUser(models.AppUser user) => _users.doc(user.uid).set(user.toMap());
 
   Future<models.AppUser?> getUser(String uid) async {

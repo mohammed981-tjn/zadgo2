@@ -70,6 +70,21 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> changePassword(String currentPassword, String newPassword) async {
+    _loading = true; _error = null; notifyListeners();
+    try {
+      await _service.changePassword(currentPassword, newPassword);
+      _loading = false; notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = _mapError(e.code); _loading = false; notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     try { await _service.signOut(); } catch (_) {}
     _user = null; notifyListeners();

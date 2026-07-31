@@ -9,6 +9,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 import 'restaurant_detail_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
@@ -31,10 +32,22 @@ class _CustomerHomeState extends State<CustomerHome> {
           badgeContent: Text('${cart.itemCount}', style: const TextStyle(color: Colors.white, fontSize: 10)),
           child: IconButton(icon: const Icon(Icons.shopping_cart_outlined),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())))),
-        IconButton(icon: const Icon(Icons.logout), onPressed: () async {
-          await auth.logout();
-          if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
-        }),
+        PopupMenuButton<String>(
+          onSelected: (value) async {
+            if (value == 'change_password') {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
+            } else if (value == 'logout') {
+              await auth.logout();
+              if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+            }
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'change_password',
+                child: Row(children: [Icon(Icons.lock_reset_outlined, size: 20), SizedBox(width: 8), Text('تغيير كلمة المرور')])),
+            PopupMenuItem(value: 'logout',
+                child: Row(children: [Icon(Icons.logout, size: 20), SizedBox(width: 8), Text('تسجيل الخروج')])),
+          ],
+        ),
       ]),
       body: IndexedStack(index: _tab, children: const [_RestaurantsPage(), MyOrdersScreen()]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
