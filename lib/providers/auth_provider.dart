@@ -22,7 +22,18 @@ class AuthProvider extends ChangeNotifier {
     if (firebaseUser == null) {
       _user = null;
     } else {
-      try { _user = await _service.getUser(firebaseUser.uid); } catch (_) { _user = null; }
+      try {
+        final fetched = await _service.getUser(firebaseUser.uid);
+        if (fetched != null && !fetched.isActive) {
+          await _service.signOut();
+          _user = null;
+          _error = 'تم تعطيل هذا الحساب، يرجى مراجعة الإدارة';
+        } else {
+          _user = fetched;
+        }
+      } catch (_) {
+        _user = null;
+      }
     }
     notifyListeners();
   }

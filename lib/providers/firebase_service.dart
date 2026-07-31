@@ -1,6 +1,7 @@
 // lib/providers/firebase_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../models/models.dart' as models;
 
 class FirebaseService {
@@ -13,6 +14,7 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
+  CollectionReference<Map<String, dynamic>> get _reassignments => _db.collection('reassignments');
 
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
@@ -40,6 +42,56 @@ class FirebaseService {
 
   Future<void> updateFcmToken(String uid, String token) =>
       _users.doc(uid).update({'fcmToken': token});
+
+  Stream<List<models.AppUser>> streamUsers() => _users
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.AppUser.fromMap(d.data(), d.id)).toList());
+
+  Future<void> updateUser(models.AppUser user) => _users.doc(user.uid).update(user.toMap());
+
+  Future<void> setUserActive(String uid, bool isActive) =>
+      _users.doc(uid).update({'isActive': isActive});
+
+  Future<void> deleteUserDoc(String uid) => _users.doc(uid).delete();
+
+  /// ينشئ حساب مستخدم جديد (مثل مدير مطعم) بدون تسجيل خروج المدير الحالي،
+  /// عبر تطبيق Firebase ثانوي مؤقت.
+  Future<void> createManagedUser({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    required models.UserRole role,
+    String? restaurantId,
+    String? restaurantName,
+  }) async {
+    FirebaseApp secondaryApp;
+    try {
+      secondaryApp = Firebase.app('SecondaryZadGoApp');
+    } catch (_) {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'SecondaryZadGoApp',
+        options: Firebase.app().options,
+      );
+    }
+    final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+    final cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(), password: password.trim());
+    final uid = cred.user!.uid;
+    await secondaryAuth.signOut();
+    final newUser = models.AppUser(
+      uid: uid,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      role: role,
+      createdAt: DateTime.now(),
+      restaurantId: restaurantId,
+      restaurantName: restaurantName,
+    );
+    await createUser(newUser);
+  }
 
   Stream<List<models.Restaurant>> streamRestaurants() =>
       _restaurants.orderBy('name').snapshots().map(
@@ -125,6 +177,22 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
+  /// جميع الطلبات النشطة والقادمة (لشاشة متابعة الطلبات الحية في لوحة المدير)
+  Stream<List<models.Order>> streamActiveOrders() => _orders
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.Order.fromMap(d.data(), d.id))
+          .where((o) => o.status.isActive)
+          .toList());
+
+  /// طلبات مطعم محدد فقط (لتطبيق/دور مدير المطعم)
+  Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
+      .where('restaurantId', isEqualTo: restaurantId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
   Stream<List<models.Order>> streamCustomerOrders(String customerId) => _orders
       .where('customerId', isEqualTo: customerId)
       .orderBy('createdAt', descending: true)
@@ -157,6 +225,49 @@ class FirebaseService {
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
     await batch.commit();
   }
+
+  /// تحويل الطلب من سائق إلى آخر (يستخدمها المدير فقط عند الطوارئ)
+  /// آلية استقبال الطلب من قبل السائق الأول تبقى دون أي تغيير.
+  Future<void> reassignDriver({
+    required models.Order order,
+    required String newDriverId,
+    required String newDriverName,
+    required String reason,
+    required String performedBy,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_orders.doc(order.id), {
+      'driverId': newDriverId,
+      'driverName': newDriverName,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(_drivers.doc(newDriverId), {'isAvailable': false});
+    if (order.driverId != null && order.driverId!.isNotEmpty) {
+      batch.update(_drivers.doc(order.driverId!), {'isAvailable': true});
+    }
+    final logRef = _reassignments.doc();
+    batch.set(
+      logRef,
+      models.DriverReassignment(
+        id: logRef.id,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        oldDriverId: order.driverId,
+        oldDriverName: order.driverName,
+        newDriverId: newDriverId,
+        newDriverName: newDriverName,
+        reason: reason,
+        performedBy: performedBy,
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    await batch.commit();
+  }
+
+  Stream<List<models.DriverReassignment>> streamReassignments() => _reassignments
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.DriverReassignment.fromMap(d.data(), d.id)).toList());
 
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();

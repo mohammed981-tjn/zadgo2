@@ -2,7 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 
-enum UserRole { admin, customer, driver }
+enum UserRole { admin, customer, driver, restaurantManager }
 
 enum OrderStatus {
   pending,
@@ -20,6 +20,18 @@ enum PaymentMethod { cash, card, wallet }
 enum ComplaintStatus { open, inProgress, resolved, closed }
 
 enum ComplaintType { lateDelivery, wrongOrder, badQuality, driverBehavior, other }
+
+extension UserRoleExt on UserRole {
+  String get label {
+    const map = {
+      UserRole.admin: 'مدير عام',
+      UserRole.customer: 'عميل',
+      UserRole.driver: 'سائق',
+      UserRole.restaurantManager: 'مدير مطعم',
+    };
+    return map[this] ?? '';
+  }
+}
 
 extension OrderStatusExt on OrderStatus {
   String get label {
@@ -133,6 +145,9 @@ class AppUser {
   final UserRole role;
   final DateTime createdAt;
   final String? fcmToken;
+  final String? restaurantId;
+  final String? restaurantName;
+  final bool isActive;
 
   const AppUser({
     required this.uid,
@@ -142,6 +157,9 @@ class AppUser {
     required this.role,
     required this.createdAt,
     this.fcmToken,
+    this.restaurantId,
+    this.restaurantName,
+    this.isActive = true,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -155,6 +173,9 @@ class AppUser {
         ),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         fcmToken: map['fcmToken'] as String?,
+        restaurantId: map['restaurantId'] as String?,
+        restaurantName: map['restaurantName'] as String?,
+        isActive: map['isActive'] as bool? ?? true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -164,7 +185,31 @@ class AppUser {
         'role': role.name,
         'createdAt': Timestamp.fromDate(createdAt),
         if (fcmToken != null) 'fcmToken': fcmToken,
+        if (restaurantId != null) 'restaurantId': restaurantId,
+        if (restaurantName != null) 'restaurantName': restaurantName,
+        'isActive': isActive,
       };
+
+  AppUser copyWith({
+    String? name,
+    String? phone,
+    UserRole? role,
+    String? restaurantId,
+    String? restaurantName,
+    bool? isActive,
+  }) =>
+      AppUser(
+        uid: uid,
+        name: name ?? this.name,
+        email: email,
+        phone: phone ?? this.phone,
+        role: role ?? this.role,
+        createdAt: createdAt,
+        fcmToken: fcmToken,
+        restaurantId: restaurantId ?? this.restaurantId,
+        restaurantName: restaurantName ?? this.restaurantName,
+        isActive: isActive ?? this.isActive,
+      );
 }
 
 class Restaurant {
@@ -672,4 +717,55 @@ class CartItem {
   String? extras;
   CartItem({required this.item, this.quantity = 1, this.extras});
   double get subtotal => item.price * quantity;
+}
+
+class DriverReassignment {
+  final String id;
+  final String orderId;
+  final String orderNumber;
+  final String? oldDriverId;
+  final String? oldDriverName;
+  final String newDriverId;
+  final String newDriverName;
+  final String reason;
+  final String performedBy;
+  final DateTime createdAt;
+
+  const DriverReassignment({
+    required this.id,
+    required this.orderId,
+    required this.orderNumber,
+    this.oldDriverId,
+    this.oldDriverName,
+    required this.newDriverId,
+    required this.newDriverName,
+    required this.reason,
+    required this.performedBy,
+    required this.createdAt,
+  });
+
+  factory DriverReassignment.fromMap(Map<String, dynamic> map, String id) => DriverReassignment(
+        id: id,
+        orderId: map['orderId'] as String? ?? '',
+        orderNumber: map['orderNumber'] as String? ?? '',
+        oldDriverId: map['oldDriverId'] as String?,
+        oldDriverName: map['oldDriverName'] as String?,
+        newDriverId: map['newDriverId'] as String? ?? '',
+        newDriverName: map['newDriverName'] as String? ?? '',
+        reason: map['reason'] as String? ?? '',
+        performedBy: map['performedBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'orderId': orderId,
+        'orderNumber': orderNumber,
+        if (oldDriverId != null) 'oldDriverId': oldDriverId,
+        if (oldDriverName != null) 'oldDriverName': oldDriverName,
+        'newDriverId': newDriverId,
+        'newDriverName': newDriverName,
+        'reason': reason,
+        'performedBy': performedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
 }

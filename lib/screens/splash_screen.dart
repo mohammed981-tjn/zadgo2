@@ -6,6 +6,7 @@ import 'auth/login_screen.dart';
 import 'admin/admin_home.dart';
 import 'customer/customer_home.dart';
 import 'driver/driver_home.dart';
+import 'restaurant/restaurant_home.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,6 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
       case UserRole.admin: _go(const AdminHome()); break;
       case UserRole.customer: _go(const CustomerHome()); break;
       case UserRole.driver: _go(const DriverHome()); break;
+      case UserRole.restaurantManager: _go(const RestaurantHome()); break;
     }
   }
 

@@ -8,6 +8,8 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'admin_restaurants_tab.dart';
+import 'admin_users_tab.dart';
+import 'order_tracking_tab.dart';
 
 class AdminHome extends StatefulWidget {
   const AdminHome({super.key});
@@ -29,15 +31,17 @@ class _AdminHomeState extends State<AdminHome> {
         }),
       ]),
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ComplaintsTab(),
+        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), OrderTrackingTab(), _DriversTab(), _ComplaintsTab(), AdminUsersTab(),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'الرئيسية'),
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'الطلبات'),
+          NavigationDestination(icon: Icon(Icons.gps_fixed_outlined), label: 'المتابعة الحية'),
           NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
+          NavigationDestination(icon: Icon(Icons.people_outline), label: 'المستخدمون'),
         ]),
     );
   }

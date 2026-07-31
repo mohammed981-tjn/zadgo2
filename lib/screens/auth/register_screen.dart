@@ -35,6 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         case UserRole.admin: dest = const AdminHome(); break;
         case UserRole.customer: dest = const CustomerHome(); break;
         case UserRole.driver: dest = const DriverHome(); break;
+        case UserRole.restaurantManager: dest = const CustomerHome(); break;
       }
       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
     } else {

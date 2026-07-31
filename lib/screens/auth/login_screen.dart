@@ -7,6 +7,7 @@ import '../../utils/helpers.dart';
 import '../admin/admin_home.dart';
 import '../customer/customer_home.dart';
 import '../driver/driver_home.dart';
+import '../restaurant/restaurant_home.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -32,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
       case UserRole.admin: dest = const AdminHome(); break;
       case UserRole.customer: dest = const CustomerHome(); break;
       case UserRole.driver: dest = const DriverHome(); break;
+      case UserRole.restaurantManager: dest = const RestaurantHome(); break;
     }
     Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
   }
