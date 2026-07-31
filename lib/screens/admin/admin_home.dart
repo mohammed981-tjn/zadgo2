@@ -463,6 +463,118 @@ class _UsersTabState extends State<_UsersTab> {
     super.dispose();
   }
 
+  Future<void> _showAddAdminDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final nameCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+    bool obscure = true;
+    bool saving = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: const Row(children: [
+            Icon(Icons.admin_panel_settings_outlined, color: AppColors.secondary),
+            SizedBox(width: 8),
+            Text('إضافة مدير جديد'),
+          ]),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person_outline)),
+                  validator: (v) => validateRequired(v, 'الاسم'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  textDirection: TextDirection.ltr,
+                  decoration: const InputDecoration(labelText: 'البريد الإلكتروني', prefixIcon: Icon(Icons.email_outlined)),
+                  validator: validateEmail,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone_outlined)),
+                  validator: validatePhone,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: passCtrl,
+                  obscureText: obscure,
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(
+                    labelText: 'كلمة المرور',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                      onPressed: () => setDlgState(() => obscure = !obscure),
+                    ),
+                  ),
+                  validator: validatePassword,
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton.icon(
+              icon: saving
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.person_add_outlined, size: 18),
+              label: const Text('إضافة'),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondary),
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDlgState(() => saving = true);
+                      try {
+                        await context.read<FirebaseService>().createAdminAccount(
+                          name: nameCtrl.text,
+                          email: emailCtrl.text,
+                          password: passCtrl.text,
+                          phone: phoneCtrl.text,
+                        );
+                        if (!mounted) return;
+                        Navigator.pop(ctx);
+                        showSuccess(context, 'تم إنشاء حساب المدير بنجاح ✅');
+                      } catch (e) {
+                        setDlgState(() => saving = false);
+                        if (!mounted) return;
+                        String msg = 'فشل إنشاء الحساب';
+                        if (e.toString().contains('email-already-in-use')) {
+                          msg = 'البريد الإلكتروني مستخدم بالفعل';
+                        } else if (e.toString().contains('weak-password')) {
+                          msg = 'كلمة المرور ضعيفة جداً';
+                        }
+                        showError(context, msg);
+                      }
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
+
+    nameCtrl.dispose();
+    emailCtrl.dispose();
+    phoneCtrl.dispose();
+    passCtrl.dispose();
+  }
+
   Future<void> _generateCode(UserRole role) async {
     final service = context.read<FirebaseService>();
     try {
@@ -544,6 +656,25 @@ class _UsersTabState extends State<_UsersTab> {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return ListView(padding: const EdgeInsets.all(16), children: [
+      // ── إضافة مدير مباشرة ─────────────────────────────────────────────────
+      const SectionHeader(title: '👤 إضافة مدير'),
+      const SizedBox(height: 4),
+      const Text(
+        'أنشئ حساب مدير جديد مباشرةً دون الحاجة إلى رمز دعوة',
+        style: TextStyle(color: AppColors.textGray, fontSize: 12),
+      ),
+      const SizedBox(height: 12),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.person_add_outlined, size: 18),
+          label: const Text('إضافة مدير جديد'),
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondary),
+          onPressed: _showAddAdminDialog,
+        ),
+      ),
+      const SizedBox(height: 24),
+
       // ── توليد رموز الدعوة ─────────────────────────────────────────────────
       const SectionHeader(title: '🔑 رموز الدعوة'),
       const SizedBox(height: 4),
