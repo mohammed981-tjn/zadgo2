@@ -158,8 +158,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
 
-    setState(() => _loading = true);
     final cart = context.read<CartProvider>();
+    if (_payment != PaymentMethod.cash) {
+      final confirmed = await showConfirmDialog(
+        context,
+        title: 'تأكيد الدفع',
+        content: _payment == PaymentMethod.card
+            ? 'سيتم سحب مبلغ الطلب (${formatCurrency(cart.grandTotalWithVat)}) من البطاقة. هل تريد المتابعة؟'
+            : 'سيتم خصم مبلغ الطلب (${formatCurrency(cart.grandTotalWithVat)}) من المحفظة الإلكترونية. هل تريد المتابعة؟',
+        confirmLabel: 'متابعة',
+      );
+      if (confirmed != true) return;
+    }
+
+    setState(() => _loading = true);
     final auth = context.read<app_auth.AuthProvider>();
     final service = context.read<FirebaseService>();
     final user = auth.user!;
