@@ -134,19 +134,92 @@ class _DriversTab extends StatelessWidget {
     final service = context.read<FirebaseService>();
     return StreamBuilder<List<Driver>>(stream: service.streamDrivers(), builder: (ctx, snap) {
       if (!snap.hasData) return const AppLoading();
-      final list = snap.data!;
-      if (list.isEmpty) return const AppEmpty(emoji: '🛵', title: 'لا يوجد سائقون');
-      return ListView.builder(padding: const EdgeInsets.all(12), itemCount: list.length, itemBuilder: (_, i) {
-        final d = list[i];
-        return Card(child: ListTile(
+      final all = snap.data!;
+      final pending = all.where((d) => !d.isApproved).toList();
+      final approved = all.where((d) => d.isApproved).toList();
+
+      return ListView(padding: const EdgeInsets.all(12), children: [
+        if (pending.isNotEmpty) ...[
+          _sectionHeader('⏳ بانتظار الموافقة (${pending.length})', AppColors.warning),
+          ...pending.map((d) => Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: AppColors.warning.withOpacity(0.5)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.warning.withOpacity(0.15),
+                    child: Text(d.name.isNotEmpty ? d.name[0] : '?'),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(d.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(d.phone, style: const TextStyle(fontSize: 13, color: AppColors.textGray)),
+                  ])),
+                  StatusBadge(label: 'معلق', color: AppColors.warning),
+                ]),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                      icon: const Icon(Icons.check_circle_outline, size: 16),
+                      label: const Text('قبول'),
+                      onPressed: () => service.approveDriver(d.id),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+                      icon: const Icon(Icons.cancel_outlined, size: 16),
+                      label: const Text('رفض'),
+                      onPressed: () => showDialog(
+                        context: ctx,
+                        builder: (_) => AlertDialog(
+                          title: const Text('تأكيد الرفض'),
+                          content: Text('هل تريد رفض طلب ${d.name}؟ لن يتمكن من استخدام التطبيق كسائق.'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                            TextButton(
+                              onPressed: () { service.rejectDriver(d.id); Navigator.pop(ctx); },
+                              style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                              child: const Text('رفض'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ]),
+              ]),
+            ),
+          )),
+          const SizedBox(height: 8),
+        ],
+
+        if (approved.isNotEmpty)
+          _sectionHeader('✅ السائقون النشطون (${approved.length})', AppColors.success),
+        if (approved.isEmpty && pending.isEmpty)
+          const AppEmpty(emoji: '🛵', title: 'لا يوجد سائقون'),
+        ...approved.map((d) => Card(child: ListTile(
           leading: CircleAvatar(backgroundColor: d.isOnline ? AppColors.success.withOpacity(0.2) : Colors.grey.shade200,
               child: Text(d.name.isNotEmpty ? d.name[0] : '?')),
           title: Text(d.name), subtitle: Text('${d.totalDeliveries} توصيلة  •  ${d.rating.toStringAsFixed(1)} ⭐'),
           trailing: StatusBadge(label: d.isOnline ? 'متصل' : 'غير متصل', color: d.isOnline ? AppColors.success : Colors.grey),
-        ));
-      });
+        ))),
+      ]);
     });
   }
+
+  Widget _sectionHeader(String title, Color color) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)),
+  );
 }
 
 class _ChatsTab extends StatelessWidget {

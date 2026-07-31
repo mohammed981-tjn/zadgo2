@@ -51,11 +51,13 @@ class AuthProvider extends ChangeNotifier {
       final cred = await _service.register(email.trim(), password.trim());
       final uid = cred.user!.uid;
       final newUser = AppUser(uid: uid, name: name.trim(), email: email.trim(),
-          phone: phone.trim(), role: role, createdAt: DateTime.now());
+          phone: phone.trim(), role: role, createdAt: DateTime.now(),
+          // Drivers start unapproved until an admin reviews their application.
+          isApproved: role != UserRole.driver);
       await _service.createUser(newUser);
       if (role == UserRole.driver) {
         await _service.addDriver(Driver(id: uid, name: name.trim(), phone: phone.trim(),
-            vehicleType: 'دراجة نارية'));
+            vehicleType: 'دراجة نارية', isApproved: false));
       }
       _user = newUser; _loading = false; notifyListeners();
       return true;

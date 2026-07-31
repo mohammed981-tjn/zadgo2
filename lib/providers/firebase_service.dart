@@ -89,6 +89,22 @@ class FirebaseService {
   Future<void> setDriverOnline(String id, bool isOnline) =>
       _drivers.doc(id).update({'isOnline': isOnline});
 
+  /// Approve a pending driver: marks both the driver record and user record as approved.
+  Future<void> approveDriver(String uid) async {
+    final batch = _db.batch();
+    batch.update(_drivers.doc(uid), {'isApproved': true});
+    batch.update(_users.doc(uid), {'isApproved': true});
+    await batch.commit();
+  }
+
+  /// Reject a pending driver: removes the driver record and marks the user as not approved.
+  Future<void> rejectDriver(String uid) async {
+    final batch = _db.batch();
+    batch.delete(_drivers.doc(uid));
+    batch.update(_users.doc(uid), {'isApproved': false});
+    await batch.commit();
+  }
+
   // ✅ تتبع حي لموقع السائق
   Future<void> updateDriverLocation(String driverId, double lat, double lng) =>
       _drivers.doc(driverId).update({
