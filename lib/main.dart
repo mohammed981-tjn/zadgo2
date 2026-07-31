@@ -6,9 +6,8 @@ import 'providers/auth_provider.dart' as app_auth;
 import 'providers/cart_provider.dart';
 import 'providers/firebase_service.dart';
 import 'screens/splash_screen.dart';
+import 'utils/app_navigator.dart';
 import 'utils/theme.dart';
-
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -58,7 +57,7 @@ class ZadGoApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        navigatorKey: navigatorKey,
+        navigatorKey: appNavigatorKey,
         title: 'ZadGo',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,

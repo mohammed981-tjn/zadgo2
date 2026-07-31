@@ -6,6 +6,7 @@ import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_navigator.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
