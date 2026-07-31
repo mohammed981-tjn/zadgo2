@@ -33,5 +33,21 @@ void main() {
       final error = validateCreditCardCvv('12');
       expect(error, 'رمز الأمان غير صحيح');
     });
+
+    test('accepts card numbers with separators and trims whitespace', () {
+      expect(validateCreditCardNumber(' 4111-1111 1111 1111 '), isNull);
+    });
+
+    test('rejects single-word holder names', () {
+      expect(
+        validateCreditCardHolderName('John'),
+        'أدخل الاسم كما يظهر على البطاقة',
+      );
+    });
+
+    test('formats card numbers and expiry values', () {
+      expect(formatCreditCardNumber('4111111111111111'), '4111 1111 1111 1111');
+      expect(formatCreditCardExpiry('122030'), '12/2030');
+    });
   });
 }

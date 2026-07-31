@@ -1,5 +1,8 @@
 import 'package:flutter/services.dart';
 
+String _digitsOnly(String value) => value.replaceAll(RegExp(r'\D'), '');
+String _normalizeSpaces(String value) => value.trim().replaceAll(RegExp(r'\s+'), '');
+
 class CreditCardValidationResult {
   final bool isValid;
   final String? errorMessage;
@@ -8,7 +11,7 @@ class CreditCardValidationResult {
 }
 
 String? validateCreditCardHolderName(String value) {
-  final trimmed = value.trim();
+  final trimmed = _normalizeSpaces(value);
   if (trimmed.isEmpty) return 'أدخل اسم حامل البطاقة';
   if (trimmed.split(RegExp(r'\s+')).length < 2) {
     return 'أدخل الاسم كما يظهر على البطاقة';
@@ -17,7 +20,7 @@ String? validateCreditCardHolderName(String value) {
 }
 
 String? validateCreditCardNumber(String value) {
-  final digits = value.replaceAll(RegExp(r'\D'), '');
+  final digits = _digitsOnly(value);
   if (digits.length < 13 || digits.length > 19) {
     return 'رقم البطاقة غير صحيح';
   }
@@ -28,8 +31,8 @@ String? validateCreditCardNumber(String value) {
 }
 
 String? validateCreditCardExpiry(String value) {
-  final trimmed = value.trim();
-  final match = RegExp(r'^(0[1-9]|1[0-2])\/(\d{2}|\d{4})$').firstMatch(trimmed);
+  final normalized = _normalizeSpaces(value);
+  final match = RegExp(r'^(0[1-9]|1[0-2])\/(\d{2}|\d{4})$').firstMatch(normalized);
   if (match == null) return 'تاريخ الانتهاء غير صحيح';
 
   final month = int.parse(match.group(1)!);
@@ -37,11 +40,7 @@ String? validateCreditCardExpiry(String value) {
   final year = yearText.length == 2 ? 2000 + int.parse(yearText) : int.parse(yearText);
 
   final now = DateTime.now();
-  final expiryMonth = month;
-  final expiryYear = year;
-
-  if (expiryYear < now.year ||
-      (expiryYear == now.year && expiryMonth < now.month)) {
+  if (year < now.year || (year == now.year && month < now.month)) {
     return 'البطاقة منتهية';
   }
 
@@ -49,7 +48,7 @@ String? validateCreditCardExpiry(String value) {
 }
 
 String? validateCreditCardCvv(String value) {
-  final digits = value.replaceAll(RegExp(r'\D'), '');
+  final digits = _digitsOnly(value);
   if (digits.length != 3 && digits.length != 4) {
     return 'رمز الأمان غير صحيح';
   }
@@ -57,24 +56,27 @@ String? validateCreditCardCvv(String value) {
 }
 
 String formatCreditCardNumber(String value) {
-  final digits = value.replaceAll(RegExp(r'\D'), '');
+  final digits = _digitsOnly(value);
+  final limitedDigits = digits.length > 19 ? digits.substring(0, 19) : digits;
   final groups = <String>[];
-  for (var i = 0; i < digits.length; i += 4) {
+  for (var i = 0; i < limitedDigits.length; i += 4) {
     final end = i + 4;
-    groups.add(digits.substring(i, end < digits.length ? end : digits.length));
+    groups.add(limitedDigits.substring(i, end < limitedDigits.length ? end : limitedDigits.length));
   }
   return groups.join(' ');
 }
 
 String formatCreditCardExpiry(String value) {
-  final digits = value.replaceAll(RegExp(r'\D'), '');
+  final digits = _digitsOnly(value);
+  if (digits.isEmpty) return '';
   if (digits.length <= 2) return digits;
-  return '${digits.substring(0, 2)}/${digits.substring(2)}';
+  final limitedDigits = digits.substring(0, 6.clamp(0, digits.length));
+  return '${limitedDigits.substring(0, 2)}/${limitedDigits.substring(2)}';
 }
 
 bool isLuhnValid(String value) {
   if (value.isEmpty) return false;
-  final digits = value.replaceAll(RegExp(r'\D'), '');
+  final digits = _digitsOnly(value);
   if (digits.length < 2) return false;
 
   var sum = 0;
@@ -97,11 +99,13 @@ class CardNumberInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
-    final formatted = formatCreditCardNumber(digits);
+    final digits = _digitsOnly(newValue.text);
+    final limitedDigits = digits.length > 19 ? digits.substring(0, 19) : digits;
+    final formatted = formatCreditCardNumber(limitedDigits);
+    final cursorOffset = newValue.selection.baseOffset.clamp(0, formatted.length);
     return TextEditingValue(
       text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      selection: TextSelection.collapsed(offset: cursorOffset),
     );
   }
 }
@@ -112,11 +116,12 @@ class ExpiryDateInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final digits = _digitsOnly(newValue.text);
     final formatted = formatCreditCardExpiry(digits);
+    final cursorOffset = newValue.selection.baseOffset.clamp(0, formatted.length);
     return TextEditingValue(
       text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
+      selection: TextSelection.collapsed(offset: cursorOffset),
     );
   }
 }
