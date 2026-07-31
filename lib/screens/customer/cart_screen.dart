@@ -115,10 +115,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       showError(context, 'أدخل عنوان التوصيل');
       return;
     }
-    if (_lat == null || _lng == null) {
-      showError(context, 'حدد موقعك على الخريطة');
-      return;
-    }
 
     setState(() => _loading = true);
     final cart = context.read<CartProvider>();
