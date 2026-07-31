@@ -29,7 +29,7 @@ class _AdminHomeState extends State<AdminHome> {
         }),
       ]),
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ComplaintsTab(),
+        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ChatsTab(), _ComplaintsTab(),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
@@ -37,6 +37,7 @@ class _AdminHomeState extends State<AdminHome> {
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'الطلبات'),
           NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'المحادثات'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
         ]),
     );
@@ -145,6 +146,187 @@ class _DriversTab extends StatelessWidget {
         ));
       });
     });
+  }
+}
+
+class _ChatsTab extends StatelessWidget {
+  const _ChatsTab();
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    return StreamBuilder<List<Order>>(
+      stream: service.streamAllOrders(),
+      builder: (ctx, snap) {
+        if (!snap.hasData) return const AppLoading();
+        final orders = snap.data!.where((o) => o.driverId != null).toList();
+        if (orders.isEmpty) return const AppEmpty(emoji: '💬', title: 'لا توجد محادثات');
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: orders.length,
+          itemBuilder: (_, i) {
+            final o = orders[i];
+            return Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.primary.withOpacity(0.15),
+                  child: const Icon(Icons.chat_bubble_outline, color: AppColors.primary),
+                ),
+                title: Text('#${o.orderNumber} — ${o.restaurantName}'),
+                subtitle: Text(
+                  '${o.customerName}  ↔  ${o.driverName ?? "السائق"}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: StatusBadge(label: o.status.label, color: o.status.color),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => AdminChatScreen(order: o)),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class AdminChatScreen extends StatefulWidget {
+  final Order order;
+  const AdminChatScreen({super.key, required this.order});
+  @override
+  State<AdminChatScreen> createState() => _AdminChatScreenState();
+}
+
+class _AdminChatScreenState extends State<AdminChatScreen> {
+  final _msgCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+
+  Future<void> _send() async {
+    final text = _msgCtrl.text.trim();
+    if (text.isEmpty) return;
+    final auth = context.read<app_auth.AuthProvider>();
+    final service = context.read<FirebaseService>();
+    final user = auth.user!;
+    final msg = ChatMessage(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      orderId: widget.order.id,
+      senderId: user.uid,
+      senderName: 'الإدارة',
+      senderRole: 'admin',
+      text: text,
+      createdAt: DateTime.now(),
+    );
+    _msgCtrl.clear();
+    await service.sendChatMessage(msg);
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    final auth = context.read<app_auth.AuthProvider>();
+    final myUid = auth.user?.uid ?? '';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('محادثة #${widget.order.orderNumber}'),
+          Text(
+            '${widget.order.customerName} ↔ ${widget.order.driverName ?? "السائق"}',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+          ),
+        ]),
+      ),
+      body: Column(children: [
+        Expanded(
+          child: StreamBuilder<List<ChatMessage>>(
+            stream: service.streamChatMessages(widget.order.id),
+            builder: (ctx, snap) {
+              if (snap.hasError) {
+                return Center(child: Text('تعذّر التحميل: ${snap.error}'));
+              }
+              if (!snap.hasData) return const AppLoading();
+              final messages = snap.data!;
+              if (messages.isEmpty) {
+                return const AppEmpty(emoji: '💬', title: 'لا توجد رسائل بعد');
+              }
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (_scrollCtrl.hasClients) {
+                  _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+                }
+              });
+              return ListView.builder(
+                controller: _scrollCtrl,
+                padding: const EdgeInsets.all(12),
+                itemCount: messages.length,
+                itemBuilder: (_, i) {
+                  final m = messages[i];
+                  final isMe = m.senderId == myUid;
+                  final isAdmin = m.senderRole == 'admin';
+                  Color bubbleColor = isMe
+                      ? AppColors.primary
+                      : (isAdmin ? AppColors.secondary : Colors.white);
+                  return Align(
+                    alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      constraints: BoxConstraints(
+                          maxWidth: MediaQuery.of(context).size.width * 0.7),
+                      decoration: BoxDecoration(
+                        color: bubbleColor,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(
+                          isAdmin && !isMe ? '⚙️ الإدارة' : m.senderName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isMe ? Colors.white70 : AppColors.secondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(m.text,
+                            style: TextStyle(color: isMe || isAdmin ? Colors.white : AppColors.textDark)),
+                      ]),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _msgCtrl,
+                  decoration: const InputDecoration(hintText: 'رسالة من الإدارة...'),
+                  onSubmitted: (_) => _send(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              CircleAvatar(
+                backgroundColor: AppColors.primary,
+                child: IconButton(
+                  icon: const Icon(Icons.send, color: Colors.white, size: 18),
+                  onPressed: _send,
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    );
   }
 }
 
