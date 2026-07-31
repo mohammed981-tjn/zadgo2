@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/app_navigator.dart';
+import '../../utils/location_utils.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
@@ -238,8 +239,19 @@ class _OrderCard extends StatelessWidget {
         onPressed: () async {
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
+            if (order.restaurantLat != null && order.restaurantLng != null) {
+              final proximity = await checkDriverProximity(
+                targetLat: order.restaurantLat!,
+                targetLng: order.restaurantLng!,
+                thresholdMeters: 300,
+              );
+              if (proximity.isAvailable && !proximity.isWithinThreshold && proximity.distanceMeters != null) {
+                showError(ctx, 'أنت اقترب أولاً (${proximity.distanceMeters!.round()} متر) بعيد عن المطعم');
+                return;
+              }
+            }
+
             await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-            // ✅ استخدام appNavigatorKey بدل ctx المحلي
             appNavigatorKey.currentState?.push(
               MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
             );

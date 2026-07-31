@@ -1,12 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
-import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/theme.dart';
 
 class OrderMapScreen extends StatefulWidget {
   final Order order;
@@ -18,6 +20,9 @@ class OrderMapScreen extends StatefulWidget {
 
 class _OrderMapScreenState extends State<OrderMapScreen> {
   final MapController _mapController = MapController();
+  StreamSubscription<Position>? _positionSubscription;
+  Position? _currentPosition;
+  double? _distanceToRestaurant;
 
   Order get order => widget.order;
 
@@ -33,6 +38,57 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
+  }
+
+  bool get _canPickup => _distanceToRestaurant == null || _distanceToRestaurant! <= 450;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_startLocationTracking());
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startLocationTracking() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+          return;
+        }
+      }
+
+      final initialPosition = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      if (!mounted) return;
+
+      setState(() {
+        _currentPosition = initialPosition;
+        _distanceToRestaurant = _distanceToTarget(initialPosition.latitude, initialPosition.longitude);
+      });
+
+      _positionSubscription = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+      ).listen((position) {
+        if (!mounted) return;
+        setState(() {
+          _currentPosition = position;
+          _distanceToRestaurant = _distanceToTarget(position.latitude, position.longitude);
+        });
+      });
+    } catch (_) {
+      if (mounted) setState(() {});
+    }
+  }
+
+  double? _distanceToTarget(double lat, double lng) {
+    if (order.restaurantLat == null || order.restaurantLng == null) return null;
+    return Geolocator.distanceBetween(order.restaurantLat!, order.restaurantLng!, lat, lng);
   }
 
   @override
@@ -70,6 +126,26 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
       points.add(Marker(
         point: p, width: 64, height: 64,
         child: _buildPin(icon: Icons.location_on, color: AppColors.primary, highlighted: _headingToCustomer),
+      ));
+    }
+
+    if (_currentPosition != null) {
+      points.add(Marker(
+        point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude), width: 50, height: 50,
+        child: Container(
+          decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+          child: const Icon(Icons.navigation, color: Colors.white, size: 22),
+        ),
+      ));
+    }
+
+    if (_currentPosition != null) {
+      points.add(Marker(
+        point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude), width: 50, height: 50,
+        child: Container(
+          decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+          child: const Icon(Icons.navigation, color: Colors.white, size: 22),
+        ),
       ));
     }
 
@@ -155,14 +231,16 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
               if (_headingToRestaurant)
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await showConfirmDialog(context,
-                          title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
-                      if (ok == true) {
-                        await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-                        if (context.mounted) Navigator.pop(context);
-                      }
-                    },
+                    onPressed: _canPickup
+                        ? () async {
+                            final ok = await showConfirmDialog(context,
+                                title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
+                            if (ok == true) {
+                              await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                              if (context.mounted) Navigator.pop(context);
+                            }
+                          }
+                        : null,
                     icon: const Icon(Icons.check_circle_outline),
                     label: const Text('استلمت الطلب'),
                   ),
@@ -205,6 +283,11 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
   Widget _buildStatusBanner() {
     if (!_headingToRestaurant && !_headingToCustomer) return const SizedBox.shrink();
     final isRestaurant = _headingToRestaurant;
+    final distanceText = isRestaurant && _distanceToRestaurant != null
+        ? (_distanceToRestaurant! > 450
+            ? 'المسافة المتبقية: ${_distanceToRestaurant!.round()} متر'
+            : 'أنت قريب من المطعم — الزر جاهز للاستخدام')
+        : null;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -215,9 +298,21 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
               color: isRestaurant ? Colors.orange : AppColors.primary),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              isRestaurant ? 'توجّه إلى المطعم لاستلام الطلب' : 'توجّه إلى العميل لتسليم الطلب',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isRestaurant ? 'توجّه إلى المطعم لاستلام الطلب' : 'توجّه إلى العميل لتسليم الطلب',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                if (distanceText != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    distanceText,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
