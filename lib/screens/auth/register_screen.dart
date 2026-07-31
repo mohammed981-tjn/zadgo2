@@ -20,6 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _accessCodeCtrl = TextEditingController();
   UserRole _role = UserRole.customer;
   bool _obscure = true;
 
@@ -27,7 +28,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_form.currentState!.validate()) return;
     final auth = context.read<app_auth.AuthProvider>();
     final ok = await auth.register(name: _nameCtrl.text, email: _emailCtrl.text,
-        password: _passCtrl.text, phone: _phoneCtrl.text, role: _role);
+        password: _passCtrl.text, phone: _phoneCtrl.text, role: _role,
+        accessCode: _accessCodeCtrl.text);
     if (!mounted) return;
     if (ok) {
       Widget dest;
@@ -40,6 +42,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } else {
       showError(context, auth.error ?? 'فشل التسجيل');
     }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _passCtrl.dispose();
+    _accessCodeCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -73,6 +85,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _chip(UserRole.driver, '🛵 سائق'), const SizedBox(width: 10),
           _chip(UserRole.admin, '👨‍💼 مدير'),
         ]),
+        if (_role != UserRole.customer) ...[
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _accessCodeCtrl,
+            obscureText: true,
+            textDirection: TextDirection.ltr,
+            decoration: InputDecoration(
+              labelText: _role == UserRole.driver ? 'رمز التسجيل للسائق' : 'رمز التسجيل للمدير',
+              prefixIcon: const Icon(Icons.lock_outline),
+              hintText: _role == UserRole.driver
+                  ? 'أدخل الرمز المخصص للسائق'
+                  : 'أدخل الرمز الخاص لفتح مدير',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _role == UserRole.driver
+                ? 'هذا الخيار متاح فقط بوجود رمز خاص للسائق'
+                : 'هذا الخيار خاص جداً ولا يُفتح إلا برمز خاص',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
         const SizedBox(height: 28),
         SizedBox(width: double.infinity, height: 52, child: ElevatedButton(
             onPressed: auth.loading ? null : _register,

@@ -42,12 +42,37 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  static const String driverAccessCode = 'DRIVER2026';
+  static const String adminAccessCode = 'ADMIN2026';
+
+  String? validateRoleAccess(UserRole role, String? accessCode) {
+    switch (role) {
+      case UserRole.customer:
+        return null;
+      case UserRole.driver:
+        final code = accessCode?.trim() ?? '';
+        if (code.isEmpty) return 'رمز التسجيل للسائق مطلوب';
+        if (code != driverAccessCode) return 'رمز التسجيل للسائق غير صحيح';
+        return null;
+      case UserRole.admin:
+        final code = accessCode?.trim() ?? '';
+        if (code.isEmpty) return 'رمز التسجيل للمدير مطلوب';
+        if (code != adminAccessCode) return 'رمز التسجيل للمدير غير صحيح';
+        return null;
+    }
+  }
+
   Future<bool> register({
     required String name, required String email, required String password,
-    required String phone, required UserRole role,
+    required String phone, required UserRole role, String? accessCode,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
+      final roleAccessError = validateRoleAccess(role, accessCode);
+      if (roleAccessError != null) {
+        _error = roleAccessError; _loading = false; notifyListeners();
+        return false;
+      }
       final cred = await _service.register(email.trim(), password.trim());
       final uid = cred.user!.uid;
       final newUser = AppUser(uid: uid, name: name.trim(), email: email.trim(),
