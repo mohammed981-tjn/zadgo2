@@ -151,7 +151,6 @@ class FirebaseService {
     batch.update(_orders.doc(orderId), {
       'driverId': driverId,
       'driverName': driverName,
-      'status': models.OrderStatus.outForDelivery.name,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
