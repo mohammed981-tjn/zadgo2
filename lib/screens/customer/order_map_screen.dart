@@ -40,7 +40,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
     }
   }
 
-  bool get _canPickup => _distanceToRestaurant == null || _distanceToRestaurant! <= 450;
+  bool get _canPickup => _distanceToRestaurant != null && _distanceToRestaurant! <= 450;
 
   @override
   void initState() {
@@ -126,16 +126,6 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
       points.add(Marker(
         point: p, width: 64, height: 64,
         child: _buildPin(icon: Icons.location_on, color: AppColors.primary, highlighted: _headingToCustomer),
-      ));
-    }
-
-    if (_currentPosition != null) {
-      points.add(Marker(
-        point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude), width: 50, height: 50,
-        child: Container(
-          decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-          child: const Icon(Icons.navigation, color: Colors.white, size: 22),
-        ),
       ));
     }
 
