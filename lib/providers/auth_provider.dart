@@ -45,6 +45,7 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> register({
     required String name, required String email, required String password,
     required String phone, required UserRole role,
+    bool bypassApproval = false,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
@@ -52,12 +53,12 @@ class AuthProvider extends ChangeNotifier {
       final uid = cred.user!.uid;
       final newUser = AppUser(uid: uid, name: name.trim(), email: email.trim(),
           phone: phone.trim(), role: role, createdAt: DateTime.now(),
-          // Drivers start unapproved until an admin reviews their application.
-          isApproved: role != UserRole.driver);
+          // Drivers start unapproved unless they registered with a valid invite code.
+          isApproved: bypassApproval || role != UserRole.driver);
       await _service.createUser(newUser);
       if (role == UserRole.driver) {
         await _service.addDriver(Driver(id: uid, name: name.trim(), phone: phone.trim(),
-            vehicleType: 'دراجة نارية', isApproved: false));
+            vehicleType: 'دراجة نارية', isApproved: bypassApproval));
       }
       _user = newUser; _loading = false; notifyListeners();
       return true;

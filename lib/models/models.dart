@@ -1,4 +1,5 @@
 // lib/models/models.dart
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 
@@ -684,4 +685,51 @@ class CartItem {
   String? extras;
   CartItem({required this.item, this.quantity = 1, this.extras});
   double get subtotal => item.price * quantity;
+}
+
+// ── Invite Code ───────────────────────────────────────────────────────────────
+
+class InviteCode {
+  final String id;
+  final String code;
+  final UserRole role;
+  final bool isUsed;
+  final String? usedBy;
+  final DateTime createdAt;
+
+  const InviteCode({
+    required this.id,
+    required this.code,
+    required this.role,
+    required this.isUsed,
+    this.usedBy,
+    required this.createdAt,
+  });
+
+  factory InviteCode.fromMap(Map<String, dynamic> map, String id) => InviteCode(
+        id: id,
+        code: map['code'] as String? ?? '',
+        role: UserRole.values.firstWhere(
+          (r) => r.name == map['role'],
+          orElse: () => UserRole.customer,
+        ),
+        isUsed: map['isUsed'] as bool? ?? false,
+        usedBy: map['usedBy'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'code': code,
+        'role': role.name,
+        'isUsed': isUsed,
+        if (usedBy != null) 'usedBy': usedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+
+  /// Generates a random 8-character invite code using unambiguous characters.
+  static String generate() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    final rng = Random.secure();
+    return List.generate(8, (_) => chars[rng.nextInt(chars.length)]).join();
+  }
 }

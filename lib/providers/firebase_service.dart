@@ -13,6 +13,7 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
+  CollectionReference<Map<String, dynamic>> get _inviteCodes => _db.collection('invite_codes');
 
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
@@ -253,4 +254,52 @@ class FirebaseService {
 
   Future<void> sendChatMessage(models.ChatMessage message) =>
       _messages.doc(message.id).set(message.toMap());
+
+  // ── Invite Codes ──────────────────────────────────────────────────────────
+
+  /// Generates a unique invite code for [role] and stores it in Firestore.
+  /// Returns the plain code string.
+  Future<String> generateInviteCode(models.UserRole role) async {
+    final code = models.InviteCode.generate();
+    final doc = _inviteCodes.doc();
+    final inviteCode = models.InviteCode(
+      id: doc.id,
+      code: code,
+      role: role,
+      isUsed: false,
+      createdAt: DateTime.now(),
+    );
+    await doc.set(inviteCode.toMap());
+    return code;
+  }
+
+  /// Returns the [InviteCode] if it exists and has not been used, else null.
+  Future<models.InviteCode?> validateInviteCode(String code) async {
+    final query = await _inviteCodes
+        .where('code', isEqualTo: code.trim().toUpperCase())
+        .where('isUsed', isEqualTo: false)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) return null;
+    final doc = query.docs.first;
+    return models.InviteCode.fromMap(doc.data(), doc.id);
+  }
+
+  /// Marks the invite code document as used by [uid].
+  Future<void> consumeInviteCode(String inviteCodeId, String uid) =>
+      _inviteCodes.doc(inviteCodeId).update({'isUsed': true, 'usedBy': uid});
+
+  /// Streams all invite codes ordered by creation date (newest first).
+  Stream<List<models.InviteCode>> streamInviteCodes() => _inviteCodes
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.InviteCode.fromMap(d.data(), d.id))
+          .toList());
+
+  // ── Password Reset ────────────────────────────────────────────────────────
+
+  /// Sends a Firebase password-reset email to [email].
+  Future<void> sendPasswordResetEmail(String email) =>
+      _auth.sendPasswordResetEmail(email: email.trim());
 }

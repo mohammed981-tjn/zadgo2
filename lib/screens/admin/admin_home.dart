@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
@@ -42,7 +43,7 @@ class _AdminHomeState extends State<AdminHome> {
         ),
       ]),
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ChatsTab(), _ComplaintsTab(),
+        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ChatsTab(), _ComplaintsTab(), _UsersTab(),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
@@ -52,6 +53,7 @@ class _AdminHomeState extends State<AdminHome> {
           NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'المحادثات'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
+          NavigationDestination(icon: Icon(Icons.manage_accounts_outlined), label: 'المستخدمون'),
         ]),
     );
   }
@@ -440,5 +442,221 @@ class _ComplaintsTab extends StatelessWidget {
         ));
       });
     });
+  }
+}
+
+// ── Users Management Tab ──────────────────────────────────────────────────────
+
+class _UsersTab extends StatefulWidget {
+  const _UsersTab();
+  @override
+  State<_UsersTab> createState() => _UsersTabState();
+}
+
+class _UsersTabState extends State<_UsersTab> {
+  final _resetEmailCtrl = TextEditingController();
+  bool _sendingReset = false;
+
+  @override
+  void dispose() {
+    _resetEmailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _generateCode(UserRole role) async {
+    final service = context.read<FirebaseService>();
+    try {
+      final code = await service.generateInviteCode(role);
+      if (!mounted) return;
+      _showCodeDialog(code, role);
+    } catch (_) {
+      if (!mounted) return;
+      showError(context, 'فشل توليد الرمز، حاول مجدداً');
+    }
+  }
+
+  void _showCodeDialog(String code, UserRole role) {
+    final label = role == UserRole.admin ? 'المدير' : 'السائق';
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('رمز دعوة $label'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(
+            'شارك هذا الرمز مع $label الجديد ليستخدمه عند التسجيل',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.textGray, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.primary, width: 2),
+            ),
+            child: Text(
+              code,
+              style: const TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 6,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            icon: const Icon(Icons.copy_outlined, size: 16),
+            label: const Text('نسخ الرمز'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: code));
+              Navigator.pop(context);
+              showSuccess(context, 'تم نسخ الرمز ✅');
+            },
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendPasswordReset() async {
+    final email = _resetEmailCtrl.text.trim();
+    if (email.isEmpty) { showError(context, 'أدخل البريد الإلكتروني'); return; }
+    setState(() => _sendingReset = true);
+    try {
+      await context.read<FirebaseService>().sendPasswordResetEmail(email);
+      if (!mounted) return;
+      _resetEmailCtrl.clear();
+      showSuccess(context, 'تم إرسال رابط إعادة التعيين إلى $email');
+    } catch (_) {
+      if (!mounted) return;
+      showError(context, 'فشل الإرسال. تحقق من صحة البريد الإلكتروني.');
+    } finally {
+      if (mounted) setState(() => _sendingReset = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      // ── توليد رموز الدعوة ─────────────────────────────────────────────────
+      const SectionHeader(title: '🔑 رموز الدعوة'),
+      const SizedBox(height: 4),
+      const Text(
+        'ولّد رمزاً خاصاً وشاركه مع المستخدم الجديد ليستخدمه عند التسجيل',
+        style: TextStyle(color: AppColors.textGray, fontSize: 12),
+      ),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.admin_panel_settings_outlined, size: 18),
+            label: const Text('رمز مدير'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondary),
+            onPressed: () => _generateCode(UserRole.admin),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.delivery_dining_outlined, size: 18),
+            label: const Text('رمز سائق'),
+            onPressed: () => _generateCode(UserRole.driver),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 24),
+
+      // ── إعادة تعيين كلمة المرور ───────────────────────────────────────────
+      const SectionHeader(title: '🔒 إعادة تعيين كلمة المرور'),
+      const SizedBox(height: 4),
+      const Text(
+        'أرسل رابط إعادة تعيين كلمة المرور لأي مستخدم (عميل، سائق، مدير)',
+        style: TextStyle(color: AppColors.textGray, fontSize: 12),
+      ),
+      const SizedBox(height: 10),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          child: TextField(
+            controller: _resetEmailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            textDirection: TextDirection.ltr,
+            decoration: const InputDecoration(
+              labelText: 'البريد الإلكتروني للمستخدم',
+              prefixIcon: Icon(Icons.email_outlined),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          height: 56,
+          child: _sendingReset
+              ? const Center(child: SizedBox(width: 24, height: 24,
+                  child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2)))
+              : ElevatedButton(onPressed: _sendPasswordReset, child: const Text('إرسال')),
+        ),
+      ]),
+      const SizedBox(height: 24),
+
+      // ── قائمة الرموز المُولَّدة ───────────────────────────────────────────
+      const SectionHeader(title: '📋 الرموز المُولَّدة'),
+      const SizedBox(height: 8),
+      StreamBuilder<List<InviteCode>>(
+        stream: service.streamInviteCodes(),
+        builder: (ctx, snap) {
+          if (!snap.hasData) return const AppLoading();
+          final codes = snap.data!;
+          if (codes.isEmpty) {
+            return const AppEmpty(emoji: '🔑', title: 'لا توجد رموز بعد',
+                subtitle: 'اضغط أحد الأزرار أعلاه لتوليد رمز جديد');
+          }
+          return Column(
+            children: codes.map((c) {
+              final isAdmin = c.role == UserRole.admin;
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(children: [
+                    Icon(
+                      isAdmin ? Icons.admin_panel_settings_outlined : Icons.delivery_dining_outlined,
+                      color: isAdmin ? AppColors.secondary : AppColors.primary,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(c.code,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 17, letterSpacing: 3)),
+                      const SizedBox(height: 2),
+                      Text(isAdmin ? 'مدير' : 'سائق',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                    ])),
+                    if (!c.isUsed)
+                      IconButton(
+                        icon: const Icon(Icons.copy_outlined, size: 18, color: AppColors.textGray),
+                        tooltip: 'نسخ',
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: c.code));
+                          showSuccess(context, 'تم نسخ الرمز ✅');
+                        },
+                      ),
+                    StatusBadge(
+                      label: c.isUsed ? 'مُستخدَم' : 'متاح',
+                      color: c.isUsed ? Colors.grey : AppColors.success,
+                    ),
+                  ]),
+                ),
+              );
+            }).toList(),
+          );
+        },
+      ),
+    ]);
   }
 }
