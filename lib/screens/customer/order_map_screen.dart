@@ -23,6 +23,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
   Order get order => widget.order;
 
   bool get _headingToRestaurant =>
+      order.status == OrderStatus.pending ||
       order.status == OrderStatus.confirmed ||
       order.status == OrderStatus.preparing ||
       order.status == OrderStatus.readyForPickup;
