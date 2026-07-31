@@ -59,17 +59,22 @@ class _ItemTile extends StatelessWidget {
         if (qty == 0)
           ElevatedButton(
             onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE63946),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            ),
             child: const Text('أضف'),
           )
         else
           Row(children: [
             IconButton(
-              icon: const Icon(Icons.remove_circle_outline, color: AppColors.primary),
+              icon: const Icon(Icons.remove_circle_outline, color: Color(0xFFE63946)),
               onPressed: () => context.read<CartProvider>().remove(item.id),
             ),
             Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 16)),
             IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+              icon: const Icon(Icons.add_circle_outline, color: Color(0xFFE63946)),
               onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
             ),
           ]),
