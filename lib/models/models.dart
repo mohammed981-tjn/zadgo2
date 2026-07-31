@@ -219,7 +219,14 @@ class Restaurant {
   final String emoji;
   final String phone;
   final bool isOpen;
-  final double deliveryFee;
+  /// نصيب السائق من أجرة التوصيل (بدلاً من رقم رسوم توصيل واحد).
+  final double driverShareFee;
+  /// نصيب التطبيق/المنصة من أجرة التوصيل.
+  final double appShareFee;
+  /// أجرة كل كيلومتر إضافي (تُضاف كاملة لنصيب السائق) بعد تجاوز [freeKm].
+  final double perKmFee;
+  /// عدد الكيلومترات المشمولة ضمن أجرة التوصيل الأساسية دون رسوم إضافية.
+  final double freeKm;
   final double minOrder;
   final String address;
   final int estimatedTimeMin;
@@ -235,7 +242,10 @@ class Restaurant {
     required this.emoji,
     required this.phone,
     this.isOpen = true,
-    this.deliveryFee = 5.0,
+    this.driverShareFee = 5.0,
+    this.appShareFee = 0.0,
+    this.perKmFee = 0.0,
+    this.freeKm = 3.0,
     this.minOrder = 20.0,
     required this.address,
     this.estimatedTimeMin = 30,
@@ -245,6 +255,10 @@ class Restaurant {
     this.lng,
   });
 
+  /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الأماكن
+  /// التي كانت تعرض رقماً واحداً فقط.
+  double get deliveryFee => driverShareFee + appShareFee;
+
   factory Restaurant.fromMap(Map<String, dynamic> map, String id) =>
       Restaurant(
         id: id,
@@ -253,7 +267,13 @@ class Restaurant {
         emoji: map['emoji'] as String? ?? '🍽️',
         phone: map['phone'] as String? ?? '',
         isOpen: map['isOpen'] as bool? ?? true,
-        deliveryFee: (map['deliveryFee'] as num?)?.toDouble() ?? 5.0,
+        // توافق مع البيانات القديمة التي كانت تخزّن deliveryFee كرقم واحد فقط.
+        driverShareFee: (map['driverShareFee'] as num?)?.toDouble() ??
+            (map['deliveryFee'] as num?)?.toDouble() ??
+            5.0,
+        appShareFee: (map['appShareFee'] as num?)?.toDouble() ?? 0.0,
+        perKmFee: (map['perKmFee'] as num?)?.toDouble() ?? 0.0,
+        freeKm: (map['freeKm'] as num?)?.toDouble() ?? 3.0,
         minOrder: (map['minOrder'] as num?)?.toDouble() ?? 20.0,
         address: map['address'] as String? ?? '',
         estimatedTimeMin: (map['estimatedTimeMin'] as num?)?.toInt() ?? 30,
@@ -269,6 +289,11 @@ class Restaurant {
         'emoji': emoji,
         'phone': phone,
         'isOpen': isOpen,
+        'driverShareFee': driverShareFee,
+        'appShareFee': appShareFee,
+        'perKmFee': perKmFee,
+        'freeKm': freeKm,
+        // نُبقي على الحقل القديم مؤقتاً لتوافق النسخ الأقدم من التطبيق.
         'deliveryFee': deliveryFee,
         'minOrder': minOrder,
         'address': address,
@@ -493,7 +518,10 @@ class Order {
   final String? driverId;
   final String? driverName;
   final String? notes;
-  final double deliveryFee;
+  /// نصيب السائق من أجرة التوصيل لهذا الطلب (بدلاً من رقم رسوم توصيل واحد).
+  final double driverShare;
+  /// نصيب التطبيق/المنصة من أجرة التوصيل لهذا الطلب.
+  final double appShare;
   final String orderNumber;
   final double? customerRating;
   final String? customerReview;
@@ -522,7 +550,8 @@ class Order {
     this.driverId,
     this.driverName,
     this.notes,
-    this.deliveryFee = 5.0,
+    this.driverShare = 5.0,
+    this.appShare = 0.0,
     required this.orderNumber,
     this.customerRating,
     this.customerReview,
@@ -535,6 +564,9 @@ class Order {
     this.restaurantLng,
   });
 
+  /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الحسابات
+  /// السابقة التي كانت تعتمد رقماً واحداً.
+  double get deliveryFee => driverShare + appShare;
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
   double get grandTotal => itemsTotal + deliveryFee;
   double get calculatedCommission => itemsTotal * 0.01;
@@ -564,7 +596,11 @@ class Order {
         driverId: map['driverId'] as String?,
         driverName: map['driverName'] as String?,
         notes: map['notes'] as String?,
-        deliveryFee: (map['deliveryFee'] as num?)?.toDouble() ?? 5.0,
+        // توافق مع الطلبات القديمة التي كانت تخزّن deliveryFee كرقم واحد فقط.
+        driverShare: (map['driverShare'] as num?)?.toDouble() ??
+            (map['deliveryFee'] as num?)?.toDouble() ??
+            5.0,
+        appShare: (map['appShare'] as num?)?.toDouble() ?? 0.0,
         orderNumber: (map['orderNumber'] as String?) ?? id.substring(0, 6).toUpperCase(),
         customerRating: (map['customerRating'] as num?)?.toDouble(),
         customerReview: map['customerReview'] as String?,
@@ -593,6 +629,9 @@ class Order {
         'driverId': driverId,
         'driverName': driverName,
         'notes': notes,
+        'driverShare': driverShare,
+        'appShare': appShare,
+        // نُبقي على الحقل القديم مؤقتاً لتوافق النسخ الأقدم من التطبيق.
         'deliveryFee': deliveryFee,
         'orderNumber': orderNumber,
         'customerRating': customerRating,
@@ -766,6 +805,48 @@ class DriverReassignment {
         'newDriverName': newDriverName,
         'reason': reason,
         'performedBy': performedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
+/// جمهور الرسالة الجماعية (البث): كل السائقين أو كل العملاء، كل مجموعة منفصلة
+/// تماماً عن الأخرى ولا علاقة لها بدردشة الطلب بين العميل والسائق.
+enum BroadcastAudience { drivers, customers }
+
+class BroadcastMessage {
+  final String id;
+  final BroadcastAudience audience;
+  final String title;
+  final String body;
+  final String sentBy;
+  final DateTime createdAt;
+
+  const BroadcastMessage({
+    required this.id,
+    required this.audience,
+    required this.title,
+    required this.body,
+    required this.sentBy,
+    required this.createdAt,
+  });
+
+  factory BroadcastMessage.fromMap(Map<String, dynamic> map, String id) => BroadcastMessage(
+        id: id,
+        audience: BroadcastAudience.values.firstWhere(
+          (a) => a.name == map['audience'],
+          orElse: () => BroadcastAudience.customers,
+        ),
+        title: map['title'] as String? ?? '',
+        body: map['body'] as String? ?? '',
+        sentBy: map['sentBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'audience': audience.name,
+        'title': title,
+        'body': body,
+        'sentBy': sentBy,
         'createdAt': Timestamp.fromDate(createdAt),
       };
 }

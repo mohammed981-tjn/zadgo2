@@ -130,6 +130,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final restaurant = await service.getRestaurantOnce(cart.restaurantId!);
 
+    // إجبار تقريب الكيلومترات الإضافية للأعلى (بدون كسور) عند حساب أجرة المسافة.
+    double extraKmFee = 0;
+    if (restaurant != null && restaurant.lat != null && restaurant.lng != null) {
+      final distanceKm = haversineDistanceKm(restaurant.lat!, restaurant.lng!, _lat!, _lng!);
+      extraKmFee = calculateExtraKmFee(distanceKm, restaurant.freeKm, restaurant.perKmFee);
+    }
+
     final order = Order(
       id: orderId,
       restaurantId: cart.restaurantId!,
@@ -142,7 +149,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentMethod: _payment,
       isPaid: _payment != PaymentMethod.cash,
       createdAt: DateTime.now(),
-      deliveryFee: cart.deliveryFee,
+      driverShare: cart.driverShare + extraKmFee,
+      appShare: cart.appShare,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
       platformCommission: cart.platformCommission,
       deliveryLat: _lat,

@@ -91,7 +91,8 @@ class _RestaurantCard extends StatelessWidget {
                 InfoRow(icon: Icons.location_on_outlined, text: restaurant.address),
                 InfoRow(
                   icon: Icons.delivery_dining,
-                  text: 'رسوم التوصيل: ${formatCurrency(restaurant.deliveryFee)}',
+                  text:
+                      'أجرة التوصيل: نصيب السائق ${formatCurrency(restaurant.driverShareFee)} + نصيب التطبيق ${formatCurrency(restaurant.appShareFee)}',
                 ),
                 InfoRow(
                   icon: Icons.timer_outlined,
@@ -158,7 +159,7 @@ class _RestaurantForm extends StatefulWidget {
 class _RestaurantFormState extends State<_RestaurantForm> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _name, _desc, _phone, _addr,
-      _fee, _min, _time, _emoji;
+      _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji;
   bool _loading = false;
   double? _lat, _lng;
 
@@ -170,7 +171,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _desc  = TextEditingController(text: r?.description ?? '');
     _phone = TextEditingController(text: r?.phone ?? '');
     _addr  = TextEditingController(text: r?.address ?? '');
-    _fee   = TextEditingController(text: r?.deliveryFee.toString() ?? '5');
+    _driverFee = TextEditingController(text: r?.driverShareFee.toString() ?? '5');
+    _appFee    = TextEditingController(text: r?.appShareFee.toString() ?? '0');
+    _perKm = TextEditingController(text: r?.perKmFee.toString() ?? '0');
+    _freeKm = TextEditingController(text: r?.freeKm.toString() ?? '3');
     _min   = TextEditingController(text: r?.minOrder.toString() ?? '20');
     _time  = TextEditingController(text: r?.estimatedTimeMin.toString() ?? '30');
     _emoji = TextEditingController(text: r?.emoji ?? '🍽️');
@@ -180,7 +184,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _desc, _phone, _addr, _fee, _min, _time, _emoji]) {
+    for (final c in [_name, _desc, _phone, _addr, _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji]) {
       c.dispose();
     }
     super.dispose();
@@ -214,7 +218,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       emoji: _emoji.text.trim(),
       phone: _phone.text.trim(),
       address: _addr.text.trim(),
-      deliveryFee: double.tryParse(_fee.text) ?? 5,
+      driverShareFee: double.tryParse(_driverFee.text) ?? 5,
+      appShareFee: double.tryParse(_appFee.text) ?? 0,
+      perKmFee: double.tryParse(_perKm.text) ?? 0,
+      freeKm: double.tryParse(_freeKm.text) ?? 3,
       minOrder: double.tryParse(_min.text) ?? 20,
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
@@ -264,11 +271,20 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 _f(_phone, 'رقم الهاتف', type: TextInputType.phone),
                 _f(_addr, 'العنوان'),
                 Row(children: [
-                  Expanded(child: _f(_fee, 'رسوم التوصيل', type: TextInputType.number, validator: validatePrice)),
+                  Expanded(child: _f(_driverFee, 'نصيب السائق', type: TextInputType.number, validator: validatePrice)),
                   const SizedBox(width: 10),
-                  Expanded(child: _f(_min, 'الحد الأدنى', type: TextInputType.number, validator: validatePrice)),
+                  Expanded(child: _f(_appFee, 'نصيب التطبيق', type: TextInputType.number, validator: validatePrice)),
                 ]),
-                _f(_time, 'وقت التوصيل (دقيقة)', type: TextInputType.number),
+                Row(children: [
+                  Expanded(child: _f(_perKm, 'أجرة الكيلومتر الإضافي', type: TextInputType.number, isReq: false)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _f(_freeKm, 'الكيلومترات المجانية', type: TextInputType.number, isReq: false)),
+                ]),
+                Row(children: [
+                  Expanded(child: _f(_min, 'الحد الأدنى', type: TextInputType.number, validator: validatePrice)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _f(_time, 'وقت التوصيل (دقيقة)', type: TextInputType.number)),
+                ]),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: _pickLocation,

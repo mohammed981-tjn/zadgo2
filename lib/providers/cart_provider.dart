@@ -4,16 +4,19 @@ import '../models/models.dart';
 class CartProvider extends ChangeNotifier {
   final List<CartItem> _items = [];
   String? _restaurantId, _restaurantName, _restaurantEmoji;
-  double _deliveryFee = 5.0;
+  double _driverShare = 5.0;
+  double _appShare = 0.0;
 
   List<CartItem> get items => List.unmodifiable(_items);
   String? get restaurantId => _restaurantId;
   String? get restaurantName => _restaurantName;
   String? get restaurantEmoji => _restaurantEmoji;
-  double get deliveryFee => _deliveryFee;
+  double get driverShare => _driverShare;
+  double get appShare => _appShare;
+  double get deliveryFee => _driverShare + _appShare;
   bool get isEmpty => _items.isEmpty;
   double get itemsTotal => _items.fold(0.0, (s, i) => s + i.subtotal);
-  double get grandTotal => itemsTotal + _deliveryFee;
+  double get grandTotal => itemsTotal + deliveryFee;
   int get itemCount => _items.fold(0, (s, i) => s + i.quantity);
   double get vat => itemsTotal * 0.15;
   double get grandTotalWithVat => grandTotal + vat;
@@ -24,9 +27,10 @@ class CartProvider extends ChangeNotifier {
     catch (_) { return 0; }
   }
 
-  void add(MenuItem item, String rId, String rName, String rEmoji, double fee) {
+  void add(MenuItem item, String rId, String rName, String rEmoji, double driverShare, [double appShare = 0.0]) {
     if (_restaurantId != null && _restaurantId != rId) _items.clear();
-    _restaurantId = rId; _restaurantName = rName; _restaurantEmoji = rEmoji; _deliveryFee = fee;
+    _restaurantId = rId; _restaurantName = rName; _restaurantEmoji = rEmoji;
+    _driverShare = driverShare; _appShare = appShare;
     final idx = _items.indexWhere((i) => i.item.id == item.id);
     if (idx >= 0) { _items[idx].quantity++; } else { _items.add(CartItem(item: item)); }
     notifyListeners();

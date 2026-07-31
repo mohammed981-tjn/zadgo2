@@ -7,9 +7,11 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../customer/order_map_screen.dart';
 import 'admin_restaurants_tab.dart';
 import 'admin_users_tab.dart';
 import 'order_tracking_tab.dart';
+import 'broadcast_tab.dart';
 
 class AdminHome extends StatefulWidget {
   const AdminHome({super.key});
@@ -31,7 +33,7 @@ class _AdminHomeState extends State<AdminHome> {
         }),
       ]),
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), OrderTrackingTab(), _DriversTab(), _ComplaintsTab(), AdminUsersTab(),
+        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), OrderTrackingTab(), _DriversTab(), _ComplaintsTab(), BroadcastTab(), AdminUsersTab(),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
@@ -41,6 +43,7 @@ class _AdminHomeState extends State<AdminHome> {
           NavigationDestination(icon: Icon(Icons.gps_fixed_outlined), label: 'المتابعة الحية'),
           NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
+          NavigationDestination(icon: Icon(Icons.campaign_outlined), label: 'بث جماعي'),
           NavigationDestination(icon: Icon(Icons.people_outline), label: 'المستخدمون'),
         ]),
     );
@@ -116,14 +119,41 @@ class _OrdersTab extends StatelessWidget {
               StreamBuilder<List<Driver>>(stream: service.streamDrivers(), builder: (ctx2, dSnap) {
                 final drivers = (dSnap.data ?? []).where((d) => d.isAvailable && d.isOnline).toList();
                 if (drivers.isEmpty) return const Text('لا يوجد سائقون متاحون', style: TextStyle(color: Colors.orange));
-                return Wrap(spacing: 8, children: drivers.map((d) => ActionChip(label: Text(d.name),
-                    onPressed: () => service.assignDriver(o.id, d.id, d.name))).toList());
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.bolt_outlined),
+                      label: const Text('تعيين تلقائي (أقرب سائق متاح)'),
+                      onPressed: () async {
+                        final assigned = await service.autoAssignNearestDriver(o);
+                        if (!assigned && context.mounted) showError(context, 'تعذّر إيجاد سائق متاح مناسب');
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 8, children: drivers.map((d) => ActionChip(label: Text(d.name),
+                      onPressed: () => service.assignDriver(o.id, d.id, d.name))).toList()),
+                ]);
               }),
             if (o.status == OrderStatus.outForDelivery)
               SizedBox(width: double.infinity, child: ElevatedButton(
                   onPressed: () => service.markOrderDelivered(o.id, o.driverId ?? ''),
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
                   child: const Text('تأكيد التوصيل'))),
+            if (o.driverId != null && o.driverId!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('تتبع موقع السائق'),
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => OrderMapScreen(order: o))),
+                  ),
+                ),
+              ),
           ])));
       });
     });

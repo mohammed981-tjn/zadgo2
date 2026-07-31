@@ -10,7 +10,11 @@ import '../../utils/helpers.dart';
 
 class OrderMapScreen extends StatefulWidget {
   final Order order;
-  const OrderMapScreen({super.key, required this.order});
+  /// عندما تكون true (الافتراضي) تُعرض الخريطة للمتابعة فقط دون أزرار تغيير حالة
+  /// الطلب (استلمت الطلب / تم التوصيل) — تُستخدم للعميل والمطعم ولوحة المدير.
+  /// السائق فقط هو من يستخدم readOnly=false لتمكين أزرار الإجراء.
+  final bool readOnly;
+  const OrderMapScreen({super.key, required this.order, this.readOnly = true});
 
   @override
   State<OrderMapScreen> createState() => _OrderMapScreenState();
@@ -151,8 +155,8 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة)
-              if (_headingToRestaurant)
+              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة) — لا يظهر إلا للسائق (readOnly = false)
+              if (!widget.readOnly && _headingToRestaurant)
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
@@ -167,7 +171,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                     label: const Text('استلمت الطلب'),
                   ),
                 ),
-              if (_headingToCustomer)
+              if (!widget.readOnly && _headingToCustomer)
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
@@ -176,7 +180,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                       if (ok == true) {
                         await service.markOrderDelivered(order.id, order.driverId ?? '');
                         if (context.mounted) {
-                          showSuccess(context, 'تم التوصيل! +10 ر.س أرباح');
+                          showSuccess(context, 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
                           Navigator.pop(context);
                         }
                       }

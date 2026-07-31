@@ -76,3 +76,27 @@ class PriceRow extends StatelessWidget {
           color: bold ? AppColors.primary : AppColors.textDark)),
     ]));
 }
+
+class BroadcastBanner extends StatelessWidget {
+  final String title;
+  final String body;
+  const BroadcastBanner({super.key, required this.title, required this.body});
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: AppColors.primary.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Icon(Icons.campaign_outlined, color: AppColors.primary),
+      const SizedBox(width: 10),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(body, style: const TextStyle(fontSize: 13)),
+      ])),
+    ]),
+  );
+}

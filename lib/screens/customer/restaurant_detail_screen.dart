@@ -58,7 +58,7 @@ class _ItemTile extends StatelessWidget {
         ])),
         if (qty == 0)
           ElevatedButton(
-            onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+            onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.driverShareFee, restaurant.appShareFee),
             child: const Text('أضف'),
           )
         else
@@ -70,7 +70,7 @@ class _ItemTile extends StatelessWidget {
             Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 16)),
             IconButton(
               icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
-              onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+              onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.driverShareFee, restaurant.appShareFee),
             ),
           ]),
       ]));

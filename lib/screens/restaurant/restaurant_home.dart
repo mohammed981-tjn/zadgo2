@@ -12,6 +12,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../customer/order_map_screen.dart';
 
 class RestaurantHome extends StatelessWidget {
   const RestaurantHome({super.key});
@@ -79,17 +80,14 @@ class _RestaurantOrdersList extends StatelessWidget {
                   InfoRow(icon: Icons.person, text: o.customerName),
                   Text(formatCurrency(o.grandTotal),
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  // ملاحظة: تم إزالة زر "رفض/إلغاء الطلب" نهائياً من شاشة المطعم بناءً على
+                  // طلب المنصة — إلغاء الطلب لا يظهر إلا في شاشة الطلبات بلوحة المدير العام.
                   if (o.status == OrderStatus.pending)
-                    Row(children: [
-                      Expanded(
-                          child: ElevatedButton(
-                              onPressed: () => service.updateOrderStatus(o.id, OrderStatus.confirmed),
-                              child: const Text('تأكيد'))),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: OutlinedButton(
-                              onPressed: () => service.cancelOrder(o.id), child: const Text('رفض'))),
-                    ]),
+                    SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                            onPressed: () => service.updateOrderStatus(o.id, OrderStatus.confirmed),
+                            child: const Text('تأكيد'))),
                   if (o.status == OrderStatus.confirmed)
                     SizedBox(
                         width: double.infinity,
@@ -102,6 +100,20 @@ class _RestaurantOrdersList extends StatelessWidget {
                         child: ElevatedButton(
                             onPressed: () => service.updateOrderStatus(o.id, OrderStatus.readyForPickup),
                             child: const Text('جاهز للاستلام'))),
+                  // خريطة تتبع السائق فقط (بدون أي زر لإلغاء الطلب أو تأكيد التوصيل)
+                  if (o.driverId != null && o.driverId!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.map_outlined),
+                          label: const Text('تتبع موقع السائق'),
+                          onPressed: () => Navigator.push(context,
+                              MaterialPageRoute(builder: (_) => OrderMapScreen(order: o))),
+                        ),
+                      ),
+                    ),
                 ]),
               ),
             );

@@ -11,6 +11,7 @@ import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../customer/order_map_screen.dart';
 
 class OrderTrackingTab extends StatelessWidget {
   const OrderTrackingTab({super.key});
@@ -85,6 +86,18 @@ class _TrackedOrderCard extends StatelessWidget {
                 icon: const Icon(Icons.swap_horiz),
                 label: const Text('تحويل الطلب لسائق آخر'),
                 onPressed: () => _showReassignDialog(context, service, order),
+              ),
+            ),
+          ],
+          if (order.driverId != null && order.driverId!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('تتبع موقع السائق على الخريطة'),
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
               ),
             ),
           ],

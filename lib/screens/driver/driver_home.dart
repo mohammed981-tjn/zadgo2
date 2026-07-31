@@ -76,9 +76,22 @@ class _DriverHomeState extends State<DriverHome> {
               }),
             ],
           ),
-          body: IndexedStack(index: _tab, children: [
-            _AvailableOrdersTab(driverId: driverId, driver: driver),
-            _DriverEarningsTab(driver: driver),
+          body: Column(children: [
+            StreamBuilder<List<BroadcastMessage>>(
+              stream: service.streamBroadcasts(BroadcastAudience.drivers),
+              builder: (ctx, snap) {
+                final list = snap.data;
+                if (list == null || list.isEmpty) return const SizedBox.shrink();
+                final latest = list.first;
+                return BroadcastBanner(title: latest.title, body: latest.body);
+              },
+            ),
+            Expanded(
+              child: IndexedStack(index: _tab, children: [
+                _AvailableOrdersTab(driverId: driverId, driver: driver),
+                _DriverEarningsTab(driver: driver),
+              ]),
+            ),
           ]),
           bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
             destinations: const [
@@ -191,7 +204,7 @@ class _OrderCard extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false))),
               ),
             ],
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
@@ -221,7 +234,7 @@ class _OrderCard extends StatelessWidget {
             await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false)),
             );
           }
         },
@@ -241,7 +254,7 @@ class _OrderCard extends StatelessWidget {
             await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false)),
             );
           }
         },
@@ -255,7 +268,7 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
           if (ok == true) {
             await service.markOrderDelivered(order.id, order.driverId ?? '');
-            if (ctx.mounted) showSuccess(ctx, 'تم التوصيل! +10 ر.س أرباح');
+            if (ctx.mounted) showSuccess(ctx, 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
           }
         },
         style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),

@@ -36,7 +36,18 @@ class _CustomerHomeState extends State<CustomerHome> {
           if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
         }),
       ]),
-      body: IndexedStack(index: _tab, children: const [_RestaurantsPage(), MyOrdersScreen()]),
+      body: Column(children: [
+        StreamBuilder<List<BroadcastMessage>>(
+          stream: context.read<FirebaseService>().streamBroadcasts(BroadcastAudience.customers),
+          builder: (ctx, snap) {
+            final list = snap.data;
+            if (list == null || list.isEmpty) return const SizedBox.shrink();
+            final latest = list.first;
+            return BroadcastBanner(title: latest.title, body: latest.body);
+          },
+        ),
+        Expanded(child: IndexedStack(index: _tab, children: const [_RestaurantsPage(), MyOrdersScreen()])),
+      ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),

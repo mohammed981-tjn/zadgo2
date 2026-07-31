@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../models/models.dart' as models;
+import '../utils/helpers.dart' show haversineDistanceKm;
 
 class FirebaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -15,6 +16,7 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
   CollectionReference<Map<String, dynamic>> get _reassignments => _db.collection('reassignments');
+  CollectionReference<Map<String, dynamic>> get _broadcasts => _db.collection('broadcasts');
 
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
@@ -232,6 +234,29 @@ class FirebaseService {
     await batch.commit();
   }
 
+  /// خوارزمية تعيين السائق التلقائي: تبحث عن أقرب سائق متصل ومتاح لموقع
+  /// المطعم (باستخدام معادلة Haversine) وتُسند له الطلب تلقائياً.
+  /// تُعيد true إذا تم إيجاد سائق مناسب وتعيينه، أو false إن لم يوجد.
+  Future<bool> autoAssignNearestDriver(models.Order order) async {
+    if (order.restaurantLat == null || order.restaurantLng == null) return false;
+    final driversSnap = await _drivers.get();
+    models.Driver? nearest;
+    double nearestDistance = double.infinity;
+    for (final doc in driversSnap.docs) {
+      final d = models.Driver.fromMap(doc.data(), doc.id);
+      if (!d.isOnline || !d.isAvailable) continue;
+      if (d.lat == null || d.lng == null) continue;
+      final distance = haversineDistanceKm(order.restaurantLat!, order.restaurantLng!, d.lat!, d.lng!);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = d;
+      }
+    }
+    if (nearest == null) return false;
+    await assignDriver(order.id, nearest.id, nearest.name);
+    return true;
+  }
+
   /// تحويل الطلب من سائق إلى آخر (يستخدمها المدير فقط عند الطوارئ)
   /// آلية استقبال الطلب من قبل السائق الأول تبقى دون أي تغيير.
   Future<void> reassignDriver({
@@ -278,9 +303,11 @@ class FirebaseService {
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();
     double commission = 0;
+    double driverPayout = 10;
     if (orderDoc.exists && orderDoc.data() != null) {
       final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
       commission = order.calculatedCommission;
+      driverPayout = order.driverShare;
     }
     final batch = _db.batch();
     batch.update(_orders.doc(orderId), {
@@ -291,7 +318,7 @@ class FirebaseService {
     });
     batch.update(_drivers.doc(driverId), {
       'totalDeliveries': FieldValue.increment(1),
-      'pendingPayout': FieldValue.increment(10),
+      'pendingPayout': FieldValue.increment(driverPayout),
       'isAvailable': true,
     });
     await batch.commit();
@@ -347,4 +374,15 @@ class FirebaseService {
 
   Future<void> sendChatMessage(models.ChatMessage message) =>
       _messages.doc(message.id).set(message.toMap());
+
+  // ✅ البث الجماعي (Broadcast) — رسالة عامة من المدير العام لكل السائقين أو
+  // لكل العملاء دفعة واحدة. شاشة منفصلة تماماً عن دردشة الطلب الفردية.
+  Stream<List<models.BroadcastMessage>> streamBroadcasts(models.BroadcastAudience audience) => _broadcasts
+      .where('audience', isEqualTo: audience.name)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.BroadcastMessage.fromMap(d.data(), d.id)).toList());
+
+  Future<void> sendBroadcast(models.BroadcastMessage message) =>
+      _broadcasts.doc(message.id).set(message.toMap());
 }
