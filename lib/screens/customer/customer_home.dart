@@ -55,20 +55,182 @@ class _RestaurantsPage extends StatelessWidget {
       if (!snap.hasData) return const AppLoading();
       final list = snap.data!;
       if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
-      return ListView.builder(padding: const EdgeInsets.all(16), itemCount: list.length, itemBuilder: (_, i) {
-        final r = list[i];
-        return Card(margin: const EdgeInsets.only(bottom: 12), child: InkWell(
-          onTap: r.isOpen ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: r))) : null,
-          child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
-            Text(r.emoji, style: const TextStyle(fontSize: 34)),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Expanded(child: Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                  StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.restaurantAccent : Colors.grey)]),
-              Text(r.description, maxLines: 1, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
-            ])),
-          ]))));
-      });
+      final openCount = list.where((restaurant) => restaurant.isOpen).length;
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.primary, AppColors.primaryDark],
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
+              ),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.restaurant_menu_rounded, color: Colors.white, size: 28),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'أهلاً بك في DineGo',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$openCount مطعم مفتوح',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'اختر وجبتك المفضلة واطلبها بسرعة مع التوصيل السريع.',
+                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13, height: 1.5),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: const [
+                    _InfoChip(icon: Icons.delivery_dining_rounded, label: 'توصيل سريع'),
+                    _InfoChip(icon: Icons.local_fire_department_rounded, label: 'وجبات ساخنة'),
+                    _InfoChip(icon: Icons.star_rounded, label: 'تقييمات ممتازة'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('المطاعم المتاحة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          ...list.map((restaurant) => _RestaurantCard(restaurant: restaurant)),
+        ],
+      );
     });
+  }
+}
+
+class _RestaurantCard extends StatelessWidget {
+  final Restaurant restaurant;
+
+  const _RestaurantCard({super.key, required this.restaurant});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: restaurant.isOpen
+            ? () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: restaurant)),
+              )
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(restaurant.emoji, style: const TextStyle(fontSize: 28)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            restaurant.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ),
+                        StatusBadge(
+                          label: restaurant.isOpen ? 'مفتوح' : 'مغلق',
+                          color: restaurant.isOpen ? AppColors.restaurantAccent : Colors.grey,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      restaurant.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.textGray, fontSize: 12, height: 1.4),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.delivery_dining_rounded, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${restaurant.estimatedTimeMin} دقيقة',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+                        ),
+                        const SizedBox(width: 12),
+                        Icon(Icons.attach_money_rounded, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'توصيل ${restaurant.deliveryFee.toInt()} ر.س',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _InfoChip({super.key, required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
   }
 }
