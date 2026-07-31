@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
@@ -19,6 +21,52 @@ class OrderMapScreen extends StatefulWidget {
 
 class _OrderMapScreenState extends State<OrderMapScreen> {
   final MapController _mapController = MapController();
+  Position? _driverPosition;
+  StreamSubscription<Position>? _positionSub;
+
+  static const double _pickupRadiusMeters = 300;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isDriverView) _startPositionTracking();
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startPositionTracking() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+      _positionSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+      ).listen((pos) {
+        if (mounted) setState(() => _driverPosition = pos);
+      });
+    } catch (_) {}
+  }
+
+  double? get _distanceToRestaurant {
+    final pos = _driverPosition;
+    if (pos == null || order.restaurantLat == null || order.restaurantLng == null) return null;
+    const calc = Distance();
+    return calc(LatLng(pos.latitude, pos.longitude), LatLng(order.restaurantLat!, order.restaurantLng!));
+  }
+
+  bool get _isNearRestaurant {
+    final d = _distanceToRestaurant;
+    return d != null && d <= _pickupRadiusMeters;
+  }
 
   Order get order => widget.order;
 
@@ -156,16 +204,22 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                     if (_headingToRestaurant)
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final ok = await showConfirmDialog(context,
-                                title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
-                            if (ok == true) {
-                              await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-                              if (context.mounted) Navigator.pop(context);
-                            }
-                          },
+                          onPressed: _isNearRestaurant
+                              ? () async {
+                                  final ok = await showConfirmDialog(context,
+                                      title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
+                                  if (ok == true) {
+                                    await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                                    if (context.mounted) Navigator.pop(context);
+                                  }
+                                }
+                              : null,
                           icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('استلمت الطلب'),
+                          label: Text(_distanceToRestaurant == null
+                              ? 'استلمت الطلب'
+                              : _isNearRestaurant
+                                  ? 'استلمت الطلب'
+                                  : 'اقترب من المطعم (${_distanceToRestaurant!.toInt()} م)'),
                         ),
                       ),
                     if (_headingToCustomer)

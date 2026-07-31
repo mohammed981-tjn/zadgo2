@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -237,6 +239,29 @@ class _OrderCard extends StatelessWidget {
     if (order.status == OrderStatus.readyForPickup) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
+          // فحص القرب من المطعم قبل تأكيد الاستلام
+          if (order.restaurantLat != null && order.restaurantLng != null) {
+            try {
+              bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+              if (serviceEnabled) {
+                LocationPermission permission = await Geolocator.checkPermission();
+                if (permission == LocationPermission.denied) {
+                  permission = await Geolocator.requestPermission();
+                }
+                if (permission != LocationPermission.denied && permission != LocationPermission.deniedForever) {
+                  final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+                  const calc = Distance();
+                  final meters = calc(LatLng(pos.latitude, pos.longitude), LatLng(order.restaurantLat!, order.restaurantLng!));
+                  if (meters > 300) {
+                    if (ctx.mounted) showError(ctx, 'أنت بعيد عن المطعم (${meters.toInt()} م). اقترب أولاً');
+                    return;
+                  }
+                }
+              }
+            } catch (_) {
+              // في حال فشل تحديد الموقع، نكمل بدون فحص
+            }
+          }
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
             await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
