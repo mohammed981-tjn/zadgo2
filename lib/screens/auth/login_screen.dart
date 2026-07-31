@@ -163,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         colors: [zadgoGoldLight, zadgoGold],
                       ).createShader(bounds),
                       child: const Text(
-                        'ZadGo',
+                        'DineGo',
                         style: TextStyle(
                           fontSize: 34,
                           fontWeight: FontWeight.w800,
@@ -174,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'كل احتياجاتك نوصلها لك',
+                      'أشهى الوصفات والتوصيل السريع',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.55),

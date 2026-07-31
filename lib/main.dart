@@ -37,11 +37,11 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  runApp(const ZadGoApp());
+  runApp(const DineGoApp());
 }
 
-class ZadGoApp extends StatelessWidget {
-  const ZadGoApp({super.key});
+class DineGoApp extends StatelessWidget {
+  const DineGoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +58,7 @@ class ZadGoApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: appNavigatorKey,
-        title: 'ZadGo',
+        title: 'DineGo',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         builder: (context, child) => Directionality(

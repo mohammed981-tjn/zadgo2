@@ -6,6 +6,7 @@ import 'auth/login_screen.dart';
 import 'admin/admin_home.dart';
 import 'customer/customer_home.dart';
 import 'driver/driver_home.dart';
+import 'restaurant_welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -40,22 +41,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF040E1A),
-      body: Center(
-        child: SizedBox(
-          width: screenWidth * 0.75,
-          height: screenHeight * 0.75,
-          child: Image.asset(
-            'assets/images/logo_square.png',
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-          ),
-        ),
-      ),
-    );
+    return const RestaurantWelcomeScreen();
   }
 }
