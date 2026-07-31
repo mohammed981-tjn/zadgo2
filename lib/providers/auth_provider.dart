@@ -79,6 +79,36 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// تسجيل ذاتي لمدير مطعم باستخدام رمز تسجيل صادر من المدير العام —
+  /// يربط الحساب الجديد تلقائياً بالمطعم صاحب الرمز.
+  Future<bool> registerRestaurantManagerWithCode({
+    required String code,
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+  }) async {
+    _loading = true; _error = null; notifyListeners();
+    try {
+      final user = await _service.registerRestaurantManagerWithCode(
+        code: code.trim(),
+        name: name.trim(),
+        email: email.trim(),
+        password: password.trim(),
+        phone: phone.trim(),
+      );
+      _user = user; _loading = false; notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = _mapError(e.code); _loading = false; notifyListeners();
+      return false;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      _loading = false; notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     try { await _service.signOut(); } catch (_) {}
     _user = null; notifyListeners();

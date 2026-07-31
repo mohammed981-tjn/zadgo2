@@ -1,4 +1,5 @@
 // lib/providers/firebase_service.dart
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -17,6 +18,8 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
   CollectionReference<Map<String, dynamic>> get _reassignments => _db.collection('reassignments');
   CollectionReference<Map<String, dynamic>> get _broadcasts => _db.collection('broadcasts');
+  CollectionReference<Map<String, dynamic>> get _registrationCodes =>
+      _db.collection('restaurantRegistrationCodes');
 
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
@@ -100,6 +103,100 @@ class FirebaseService {
   /// دون الحاجة لمعرفة كلمة المرور الحالية.
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
+
+  static const String _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  String _randomCode() {
+    final rnd = Random.secure();
+    return List.generate(6, (_) => _codeChars[rnd.nextInt(_codeChars.length)]).join();
+  }
+
+  /// يولّد رمز تسجيل جديد وحيد الاستخدام مرتبط بمطعم محدد، ليُرسله المدير
+  /// العام يدوياً (واتساب/اتصال) لمدير المطعم المستهدف. يستخدم الرمز نفسه
+  /// كمعرّف للمستند لضمان عدم تكرار نفس الرمز لرمزين مختلفين في آن واحد.
+  Future<models.RestaurantRegistrationCode> generateRestaurantRegistrationCode({
+    required String restaurantId,
+    required String restaurantName,
+  }) async {
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final code = _randomCode();
+      final ref = _registrationCodes.doc(code);
+      final existing = await ref.get();
+      if (existing.exists) continue;
+      final entry = models.RestaurantRegistrationCode(
+        code: code,
+        restaurantId: restaurantId,
+        restaurantName: restaurantName,
+        createdAt: DateTime.now(),
+      );
+      await ref.set(entry.toMap());
+      return entry;
+    }
+    throw Exception('تعذّر توليد رمز تسجيل فريد، حاول مرة أخرى');
+  }
+
+  /// رموز التسجيل الخاصة بمطعم محدد (لعرضها/إعادة إرسالها/إلغائها من لوحة المدير).
+  Stream<List<models.RestaurantRegistrationCode>> streamRegistrationCodes(
+          String restaurantId) =>
+      _registrationCodes
+          .where('restaurantId', isEqualTo: restaurantId)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.RestaurantRegistrationCode.fromMap(d.data(), d.id))
+              .toList());
+
+  /// يُبطل رمز تسجيل لم يُستخدم بعد (مثلاً عند إرسال رمز جديد بدلاً منه).
+  Future<void> revokeRegistrationCode(String code) =>
+      _registrationCodes.doc(code.trim().toUpperCase()).delete();
+
+  /// يتحقق من رمز التسجيل عبر معاملة Firestore (Transaction) لضمان استخدامه
+  /// مرة واحدة فقط حتى مع محاولات متزامنة، ثم يُنشئ حساب مدير المطعم ويربطه
+  /// تلقائياً بالمطعم صاحب الرمز. في حال فشل إنشاء الحساب بعد استهلاك الرمز،
+  /// تتم إعادة الرمز إلى حالته غير المستخدم للسماح بمحاولة أخرى.
+  Future<models.AppUser> registerRestaurantManagerWithCode({
+    required String code,
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+  }) async {
+    final ref = _registrationCodes.doc(code.trim().toUpperCase());
+    final claimed = await _db.runTransaction<models.RestaurantRegistrationCode>((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists || snap.data() == null) {
+        throw Exception('رمز التسجيل غير صحيح');
+      }
+      final current = models.RestaurantRegistrationCode.fromMap(snap.data()!, snap.id);
+      if (current.isUsed) {
+        throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+      }
+      tx.update(ref, {'isUsed': true, 'usedAt': FieldValue.serverTimestamp()});
+      return current;
+    });
+
+    try {
+      final cred = await register(email.trim(), password.trim());
+      final uid = cred.user!.uid;
+      final newUser = models.AppUser(
+        uid: uid,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role: models.UserRole.restaurantManager,
+        createdAt: DateTime.now(),
+        restaurantId: claimed.restaurantId,
+        restaurantName: claimed.restaurantName,
+      );
+      await createUser(newUser);
+      await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
+      return newUser;
+    } catch (e) {
+      // فشل إنشاء الحساب بعد استهلاك الرمز — نعيده متاحاً مجدداً.
+      await ref.update({'isUsed': false, 'usedAt': null});
+      rethrow;
+    }
+  }
 
   Stream<List<models.Restaurant>> streamRestaurants() =>
       _restaurants.orderBy('name').snapshots().map(

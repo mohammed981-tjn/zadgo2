@@ -1,10 +1,13 @@
 // lib/screens/admin/admin_users_tab.dart
 //
-// إدارة المستخدمين — يتيح للمدير العام إنشاء/تعديل/تعطيل الحسابات،
-// وربط حسابات "مدير مطعم" الجديدة بمطعم محدد، والتحكم الكامل في بيانات
-// اعتمادها (إعادة تعيين كلمة المرور) بدلاً من ترك ذلك لإدارة المطعم.
+// إدارة المستخدمين — يتيح للمدير العام إدارة الحسابات (تفعيل/تعطيل/حذف/
+// إعادة تعيين كلمة المرور)، وتقييد إنشاء حسابات "مدير مطعم" الجديدة عبر
+// توليد رمز تسجيل وحيد الاستخدام مرتبط بمطعم محدد، يُرسله المدير العام
+// يدوياً (واتساب) لمدير المطعم، الذي يستخدمه بدوره للتسجيل الذاتي.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
@@ -19,9 +22,9 @@ class AdminUsersTab extends StatelessWidget {
     final service = context.read<FirebaseService>();
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateRestaurantManagerDialog(context),
-        icon: const Icon(Icons.add),
-        label: const Text('مدير مطعم جديد'),
+        onPressed: () => _showGenerateRegistrationCodeDialog(context),
+        icon: const Icon(Icons.vpn_key_outlined),
+        label: const Text('رمز تسجيل مدير مطعم'),
       ),
       body: StreamBuilder<List<AppUser>>(
         stream: service.streamUsers(),
@@ -104,99 +107,136 @@ class AdminUsersTab extends StatelessWidget {
     );
   }
 
-  void _showCreateRestaurantManagerDialog(BuildContext context) {
+  void _showGenerateRegistrationCodeDialog(BuildContext context) {
     final service = context.read<FirebaseService>();
-    final nameCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
-    final passCtrl = TextEditingController();
     String? selectedRestaurantId;
     String? selectedRestaurantName;
     bool loading = false;
+    RestaurantRegistrationCode? generated;
 
     showDialog(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx, setState) => AlertDialog(
-          title: const Text('إنشاء حساب مدير مطعم'),
+          title: const Text('رمز تسجيل مدير مطعم'),
           content: SingleChildScrollView(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'الاسم الكامل')),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'البريد الإلكتروني')),
-              const SizedBox(height: 10),
-              TextField(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (generated == null) ...[
+                const Text(
+                  'اختر المطعم ثم ولّد رمز تسجيل وحيد الاستخدام لإرساله لمدير المطعم؛ '
+                  'سيستخدمه لتسجيل حسابه بنفسه وربطه تلقائياً بهذا المطعم.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textGray),
+                ),
+                const SizedBox(height: 14),
+                StreamBuilder<List<Restaurant>>(
+                  stream: service.streamRestaurants(),
+                  builder: (ctx, rSnap) {
+                    final restaurants = rSnap.data ?? [];
+                    return DropdownButtonFormField<String>(
+                      value: selectedRestaurantId,
+                      decoration: const InputDecoration(labelText: 'المطعم'),
+                      items: restaurants
+                          .map((r) => DropdownMenuItem(value: r.id, child: Text(r.name)))
+                          .toList(),
+                      onChanged: (v) {
+                        selectedRestaurantId = v;
+                        selectedRestaurantName = restaurants.firstWhere((r) => r.id == v).name;
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextField(
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'رقم الهاتف')),
-              const SizedBox(height: 10),
-              TextField(
-                  controller: passCtrl,
-                  obscureText: true,
                   textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(labelText: 'كلمة المرور')),
-              const SizedBox(height: 14),
-              StreamBuilder<List<Restaurant>>(
-                stream: service.streamRestaurants(),
-                builder: (ctx, rSnap) {
-                  final restaurants = rSnap.data ?? [];
-                  return DropdownButtonFormField<String>(
-                    value: selectedRestaurantId,
-                    decoration: const InputDecoration(labelText: 'المطعم المرتبط'),
-                    items: restaurants
-                        .map((r) => DropdownMenuItem(value: r.id, child: Text(r.name)))
-                        .toList(),
-                    onChanged: (v) {
-                      selectedRestaurantId = v;
-                      selectedRestaurantName =
-                          restaurants.firstWhere((r) => r.id == v).name;
-                    },
-                  );
-                },
-              ),
+                  decoration: const InputDecoration(
+                    labelText: 'رقم واتساب مدير المطعم (اختياري)',
+                    hintText: 'مثال: 9665xxxxxxxx',
+                  ),
+                ),
+              ] else ...[
+                Text('تم توليد رمز لمطعم "${generated!.restaurantName}"'),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    generated!.code,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: 4, color: AppColors.primary),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.copy_outlined),
+                      label: const Text('نسخ الرمز'),
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: generated!.code));
+                        if (dialogCtx.mounted) showSuccess(dialogCtx, 'تم نسخ الرمز');
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.send_outlined),
+                      label: const Text('إرسال واتساب'),
+                      onPressed: phoneCtrl.text.trim().isEmpty
+                          ? null
+                          : () async {
+                              final phone = phoneCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+                              final text = Uri.encodeComponent(
+                                  'رمز تسجيل حسابك كمدير لمطعم "${generated!.restaurantName}" في تطبيق ZadGo هو: '
+                                  '${generated!.code}\nافتح التطبيق واختر "هل أنت مدير مطعم؟ سجّل برمز التسجيل" لاستخدامه.');
+                              final uri = Uri.parse('https://wa.me/$phone?text=$text');
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            },
+                    ),
+                  ),
+                ]),
+              ],
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('إلغاء')),
-            ElevatedButton(
-              onPressed: loading
-                  ? null
-                  : () async {
-                      if (nameCtrl.text.trim().isEmpty ||
-                          validateEmail(emailCtrl.text) != null ||
-                          passCtrl.text.trim().length < 6 ||
-                          selectedRestaurantId == null) {
-                        showError(dialogCtx, 'يرجى تعبئة كل الحقول واختيار مطعم صحيح');
-                        return;
-                      }
-                      setState(() => loading = true);
-                      try {
-                        await service.createManagedUser(
-                          name: nameCtrl.text,
-                          email: emailCtrl.text,
-                          password: passCtrl.text,
-                          phone: phoneCtrl.text,
-                          role: UserRole.restaurantManager,
-                          restaurantId: selectedRestaurantId,
-                          restaurantName: selectedRestaurantName,
-                        );
-                        if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-                      } catch (e) {
-                        setState(() => loading = false);
-                        if (dialogCtx.mounted) showError(dialogCtx, 'تعذر إنشاء الحساب: $e');
-                      }
-                    },
-              child: loading
-                  ? const SizedBox(
-                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('إنشاء'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(dialogCtx), child: Text(generated == null ? 'إلغاء' : 'إغلاق')),
+            if (generated == null)
+              ElevatedButton(
+                onPressed: loading
+                    ? null
+                    : () async {
+                        if (selectedRestaurantId == null) {
+                          showError(dialogCtx, 'يرجى اختيار المطعم أولاً');
+                          return;
+                        }
+                        setState(() => loading = true);
+                        try {
+                          final code = await service.generateRestaurantRegistrationCode(
+                            restaurantId: selectedRestaurantId!,
+                            restaurantName: selectedRestaurantName!,
+                          );
+                          setState(() {
+                            generated = code;
+                            loading = false;
+                          });
+                        } catch (e) {
+                          setState(() => loading = false);
+                          if (dialogCtx.mounted) showError(dialogCtx, 'تعذر توليد الرمز: $e');
+                        }
+                      },
+                child: loading
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('توليد الرمز'),
+              ),
           ],
         ),
       ),

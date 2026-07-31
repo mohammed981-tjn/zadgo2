@@ -9,6 +9,7 @@ import '../customer/customer_home.dart';
 import '../driver/driver_home.dart';
 import '../restaurant/restaurant_home.dart';
 import 'register_screen.dart';
+import 'restaurant_manager_register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -274,6 +275,23 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: zadgoGoldLight,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Center(
+                            child: TextButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const RestaurantManagerRegisterScreen()),
+                              ),
+                              child: Text(
+                                'هل أنت مدير مطعم؟ سجّل برمز التسجيل',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.55),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12.5,
                                 ),
                               ),
                             ),

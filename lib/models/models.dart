@@ -850,3 +850,51 @@ class BroadcastMessage {
         'createdAt': Timestamp.fromDate(createdAt),
       };
 }
+
+/// رمز تسجيل يُصدره المدير العام ويرتبط بمطعم محدد — يُرسل يدوياً لمدير
+/// المطعم المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر شاشة
+/// "التسجيل بمدير مطعم" بدلاً من إنشاء المدير العام للحساب مباشرة.
+class RestaurantRegistrationCode {
+  final String code;
+  final String restaurantId;
+  final String restaurantName;
+  final bool isUsed;
+  final DateTime createdAt;
+  final DateTime? usedAt;
+  final String? usedByUid;
+  final String? usedByName;
+
+  const RestaurantRegistrationCode({
+    required this.code,
+    required this.restaurantId,
+    required this.restaurantName,
+    this.isUsed = false,
+    required this.createdAt,
+    this.usedAt,
+    this.usedByUid,
+    this.usedByName,
+  });
+
+  factory RestaurantRegistrationCode.fromMap(Map<String, dynamic> map, String id) =>
+      RestaurantRegistrationCode(
+        code: map['code'] as String? ?? id,
+        restaurantId: map['restaurantId'] as String? ?? '',
+        restaurantName: map['restaurantName'] as String? ?? '',
+        isUsed: map['isUsed'] as bool? ?? false,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        usedAt: (map['usedAt'] as Timestamp?)?.toDate(),
+        usedByUid: map['usedByUid'] as String?,
+        usedByName: map['usedByName'] as String?,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'code': code,
+        'restaurantId': restaurantId,
+        'restaurantName': restaurantName,
+        'isUsed': isUsed,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'usedAt': usedAt != null ? Timestamp.fromDate(usedAt!) : null,
+        'usedByUid': usedByUid,
+        'usedByName': usedByName,
+      };
+}
