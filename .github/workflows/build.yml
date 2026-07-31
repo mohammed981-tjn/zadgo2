@@ -2,7 +2,7 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "copilot/task-255860018-1314616279-c5ff5a5a-ed91-4563-aac8-0a3c1e87b9bb" ]
   workflow_dispatch:
 
 jobs:
