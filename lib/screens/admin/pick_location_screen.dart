@@ -48,7 +48,7 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.zadam.delivery',
+                userAgentPackageName: 'com.dinego.delivery',
               ),
               MarkerLayer(markers: [
                 Marker(

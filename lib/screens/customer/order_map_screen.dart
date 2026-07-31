@@ -174,7 +174,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.zadam.delivery',
+                      userAgentPackageName: 'com.dinego.delivery',
                     ),
                     if (polyPoints.length > 1)
                       PolylineLayer(polylines: [

@@ -316,6 +316,7 @@ class MenuItem {
   final String name;
   final String description;
   final double price;
+  final int? calories;
   final String emoji;
   final bool isAvailable;
   final int? stockQuantity;
@@ -329,6 +330,7 @@ class MenuItem {
     required this.name,
     required this.description,
     required this.price,
+    this.calories,
     required this.emoji,
     this.isAvailable = true,
     this.stockQuantity,
@@ -346,6 +348,7 @@ class MenuItem {
         name: map['name'] as String? ?? '',
         description: map['description'] as String? ?? '',
         price: (map['price'] as num?)?.toDouble() ?? 0.0,
+        calories: (map['calories'] as num?)?.toInt(),
         emoji: map['emoji'] as String? ?? '🍽️',
         isAvailable: map['isAvailable'] as bool? ?? true,
         stockQuantity: (map['stockQuantity'] as num?)?.toInt(),
@@ -359,6 +362,7 @@ class MenuItem {
         'name': name,
         'description': description,
         'price': price,
+        'calories': calories,
         'emoji': emoji,
         'isAvailable': isAvailable,
         'stockQuantity': stockQuantity,
@@ -538,7 +542,7 @@ class Order {
 
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
   double get grandTotal => itemsTotal + deliveryFee;
-  double get calculatedCommission => itemsTotal * 0.01;
+  double get calculatedCommission => itemsTotal * 0.15;
 
   factory Order.fromMap(Map<String, dynamic> map, String id) => Order(
         id: id,

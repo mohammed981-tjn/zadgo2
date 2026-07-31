@@ -85,9 +85,50 @@ class _OrderCard extends StatelessWidget {
                 text:
                     '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}'),
             const Divider(),
-            Text(formatCurrency(order.grandTotal),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.primary)),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('تفاصيل الطلب', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('العنوان: ${order.deliveryAddress}', style: const TextStyle(fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text('طريقة الدفع: ${order.paymentMethod.label}', style: const TextStyle(fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text('التوصيل: ${formatCurrency(order.deliveryFee)}', style: const TextStyle(fontSize: 12)),
+                  const SizedBox(height: 4),
+                  Text('عمولة التطبيق: ${formatCurrency(order.platformCommission)}', style: const TextStyle(fontSize: 12)),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 140),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: order.items.map((item) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              Text(item.emoji, style: const TextStyle(fontSize: 18)),
+                              const SizedBox(width: 6),
+                              Expanded(child: Text('${item.name} × ${item.quantity}', style: const TextStyle(fontSize: 12))),
+                              Text(formatCurrency(item.subtotal), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('الإجمالي: ${formatCurrency(order.grandTotal)}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                ],
+              ),
+            ),
             if (order.status == OrderStatus.delivered && !order.isRated)
               Padding(
                 padding: const EdgeInsets.only(top: 12),

@@ -56,11 +56,25 @@ class _ItemTile extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-          Text(formatCurrency(item.price), style: const TextStyle(color: AppColors.primary)),
+          if (item.description.isNotEmpty)
+            Text(item.description, style: const TextStyle(fontSize: 12, color: AppColors.textGray), maxLines: 2, overflow: TextOverflow.ellipsis),
+          Row(children: [
+            Text(formatCurrency(item.price), style: const TextStyle(color: AppColors.primary)),
+            if (item.calories != null)
+              Text(' • ${item.calories} سعر/سعرات', style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
+          ]),
         ])),
         if (qty == 0)
           ElevatedButton(
-            onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+            onPressed: () => context.read<CartProvider>().add(
+                item,
+                restaurant.id,
+                restaurant.name,
+                restaurant.emoji,
+                restaurant.deliveryFee,
+                restaurant.lat,
+                restaurant.lng,
+              ),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.restaurantAccent),
             child: const Text('أضف'),
           )
@@ -73,7 +87,15 @@ class _ItemTile extends StatelessWidget {
             Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 16)),
             IconButton(
               icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
-              onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+              onPressed: () => context.read<CartProvider>().add(
+                    item,
+                    restaurant.id,
+                    restaurant.name,
+                    restaurant.emoji,
+                    restaurant.deliveryFee,
+                    restaurant.lat,
+                    restaurant.lng,
+                  ),
             ),
           ]),
       ]));

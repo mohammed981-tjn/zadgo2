@@ -423,7 +423,7 @@ class _ItemTile extends StatelessWidget {
       leading: Text(item.emoji, style: const TextStyle(fontSize: 28)),
       title: Text(item.name),
       subtitle: Text(
-        '${formatCurrency(item.price)}${item.trackStock ? "  •  مخزون: ${item.stockQuantity ?? "∞"}" : ""}',
+        '${formatCurrency(item.price)}${item.calories != null ? " • ${item.calories} سعر/سعرات" : ""}${item.trackStock ? "  •  مخزون: ${item.stockQuantity ?? "∞"}" : ""}',
         style: const TextStyle(fontSize: 12),
       ),
       trailing: Row(
@@ -484,7 +484,7 @@ class _ItemForm extends StatefulWidget {
 
 class _ItemFormState extends State<_ItemForm> {
   final _form = GlobalKey<FormState>();
-  late final TextEditingController _name, _desc, _price, _emoji, _stock;
+  late final TextEditingController _name, _desc, _price, _calories, _emoji, _stock;
   bool _loading = false;
   bool _trackStock = false;
 
@@ -495,6 +495,7 @@ class _ItemFormState extends State<_ItemForm> {
     _name  = TextEditingController(text: i?.name ?? '');
     _desc  = TextEditingController(text: i?.description ?? '');
     _price = TextEditingController(text: i?.price.toString() ?? '');
+    _calories = TextEditingController(text: i?.calories?.toString() ?? '');
     _emoji = TextEditingController(text: i?.emoji ?? '🍽️');
     _stock = TextEditingController(text: i?.stockQuantity?.toString() ?? '');
     _trackStock = i?.trackStock ?? false;
@@ -502,7 +503,7 @@ class _ItemFormState extends State<_ItemForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _desc, _price, _emoji, _stock]) c.dispose();
+    for (final c in [_name, _desc, _price, _calories, _emoji, _stock]) c.dispose();
     super.dispose();
   }
 
@@ -517,6 +518,7 @@ class _ItemFormState extends State<_ItemForm> {
       name: _name.text.trim(),
       description: _desc.text.trim(),
       price: double.tryParse(_price.text) ?? 0,
+      calories: _calories.text.trim().isEmpty ? null : int.tryParse(_calories.text.trim()),
       emoji: _emoji.text.trim(),
       isAvailable: widget.existing?.isAvailable ?? true,
       trackStock: _trackStock,
@@ -553,6 +555,7 @@ class _ItemFormState extends State<_ItemForm> {
                 _f(_name, 'اسم الصنف'),
                 _f(_desc, 'الوصف'),
                 _f(_price, 'السعر', type: TextInputType.number, validator: validatePrice),
+                _f(_calories, 'السعرات الحرارية', type: TextInputType.number, isReq: false),
                 SwitchListTile(
                   value: _trackStock,
                   onChanged: (v) => setState(() => _trackStock = v),

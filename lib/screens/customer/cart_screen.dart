@@ -47,7 +47,9 @@ class CartScreen extends StatelessWidget {
                                     cart.restaurantId!,
                                     cart.restaurantName!,
                                     cart.restaurantEmoji ?? '🍽️',
-                                    cart.deliveryFee)),
+                                    cart.deliveryFee,
+                                    cart.restaurantLat,
+                                    cart.restaurantLng)),
                             Text(formatCurrency(ci.subtotal),
                                 style: const TextStyle(fontWeight: FontWeight.bold)),
                           ]),
@@ -55,7 +57,7 @@ class CartScreen extends StatelessWidget {
                     const Divider(),
                     PriceRow(label: 'المجموع', value: formatCurrency(cart.itemsTotal)),
                     PriceRow(label: 'التوصيل', value: formatCurrency(cart.deliveryFee)),
-                    PriceRow(label: 'الضريبة 15%', value: formatCurrency(cart.vat)),
+                    PriceRow(label: 'عمولة التطبيق 15%', value: formatCurrency(cart.platformCommission)),
                     const Divider(),
                     PriceRow(
                         label: 'الإجمالي',
@@ -99,6 +101,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   PaymentMethod _payment = PaymentMethod.cash;
   bool _loading = false;
   double? _lat, _lng;
+
+  double _getEffectiveDeliveryFee(CartProvider cart) {
+    if (_lat == null || _lng == null || cart.restaurantLat == null || cart.restaurantLng == null) {
+      return cart.deliveryFee;
+    }
+    final distance = calculateDistanceKm(_lat, _lng, cart.restaurantLat, cart.restaurantLng);
+    return calculateDeliveryFee(distance);
+  }
 
   Future<void> _pickLocation() async {
     final result = await Navigator.push<LatLng>(
@@ -159,13 +169,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
 
     final cart = context.read<CartProvider>();
+    final effectiveDeliveryFee = _getEffectiveDeliveryFee(cart);
     if (_payment != PaymentMethod.cash) {
       final confirmed = await showConfirmDialog(
         context,
         title: 'تأكيد الدفع',
         content: _payment == PaymentMethod.card
-            ? 'سيتم سحب مبلغ الطلب (${formatCurrency(cart.grandTotalWithVat)}) من البطاقة. هل تريد المتابعة؟'
-            : 'سيتم خصم مبلغ الطلب (${formatCurrency(cart.grandTotalWithVat)}) من المحفظة الإلكترونية. هل تريد المتابعة؟',
+            ? 'سيتم سحب مبلغ الطلب (${formatCurrency(cart.itemsTotal + effectiveDeliveryFee)}) من البطاقة. هل تريد المتابعة؟'
+            : 'سيتم خصم مبلغ الطلب (${formatCurrency(cart.itemsTotal + effectiveDeliveryFee)}) من المحفظة الإلكترونية. هل تريد المتابعة؟',
         confirmLabel: 'متابعة',
       );
       if (confirmed != true) return;
@@ -192,13 +203,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentMethod: _payment,
       isPaid: _payment != PaymentMethod.cash,
       createdAt: DateTime.now(),
-      deliveryFee: cart.deliveryFee,
+      deliveryFee: _getEffectiveDeliveryFee(cart),
       orderNumber: orderId.substring(0, 6).toUpperCase(),
       platformCommission: cart.platformCommission,
       deliveryLat: _lat,
       deliveryLng: _lng,
-      restaurantLat: restaurant?.lat,
-      restaurantLng: restaurant?.lng,
+      restaurantLat: cart.restaurantLat,
+      restaurantLng: cart.restaurantLng,
     );
     try {
       await service.placeOrder(order);
@@ -338,6 +349,41 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('ملخص الطلب', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  const Expanded(child: Text('المجموع')),
+                  Text(formatCurrency(cart.itemsTotal)),
+                ]),
+                const SizedBox(height: 4),
+                Row(children: [
+                  const Expanded(child: Text('التوصيل')),
+                  Text(formatCurrency(_getEffectiveDeliveryFee(cart))),
+                ]),
+                const SizedBox(height: 4),
+                Row(children: [
+                  const Expanded(child: Text('عمولة التطبيق 15%')),
+                  Text(formatCurrency(cart.platformCommission)),
+                ]),
+                const Divider(height: 20),
+                Row(children: [
+                  const Expanded(child: Text('الإجمالي المتوقع', style: TextStyle(fontWeight: FontWeight.bold))),
+                  Text(formatCurrency(cart.itemsTotal + _getEffectiveDeliveryFee(cart)), style: const TextStyle(fontWeight: FontWeight.bold)),
+                ]),
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
