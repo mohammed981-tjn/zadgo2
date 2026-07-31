@@ -13,9 +13,17 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
+import 'restaurant_reports_tab.dart';
 
-class RestaurantHome extends StatelessWidget {
+class RestaurantHome extends StatefulWidget {
   const RestaurantHome({super.key});
+
+  @override
+  State<RestaurantHome> createState() => _RestaurantHomeState();
+}
+
+class _RestaurantHomeState extends State<RestaurantHome> {
+  int _tab = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +32,9 @@ class RestaurantHome extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('طلبات ${auth.user?.restaurantName ?? "المطعم"}'),
+        title: Text(_tab == 0
+            ? 'طلبات ${auth.user?.restaurantName ?? "المطعم"}'
+            : 'التقارير والحسابات'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -44,7 +54,22 @@ class RestaurantHome extends StatelessWidget {
               title: 'حسابك غير مرتبط بمطعم',
               subtitle: 'يرجى مراجعة إدارة المنصة لربط الحساب بمطعم.',
             )
-          : _RestaurantOrdersList(restaurantId: restaurantId),
+          : IndexedStack(index: _tab, children: [
+              _RestaurantOrdersList(restaurantId: restaurantId),
+              RestaurantReportsTab(restaurantId: restaurantId),
+            ]),
+      bottomNavigationBar: restaurantId == null || restaurantId.isEmpty
+          ? null
+          : NavigationBar(
+              selectedIndex: _tab,
+              onDestinationSelected: (i) => setState(() => _tab = i),
+              destinations: const [
+                NavigationDestination(
+                    icon: Icon(Icons.receipt_long_outlined), label: 'الطلبات'),
+                NavigationDestination(
+                    icon: Icon(Icons.bar_chart_outlined), label: 'التقارير والحسابات'),
+              ],
+            ),
     );
   }
 }
