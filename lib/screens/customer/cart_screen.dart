@@ -1,5 +1,6 @@
 // lib/screens/customer/cart_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
@@ -8,8 +9,9 @@ import '../../models/models.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
-import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/payment_validator.dart';
+import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
 import '../admin/pick_location_screen.dart';
 import 'my_orders_screen.dart';
@@ -90,6 +92,10 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addrCtrl = TextEditingController();
+  final _cardHolderNameCtrl = TextEditingController();
+  final _cardNumberCtrl = TextEditingController();
+  final _expiryCtrl = TextEditingController();
+  final _cvvCtrl = TextEditingController();
   PaymentMethod _payment = PaymentMethod.cash;
   bool _loading = false;
   double? _lat, _lng;
@@ -129,6 +135,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    if (_payment == PaymentMethod.card) {
+      final holderError = validateCreditCardHolderName(_cardHolderNameCtrl.text);
+      if (holderError != null) {
+        showError(context, holderError);
+        return;
+      }
+      final numberError = validateCreditCardNumber(_cardNumberCtrl.text);
+      if (numberError != null) {
+        showError(context, numberError);
+        return;
+      }
+      final expiryError = validateCreditCardExpiry(_expiryCtrl.text);
+      if (expiryError != null) {
+        showError(context, expiryError);
+        return;
+      }
+      final cvvError = validateCreditCardCvv(_cvvCtrl.text);
+      if (cvvError != null) {
+        showError(context, cvvError);
+        return;
+      }
+    }
+
     setState(() => _loading = true);
     final cart = context.read<CartProvider>();
     final auth = context.read<app_auth.AuthProvider>();
@@ -165,11 +194,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!mounted) return;
       Navigator.pushAndRemoveUntil(
           context, MaterialPageRoute(builder: (_) => const MyOrdersScreen()), (r) => r.isFirst);
-      showSuccess(context, 'تم إرسال طلبك بنجاح!');
+      showSuccess(
+        context,
+        _payment == PaymentMethod.card
+            ? 'تم التحقق من البطاقة بنجاح وإرسال الطلب'
+            : 'تم إرسال طلبك بنجاح!',
+      );
     } catch (e) {
       setState(() => _loading = false);
       if (mounted) showError(context, 'فشل إرسال الطلب');
     }
+  }
+
+  @override
+  void dispose() {
+    _addrCtrl.dispose();
+    _cardHolderNameCtrl.dispose();
+    _cardNumberCtrl.dispose();
+    _expiryCtrl.dispose();
+    _cvvCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -212,6 +256,76 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 onChanged: (v) => setState(() => _payment = v!),
                 title: Text(p.label),
               )),
+          if (_payment == PaymentMethod.card) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('بيانات البطاقة', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _cardHolderNameCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'اسم حامل البطاقة',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _cardNumberCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      CardNumberInputFormatter(),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'رقم البطاقة',
+                      prefixIcon: Icon(Icons.credit_card_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _expiryCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            ExpiryDateInputFormatter(),
+                          ],
+                          decoration: const InputDecoration(
+                            labelText: 'MM/YY',
+                            prefixIcon: Icon(Icons.calendar_today_outlined),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _cvvCtrl,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          decoration: const InputDecoration(
+                            labelText: 'CVV',
+                            prefixIcon: Icon(Icons.lock_outline),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
