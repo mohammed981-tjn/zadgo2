@@ -2,7 +2,7 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ copilot/restaurant-app-integration ]
   workflow_dispatch:
 
 jobs:
