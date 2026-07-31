@@ -167,6 +167,52 @@ class AppUser {
       };
 }
 
+class InviteCode {
+  final String id;
+  final String code;
+  final UserRole role;
+  final bool used;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  final String? createdBy;
+  final DateTime? usedAt;
+
+  const InviteCode({
+    required this.id,
+    required this.code,
+    required this.role,
+    required this.used,
+    required this.createdAt,
+    required this.expiresAt,
+    this.createdBy,
+    this.usedAt,
+  });
+
+  factory InviteCode.fromMap(Map<String, dynamic> map, String id) => InviteCode(
+        id: id,
+        code: map['code'] as String? ?? '',
+        role: UserRole.values.firstWhere(
+          (r) => r.name == map['role'],
+          orElse: () => UserRole.customer,
+        ),
+        used: map['used'] as bool? ?? false,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        expiresAt: (map['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        createdBy: map['createdBy'] as String?,
+        usedAt: (map['usedAt'] as Timestamp?)?.toDate(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'code': code,
+        'role': role.name,
+        'used': used,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'expiresAt': Timestamp.fromDate(expiresAt),
+        if (createdBy != null) 'createdBy': createdBy,
+        if (usedAt != null) 'usedAt': Timestamp.fromDate(usedAt!),
+      };
+}
+
 class Restaurant {
   final String id;
   final String name;

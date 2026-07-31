@@ -48,6 +48,22 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _requestPasswordReset() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty) {
+      showError(context, 'أدخل البريد الإلكتروني أولاً');
+      return;
+    }
+    final auth = context.read<app_auth.AuthProvider>();
+    final ok = await auth.requestPasswordReset(email);
+    if (!mounted) return;
+    if (ok) {
+      showSuccess(context, 'تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك');
+    } else {
+      showError(context, auth.error ?? 'تعذر إرسال رابط الاستعادة');
+    }
+  }
+
   InputDecoration _fieldDecoration(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
@@ -212,7 +228,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             validator: validatePassword,
                           ),
-                          const SizedBox(height: 26),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton(
+                              onPressed: _requestPasswordReset,
+                              child: const Text('هل نسيت كلمة المرور؟', style: TextStyle(color: zadgoGoldLight)),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
                           SizedBox(
                             height: 54,
                             child: DecoratedBox(

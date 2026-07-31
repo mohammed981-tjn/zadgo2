@@ -1,6 +1,9 @@
 // lib/providers/firebase_service.dart
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:uuid/uuid.dart';
 import '../models/models.dart' as models;
 
 class FirebaseService {
@@ -13,6 +16,7 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
+  CollectionReference<Map<String, dynamic>> get _inviteCodes => _db.collection('invite_codes');
 
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
@@ -30,6 +34,8 @@ class FirebaseService {
 
   Future<void> signOut() => _auth.signOut();
 
+  Future<void> sendPasswordResetEmail(String email) => _auth.sendPasswordResetEmail(email: email);
+
   Future<void> createUser(models.AppUser user) => _users.doc(user.uid).set(user.toMap());
 
   Future<models.AppUser?> getUser(String uid) async {
@@ -40,6 +46,58 @@ class FirebaseService {
 
   Future<void> updateFcmToken(String uid, String token) =>
       _users.doc(uid).update({'fcmToken': token});
+
+  Stream<List<models.InviteCode>> streamInviteCodes() => _inviteCodes
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.InviteCode.fromMap(d.data(), d.id)).toList());
+
+  Future<models.InviteCode?> getInviteCode(String code, models.UserRole role) async {
+    final snapshot = await _inviteCodes
+        .where('code', isEqualTo: code)
+        .where('role', isEqualTo: role.name)
+        .where('used', isEqualTo: false)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isEmpty) return null;
+    final invite = models.InviteCode.fromMap(snapshot.docs.first.data(), snapshot.docs.first.id);
+    if (invite.expiresAt.isBefore(DateTime.now())) return null;
+    return invite;
+  }
+
+  Future<models.InviteCode> generateInviteCode(models.UserRole role, {String? createdBy}) async {
+    String code;
+    while (true) {
+      code = _generateInviteCode();
+      final existing = await _inviteCodes.where('code', isEqualTo: code).limit(1).get();
+      if (existing.docs.isEmpty) break;
+    }
+
+    final invite = models.InviteCode(
+      id: const Uuid().v4(),
+      code: code,
+      role: role,
+      used: false,
+      createdAt: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 30)),
+      createdBy: createdBy,
+    );
+    await _inviteCodes.doc(invite.id).set(invite.toMap());
+    return invite;
+  }
+
+  Future<void> markInviteCodeUsed(String inviteId) => _inviteCodes.doc(inviteId).update({
+        'used': true,
+        'usedAt': FieldValue.serverTimestamp(),
+      });
+
+  Future<void> deleteInviteCode(String inviteId) => _inviteCodes.doc(inviteId).delete();
+
+  String _generateInviteCode() {
+    final random = Random();
+    final digits = List.generate(6, (_) => random.nextInt(10).toString()).join();
+    return digits;
+  }
 
   Stream<List<models.Restaurant>> streamRestaurants() =>
       _restaurants.orderBy('name').snapshots().map(

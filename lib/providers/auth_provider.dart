@@ -42,22 +42,21 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  static const String driverAccessCode = 'DRIVER2026';
-  static const String adminAccessCode = 'ADMIN2026';
-
-  String? validateRoleAccess(UserRole role, String? accessCode) {
+  Future<String?> validateRoleAccess(UserRole role, String? accessCode) async {
     switch (role) {
       case UserRole.customer:
         return null;
       case UserRole.driver:
         final code = accessCode?.trim() ?? '';
         if (code.isEmpty) return 'رمز التسجيل للسائق مطلوب';
-        if (code != driverAccessCode) return 'رمز التسجيل للسائق غير صحيح';
+        final inviteCode = await _service.getInviteCode(code, role);
+        if (inviteCode == null) return 'رمز التسجيل للسائق غير صحيح أو منتهي';
         return null;
       case UserRole.admin:
         final code = accessCode?.trim() ?? '';
         if (code.isEmpty) return 'رمز التسجيل للمدير مطلوب';
-        if (code != adminAccessCode) return 'رمز التسجيل للمدير غير صحيح';
+        final inviteCode = await _service.getInviteCode(code, role);
+        if (inviteCode == null) return 'رمز التسجيل للمدير غير صحيح أو منتهي';
         return null;
     }
   }
@@ -68,7 +67,7 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
-      final roleAccessError = validateRoleAccess(role, accessCode);
+      final roleAccessError = await validateRoleAccess(role, accessCode);
       if (roleAccessError != null) {
         _error = roleAccessError; _loading = false; notifyListeners();
         return false;
@@ -82,7 +81,28 @@ class AuthProvider extends ChangeNotifier {
         await _service.addDriver(Driver(id: uid, name: name.trim(), phone: phone.trim(),
             vehicleType: 'دراجة نارية'));
       }
+      if (role == UserRole.driver || role == UserRole.admin) {
+        final inviteCode = await _service.getInviteCode(accessCode!.trim(), role);
+        if (inviteCode != null) {
+          await _service.markInviteCodeUsed(inviteCode.id);
+        }
+      }
       _user = newUser; _loading = false; notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = _mapError(e.code); _loading = false; notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> requestPasswordReset(String email) async {
+    _loading = true; _error = null; notifyListeners();
+    try {
+      await _service.sendPasswordResetEmail(email.trim());
+      _loading = false; notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _mapError(e.code); _loading = false; notifyListeners();
@@ -103,8 +123,10 @@ class AuthProvider extends ChangeNotifier {
       case 'user-not-found': return 'البريد الإلكتروني غير مسجل';
       case 'wrong-password': return 'كلمة المرور غير صحيحة';
       case 'invalid-credential': return 'البريد أو كلمة المرور غير صحيحة';
+      case 'invalid-email': return 'صيغة البريد الإلكتروني غير صحيحة';
       case 'email-already-in-use': return 'البريد الإلكتروني مستخدم بالفعل';
       case 'weak-password': return 'كلمة المرور ضعيفة جداً';
+      case 'too-many-requests': return 'تم تجاوز عدد المحاولات، حاول لاحقاً';
       default: return 'خطأ ($code)';
     }
   }

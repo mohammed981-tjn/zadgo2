@@ -30,7 +30,7 @@ class _AdminHomeState extends State<AdminHome> {
         }),
       ]),
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ComplaintsTab(),
+        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _UsersTab(), _ComplaintsTab(),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
@@ -38,6 +38,7 @@ class _AdminHomeState extends State<AdminHome> {
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'الطلبات'),
           NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
+          NavigationDestination(icon: Icon(Icons.group_add_outlined), label: 'المستخدمون'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
         ]),
     );
@@ -94,6 +95,87 @@ class _StatsTab extends StatelessWidget {
       Icon(i, color: c, size: 28), Text(v, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: c)),
       Text(l, style: const TextStyle(fontSize: 12)),
     ])));
+}
+
+class _UsersTab extends StatelessWidget {
+  const _UsersTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    final auth = context.read<app_auth.AuthProvider>();
+    return StreamBuilder<List<InviteCode>>(
+      stream: service.streamInviteCodes(),
+      builder: (ctx, snap) {
+        if (!snap.hasData) return const AppLoading();
+        final list = snap.data!;
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('إنشاء رموز الدعوة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                Wrap(spacing: 10, runSpacing: 10, children: [
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final invite = await service.generateInviteCode(UserRole.driver, createdBy: auth.user?.name);
+                      if (!context.mounted) return;
+                      showDialog(context: context, builder: (_) => AlertDialog(
+                        title: const Text('رمز دعوة السائق'),
+                        content: SelectableText(invite.code),
+                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('تم'))],
+                      ));
+                    },
+                    icon: const Icon(Icons.motorcycle_outlined),
+                    label: const Text('رمز للسائق'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final invite = await service.generateInviteCode(UserRole.admin, createdBy: auth.user?.name);
+                      if (!context.mounted) return;
+                      showDialog(context: context, builder: (_) => AlertDialog(
+                        title: const Text('رمز دعوة المدير'),
+                        content: SelectableText(invite.code),
+                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('تم'))],
+                      ));
+                    },
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    label: const Text('رمز للمدير'),
+                  ),
+                ]),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('الرموز المتاحة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          if (list.isEmpty)
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Text('لا توجد رموز دعوة حالياً')))
+          else
+            ...list.map((invite) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    title: Text(invite.code),
+                    subtitle: Text('${invite.role == UserRole.driver ? 'سائق' : 'مدير'} • ${invite.used ? 'مستخدم' : 'متاح'}'),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () async {
+                          final ok = await showConfirmDialog(context, title: 'إلغاء الرمز', content: 'هل تريد حذف هذا الرمز؟');
+                          if (ok ?? false) {
+                            await service.deleteInviteCode(invite.id);
+                            if (context.mounted) showSuccess(context, 'تم حذف الرمز');
+                          }
+                        },
+                      ),
+                    ]),
+                  ),
+                )).toList(),
+        ]);
+      },
+    );
+  }
 }
 
 class _OrdersTab extends StatelessWidget {

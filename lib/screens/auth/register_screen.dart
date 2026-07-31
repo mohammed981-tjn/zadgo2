@@ -92,18 +92,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
             obscureText: true,
             textDirection: TextDirection.ltr,
             decoration: InputDecoration(
-              labelText: _role == UserRole.driver ? 'رمز التسجيل للسائق' : 'رمز التسجيل للمدير',
+              labelText: _role == UserRole.driver ? 'رمز دعوة السائق' : 'رمز دعوة المدير',
               prefixIcon: const Icon(Icons.lock_outline),
               hintText: _role == UserRole.driver
-                  ? 'أدخل الرمز المخصص للسائق'
-                  : 'أدخل الرمز الخاص لفتح مدير',
+                  ? 'أدخل رمز الدعوة الذي يولده المدير'
+                  : 'أدخل رمز الدعوة الذي يولده المدير العام',
             ),
           ),
           const SizedBox(height: 8),
           Text(
             _role == UserRole.driver
-                ? 'هذا الخيار متاح فقط بوجود رمز خاص للسائق'
-                : 'هذا الخيار خاص جداً ولا يُفتح إلا برمز خاص',
+                ? 'يحتاج التسجيل إلى رمز دعوة صالح يُولد من شاشة المدير'
+                : 'يحتاج التسجيل إلى رمز دعوة صالح يُولد من شاشة المدير',
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
         ],
