@@ -64,7 +64,7 @@ class _RestaurantsPage extends StatelessWidget {
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [Expanded(child: Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                  StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.success : Colors.grey)]),
+                  StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.restaurantAccent : Colors.grey)]),
               Text(r.description, maxLines: 1, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
             ])),
           ]))));

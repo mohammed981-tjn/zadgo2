@@ -7,6 +7,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../customer/order_chat_screen.dart';
 import 'admin_restaurants_tab.dart';
 
 class AdminHome extends StatefulWidget {
@@ -55,6 +56,7 @@ class _StatsTab extends StatelessWidget {
       final active = orders.where((o) => o.status.isActive).length;
       final revenue = orders.where((o) => o.status == OrderStatus.delivered)
           .fold(0.0, (s, o) => s + o.grandTotal);
+      final recentDelivered = orders.where((o) => o.status == OrderStatus.delivered).take(5).toList();
       return ListView(padding: const EdgeInsets.all(16), children: [
         Container(padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.primary, Color(0xFFc1121f)]),
@@ -70,6 +72,20 @@ class _StatsTab extends StatelessWidget {
           _stat('النشطة', '$active', Icons.hourglass_empty, AppColors.warning),
           _stat('مكتملة', '$delivered', Icons.done_all, AppColors.success),
         ]),
+        const SizedBox(height: 16),
+        const Text('أحدث الطلبات المكتملة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        if (recentDelivered.isEmpty)
+          Card(child: Padding(padding: const EdgeInsets.all(16), child: Text('لا توجد طلبات مكتملة بعد')))
+        else
+          ...recentDelivered.map((o) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text('#${o.orderNumber}'),
+                  subtitle: Text('${o.restaurantName} • ${o.customerName}'),
+                  trailing: Text(formatCurrency(o.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              )),
       ]);
     });
   }
@@ -162,7 +178,25 @@ class _ComplaintsTab extends StatelessWidget {
         return Card(child: ListTile(
           title: Text('${c.type.label} — #${c.orderNumber}'),
           subtitle: Text(c.description, maxLines: 2),
-          trailing: StatusBadge(label: c.status.label, color: c.status.color),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: Order(
+                id: c.orderId,
+                restaurantId: c.restaurantId,
+                restaurantName: c.restaurantName,
+                customerId: c.customerId,
+                customerName: c.customerName,
+                customerPhone: '',
+                deliveryAddress: '',
+                items: const [],
+                paymentMethod: PaymentMethod.cash,
+                createdAt: c.createdAt,
+                orderNumber: c.orderNumber,
+              )))),
+            ),
+            StatusBadge(label: c.status.label, color: c.status.color),
+          ]),
           onTap: () => showDialog(context: context, builder: (_) => AlertDialog(
             title: const Text('تحديث حالة الشكوى'),
             content: Wrap(spacing: 8, children: ComplaintStatus.values.map((s) => ActionChip(

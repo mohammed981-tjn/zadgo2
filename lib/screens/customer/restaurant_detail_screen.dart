@@ -34,8 +34,10 @@ class RestaurantDetailScreen extends StatelessWidget {
         });
       }),
       bottomNavigationBar: cart.itemCount > 0 ? SafeArea(child: Padding(padding: const EdgeInsets.all(12),
-        child: ElevatedButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())),
-            child: Text('عرض السلة (${cart.itemCount})')))) : null,
+       child: ElevatedButton(
+           onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CheckoutScreen())),
+           style: ElevatedButton.styleFrom(backgroundColor: AppColors.restaurantAccent),
+           child: Text('إتمام الطلب (${cart.itemCount})')))) : null,
     );
   }
 }
@@ -59,6 +61,7 @@ class _ItemTile extends StatelessWidget {
         if (qty == 0)
           ElevatedButton(
             onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.deliveryFee),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.restaurantAccent),
             child: const Text('أضف'),
           )
         else

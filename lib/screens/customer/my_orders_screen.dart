@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -62,8 +63,12 @@ class _OrderCard extends StatelessWidget {
                       MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
                   tooltip: 'محادثة السائق',
                 ),
-              if (order.restaurantLat != null || order.deliveryLat != null)
-                IconButton(
+              IconButton(
+                  icon: const Icon(Icons.report_problem_outlined, color: AppColors.restaurantAccent),
+                  onPressed: () => _showComplaintDialog(context, service, order),
+                  tooltip: 'إرسال شكوى',
+              ),
+              if (order.restaurantLat != null || order.deliveryLat != null)                IconButton(
                   icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
                   onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
@@ -105,6 +110,70 @@ class _OrderCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
                 ]),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showComplaintDialog(BuildContext context, FirebaseService service, Order o) {
+    final descriptionCtrl = TextEditingController();
+    ComplaintType selectedType = ComplaintType.other;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setState) => AlertDialog(
+          title: const Text('إرسال شكوى'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('اختر نوع الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: ComplaintType.values.map((type) {
+                final selected = type == selectedType;
+                return ChoiceChip(
+                  label: Text(type.label),
+                  selected: selected,
+                  onSelected: (_) => setState(() => selectedType = type),
+                );
+              }).toList()),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descriptionCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'وصف المشكلة'),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: () async {
+                final text = descriptionCtrl.text.trim();
+                if (text.isEmpty) {
+                  if (context.mounted) showError(context, 'اكتب وصفاً للشكوى');
+                  return;
+                }
+                final complaint = Complaint(
+                  id: const Uuid().v4(),
+                  orderId: o.id,
+                  orderNumber: o.orderNumber,
+                  customerId: o.customerId,
+                  customerName: o.customerName,
+                  restaurantId: o.restaurantId,
+                  restaurantName: o.restaurantName,
+                  type: selectedType,
+                  description: text,
+                  createdAt: DateTime.now(),
+                );
+                await service.submitComplaint(complaint);
+                if (context.mounted) {
+                  Navigator.pop(ctx);
+                  showSuccess(context, 'تم إرسال الشكوى بنجاح');
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.restaurantAccent),
+              child: const Text('إرسال'),
+            ),
           ],
         ),
       ),

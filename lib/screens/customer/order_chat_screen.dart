@@ -24,6 +24,11 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
     if (text.isEmpty) return;
     final auth = context.read<app_auth.AuthProvider>();
     final service = context.read<FirebaseService>();
+    if (auth.user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء تسجيل الدخول أولاً')));
+      return;
+    }
     final user = auth.user!;
     final msg = ChatMessage(
       id: const Uuid().v4(),
@@ -50,6 +55,13 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
     final auth = context.read<app_auth.AuthProvider>();
     final myUid = auth.user?.uid ?? '';
 
+    if (auth.user == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('محادثة الطلب #${widget.order.orderNumber}')),
+        body: const Center(child: Text('يرجى تسجيل الدخول لرؤية المحادثة')), 
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text('محادثة الطلب #${widget.order.orderNumber}')),
       body: Column(children: [
@@ -57,6 +69,9 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
           child: StreamBuilder<List<ChatMessage>>(
             stream: service.streamChatMessages(widget.order.id),
             builder: (ctx, snap) {
+              if (snap.hasError) {
+                return Center(child: Text('تعذر تحميل المحادثة: ${snap.error}'));
+              }
               if (!snap.hasData) return const AppLoading();
               final messages = snap.data!;
               if (messages.isEmpty) {

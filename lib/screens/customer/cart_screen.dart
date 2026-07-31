@@ -1,6 +1,7 @@
 // lib/screens/customer/cart_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import 'package:latlong2/latlong.dart';
 import '../../models/models.dart';
@@ -110,6 +111,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  Future<void> _openMapsNavigation() async {
+    if (_lat == null || _lng == null) return;
+    final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$_lat,$_lng&travelmode=driving');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _placeOrder() async {
     if (_addrCtrl.text.trim().isEmpty) {
       showError(context, 'أدخل عنوان التوصيل');
@@ -182,11 +191,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           OutlinedButton.icon(
             onPressed: _pickLocation,
             icon: Icon(_lat != null ? Icons.check_circle : Icons.map_outlined,
-                color: _lat != null ? AppColors.success : null),
+                color: _lat != null ? AppColors.restaurantAccent : null),
             label: Text(_lat != null
                 ? 'الموقع محدد ✓ (اضغط للتعديل)'
                 : 'حدد موقعك على الخريطة'),
           ),
+          if (_lat != null && _lng != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _openMapsNavigation,
+              icon: const Icon(Icons.navigation_outlined),
+              label: const Text('فتح الاتجاهات في الخرائط'),
+            ),
+          ],
           const SizedBox(height: 20),
           const Text('طريقة الدفع', style: TextStyle(fontWeight: FontWeight.bold)),
           ...PaymentMethod.values.map((p) => RadioListTile<PaymentMethod>(

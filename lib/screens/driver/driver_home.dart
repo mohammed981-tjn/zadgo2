@@ -78,7 +78,7 @@ class _DriverHomeState extends State<DriverHome> {
           ),
           body: IndexedStack(index: _tab, children: [
             _AvailableOrdersTab(driverId: driverId, driver: driver),
-            _DriverEarningsTab(driver: driver),
+            _DriverEarningsTab(driver: driver, driverId: driverId),
           ]),
           bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
             destinations: const [
@@ -269,35 +269,60 @@ class _OrderCard extends StatelessWidget {
 
 class _DriverEarningsTab extends StatelessWidget {
   final Driver? driver;
-  const _DriverEarningsTab({this.driver});
+  final String driverId;
+  const _DriverEarningsTab({this.driver, required this.driverId});
 
   @override
   Widget build(BuildContext context) {
     if (driver == null) return const AppLoading();
     final d = driver!;
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [AppColors.primary, Color(0xFFc1121f)]),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('إجمالي أرباحك', style: TextStyle(color: Colors.white70, fontSize: 14)),
-          const SizedBox(height: 6),
-          Text(formatCurrency(d.totalEarnings), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
-        ]),
-      ),
-      const SizedBox(height: 20),
-      GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
-        _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, AppColors.primary),
-        _stat('المستحقات', formatCurrency(d.pendingPayout), Icons.account_balance_wallet_outlined, AppColors.warning),
-        _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
-        _stat('الحالة', d.isOnline ? 'متصل' : 'غير متصل', d.isOnline ? Icons.wifi : Icons.wifi_off,
-            d.isOnline ? AppColors.success : AppColors.textGray),
-      ]),
-    ]);
+    final service = context.read<FirebaseService>();
+    return StreamBuilder<List<Order>>(
+      stream: service.streamDriverOrders(driverId),
+      builder: (ctx, snap) {
+        final deliveries = (snap.data ?? []).where((o) => o.status == OrderStatus.delivered).toList();
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [AppColors.primary, Color(0xFFc1121f)]),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('إجمالي أرباحك', style: TextStyle(color: Colors.white70, fontSize: 14)),
+              const SizedBox(height: 6),
+              Text(formatCurrency(d.totalEarnings), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
+            _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, AppColors.primary),
+            _stat('المستحقات', formatCurrency(d.pendingPayout), Icons.account_balance_wallet_outlined, AppColors.warning),
+            _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
+            _stat('الحالة', d.isOnline ? 'متصل' : 'غير متصل', d.isOnline ? Icons.wifi : Icons.wifi_off,
+                d.isOnline ? AppColors.success : AppColors.textGray),
+          ]),
+          const SizedBox(height: 20),
+          const Text('التوصيلات الأخيرة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          if (deliveries.isEmpty)
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Text('لا توجد توصيلات مكتملة بعد')))
+          else
+            ...deliveries.take(5).map((order) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    title: Text('#${order.orderNumber}'),
+                    subtitle: Text('${order.restaurantName} • ${order.deliveryAddress}'),
+                    trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Text(formatCurrency(order.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(order.createdAt.toLocal().toString().split(' ')[0], style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                    ]),
+                  ),
+                )),
+        ]);
+      },
+    );
   }
 
   Widget _stat(String label, String value, IconData icon, Color color) => Card(child: Padding(
