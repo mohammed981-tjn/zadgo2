@@ -335,3 +335,86 @@ class _DriverEarningsTab extends StatelessWidget {
       Text(label, style: const TextStyle(fontSize: 12)),
     ])));
 }
+
+// ---------------------------------------------------------------------------
+// Driver pending-approval screen
+// ---------------------------------------------------------------------------
+
+/// Shown after a driver registers until an admin approves their account.
+/// Uses a real-time stream so the screen transitions automatically once
+/// the admin approves without requiring the driver to log out and back in.
+class DriverPendingScreen extends StatelessWidget {
+  const DriverPendingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<app_auth.AuthProvider>();
+    final service = context.read<FirebaseService>();
+    final uid = auth.user?.uid;
+
+    // If approved (e.g. admin just approved while screen is open), go to DriverHome.
+    if (uid != null) {
+      return StreamBuilder<Driver?>(
+        stream: service.streamDriver(uid),
+        builder: (ctx, snap) {
+          final driver = snap.data;
+          if (driver != null && driver.isApproved) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const DriverHome()),
+                (_) => false,
+              );
+            });
+          }
+          return _buildWaitingScreen(context, auth);
+        },
+      );
+    }
+    return _buildWaitingScreen(context, auth);
+  }
+
+  Widget _buildWaitingScreen(BuildContext context, app_auth.AuthProvider auth) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_top_rounded, size: 80, color: AppColors.warning),
+              const SizedBox(height: 24),
+              const Text(
+                'طلبك قيد المراجعة',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'تم استلام طلب تسجيلك كسائق. سيتم مراجعته من قِبل الإدارة وستُفعَّل تلقائياً عند الموافقة.',
+                style: TextStyle(fontSize: 15, color: AppColors.textGray, height: 1.6),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await auth.logout();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (_) => false,
+                    );
+                  }
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('تسجيل الخروج'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+}

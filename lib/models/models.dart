@@ -133,6 +133,8 @@ class AppUser {
   final UserRole role;
   final DateTime createdAt;
   final String? fcmToken;
+  /// false only for newly-registered drivers awaiting admin approval.
+  final bool isApproved;
 
   const AppUser({
     required this.uid,
@@ -142,6 +144,7 @@ class AppUser {
     required this.role,
     required this.createdAt,
     this.fcmToken,
+    this.isApproved = true,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -155,6 +158,8 @@ class AppUser {
         ),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         fcmToken: map['fcmToken'] as String?,
+        // Existing records without this field default to true (backwards-compatible).
+        isApproved: map['isApproved'] as bool? ?? true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -164,6 +169,7 @@ class AppUser {
         'role': role.name,
         'createdAt': Timestamp.fromDate(createdAt),
         if (fcmToken != null) 'fcmToken': fcmToken,
+        'isApproved': isApproved,
       };
 }
 
@@ -337,6 +343,8 @@ class Driver {
   final double? lat;
   final double? lng;
   final DateTime? lastLocationUpdate;
+  /// false for newly-registered drivers awaiting admin approval.
+  final bool isApproved;
 
   const Driver({
     required this.id,
@@ -354,6 +362,7 @@ class Driver {
     this.lat,
     this.lng,
     this.lastLocationUpdate,
+    this.isApproved = true,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -372,6 +381,8 @@ class Driver {
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
+        // Existing driver records without this field default to true (backwards-compatible).
+        isApproved: map['isApproved'] as bool? ?? true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -390,6 +401,7 @@ class Driver {
         'lng': lng,
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
+        'isApproved': isApproved,
       };
 }
 
