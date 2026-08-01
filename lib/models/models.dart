@@ -569,7 +569,8 @@ class Order {
   double get deliveryFee => driverShare + appShare;
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
   double get grandTotal => itemsTotal + deliveryFee;
-  double get calculatedCommission => itemsTotal * 0.01;
+  /// عمولة التطبيق من المطعم — ١٥٪ من قيمة الوجبة (لا تشمل أجرة التوصيل).
+  double get calculatedCommission => itemsTotal * 0.15;
 
   factory Order.fromMap(Map<String, dynamic> map, String id) => Order(
         id: id,
