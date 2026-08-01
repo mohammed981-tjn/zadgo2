@@ -1,6 +1,7 @@
 // lib/providers/firebase_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import '../models/models.dart' as models;
 
 class FirebaseService {
@@ -13,6 +14,7 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
+  CollectionReference<Map<String, dynamic>> get _inviteCodes => _db.collection('invite_codes');
 
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
@@ -29,6 +31,14 @@ class FirebaseService {
       _auth.createUserWithEmailAndPassword(email: email, password: password);
 
   Future<void> signOut() => _auth.signOut();
+
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw FirebaseAuthException(code: 'no-user');
+    final credential = EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPassword);
+  }
 
   Future<void> createUser(models.AppUser user) => _users.doc(user.uid).set(user.toMap());
 
@@ -88,6 +98,22 @@ class FirebaseService {
   Future<void> updateDriver(models.Driver d) => _drivers.doc(d.id).update(d.toMap());
   Future<void> setDriverOnline(String id, bool isOnline) =>
       _drivers.doc(id).update({'isOnline': isOnline});
+
+  /// Approve a pending driver: marks both the driver record and user record as approved.
+  Future<void> approveDriver(String uid) async {
+    final batch = _db.batch();
+    batch.update(_drivers.doc(uid), {'isApproved': true});
+    batch.update(_users.doc(uid), {'isApproved': true});
+    await batch.commit();
+  }
+
+  /// Reject a pending driver: removes the driver record and marks the user as not approved.
+  Future<void> rejectDriver(String uid) async {
+    final batch = _db.batch();
+    batch.delete(_drivers.doc(uid));
+    batch.update(_users.doc(uid), {'isApproved': false});
+    await batch.commit();
+  }
 
   // ✅ تتبع حي لموقع السائق
   Future<void> updateDriverLocation(String driverId, double lat, double lng) =>
@@ -151,7 +177,6 @@ class FirebaseService {
     batch.update(_orders.doc(orderId), {
       'driverId': driverId,
       'driverName': driverName,
-      'status': models.OrderStatus.outForDelivery.name,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
@@ -230,4 +255,91 @@ class FirebaseService {
 
   Future<void> sendChatMessage(models.ChatMessage message) =>
       _messages.doc(message.id).set(message.toMap());
+
+  // ── Invite Codes ──────────────────────────────────────────────────────────
+
+  /// Generates a unique invite code for [role] and stores it in Firestore.
+  /// Returns the plain code string.
+  Future<String> generateInviteCode(models.UserRole role) async {
+    final code = models.InviteCode.generate();
+    final doc = _inviteCodes.doc();
+    final inviteCode = models.InviteCode(
+      id: doc.id,
+      code: code,
+      role: role,
+      isUsed: false,
+      createdAt: DateTime.now(),
+    );
+    await doc.set(inviteCode.toMap());
+    return code;
+  }
+
+  /// Returns the [InviteCode] if it exists and has not been used, else null.
+  Future<models.InviteCode?> validateInviteCode(String code) async {
+    final query = await _inviteCodes
+        .where('code', isEqualTo: code.trim().toUpperCase())
+        .where('isUsed', isEqualTo: false)
+        .limit(1)
+        .get();
+    if (query.docs.isEmpty) return null;
+    final doc = query.docs.first;
+    return models.InviteCode.fromMap(doc.data(), doc.id);
+  }
+
+  /// Marks the invite code document as used by [uid].
+  Future<void> consumeInviteCode(String inviteCodeId, String uid) =>
+      _inviteCodes.doc(inviteCodeId).update({'isUsed': true, 'usedBy': uid});
+
+  /// Streams all invite codes ordered by creation date (newest first).
+  Stream<List<models.InviteCode>> streamInviteCodes() => _inviteCodes
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.InviteCode.fromMap(d.data(), d.id))
+          .toList());
+
+  // ── Password Reset ────────────────────────────────────────────────────────
+
+  /// Sends a Firebase password-reset email to [email].
+  Future<void> sendPasswordResetEmail(String email) =>
+      _auth.sendPasswordResetEmail(email: email.trim());
+
+  // ── Direct Admin Creation ─────────────────────────────────────────────────
+
+  /// Creates a new admin account without signing out the current user.
+  /// Uses a temporary secondary Firebase app so the current admin session
+  /// remains active throughout.
+  Future<void> createAdminAccount({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+  }) async {
+    FirebaseApp? secondaryApp;
+    try {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'adminCreation_${DateTime.now().millisecondsSinceEpoch}',
+        options: Firebase.app().options,
+      );
+      final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+      final cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final uid = cred.user!.uid;
+      final newUser = models.AppUser(
+        uid: uid,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role: models.UserRole.admin,
+        createdAt: DateTime.now(),
+        isApproved: true,
+      );
+      await _users.doc(uid).set(newUser.toMap());
+      await secondaryAuth.signOut();
+    } finally {
+      await secondaryApp?.delete();
+    }
+  }
 }

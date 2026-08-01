@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -105,6 +106,21 @@ class _OrderCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
                 ]),
               ),
+            if (order.status == OrderStatus.delivered || order.status == OrderStatus.cancelled)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showComplaintDialog(context, service, order),
+                    icon: const Icon(Icons.report_problem_outlined, size: 16, color: Color(0xFFE63946)),
+                    label: const Text('تقديم شكوى', style: TextStyle(color: Color(0xFFE63946))),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFE63946)),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -158,6 +174,71 @@ class _OrderCard extends StatelessWidget {
                 if (context.mounted) Navigator.pop(ctx);
               },
               child: const Text('إرسال'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showComplaintDialog(BuildContext context, FirebaseService service, Order o) {
+    final auth = context.read<app_auth.AuthProvider>();
+    ComplaintType selectedType = ComplaintType.lateDelivery;
+    final descCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setState) => AlertDialog(
+          title: const Text('تقديم شكوى'),
+          content: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('نوع الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ...ComplaintType.values.map((t) => RadioListTile<ComplaintType>(
+                    value: t,
+                    groupValue: selectedType,
+                    onChanged: (v) => setState(() => selectedType = v!),
+                    title: Text(t.label),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                  )),
+              const SizedBox(height: 8),
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: 'وصف المشكلة'),
+                maxLines: 3,
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE63946)),
+              onPressed: () async {
+                if (descCtrl.text.trim().isEmpty) {
+                  showError(context, 'اكتب وصف المشكلة');
+                  return;
+                }
+                final user = auth.user!;
+                final complaint = Complaint(
+                  id: const Uuid().v4(),
+                  orderId: o.id,
+                  orderNumber: o.orderNumber,
+                  customerId: user.uid,
+                  customerName: user.name,
+                  restaurantId: o.restaurantId,
+                  restaurantName: o.restaurantName,
+                  type: selectedType,
+                  description: descCtrl.text.trim(),
+                  createdAt: DateTime.now(),
+                );
+                await service.submitComplaint(complaint);
+                if (context.mounted) {
+                  Navigator.pop(ctx);
+                  showSuccess(context, 'تم تقديم شكواك بنجاح');
+                }
+              },
+              child: const Text('إرسال الشكوى'),
             ),
           ],
         ),

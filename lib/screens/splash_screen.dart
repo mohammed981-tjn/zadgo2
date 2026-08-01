@@ -26,10 +26,18 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigated = true;
     final auth = context.read<app_auth.AuthProvider>();
     if (!auth.isLoggedIn) { _go(const LoginScreen()); return; }
-    switch (auth.user!.role) {
-      case UserRole.admin: _go(const AdminHome()); break;
-      case UserRole.customer: _go(const CustomerHome()); break;
-      case UserRole.driver: _go(const DriverHome()); break;
+    final user = auth.user!;
+    switch (user.role) {
+      case UserRole.admin:
+        _go(const AdminHome());
+        break;
+      case UserRole.customer:
+        _go(const CustomerHome());
+        break;
+      case UserRole.driver:
+        // Unapproved drivers land on the waiting screen instead of the main app.
+        _go(user.isApproved ? const DriverHome() : const DriverPendingScreen());
+        break;
     }
   }
 

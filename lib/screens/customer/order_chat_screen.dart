@@ -57,6 +57,20 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
           child: StreamBuilder<List<ChatMessage>>(
             stream: service.streamChatMessages(widget.order.id),
             builder: (ctx, snap) {
+              if (snap.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 12),
+                      const Text('تعذّر تحميل المحادثة', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Text('${snap.error}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+                    ]),
+                  ),
+                );
+              }
               if (!snap.hasData) return const AppLoading();
               final messages = snap.data!;
               if (messages.isEmpty) {
