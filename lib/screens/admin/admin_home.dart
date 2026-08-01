@@ -142,9 +142,68 @@ class _OrdersTab extends StatelessWidget {
                   onPressed: () => service.markOrderDelivered(o.id, o.driverId ?? ''),
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
                   child: const Text('تأكيد التوصيل'))),
+            if (o.driverId != null &&
+                (o.status == OrderStatus.readyForPickup || o.status == OrderStatus.outForDelivery))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.warning),
+                    icon: const Icon(Icons.sync_alt, size: 16),
+                    label: const Text('تغيير السائق'),
+                    onPressed: () => _reassignDriver(context, service, o),
+                  ),
+                ),
+              ),
           ])));
       });
     });
+  }
+
+  Future<void> _reassignDriver(BuildContext context, FirebaseService service, Order o) async {
+    final allDrivers = await service.streamDrivers().first;
+    final candidates = allDrivers.where((d) => d.isOnline && d.id != o.driverId).toList();
+    if (!context.mounted) return;
+    if (candidates.isEmpty) {
+      showError(context, 'لا يوجد سائقون متاحون آخرون حالياً');
+      return;
+    }
+    Driver? selected;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDlgState) => AlertDialog(
+          title: const Text('تغيير السائق'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('استخدم هذا الخيار عند تعثر السائق الحالي (حادث، عطل، إلخ) لنقل الطلب إلى سائق آخر.',
+                style: TextStyle(fontSize: 13, color: AppColors.textGray)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<Driver>(
+              value: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'السائق الجديد'),
+              items: candidates.map((d) => DropdownMenuItem(value: d, child: Text(d.name))).toList(),
+              onChanged: (v) => setDlgState(() => selected = v),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: selected == null ? null : () => Navigator.pop(ctx, true),
+              child: const Text('تأكيد'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || selected == null || !context.mounted) return;
+    try {
+      await service.reassignDriver(o.id, o.driverId, selected!.id, selected!.name);
+      if (context.mounted) showSuccess(context, 'تم نقل الطلب إلى ${selected!.name} ✅');
+    } catch (_) {
+      if (context.mounted) showError(context, 'فشل تغيير السائق، حاول مجدداً');
+    }
   }
 }
 

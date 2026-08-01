@@ -191,6 +191,31 @@ class FirebaseService {
     await batch.commit();
   }
 
+  /// Reassigns an in-progress order from its current driver to a different
+  /// one — used when a driver has an accident, breakdown, or otherwise
+  /// cannot complete the delivery. Frees up the old driver and resets the
+  /// order status to [models.OrderStatus.readyForPickup] so the new driver
+  /// goes through the normal pickup confirmation flow.
+  Future<void> reassignDriver(
+    String orderId,
+    String? oldDriverId,
+    String newDriverId,
+    String newDriverName,
+  ) async {
+    final batch = _db.batch();
+    batch.update(_orders.doc(orderId), {
+      'driverId': newDriverId,
+      'driverName': newDriverName,
+      'status': models.OrderStatus.readyForPickup.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    if (oldDriverId != null && oldDriverId.isNotEmpty) {
+      batch.update(_drivers.doc(oldDriverId), {'isAvailable': true});
+    }
+    batch.update(_drivers.doc(newDriverId), {'isAvailable': false});
+    await batch.commit();
+  }
+
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();
     double commission = 0;
