@@ -2,9 +2,9 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ copilot/add-new-email ]
+    branches: [ copilot/add-new-email-again ]
   workflow_dispatch:
-    branches: [ copilot/add-new-email ]
+    branches: [ copilot/add-new-email-agin ]
 
 jobs:
   build:
