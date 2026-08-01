@@ -124,24 +124,49 @@ class AdminUsersTab extends StatelessWidget {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (generated == null) ...[
                 const Text(
-                  'اختر المطعم ثم ولّد رمز تسجيل وحيد الاستخدام لإرساله لمدير المطعم؛ '
-                  'سيستخدمه لتسجيل حسابه بنفسه وربطه تلقائياً بهذا المطعم.',
+                  'اختر مطعماً لم يُربط بعد بمدير مسجَّل، ثم ولّد رمز تسجيل وحيد الاستخدام '
+                  'لإرساله لمدير المطعم؛ سيستخدمه لتسجيل حسابه بنفسه وربطه تلقائياً بهذا المطعم.',
                   style: TextStyle(fontSize: 13, color: AppColors.textGray),
                 ),
                 const SizedBox(height: 14),
                 StreamBuilder<List<Restaurant>>(
                   stream: service.streamRestaurants(),
                   builder: (ctx, rSnap) {
-                    final restaurants = rSnap.data ?? [];
-                    return DropdownButtonFormField<String>(
-                      value: selectedRestaurantId,
-                      decoration: const InputDecoration(labelText: 'المطعم'),
-                      items: restaurants
-                          .map((r) => DropdownMenuItem(value: r.id, child: Text(r.name)))
-                          .toList(),
-                      onChanged: (v) {
-                        selectedRestaurantId = v;
-                        selectedRestaurantName = restaurants.firstWhere((r) => r.id == v).name;
+                    return StreamBuilder<List<AppUser>>(
+                      stream: service.streamUsers(),
+                      builder: (ctx, uSnap) {
+                        final allRestaurants = rSnap.data ?? [];
+                        final linkedRestaurantIds = (uSnap.data ?? [])
+                            .where((u) => u.role == UserRole.restaurantManager && u.restaurantId != null)
+                            .map((u) => u.restaurantId)
+                            .toSet();
+                        final restaurants = allRestaurants
+                            .where((r) => !linkedRestaurantIds.contains(r.id))
+                            .toList();
+                        if (selectedRestaurantId != null &&
+                            !restaurants.any((r) => r.id == selectedRestaurantId)) {
+                          selectedRestaurantId = null;
+                          selectedRestaurantName = null;
+                        }
+                        if (rSnap.hasData && uSnap.hasData && restaurants.isEmpty) {
+                          return const Text(
+                            'لا توجد مطاعم متاحة حالياً — جميع المطاعم مرتبطة بالفعل بمدير مسجَّل.',
+                            style: TextStyle(fontSize: 13, color: Colors.orange),
+                          );
+                        }
+                        return DropdownButtonFormField<String>(
+                          value: selectedRestaurantId,
+                          decoration: const InputDecoration(labelText: 'المطعم (غير المرتبط بمدير بعد)'),
+                          items: restaurants
+                              .map((r) => DropdownMenuItem(value: r.id, child: Text(r.name)))
+                              .toList(),
+                          onChanged: (v) {
+                            setState(() {
+                              selectedRestaurantId = v;
+                              selectedRestaurantName = restaurants.firstWhere((r) => r.id == v).name;
+                            });
+                          },
+                        );
                       },
                     );
                   },
