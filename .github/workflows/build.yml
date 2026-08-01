@@ -58,4 +58,5 @@ jobs:
             build/app/outputs/flutter-apk/app-release.apk
             android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: warn
-          retention-days: 1
+          retention-days: 1١
+
