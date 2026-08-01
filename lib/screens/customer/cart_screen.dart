@@ -1,6 +1,5 @@
 // lib/screens/customer/cart_screen.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:latlong2/latlong.dart';
@@ -10,9 +9,9 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
-import '../../utils/payment_validator.dart';
 import '../../widgets/common_widgets.dart';
 import '../admin/pick_location_screen.dart';
+import 'moyasar_payment_screen.dart';
 import 'my_orders_screen.dart';
 
 class CartScreen extends StatelessWidget {
@@ -118,18 +117,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    String? paymentId;
     if (_payment == PaymentMethod.card) {
-      final confirmed = await Navigator.push<bool>(
+      final cart = context.read<CartProvider>();
+      final result = await Navigator.push<MoyasarPaymentResult>(
         context,
-        MaterialPageRoute(builder: (_) => const CreditCardInputScreen()),
+        MaterialPageRoute(
+          builder: (_) => MoyasarPaymentScreen(
+            amountSar: cart.grandTotalWithVat,
+            orderDescription: 'طلب ZadGo',
+          ),
+        ),
       );
-      if (confirmed != true) return;
+
+      // User backed out of the payment screen without completing it.
+      if (result == null) return;
+
+      // Gateway declined/failed the charge — do not create the order.
+      if (!result.success) {
+        if (mounted) showError(context, result.errorMessage ?? 'فشلت عملية الدفع');
+        return;
+      }
+
+      paymentId = result.paymentId;
     }
 
-    await _doPlaceOrder();
+    await _doPlaceOrder(paymentId: paymentId);
   }
 
-  Future<void> _doPlaceOrder() async {
+  Future<void> _doPlaceOrder({String? paymentId}) async {
     setState(() => _loading = true);
     final cart = context.read<CartProvider>();
     final auth = context.read<app_auth.AuthProvider>();
@@ -139,6 +155,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final orderId = uuid.v4();
 
     final restaurant = await service.getRestaurantOnce(cart.restaurantId!);
+
+    double? distanceKm;
+    double deliveryFee = cart.deliveryFee;
+    double driverEarning = cart.deliveryFee;
+    double platformDeliveryFee = 0;
+    if (restaurant?.lat != null && restaurant?.lng != null && _lat != null && _lng != null) {
+      distanceKm = distanceKmBetween(restaurant!.lat!, restaurant.lng!, _lat!, _lng!);
+      final breakdown = calculateDeliveryFee(distanceKm);
+      deliveryFee = breakdown.total;
+      driverEarning = breakdown.driverEarning;
+      platformDeliveryFee = breakdown.platformFee;
+    }
 
     final order = Order(
       id: orderId,
@@ -150,15 +178,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       deliveryAddress: _addrCtrl.text.trim(),
       items: cart.toOrderItems(),
       paymentMethod: _payment,
-      isPaid: _payment != PaymentMethod.cash,
+      // Cash orders are unpaid until collected on delivery. Card orders are
+      // only marked as paid once Moyasar returns a real transaction id.
+      isPaid: _payment == PaymentMethod.card && paymentId != null,
       createdAt: DateTime.now(),
-      deliveryFee: cart.deliveryFee,
+      deliveryFee: deliveryFee,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
       platformCommission: cart.platformCommission,
       deliveryLat: _lat,
       deliveryLng: _lng,
       restaurantLat: restaurant?.lat,
       restaurantLng: restaurant?.lng,
+      distanceKm: distanceKm,
+      driverEarning: driverEarning,
+      platformDeliveryFee: platformDeliveryFee,
+      paymentId: paymentId,
     );
     try {
       await service.placeOrder(order);
@@ -217,180 +251,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Credit-card input screen
-// ---------------------------------------------------------------------------
-
-/// Formats a card number string with a space every four digits.
-class _CardNumberFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
-    final buffer = StringBuffer();
-    for (int i = 0; i < digits.length && i < 16; i++) {
-      if (i > 0 && i % 4 == 0) buffer.write(' ');
-      buffer.write(digits[i]);
-    }
-    final text = buffer.toString();
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-}
-
-/// Formats expiry as MM/YY.
-class _ExpiryFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
-    if (digits.isEmpty) {
-      return const TextEditingValue(
-          text: '', selection: TextSelection.collapsed(offset: 0));
-    }
-    final month = digits.substring(0, digits.length > 2 ? 2 : digits.length);
-    final year = digits.length > 2 ? digits.substring(2, digits.length > 4 ? 4 : digits.length) : '';
-    final text = year.isEmpty ? month : '$month/$year';
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-}
-
-class CreditCardInputScreen extends StatefulWidget {
-  const CreditCardInputScreen({super.key});
-
-  @override
-  State<CreditCardInputScreen> createState() => _CreditCardInputScreenState();
-}
-
-class _CreditCardInputScreenState extends State<CreditCardInputScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _holderCtrl = TextEditingController();
-  final _numberCtrl = TextEditingController();
-  final _expiryCtrl = TextEditingController();
-  final _cvvCtrl = TextEditingController();
-  bool _obscureCvv = true;
-
-  @override
-  void dispose() {
-    _holderCtrl.dispose();
-    _numberCtrl.dispose();
-    _expiryCtrl.dispose();
-    _cvvCtrl.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final error = PaymentValidator.validate(
-      holderName: _holderCtrl.text,
-      cardNumber: _numberCtrl.text,
-      expiry: _expiryCtrl.text,
-      cvv: _cvvCtrl.text,
-    );
-    if (error != null) {
-      showError(context, error);
-      return;
-    }
-    showSuccess(context, 'تم التحقق من البطاقة بنجاح');
-    Navigator.pop(context, true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('بيانات البطاقة الائتمانية')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const Icon(Icons.credit_card_rounded, size: 64, color: AppColors.primary),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _holderCtrl,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(
-                labelText: 'اسم حامل البطاقة',
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _numberCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [_CardNumberFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'رقم البطاقة',
-                hintText: 'XXXX XXXX XXXX XXXX',
-                prefixIcon: Icon(Icons.credit_card_outlined),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _expiryCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [_ExpiryFormatter()],
-                    decoration: const InputDecoration(
-                      labelText: 'تاريخ الانتهاء',
-                      hintText: 'MM/YY',
-                      prefixIcon: Icon(Icons.date_range_outlined),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _cvvCtrl,
-                    keyboardType: TextInputType.number,
-                    obscureText: _obscureCvv,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(4),
-                    ],
-                    decoration: InputDecoration(
-                      labelText: 'CVV',
-                      hintText: '•••',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscureCvv ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() => _obscureCvv = !_obscureCvv),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('تحقق وأتمم الطلب'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text(
-                '🔒 بياناتك آمنة ومشفرة',
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

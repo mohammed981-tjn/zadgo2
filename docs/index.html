@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZadGo — تطبيق توصيل الطلبات</title>
+  <meta name="description" content="ZadGo تطبيق توصيل طلبات المطاعم — اطلب من مطعمك المفضل واستلم طلبك بسرعة وسهولة.">
+  <link rel="icon" href="assets/logo.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <img class="logo" src="assets/logo.png" alt="شعار ZadGo">
+      <span class="brand">ZadGo</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <img class="logo-large" src="assets/logo.png" alt="شعار ZadGo">
+      <h1>ZadGo — طلبك في الطريق إليك</h1>
+      <p class="tagline">
+        تطبيق ZadGo يربطك بأفضل المطاعم القريبة منك، اطلب وجبتك المفضلة وتابع طلبك لحظة بلحظة
+        حتى وصوله إلى بابك.
+      </p>
+
+      <div class="download-links">
+        <span class="btn disabled" title="سيتوفر الرابط قريباً">
+          📱 تحميل من App Store
+        </span>
+        <span class="btn disabled" title="سيتوفر الرابط قريباً">
+          🤖 تحميل من Google Play
+        </span>
+      </div>
+    </section>
+
+    <div class="card">
+      <h2>عن ZadGo</h2>
+      <p>
+        ZadGo منصة توصيل طلبات تجمع بين العملاء والمطاعم والسائقين في تجربة واحدة سلسة:
+        تصفّح قوائم المطاعم، اطلب بضغطة واحدة، وتابع سائقك حتى استلام طلبك.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>روابط مهمة</h2>
+      <div class="links-grid">
+        <a href="privacy-policy.html">سياسة الخصوصية</a>
+        <a href="terms.html">الشروط والأحكام</a>
+        <a href="delete-account.html">حذف الحساب</a>
+        <a href="contact.html">التواصل والدعم</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <nav>
+      <a href="privacy-policy.html">سياسة الخصوصية</a>·
+      <a href="terms.html">الشروط والأحكام</a>·
+      <a href="delete-account.html">حذف الحساب</a>·
+      <a href="contact.html">التواصل والدعم</a>
+    </nav>
+    <div>© <span id="year"></span> ZadGo. جميع الحقوق محفوظة.</div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

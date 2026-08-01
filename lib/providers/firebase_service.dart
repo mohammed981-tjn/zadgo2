@@ -163,6 +163,14 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
+  /// Streams orders scoped to a single restaurant/branch — used by restaurant
+  /// managers whose access is restricted to their own branch.
+  Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
+      .where('restaurantId', isEqualTo: restaurantId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
   Stream<models.Order?> streamOrder(String orderId) => _orders.doc(orderId).snapshots().map(
       (doc) => doc.exists && doc.data() != null ? models.Order.fromMap(doc.data()!, doc.id) : null);
 
@@ -183,12 +191,39 @@ class FirebaseService {
     await batch.commit();
   }
 
+  /// Reassigns an in-progress order from its current driver to a different
+  /// one — used when a driver has an accident, breakdown, or otherwise
+  /// cannot complete the delivery. Frees up the old driver and resets the
+  /// order status to [models.OrderStatus.readyForPickup] so the new driver
+  /// goes through the normal pickup confirmation flow.
+  Future<void> reassignDriver(
+    String orderId,
+    String? oldDriverId,
+    String newDriverId,
+    String newDriverName,
+  ) async {
+    final batch = _db.batch();
+    batch.update(_orders.doc(orderId), {
+      'driverId': newDriverId,
+      'driverName': newDriverName,
+      'status': models.OrderStatus.readyForPickup.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    if (oldDriverId != null && oldDriverId.isNotEmpty) {
+      batch.update(_drivers.doc(oldDriverId), {'isAvailable': true});
+    }
+    batch.update(_drivers.doc(newDriverId), {'isAvailable': false});
+    await batch.commit();
+  }
+
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();
     double commission = 0;
+    double driverEarning = 10;
     if (orderDoc.exists && orderDoc.data() != null) {
       final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
       commission = order.calculatedCommission;
+      driverEarning = order.driverEarning;
     }
     final batch = _db.batch();
     batch.update(_orders.doc(orderId), {
@@ -199,7 +234,7 @@ class FirebaseService {
     });
     batch.update(_drivers.doc(driverId), {
       'totalDeliveries': FieldValue.increment(1),
-      'pendingPayout': FieldValue.increment(10),
+      'pendingPayout': FieldValue.increment(driverEarning),
       'isAvailable': true,
     });
     await batch.commit();
@@ -259,8 +294,14 @@ class FirebaseService {
   // ── Invite Codes ──────────────────────────────────────────────────────────
 
   /// Generates a unique invite code for [role] and stores it in Firestore.
+  /// For [models.UserRole.restaurantManager], [restaurantId]/[restaurantName]
+  /// must be provided to scope the resulting account to a single branch.
   /// Returns the plain code string.
-  Future<String> generateInviteCode(models.UserRole role) async {
+  Future<String> generateInviteCode(
+    models.UserRole role, {
+    String? restaurantId,
+    String? restaurantName,
+  }) async {
     final code = models.InviteCode.generate();
     final doc = _inviteCodes.doc();
     final inviteCode = models.InviteCode(
@@ -269,6 +310,8 @@ class FirebaseService {
       role: role,
       isUsed: false,
       createdAt: DateTime.now(),
+      restaurantId: restaurantId,
+      restaurantName: restaurantName,
     );
     await doc.set(inviteCode.toMap());
     return code;

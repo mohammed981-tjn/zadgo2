@@ -29,6 +29,11 @@ dependencies:
   latlong2: ^0.9.1
   url_launcher: ^6.3.1
   geolocator: ^13.0.2
+  pdf: ^3.11.1
+  printing: ^5.13.4
+  excel: ^4.0.6
+  path_provider: ^2.1.4
+  moyasar: ^3.0.4
 
 dev_dependencies:
   flutter_test:
