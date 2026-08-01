@@ -427,7 +427,7 @@ class _AdminAccountsTabState extends State<AdminAccountsTab> {
         excel.rename(defaultSheet, 'التقرير المالي');
       }
       final sheet = excel['التقرير المالي'];
-      sheet.rtl = true;
+      sheet.isRTL = true;
 
       sheet.appendRow([TextCellValue('تقرير الحسابات')]);
       sheet.appendRow([TextCellValue('الفترة'), TextCellValue(_buildDateRangeLabel())]);
