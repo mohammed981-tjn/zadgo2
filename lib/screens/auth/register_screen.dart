@@ -159,9 +159,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 errorText: _codeError,
               ),
               onChanged: (_) {
-                if (_resolvedCode != null || _codeError != null) {
-                  setState(() { _resolvedCode = null; _codeError = null; });
-                }
+                setState(() { _resolvedCode = null; _codeError = null; });
               },
             ),
           ),
