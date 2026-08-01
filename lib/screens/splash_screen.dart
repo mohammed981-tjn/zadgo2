@@ -50,21 +50,79 @@ class _SplashScreenState extends State<SplashScreen> {
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => screen), (_) => false);
   }
 
+  static const Color bgDark = Color(0xFF08201A);
+  static const Color bgDarker = Color(0xFF040F0C);
+  static const Color zadgoGreen = Color(0xFF12805F);
+  static const Color zadgoGreenLight = Color(0xFF3FD69C);
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF040E1A),
-      body: Center(
-        child: SizedBox(
-          width: screenWidth * 0.75,
-          height: screenHeight * 0.75,
-          child: Image.asset(
-            'assets/images/logo_square.png',
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.4),
+            radius: 1.4,
+            colors: [bgDark, bgDarker],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: screenWidth * 0.45,
+                height: screenWidth * 0.45,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      zadgoGreen.withOpacity(0.30),
+                      zadgoGreen.withOpacity(0.0),
+                    ],
+                  ),
+                ),
+                child: Center(
+                  child: SizedBox(
+                    width: screenWidth * 0.32,
+                    height: screenWidth * 0.32,
+                    child: Image.asset(
+                      'assets/images/logo_square.png',
+                      fit: BoxFit.contain,
+                      alignment: Alignment.center,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [zadgoGreenLight, zadgoGreen],
+                ).createShader(bounds),
+                child: const Text(
+                  'ZadGo',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  valueColor: AlwaysStoppedAnimation<Color>(zadgoGreenLight.withOpacity(0.8)),
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -22,10 +22,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const Color bgDark = Color(0xFF040E1A);
-  static const Color bgDarker = Color(0xFF020810);
-  static const Color zadgoGold = Color(0xFFD4A017);
-  static const Color zadgoGoldLight = Color(0xFFF0C550);
+  static const Color bgDark = Color(0xFF08201A);
+  static const Color bgDarker = Color(0xFF040F0C);
+  static const Color zadgoGreen = Color(0xFF12805F);
+  static const Color zadgoGreenLight = Color(0xFF3FD69C);
 
   void _navigate(AppUser user) {
     Widget dest;
@@ -58,7 +58,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: Colors.white60, fontSize: 14),
-      prefixIcon: Icon(icon, color: zadgoGold, size: 20),
+      prefixIcon: Icon(icon, color: zadgoGreen, size: 20),
       suffixIcon: suffix,
       filled: true,
       fillColor: Colors.white.withOpacity(0.06),
@@ -72,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: zadgoGold, width: 1.6),
+        borderSide: const BorderSide(color: zadgoGreen, width: 1.6),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
     );
@@ -107,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 24),
-                    // ✅ الشعار المصمم بالكود - أيقونة مع توهج ذهبي
+                    // ✅ الشعار المصمم بالكود - أيقونة مع توهج أخضر
                     Container(
                       width: 100,
                       height: 100,
@@ -115,8 +115,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            zadgoGold.withOpacity(0.25),
-                            zadgoGold.withOpacity(0.0),
+                            zadgoGreen.withOpacity(0.25),
+                            zadgoGreen.withOpacity(0.0),
                           ],
                         ),
                       ),
@@ -127,13 +127,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: const LinearGradient(
-                              colors: [zadgoGoldLight, zadgoGold],
+                              colors: [zadgoGreenLight, zadgoGreen],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: zadgoGold.withOpacity(0.5),
+                                color: zadgoGreen.withOpacity(0.5),
                                 blurRadius: 20,
                                 spreadRadius: 2,
                               ),
@@ -150,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 20),
                     ShaderMask(
                       shaderCallback: (bounds) => const LinearGradient(
-                        colors: [zadgoGoldLight, zadgoGold],
+                        colors: [zadgoGreenLight, zadgoGreen],
                       ).createShader(bounds),
                       child: const Text(
                         'ZadGo',
@@ -225,13 +225,13 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(16),
                                 gradient: const LinearGradient(
-                                  colors: [zadgoGoldLight, zadgoGold],
+                                  colors: [zadgoGreenLight, zadgoGreen],
                                   begin: Alignment.centerLeft,
                                   end: Alignment.centerRight,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: zadgoGold.withOpacity(0.4),
+                                    color: zadgoGreen.withOpacity(0.4),
                                     blurRadius: 16,
                                     offset: const Offset(0, 6),
                                   ),
@@ -275,7 +275,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: Text(
                                 'ليس لديك حساب؟ سجّل الآن',
                                 style: TextStyle(
-                                  color: zadgoGoldLight,
+                                  color: zadgoGreenLight,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13.5,
                                 ),

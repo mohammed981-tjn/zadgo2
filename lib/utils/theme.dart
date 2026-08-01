@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  static const primary = Color(0xFFD4A017);         // ذهبي/عنبري فاخر
-  static const primaryDark = Color(0xFFB8860B);      // ذهبي أغمق للتدرجات والظلال
-  static const primaryLight = Color(0xFFE8C547);     // ذهبي أفتح للمس الخفيفة
-  static const dark = Color(0xFF0F1B2E);             // كحلي داكن
-  static const secondary = Color(0xFF16243B);        // كحلي أفتح قليلاً
+  static const primary = Color(0xFF0E6B4F);          // أخضر غامق فاخر
+  static const primaryDark = Color(0xFF063D2C);       // أخضر أغمق للتدرجات والظلال
+  static const primaryLight = Color(0xFF3FA97A);      // أخضر أفتح للمس الخفيفة
+  static const dark = Color(0xFF0A1F17);              // أخضر كحلي داكن جداً
+  static const secondary = Color(0xFF102B20);         // أخضر داكن أفتح قليلاً
   static const success = Color(0xFF00D084);
   static const successLight = Color(0xFFE8F9F1);
   static const warning = Color(0xFFFFB020);
   static const error = Color(0xFFD32F2F);
   static const surface = Color(0xFFF5F5F7);
-  static const textDark = Color(0xFF0F1B2E);
+  static const textDark = Color(0xFF0A1F17);
   static const textGray = Color(0xFF8A8A8E);
   static const divider = Color(0xFFEAEAEC);
   static const cardShadow = Color(0x14000000);
