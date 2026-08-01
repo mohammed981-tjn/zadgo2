@@ -490,6 +490,12 @@ class Order {
   /// Platform's fixed share of [deliveryFee] (separate from [platformCommission],
   /// which is the platform's commission on the items' value).
   final double platformDeliveryFee;
+  /// Payment gateway transaction id (e.g. Moyasar payment id), set only after
+  /// a real card charge succeeds. Null for cash orders or failed/pending
+  /// payments.
+  final String? paymentId;
+  /// Optional extra reference for the payment (e.g. gateway invoice id).
+  final String? paymentReference;
 
   const Order({
     required this.id,
@@ -522,6 +528,8 @@ class Order {
     this.distanceKm,
     this.driverEarning = 0,
     this.platformDeliveryFee = 0,
+    this.paymentId,
+    this.paymentReference,
   });
 
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
@@ -572,6 +580,8 @@ class Order {
             (map['deliveryFee'] as num?)?.toDouble() ??
             5.0,
         platformDeliveryFee: (map['platformDeliveryFee'] as num?)?.toDouble() ?? 0,
+        paymentId: map['paymentId'] as String?,
+        paymentReference: map['paymentReference'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -604,6 +614,8 @@ class Order {
         'distanceKm': distanceKm,
         'driverEarning': driverEarning,
         'platformDeliveryFee': platformDeliveryFee,
+        if (paymentId != null) 'paymentId': paymentId,
+        if (paymentReference != null) 'paymentReference': paymentReference,
       };
 }
 
