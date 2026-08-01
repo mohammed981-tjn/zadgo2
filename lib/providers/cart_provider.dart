@@ -17,7 +17,7 @@ class CartProvider extends ChangeNotifier {
   int get itemCount => _items.fold(0, (s, i) => s + i.quantity);
   double get vat => itemsTotal * 0.15;
   double get grandTotalWithVat => grandTotal + vat;
-  double get platformCommission => itemsTotal * 0.01;
+  double get platformCommission => itemsTotal * 0.15;
 
   int quantityOf(String itemId) {
     try { return _items.firstWhere((i) => i.item.id == itemId).quantity; }

@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 
-enum UserRole { admin, customer, driver }
+enum UserRole { admin, customer, driver, restaurantManager }
 
 enum OrderStatus {
   pending,
@@ -136,6 +136,10 @@ class AppUser {
   final String? fcmToken;
   /// false only for newly-registered drivers awaiting admin approval.
   final bool isApproved;
+  /// Set only for [UserRole.restaurantManager] users — the single branch/restaurant
+  /// they are restricted to.
+  final String? restaurantId;
+  final String? restaurantName;
 
   const AppUser({
     required this.uid,
@@ -146,6 +150,8 @@ class AppUser {
     required this.createdAt,
     this.fcmToken,
     this.isApproved = true,
+    this.restaurantId,
+    this.restaurantName,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -161,6 +167,8 @@ class AppUser {
         fcmToken: map['fcmToken'] as String?,
         // Existing records without this field default to true (backwards-compatible).
         isApproved: map['isApproved'] as bool? ?? true,
+        restaurantId: map['restaurantId'] as String?,
+        restaurantName: map['restaurantName'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -171,6 +179,8 @@ class AppUser {
         'createdAt': Timestamp.fromDate(createdAt),
         if (fcmToken != null) 'fcmToken': fcmToken,
         'isApproved': isApproved,
+        if (restaurantId != null) 'restaurantId': restaurantId,
+        if (restaurantName != null) 'restaurantName': restaurantName,
       };
 }
 
@@ -472,6 +482,14 @@ class Order {
   final double? deliveryLng;
   final double? restaurantLat;
   final double? restaurantLng;
+  /// Distance between restaurant and delivery point in kilometers (fractions
+  /// rounded up), used to compute [driverEarning]/[platformDeliveryFee].
+  final double? distanceKm;
+  /// Driver's share of [deliveryFee].
+  final double driverEarning;
+  /// Platform's fixed share of [deliveryFee] (separate from [platformCommission],
+  /// which is the platform's commission on the items' value).
+  final double platformDeliveryFee;
 
   const Order({
     required this.id,
@@ -501,11 +519,15 @@ class Order {
     this.deliveryLng,
     this.restaurantLat,
     this.restaurantLng,
+    this.distanceKm,
+    this.driverEarning = 0,
+    this.platformDeliveryFee = 0,
   });
 
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
   double get grandTotal => itemsTotal + deliveryFee;
-  double get calculatedCommission => itemsTotal * 0.01;
+  /// Platform's commission on the order's item value: 15% of [itemsTotal].
+  double get calculatedCommission => itemsTotal * 0.15;
 
   factory Order.fromMap(Map<String, dynamic> map, String id) => Order(
         id: id,
@@ -543,6 +565,13 @@ class Order {
         deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
         restaurantLat: (map['restaurantLat'] as num?)?.toDouble(),
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
+        distanceKm: (map['distanceKm'] as num?)?.toDouble(),
+        // Older orders placed before this field existed fall back to the full
+        // deliveryFee as the driver's earning (previous behavior).
+        driverEarning: (map['driverEarning'] as num?)?.toDouble() ??
+            (map['deliveryFee'] as num?)?.toDouble() ??
+            5.0,
+        platformDeliveryFee: (map['platformDeliveryFee'] as num?)?.toDouble() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -572,6 +601,9 @@ class Order {
         'deliveryLng': deliveryLng,
         'restaurantLat': restaurantLat,
         'restaurantLng': restaurantLng,
+        'distanceKm': distanceKm,
+        'driverEarning': driverEarning,
+        'platformDeliveryFee': platformDeliveryFee,
       };
 }
 
@@ -696,6 +728,10 @@ class InviteCode {
   final bool isUsed;
   final String? usedBy;
   final DateTime createdAt;
+  /// Set only for [UserRole.restaurantManager] codes — ties the code (and the
+  /// account created from it) to a single branch/restaurant.
+  final String? restaurantId;
+  final String? restaurantName;
 
   const InviteCode({
     required this.id,
@@ -704,6 +740,8 @@ class InviteCode {
     required this.isUsed,
     this.usedBy,
     required this.createdAt,
+    this.restaurantId,
+    this.restaurantName,
   });
 
   factory InviteCode.fromMap(Map<String, dynamic> map, String id) => InviteCode(
@@ -716,6 +754,8 @@ class InviteCode {
         isUsed: map['isUsed'] as bool? ?? false,
         usedBy: map['usedBy'] as String?,
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        restaurantId: map['restaurantId'] as String?,
+        restaurantName: map['restaurantName'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -724,6 +764,8 @@ class InviteCode {
         'isUsed': isUsed,
         if (usedBy != null) 'usedBy': usedBy,
         'createdAt': Timestamp.fromDate(createdAt),
+        if (restaurantId != null) 'restaurantId': restaurantId,
+        if (restaurantName != null) 'restaurantName': restaurantName,
       };
 
   /// Generates a random 8-character invite code using unambiguous characters.

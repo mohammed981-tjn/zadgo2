@@ -1,7 +1,54 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../utils/theme.dart';
 
 String formatCurrency(double amount) => '${amount.toStringAsFixed(2)} ر.س';
+
+/// Breakdown of a delivery fee: how much goes to the driver vs. the platform.
+class DeliveryFeeBreakdown {
+  final double driverEarning;
+  final double platformFee;
+  const DeliveryFeeBreakdown({required this.driverEarning, required this.platformFee});
+  double get total => driverEarning + platformFee;
+}
+
+/// Computes the delivery fee split between driver and platform based on the
+/// distance (in kilometers) between the restaurant and the customer.
+///
+/// Rules:
+/// - Fractions of a kilometer are always rounded UP (e.g. 7.5 km → 8 km).
+/// - Up to 7 km: the driver earns a flat 9 ر.س, plus a fixed 3 ر.س platform fee
+///   (12 ر.س total delivery fee for the customer).
+/// - Beyond 7 km: every extra whole kilometer adds 1 ر.س to the driver's
+///   share, on top of the same fixed 3 ر.س platform fee.
+DeliveryFeeBreakdown calculateDeliveryFee(double distanceKm) {
+  final kmCeil = distanceKm.ceil();
+  const double baseDriverEarning = 9.0;
+  const double platformFee = 3.0;
+  const int baseKm = 7;
+  double driverEarning;
+  if (kmCeil <= baseKm) {
+    driverEarning = baseDriverEarning;
+  } else {
+    final extraKm = kmCeil - baseKm;
+    driverEarning = baseDriverEarning + extraKm;
+  }
+  return DeliveryFeeBreakdown(driverEarning: driverEarning, platformFee: platformFee);
+}
+
+/// Distance in kilometers between two lat/lng points using the haversine
+/// formula (avoids adding a dependency on the map package in this file).
+double distanceKmBetween(double lat1, double lng1, double lat2, double lng2) {
+  const earthRadiusKm = 6371.0;
+  final dLat = _degToRad(lat2 - lat1);
+  final dLng = _degToRad(lng2 - lng1);
+  final a = sin(dLat / 2) * sin(dLat / 2) +
+      cos(_degToRad(lat1)) * cos(_degToRad(lat2)) * sin(dLng / 2) * sin(dLng / 2);
+  final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+double _degToRad(double deg) => deg * (pi / 180);
 
 void showSuccess(BuildContext context, String msg) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.success));

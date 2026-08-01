@@ -46,6 +46,7 @@ class AuthProvider extends ChangeNotifier {
     required String name, required String email, required String password,
     required String phone, required UserRole role,
     bool bypassApproval = false,
+    String? restaurantId, String? restaurantName,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
@@ -54,7 +55,8 @@ class AuthProvider extends ChangeNotifier {
       final newUser = AppUser(uid: uid, name: name.trim(), email: email.trim(),
           phone: phone.trim(), role: role, createdAt: DateTime.now(),
           // Drivers start unapproved unless they registered with a valid invite code.
-          isApproved: bypassApproval || role != UserRole.driver);
+          isApproved: bypassApproval || role != UserRole.driver,
+          restaurantId: restaurantId, restaurantName: restaurantName);
       await _service.createUser(newUser);
       if (role == UserRole.driver) {
         await _service.addDriver(Driver(id: uid, name: name.trim(), phone: phone.trim(),

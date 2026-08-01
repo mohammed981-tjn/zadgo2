@@ -9,6 +9,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../auth/change_password_screen.dart';
+import 'admin_accounts_tab.dart';
 import 'admin_restaurants_tab.dart';
 
 class AdminHome extends StatefulWidget {
@@ -43,13 +44,18 @@ class _AdminHomeState extends State<AdminHome> {
         ),
       ]),
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), _DriversTab(), _ChatsTab(), _ComplaintsTab(), _UsersTab(),
+        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), AdminAccountsTab(), _DriversTab(), _ChatsTab(), _ComplaintsTab(), _UsersTab(),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'الرئيسية'),
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'الطلبات'),
+          NavigationDestination(
+            icon: Icon(Icons.account_balance_outlined),
+            selectedIcon: Icon(Icons.account_balance),
+            label: 'الحسابات',
+          ),
           NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'المحادثات'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
@@ -576,6 +582,10 @@ class _UsersTabState extends State<_UsersTab> {
   }
 
   Future<void> _generateCode(UserRole role) async {
+    if (role == UserRole.restaurantManager) {
+      await _pickRestaurantAndGenerateCode();
+      return;
+    }
     final service = context.read<FirebaseService>();
     try {
       final code = await service.generateInviteCode(role);
@@ -587,15 +597,68 @@ class _UsersTabState extends State<_UsersTab> {
     }
   }
 
-  void _showCodeDialog(String code, UserRole role) {
-    final label = role == UserRole.admin ? 'المدير' : 'السائق';
+  Future<void> _pickRestaurantAndGenerateCode() async {
+    final service = context.read<FirebaseService>();
+    final restaurants = await service.streamRestaurants().first;
+    if (!mounted) return;
+    if (restaurants.isEmpty) {
+      showError(context, 'أضف مطعماً أولاً من تبويب المطاعم');
+      return;
+    }
+    Restaurant? selected;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setDlgState) => AlertDialog(
+          title: const Text('اختر الفرع'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: DropdownButtonFormField<Restaurant>(
+              value: selected,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'الفرع / المطعم'),
+              items: restaurants
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r.name)))
+                  .toList(),
+              onChanged: (v) => setDlgState(() => selected = v),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            ElevatedButton(
+              onPressed: selected == null ? null : () => Navigator.pop(ctx, true),
+              child: const Text('توليد الرمز'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || selected == null || !mounted) return;
+    try {
+      final code = await service.generateInviteCode(
+        UserRole.restaurantManager,
+        restaurantId: selected!.id,
+        restaurantName: selected!.name,
+      );
+      if (!mounted) return;
+      _showCodeDialog(code, UserRole.restaurantManager, restaurantName: selected!.name);
+    } catch (_) {
+      if (!mounted) return;
+      showError(context, 'فشل توليد الرمز، حاول مجدداً');
+    }
+  }
+
+  void _showCodeDialog(String code, UserRole role, {String? restaurantName}) {
+    final label = _roleLabel(role);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('رمز دعوة $label'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(
-            'شارك هذا الرمز مع $label الجديد ليستخدمه عند التسجيل',
+            restaurantName != null
+                ? 'شارك هذا الرمز مع $label فرع "$restaurantName" ليستخدمه عند التسجيل'
+                : 'شارك هذا الرمز مع $label الجديد ليستخدمه عند التسجيل',
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppColors.textGray, fontSize: 13),
           ),
@@ -633,6 +696,19 @@ class _UsersTabState extends State<_UsersTab> {
         ],
       ),
     );
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'المدير';
+      case UserRole.driver:
+        return 'السائق';
+      case UserRole.restaurantManager:
+        return 'مدير الفرع';
+      case UserRole.customer:
+        return 'العميل';
+    }
   }
 
   Future<void> _sendPasswordReset() async {
@@ -701,6 +777,16 @@ class _UsersTabState extends State<_UsersTab> {
           ),
         ),
       ]),
+      const SizedBox(height: 10),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.storefront_outlined, size: 18),
+          label: const Text('رمز مدير فرع (مطعم)'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+          onPressed: () => _generateCode(UserRole.restaurantManager),
+        ),
+      ),
       const SizedBox(height: 24),
 
       // ── إعادة تعيين كلمة المرور ───────────────────────────────────────────
@@ -748,24 +834,39 @@ class _UsersTabState extends State<_UsersTab> {
           }
           return Column(
             children: codes.map((c) {
-              final isAdmin = c.role == UserRole.admin;
+              final IconData codeIcon;
+              final Color codeColor;
+              switch (c.role) {
+                case UserRole.admin:
+                  codeIcon = Icons.admin_panel_settings_outlined;
+                  codeColor = AppColors.secondary;
+                  break;
+                case UserRole.restaurantManager:
+                  codeIcon = Icons.storefront_outlined;
+                  codeColor = Colors.teal;
+                  break;
+                case UserRole.driver:
+                case UserRole.customer:
+                  codeIcon = Icons.delivery_dining_outlined;
+                  codeColor = AppColors.primary;
+                  break;
+              }
+              final roleText = c.restaurantName != null
+                  ? '${_roleLabel(c.role)} — ${c.restaurantName}'
+                  : _roleLabel(c.role);
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(children: [
-                    Icon(
-                      isAdmin ? Icons.admin_panel_settings_outlined : Icons.delivery_dining_outlined,
-                      color: isAdmin ? AppColors.secondary : AppColors.primary,
-                      size: 22,
-                    ),
+                    Icon(codeIcon, color: codeColor, size: 22),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(c.code,
                           style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 17, letterSpacing: 3)),
                       const SizedBox(height: 2),
-                      Text(isAdmin ? 'مدير' : 'سائق',
+                      Text(roleText,
                           style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
                     ])),
                     if (!c.isUsed)

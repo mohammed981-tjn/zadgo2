@@ -8,6 +8,7 @@ import '../../utils/helpers.dart';
 import '../admin/admin_home.dart';
 import '../customer/customer_home.dart';
 import '../driver/driver_home.dart';
+import '../restaurant/restaurant_manager_home.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -76,6 +77,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       phone: _phoneCtrl.text,
       role: _role,
       bypassApproval: _resolvedCode != null,
+      restaurantId: _resolvedCode?.restaurantId,
+      restaurantName: _resolvedCode?.restaurantName,
     );
     if (!mounted) return;
     if (!ok) { showError(context, auth.error ?? 'فشل التسجيل'); return; }
@@ -100,6 +103,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         break;
       case UserRole.admin:
         dest = const AdminHome();
+        break;
+      case UserRole.restaurantManager:
+        dest = RestaurantManagerHome(restaurantId: _resolvedCode?.restaurantId ?? '');
         break;
     }
     Navigator.pushAndRemoveUntil(
@@ -186,9 +192,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Row(children: [
               const Icon(Icons.verified_user_outlined, color: AppColors.success, size: 18),
               const SizedBox(width: 8),
-              Text(
-                'رمز صحيح — سيتم التسجيل كـ ${_role == UserRole.admin ? "مدير" : "سائق"}',
-                style: const TextStyle(color: AppColors.success, fontSize: 13),
+              Expanded(
+                child: Text(
+                  _resolvedCode?.restaurantName != null
+                      ? 'رمز صحيح — سيتم التسجيل كـ ${_roleLabel(_role)} لفرع "${_resolvedCode!.restaurantName}"'
+                      : 'رمز صحيح — سيتم التسجيل كـ ${_roleLabel(_role)}',
+                  style: const TextStyle(color: AppColors.success, fontSize: 13),
+                ),
               ),
             ]),
           ),
@@ -243,5 +253,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: sel ? AppColors.primary : AppColors.divider)),
         child: Text(label, style: TextStyle(color: sel ? Colors.white : AppColors.textDark))));
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'مدير';
+      case UserRole.driver:
+        return 'سائق';
+      case UserRole.restaurantManager:
+        return 'مدير فرع';
+      case UserRole.customer:
+        return 'عميل';
+    }
   }
 }

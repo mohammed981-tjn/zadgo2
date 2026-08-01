@@ -7,6 +7,7 @@ import '../../utils/helpers.dart';
 import '../admin/admin_home.dart';
 import '../customer/customer_home.dart';
 import '../driver/driver_home.dart';
+import '../restaurant/restaurant_manager_home.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -26,12 +27,17 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color zadgoGold = Color(0xFFD4A017);
   static const Color zadgoGoldLight = Color(0xFFF0C550);
 
-  void _navigate(UserRole role) {
+  void _navigate(AppUser user) {
     Widget dest;
-    switch (role) {
+    switch (user.role) {
       case UserRole.admin: dest = const AdminHome(); break;
       case UserRole.customer: dest = const CustomerHome(); break;
-      case UserRole.driver: dest = const DriverHome(); break;
+      case UserRole.driver:
+        dest = user.isApproved ? const DriverHome() : const DriverPendingScreen();
+        break;
+      case UserRole.restaurantManager:
+        dest = RestaurantManagerHome(restaurantId: user.restaurantId ?? '');
+        break;
     }
     Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
   }
@@ -42,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(_emailCtrl.text, _passCtrl.text);
     if (!mounted) return;
     if (ok && auth.user != null) {
-      _navigate(auth.user!.role);
+      _navigate(auth.user!);
     } else {
       showError(context, auth.error ?? 'فشل تسجيل الدخول');
     }

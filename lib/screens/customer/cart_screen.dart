@@ -140,6 +140,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final restaurant = await service.getRestaurantOnce(cart.restaurantId!);
 
+    double? distanceKm;
+    double deliveryFee = cart.deliveryFee;
+    double driverEarning = cart.deliveryFee;
+    double platformDeliveryFee = 0;
+    if (restaurant?.lat != null && restaurant?.lng != null && _lat != null && _lng != null) {
+      distanceKm = distanceKmBetween(restaurant!.lat!, restaurant.lng!, _lat!, _lng!);
+      final breakdown = calculateDeliveryFee(distanceKm);
+      deliveryFee = breakdown.total;
+      driverEarning = breakdown.driverEarning;
+      platformDeliveryFee = breakdown.platformFee;
+    }
+
     final order = Order(
       id: orderId,
       restaurantId: cart.restaurantId!,
@@ -152,13 +164,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentMethod: _payment,
       isPaid: _payment != PaymentMethod.cash,
       createdAt: DateTime.now(),
-      deliveryFee: cart.deliveryFee,
+      deliveryFee: deliveryFee,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
       platformCommission: cart.platformCommission,
       deliveryLat: _lat,
       deliveryLng: _lng,
       restaurantLat: restaurant?.lat,
       restaurantLng: restaurant?.lng,
+      distanceKm: distanceKm,
+      driverEarning: driverEarning,
+      platformDeliveryFee: platformDeliveryFee,
     );
     try {
       await service.placeOrder(order);

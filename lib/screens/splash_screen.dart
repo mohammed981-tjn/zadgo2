@@ -6,6 +6,7 @@ import 'auth/login_screen.dart';
 import 'admin/admin_home.dart';
 import 'customer/customer_home.dart';
 import 'driver/driver_home.dart';
+import 'restaurant/restaurant_manager_home.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -37,6 +38,9 @@ class _SplashScreenState extends State<SplashScreen> {
       case UserRole.driver:
         // Unapproved drivers land on the waiting screen instead of the main app.
         _go(user.isApproved ? const DriverHome() : const DriverPendingScreen());
+        break;
+      case UserRole.restaurantManager:
+        _go(RestaurantManagerHome(restaurantId: user.restaurantId ?? ''));
         break;
     }
   }
