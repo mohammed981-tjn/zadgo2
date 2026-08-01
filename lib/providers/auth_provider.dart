@@ -45,19 +45,37 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> register({
     required String name, required String email, required String password,
     required String phone, required UserRole role,
+    bool bypassApproval = false,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
       final cred = await _service.register(email.trim(), password.trim());
       final uid = cred.user!.uid;
       final newUser = AppUser(uid: uid, name: name.trim(), email: email.trim(),
-          phone: phone.trim(), role: role, createdAt: DateTime.now());
+          phone: phone.trim(), role: role, createdAt: DateTime.now(),
+          // Drivers start unapproved unless they registered with a valid invite code.
+          isApproved: bypassApproval || role != UserRole.driver);
       await _service.createUser(newUser);
       if (role == UserRole.driver) {
         await _service.addDriver(Driver(id: uid, name: name.trim(), phone: phone.trim(),
-            vehicleType: 'دراجة نارية'));
+            vehicleType: 'دراجة نارية', isApproved: bypassApproval));
       }
       _user = newUser; _loading = false; notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = _mapError(e.code); _loading = false; notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> changePassword(String currentPassword, String newPassword) async {
+    _loading = true; _error = null; notifyListeners();
+    try {
+      await _service.changePassword(currentPassword, newPassword);
+      _loading = false; notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _mapError(e.code); _loading = false; notifyListeners();

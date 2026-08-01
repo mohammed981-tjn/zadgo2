@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -8,6 +10,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
 import '../../main.dart';
@@ -74,6 +77,23 @@ class _DriverHomeState extends State<DriverHome> {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
                 }
               }),
+              PopupMenuButton<String>(
+                onSelected: (value) async {
+                  if (value == 'change_password') {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
+                  } else if (value == 'logout') {
+                    if (driver != null) await service.setDriverOnline(driverId, false);
+                    await auth.logout();
+                    if (mounted) {
+                      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+                    }
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'change_password',
+                      child: Row(children: [Icon(Icons.lock_reset_outlined, size: 20), SizedBox(width: 8), Text('تغيير كلمة المرور')])),
+                ],
+              ),
             ],
           ),
           body: IndexedStack(index: _tab, children: [
@@ -191,7 +211,7 @@ class _OrderCard extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, isDriverView: true))),
               ),
             ],
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
@@ -219,9 +239,10 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'قبول الطلب', content: 'هل تريد قبول هذا الطلب والتوجه للمطعم؟', confirmLabel: 'قبول');
           if (ok == true) {
             await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
+            if (ctx.mounted) showSuccess(ctx, 'تم قبول الطلب! توجّه للمطعم');
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, isDriverView: true)),
             );
           }
         },
@@ -236,12 +257,36 @@ class _OrderCard extends StatelessWidget {
     if (order.status == OrderStatus.readyForPickup) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
+          // فحص القرب من المطعم قبل تأكيد الاستلام
+          if (order.restaurantLat != null && order.restaurantLng != null) {
+            try {
+              bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+              if (serviceEnabled) {
+                LocationPermission permission = await Geolocator.checkPermission();
+                if (permission == LocationPermission.denied) {
+                  permission = await Geolocator.requestPermission();
+                }
+                if (permission != LocationPermission.denied && permission != LocationPermission.deniedForever) {
+                  final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+                  const calc = Distance();
+                  final meters = calc(LatLng(pos.latitude, pos.longitude), LatLng(order.restaurantLat!, order.restaurantLng!));
+                  if (meters > 300) {
+                    if (ctx.mounted) showError(ctx, 'أنت بعيد عن المطعم (${meters.toInt()} م). اقترب أولاً');
+                    return;
+                  }
+                }
+              }
+            } catch (_) {
+              // في حال فشل تحديد الموقع، نكمل بدون فحص
+            }
+          }
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
             await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+            if (ctx.mounted) showSuccess(ctx, 'الطلب في الطريق نحو العميل');
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, isDriverView: true)),
             );
           }
         },
@@ -307,4 +352,86 @@ class _DriverEarningsTab extends StatelessWidget {
       Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
       Text(label, style: const TextStyle(fontSize: 12)),
     ])));
+}
+
+// ---------------------------------------------------------------------------
+// Driver pending-approval screen
+// ---------------------------------------------------------------------------
+
+/// Shown after a driver registers until an admin approves their account.
+/// Uses a real-time stream so the screen transitions automatically once
+/// the admin approves without requiring the driver to log out and back in.
+class DriverPendingScreen extends StatelessWidget {
+  const DriverPendingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<app_auth.AuthProvider>();
+    final service = context.read<FirebaseService>();
+    final uid = auth.user?.uid;
+
+    // If approved (e.g. admin just approved while screen is open), go to DriverHome.
+    if (uid != null) {
+      return StreamBuilder<Driver?>(
+        stream: service.streamDriver(uid),
+        builder: (ctx, snap) {
+          final driver = snap.data;
+          if (driver != null && driver.isApproved) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const DriverHome()),
+                (_) => false,
+              );
+            });
+          }
+          return _buildWaitingScreen(context, auth);
+        },
+      );
+    }
+    return _buildWaitingScreen(context, auth);
+  }
+
+  Widget _buildWaitingScreen(BuildContext context, app_auth.AuthProvider auth) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_top_rounded, size: 80, color: AppColors.warning),
+              const SizedBox(height: 24),
+              const Text(
+                'طلبك قيد المراجعة',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'تم استلام طلب تسجيلك كسائق. سيتم مراجعته من قِبل الإدارة وستُفعَّل تلقائياً عند الموافقة.',
+                style: TextStyle(fontSize: 15, color: AppColors.textGray, height: 1.6),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await auth.logout();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (_) => false,
+                    );
+                  }
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('تسجيل الخروج'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

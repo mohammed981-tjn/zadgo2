@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
@@ -10,7 +12,8 @@ import '../../utils/helpers.dart';
 
 class OrderMapScreen extends StatefulWidget {
   final Order order;
-  const OrderMapScreen({super.key, required this.order});
+  final bool isDriverView;
+  const OrderMapScreen({super.key, required this.order, this.isDriverView = false});
 
   @override
   State<OrderMapScreen> createState() => _OrderMapScreenState();
@@ -18,10 +21,57 @@ class OrderMapScreen extends StatefulWidget {
 
 class _OrderMapScreenState extends State<OrderMapScreen> {
   final MapController _mapController = MapController();
+  Position? _driverPosition;
+  StreamSubscription<Position>? _positionSub;
+
+  static const double _pickupRadiusMeters = 300;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isDriverView) _startPositionTracking();
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startPositionTracking() async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) return;
+      }
+      if (permission == LocationPermission.deniedForever) return;
+      _positionSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10),
+      ).listen((pos) {
+        if (mounted) setState(() => _driverPosition = pos);
+      });
+    } catch (_) {}
+  }
+
+  double? get _distanceToRestaurant {
+    final pos = _driverPosition;
+    if (pos == null || order.restaurantLat == null || order.restaurantLng == null) return null;
+    const calc = Distance();
+    return calc(LatLng(pos.latitude, pos.longitude), LatLng(order.restaurantLat!, order.restaurantLng!));
+  }
+
+  bool get _isNearRestaurant {
+    final d = _distanceToRestaurant;
+    return d != null && d <= _pickupRadiusMeters;
+  }
 
   Order get order => widget.order;
 
   bool get _headingToRestaurant =>
+      order.status == OrderStatus.pending ||
       order.status == OrderStatus.confirmed ||
       order.status == OrderStatus.preparing ||
       order.status == OrderStatus.readyForPickup;
@@ -133,70 +183,81 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // ✅ زر ابدأ الملاحة الخارجية (Google Maps)
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _openExternalNavigation(targetPoint.latitude, targetPoint.longitude),
-                  icon: const Icon(Icons.navigation),
-                  label: const Text('ابدأ الملاحة'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
+      bottomNavigationBar: widget.isDriverView
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openExternalNavigation(targetPoint.latitude, targetPoint.longitude),
+                        icon: const Icon(Icons.navigation),
+                        label: const Text('ابدأ الملاحة'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    if (_headingToRestaurant)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _isNearRestaurant
+                              ? () async {
+                                  final ok = await showConfirmDialog(context,
+                                      title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
+                                  if (ok == true) {
+                                    await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                                    if (context.mounted) Navigator.pop(context);
+                                  }
+                                }
+                              : null,
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: Text(_distanceToRestaurant == null
+                              ? 'استلمت الطلب'
+                              : _isNearRestaurant
+                                  ? 'استلمت الطلب'
+                                  : 'اقترب من المطعم (${_distanceToRestaurant!.toInt()} م)'),
+                        ),
+                      ),
+                    if (_headingToCustomer)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final ok = await showConfirmDialog(context,
+                                title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
+                            if (ok == true) {
+                              await service.markOrderDelivered(order.id, order.driverId ?? '');
+                              if (context.mounted) {
+                                showSuccess(context, 'تم التوصيل! +10 ر.س أرباح');
+                                Navigator.pop(context);
+                              }
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.success,
+                            side: const BorderSide(color: AppColors.success),
+                          ),
+                          icon: const Icon(Icons.done_all_rounded),
+                          label: const Text('تم التوصيل'),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة)
-              if (_headingToRestaurant)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await showConfirmDialog(context,
-                          title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
-                      if (ok == true) {
-                        await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
-                        if (context.mounted) Navigator.pop(context);
-                      }
-                    },
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('استلمت الطلب'),
-                  ),
-                ),
-              if (_headingToCustomer)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await showConfirmDialog(context,
-                          title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
-                      if (ok == true) {
-                        await service.markOrderDelivered(order.id, order.driverId ?? '');
-                        if (context.mounted) {
-                          showSuccess(context, 'تم التوصيل! +10 ر.س أرباح');
-                          Navigator.pop(context);
-                        }
-                      }
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                      side: const BorderSide(color: AppColors.success),
-                    ),
-                    icon: const Icon(Icons.done_all_rounded),
-                    label: const Text('تم التوصيل'),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : null,
     );
   }
 
   String _appBarTitle() {
+    if (widget.isDriverView) {
+      if (_headingToRestaurant) return 'التوجه إلى المطعم';
+      if (_headingToCustomer) return 'التوجه إلى العميل';
+      return 'توجيه التسليم';
+    }
     if (_headingToRestaurant) return 'التوجه إلى المطعم';
     if (_headingToCustomer) return 'التوجه إلى العميل';
     return 'خريطة الطلب';

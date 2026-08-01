@@ -1,5 +1,6 @@
 // lib/screens/customer/cart_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:latlong2/latlong.dart';
@@ -9,6 +10,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/payment_validator.dart';
 import '../../widgets/common_widgets.dart';
 import '../admin/pick_location_screen.dart';
 import 'my_orders_screen.dart';
@@ -115,11 +117,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       showError(context, 'أدخل عنوان التوصيل');
       return;
     }
-    if (_lat == null || _lng == null) {
-      showError(context, 'حدد موقعك على الخريطة');
-      return;
+
+    if (_payment == PaymentMethod.card) {
+      final confirmed = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const CreditCardInputScreen()),
+      );
+      if (confirmed != true) return;
     }
 
+    await _doPlaceOrder();
+  }
+
+  Future<void> _doPlaceOrder() async {
     setState(() => _loading = true);
     final cart = context.read<CartProvider>();
     final auth = context.read<app_auth.AuthProvider>();
@@ -207,6 +217,180 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Credit-card input screen
+// ---------------------------------------------------------------------------
+
+/// Formats a card number string with a space every four digits.
+class _CardNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final buffer = StringBuffer();
+    for (int i = 0; i < digits.length && i < 16; i++) {
+      if (i > 0 && i % 4 == 0) buffer.write(' ');
+      buffer.write(digits[i]);
+    }
+    final text = buffer.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+/// Formats expiry as MM/YY.
+class _ExpiryFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+          text: '', selection: TextSelection.collapsed(offset: 0));
+    }
+    final month = digits.substring(0, digits.length > 2 ? 2 : digits.length);
+    final year = digits.length > 2 ? digits.substring(2, digits.length > 4 ? 4 : digits.length) : '';
+    final text = year.isEmpty ? month : '$month/$year';
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+}
+
+class CreditCardInputScreen extends StatefulWidget {
+  const CreditCardInputScreen({super.key});
+
+  @override
+  State<CreditCardInputScreen> createState() => _CreditCardInputScreenState();
+}
+
+class _CreditCardInputScreenState extends State<CreditCardInputScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _holderCtrl = TextEditingController();
+  final _numberCtrl = TextEditingController();
+  final _expiryCtrl = TextEditingController();
+  final _cvvCtrl = TextEditingController();
+  bool _obscureCvv = true;
+
+  @override
+  void dispose() {
+    _holderCtrl.dispose();
+    _numberCtrl.dispose();
+    _expiryCtrl.dispose();
+    _cvvCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final error = PaymentValidator.validate(
+      holderName: _holderCtrl.text,
+      cardNumber: _numberCtrl.text,
+      expiry: _expiryCtrl.text,
+      cvv: _cvvCtrl.text,
+    );
+    if (error != null) {
+      showError(context, error);
+      return;
+    }
+    showSuccess(context, 'تم التحقق من البطاقة بنجاح');
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('بيانات البطاقة الائتمانية')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const Icon(Icons.credit_card_rounded, size: 64, color: AppColors.primary),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _holderCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'اسم حامل البطاقة',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _numberCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [_CardNumberFormatter()],
+              decoration: const InputDecoration(
+                labelText: 'رقم البطاقة',
+                hintText: 'XXXX XXXX XXXX XXXX',
+                prefixIcon: Icon(Icons.credit_card_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _expiryCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_ExpiryFormatter()],
+                    decoration: const InputDecoration(
+                      labelText: 'تاريخ الانتهاء',
+                      hintText: 'MM/YY',
+                      prefixIcon: Icon(Icons.date_range_outlined),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _cvvCtrl,
+                    keyboardType: TextInputType.number,
+                    obscureText: _obscureCvv,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(4),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'CVV',
+                      hintText: '•••',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscureCvv ? Icons.visibility_off : Icons.visibility),
+                        onPressed: () => setState(() => _obscureCvv = !_obscureCvv),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _submit,
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('تحقق وأتمم الطلب'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Center(
+              child: Text(
+                '🔒 بياناتك آمنة ومشفرة',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

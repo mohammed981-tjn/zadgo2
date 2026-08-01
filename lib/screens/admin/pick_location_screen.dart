@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../utils/theme.dart';
 
 class PickLocationScreen extends StatefulWidget {
@@ -14,11 +15,41 @@ class PickLocationScreen extends StatefulWidget {
 class _PickLocationScreenState extends State<PickLocationScreen> {
   late LatLng _selected;
   final MapController _mapController = MapController();
+  bool _locating = false;
+
+  static const LatLng _defaultLocation = LatLng(24.7136, 46.6753);
 
   @override
   void initState() {
     super.initState();
-    _selected = widget.initialLocation ?? const LatLng(24.7136, 46.6753);
+    _selected = widget.initialLocation ?? _defaultLocation;
+    if (widget.initialLocation == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _goToMyLocation());
+    }
+  }
+
+  Future<void> _goToMyLocation() async {
+    setState(() => _locating = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever ||
+          permission == LocationPermission.denied) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final newLoc = LatLng(pos.latitude, pos.longitude);
+      setState(() => _selected = newLoc);
+      _mapController.move(newLoc, 16);
+    } catch (_) {
+      // في حالة الفشل نبقى على الموقع الافتراضي
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
   }
 
   @override
@@ -59,6 +90,23 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                 ),
               ]),
             ],
+          ),
+          // زر موقعي الحالي
+          Positioned(
+            top: 16,
+            left: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'myLocation',
+              backgroundColor: Colors.white,
+              onPressed: _locating ? null : _goToMyLocation,
+              tooltip: 'موقعي الحالي',
+              child: _locating
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                    )
+                  : const Icon(Icons.my_location, color: AppColors.primary),
+            ),
           ),
           Positioned(
             bottom: 20,

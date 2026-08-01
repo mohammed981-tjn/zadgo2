@@ -1,4 +1,5 @@
 // lib/models/models.dart
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 
@@ -133,6 +134,8 @@ class AppUser {
   final UserRole role;
   final DateTime createdAt;
   final String? fcmToken;
+  /// false only for newly-registered drivers awaiting admin approval.
+  final bool isApproved;
 
   const AppUser({
     required this.uid,
@@ -142,6 +145,7 @@ class AppUser {
     required this.role,
     required this.createdAt,
     this.fcmToken,
+    this.isApproved = true,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -155,6 +159,8 @@ class AppUser {
         ),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         fcmToken: map['fcmToken'] as String?,
+        // Existing records without this field default to true (backwards-compatible).
+        isApproved: map['isApproved'] as bool? ?? true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -164,6 +170,7 @@ class AppUser {
         'role': role.name,
         'createdAt': Timestamp.fromDate(createdAt),
         if (fcmToken != null) 'fcmToken': fcmToken,
+        'isApproved': isApproved,
       };
 }
 
@@ -337,6 +344,8 @@ class Driver {
   final double? lat;
   final double? lng;
   final DateTime? lastLocationUpdate;
+  /// false for newly-registered drivers awaiting admin approval.
+  final bool isApproved;
 
   const Driver({
     required this.id,
@@ -354,6 +363,7 @@ class Driver {
     this.lat,
     this.lng,
     this.lastLocationUpdate,
+    this.isApproved = true,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -372,6 +382,8 @@ class Driver {
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
+        // Existing driver records without this field default to true (backwards-compatible).
+        isApproved: map['isApproved'] as bool? ?? true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -390,6 +402,7 @@ class Driver {
         'lng': lng,
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
+        'isApproved': isApproved,
       };
 }
 
@@ -672,4 +685,51 @@ class CartItem {
   String? extras;
   CartItem({required this.item, this.quantity = 1, this.extras});
   double get subtotal => item.price * quantity;
+}
+
+// ── Invite Code ───────────────────────────────────────────────────────────────
+
+class InviteCode {
+  final String id;
+  final String code;
+  final UserRole role;
+  final bool isUsed;
+  final String? usedBy;
+  final DateTime createdAt;
+
+  const InviteCode({
+    required this.id,
+    required this.code,
+    required this.role,
+    required this.isUsed,
+    this.usedBy,
+    required this.createdAt,
+  });
+
+  factory InviteCode.fromMap(Map<String, dynamic> map, String id) => InviteCode(
+        id: id,
+        code: map['code'] as String? ?? '',
+        role: UserRole.values.firstWhere(
+          (r) => r.name == map['role'],
+          orElse: () => UserRole.customer,
+        ),
+        isUsed: map['isUsed'] as bool? ?? false,
+        usedBy: map['usedBy'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'code': code,
+        'role': role.name,
+        'isUsed': isUsed,
+        if (usedBy != null) 'usedBy': usedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+
+  /// Generates a random 8-character invite code using unambiguous characters.
+  static String generate() {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    final rng = Random.secure();
+    return List.generate(8, (_) => chars[rng.nextInt(chars.length)]).join();
+  }
 }
