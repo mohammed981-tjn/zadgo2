@@ -76,6 +76,7 @@ class _TrackedOrderCard extends StatelessWidget {
                   ? 'السائق: ${order.driverName}'
                   : 'لم يُعيّن سائق بعد'),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
+          OrderTrackingTimeline(status: order.status),
           Text(formatCurrency(order.grandTotal),
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
           if (order.status == OrderStatus.outForDelivery) ...[

@@ -79,6 +79,7 @@ class _OrderCard extends StatelessWidget {
                 icon: Icons.access_time,
                 text:
                     '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}'),
+            OrderTrackingTimeline(status: order.status),
             const Divider(),
             Text(formatCurrency(order.grandTotal),
                 style: const TextStyle(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/models.dart';
 import '../utils/theme.dart';
 
 class AppLoading extends StatelessWidget {
@@ -99,4 +100,98 @@ class BroadcastBanner extends StatelessWidget {
       ])),
     ]),
   );
+}
+
+/// خط تتبع الطلب (Stepper) بشكل نقاط متصلة بخط، على غرار تطبيقات مثل
+/// دومينوز بيتزا ومايسترو بيتزا: يبيّن مرحلة الطلب الحالية ضمن مراحله الخمس:
+/// تنفيذ الطلب ← استلام المطعم ← جاري التحضير ← تسليم المندوب ← توصيل الطلب.
+class OrderTrackingTimeline extends StatelessWidget {
+  final OrderStatus status;
+  const OrderTrackingTimeline({super.key, required this.status});
+
+  static const _steps = [
+    _TimelineStep('تنفيذ الطلب', Icons.receipt_long_rounded),
+    _TimelineStep('استلام المطعم', Icons.storefront_rounded),
+    _TimelineStep('جاري التحضير', Icons.restaurant_rounded),
+    _TimelineStep('تسليم المندوب', Icons.delivery_dining_rounded),
+    _TimelineStep('توصيل الطلب', Icons.home_rounded),
+  ];
+
+  /// فهرس المرحلة الحالية ضمن المراحل الخمس، أو -1 إن كان الطلب ملغى/مرفوضاً.
+  int get _activeIndex {
+    switch (status) {
+      case OrderStatus.pending:
+        return 0;
+      case OrderStatus.confirmed:
+        return 1;
+      case OrderStatus.preparing:
+      case OrderStatus.readyForPickup:
+        return 2;
+      case OrderStatus.outForDelivery:
+        return 3;
+      case OrderStatus.delivered:
+        return 4;
+      case OrderStatus.cancelled:
+      case OrderStatus.rejected:
+        return -1;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _activeIndex;
+    if (active < 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(children: [
+        Row(
+          children: List.generate(_steps.length * 2 - 1, (i) {
+            if (i.isOdd) {
+              final lineDone = (i ~/ 2) < active;
+              return Expanded(
+                child: Container(
+                  height: 3,
+                  color: lineDone ? AppColors.primary : AppColors.primary.withOpacity(0.15),
+                ),
+              );
+            }
+            final idx = i ~/ 2;
+            final done = idx < active;
+            final isCurrent = idx == active;
+            return Tooltip(
+              message: _steps[idx].label,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: done ? AppColors.primary : Colors.white,
+                  border: Border.all(
+                    color: (done || isCurrent) ? AppColors.primary : AppColors.primary.withOpacity(0.25),
+                    width: 2,
+                  ),
+                ),
+                child: done
+                    ? const Icon(Icons.check_rounded, size: 13, color: Colors.white)
+                    : isCurrent
+                        ? Icon(_steps[idx].icon, size: 13, color: AppColors.primary)
+                        : null,
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _steps[active].label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+        ),
+      ]),
+    );
+  }
+}
+
+class _TimelineStep {
+  final String label;
+  final IconData icon;
+  const _TimelineStep(this.label, this.icon);
 }
