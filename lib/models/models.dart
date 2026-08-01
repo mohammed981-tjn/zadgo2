@@ -855,8 +855,14 @@ class BroadcastMessage {
 /// رمز تسجيل يُصدره المدير العام ويرتبط بمطعم محدد — يُرسل يدوياً لمدير
 /// المطعم المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر شاشة
 /// "التسجيل بمدير مطعم" بدلاً من إنشاء المدير العام للحساب مباشرة.
-class RestaurantRegistrationCode {
+/// رمز تسجيل يُصدره المدير العام لدور محدد (مدير عام / سائق / مدير مطعم) —
+/// يُرسل يدوياً للشخص المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر
+/// شاشة "التسجيل برمز" بدلاً من فتح التسجيل الذاتي لهذه الأدوار الحساسة.
+/// [restaurantId]/[restaurantName] تُستخدمان فقط عندما يكون [role] هو
+/// مدير مطعم؛ تبقى فارغتين لبقية الأدوار.
+class RegistrationCode {
   final String code;
+  final UserRole role;
   final String restaurantId;
   final String restaurantName;
   final bool isUsed;
@@ -865,10 +871,11 @@ class RestaurantRegistrationCode {
   final String? usedByUid;
   final String? usedByName;
 
-  const RestaurantRegistrationCode({
+  const RegistrationCode({
     required this.code,
-    required this.restaurantId,
-    required this.restaurantName,
+    required this.role,
+    this.restaurantId = '',
+    this.restaurantName = '',
     this.isUsed = false,
     required this.createdAt,
     this.usedAt,
@@ -876,9 +883,13 @@ class RestaurantRegistrationCode {
     this.usedByName,
   });
 
-  factory RestaurantRegistrationCode.fromMap(Map<String, dynamic> map, String id) =>
-      RestaurantRegistrationCode(
+  factory RegistrationCode.fromMap(Map<String, dynamic> map, String id) =>
+      RegistrationCode(
         code: map['code'] as String? ?? id,
+        role: UserRole.values.firstWhere(
+          (r) => r.name == map['role'],
+          orElse: () => UserRole.restaurantManager,
+        ),
         restaurantId: map['restaurantId'] as String? ?? '',
         restaurantName: map['restaurantName'] as String? ?? '',
         isUsed: map['isUsed'] as bool? ?? false,
@@ -890,6 +901,7 @@ class RestaurantRegistrationCode {
 
   Map<String, dynamic> toMap() => {
         'code': code,
+        'role': role.name,
         'restaurantId': restaurantId,
         'restaurantName': restaurantName,
         'isUsed': isUsed,

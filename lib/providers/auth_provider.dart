@@ -79,9 +79,10 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// تسجيل ذاتي لمدير مطعم باستخدام رمز تسجيل صادر من المدير العام —
-  /// يربط الحساب الجديد تلقائياً بالمطعم صاحب الرمز.
-  Future<bool> registerRestaurantManagerWithCode({
+  /// تسجيل ذاتي بدور محدد (مدير عام/سائق/مدير مطعم) باستخدام رمز تسجيل
+  /// صادر من المدير العام — يحدد الرمز نفسه الدور، ويربط حساب مدير المطعم
+  /// تلقائياً بالمطعم صاحب الرمز عند الحاجة.
+  Future<bool> registerWithCode({
     required String code,
     required String name,
     required String email,
@@ -90,7 +91,7 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
-      final user = await _service.registerRestaurantManagerWithCode(
+      final user = await _service.registerWithCode(
         code: code.trim(),
         name: name.trim(),
         email: email.trim(),

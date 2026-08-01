@@ -19,7 +19,7 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _reassignments => _db.collection('reassignments');
   CollectionReference<Map<String, dynamic>> get _broadcasts => _db.collection('broadcasts');
   CollectionReference<Map<String, dynamic>> get _registrationCodes =>
-      _db.collection('restaurantRegistrationCodes');
+      _db.collection('registrationCodes');
 
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
@@ -111,20 +111,24 @@ class FirebaseService {
     return List.generate(6, (_) => _codeChars[rnd.nextInt(_codeChars.length)]).join();
   }
 
-  /// يولّد رمز تسجيل جديد وحيد الاستخدام مرتبط بمطعم محدد، ليُرسله المدير
-  /// العام يدوياً (واتساب/اتصال) لمدير المطعم المستهدف. يستخدم الرمز نفسه
-  /// كمعرّف للمستند لضمان عدم تكرار نفس الرمز لرمزين مختلفين في آن واحد.
-  Future<models.RestaurantRegistrationCode> generateRestaurantRegistrationCode({
-    required String restaurantId,
-    required String restaurantName,
+  /// يولّد رمز تسجيل جديد وحيد الاستخدام لدور محدد (مدير عام/سائق/مدير
+  /// مطعم)، ليُرسله المدير العام يدوياً (واتساب/اتصال) للشخص المستهدف.
+  /// يستخدم الرمز نفسه كمعرّف للمستند لضمان عدم تكرار نفس الرمز لرمزين
+  /// مختلفين في آن واحد. [restaurantId]/[restaurantName] مطلوبان فقط عند
+  /// توليد رمز لدور مدير مطعم.
+  Future<models.RegistrationCode> generateRegistrationCode({
+    required models.UserRole role,
+    String restaurantId = '',
+    String restaurantName = '',
   }) async {
     for (var attempt = 0; attempt < 5; attempt++) {
       final code = _randomCode();
       final ref = _registrationCodes.doc(code);
       final existing = await ref.get();
       if (existing.exists) continue;
-      final entry = models.RestaurantRegistrationCode(
+      final entry = models.RegistrationCode(
         code: code,
+        role: role,
         restaurantId: restaurantId,
         restaurantName: restaurantName,
         createdAt: DateTime.now(),
@@ -136,14 +140,14 @@ class FirebaseService {
   }
 
   /// رموز التسجيل الخاصة بمطعم محدد (لعرضها/إعادة إرسالها/إلغائها من لوحة المدير).
-  Stream<List<models.RestaurantRegistrationCode>> streamRegistrationCodes(
+  Stream<List<models.RegistrationCode>> streamRegistrationCodes(
           String restaurantId) =>
       _registrationCodes
           .where('restaurantId', isEqualTo: restaurantId)
           .orderBy('createdAt', descending: true)
           .snapshots()
           .map((s) => s.docs
-              .map((d) => models.RestaurantRegistrationCode.fromMap(d.data(), d.id))
+              .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
               .toList());
 
   /// يُبطل رمز تسجيل لم يُستخدم بعد (مثلاً عند إرسال رمز جديد بدلاً منه).
@@ -151,10 +155,12 @@ class FirebaseService {
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
 
   /// يتحقق من رمز التسجيل عبر معاملة Firestore (Transaction) لضمان استخدامه
-  /// مرة واحدة فقط حتى مع محاولات متزامنة، ثم يُنشئ حساب مدير المطعم ويربطه
-  /// تلقائياً بالمطعم صاحب الرمز. في حال فشل إنشاء الحساب بعد استهلاك الرمز،
-  /// تتم إعادة الرمز إلى حالته غير المستخدم للسماح بمحاولة أخرى.
-  Future<models.AppUser> registerRestaurantManagerWithCode({
+  /// مرة واحدة فقط حتى مع محاولات متزامنة، ثم يُنشئ الحساب بالدور المحدَّد
+  /// في الرمز (مدير عام/سائق/مدير مطعم) — ويربطه تلقائياً بالمطعم صاحب
+  /// الرمز إن كان الدور مدير مطعم، أو ينشئ سجل سائق إن كان الدور سائق.
+  /// في حال فشل إنشاء الحساب بعد استهلاك الرمز، تتم إعادة الرمز إلى حالته
+  /// غير المستخدم للسماح بمحاولة أخرى.
+  Future<models.AppUser> registerWithCode({
     required String code,
     required String name,
     required String email,
@@ -162,12 +168,12 @@ class FirebaseService {
     required String phone,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
-    final claimed = await _db.runTransaction<models.RestaurantRegistrationCode>((tx) async {
+    final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
       final snap = await tx.get(ref);
       if (!snap.exists || snap.data() == null) {
         throw Exception('رمز التسجيل غير صحيح');
       }
-      final current = models.RestaurantRegistrationCode.fromMap(snap.data()!, snap.id);
+      final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
       if (current.isUsed) {
         throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
       }
@@ -183,12 +189,16 @@ class FirebaseService {
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        role: models.UserRole.restaurantManager,
+        role: claimed.role,
         createdAt: DateTime.now(),
-        restaurantId: claimed.restaurantId,
-        restaurantName: claimed.restaurantName,
+        restaurantId: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantId : null,
+        restaurantName: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantName : null,
       );
       await createUser(newUser);
+      if (claimed.role == models.UserRole.driver) {
+        await addDriver(models.Driver(
+            id: uid, name: name.trim(), phone: phone.trim(), vehicleType: 'دراجة نارية'));
+      }
       await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
       return newUser;
     } catch (e) {

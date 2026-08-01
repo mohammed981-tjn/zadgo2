@@ -9,7 +9,7 @@ import '../customer/customer_home.dart';
 import '../driver/driver_home.dart';
 import '../restaurant/restaurant_home.dart';
 import 'register_screen.dart';
-import 'restaurant_manager_register_screen.dart';
+import 'register_with_code_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,10 +23,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const Color bgDark = Color(0xFF040E1A);
-  static const Color bgDarker = Color(0xFF020810);
+  static const Color bgDark = Color(0xFF08211A);
+  static const Color bgDarker = Color(0xFF04120D);
   static const Color zadgoGold = Color(0xFFD4A017);
   static const Color zadgoGoldLight = Color(0xFFF0C550);
+  static const Color zadgoSilver = Color(0xFFC7CFD6);
 
   void _navigate(UserRole role) {
     Widget dest;
@@ -217,10 +218,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 26),
                           SizedBox(
-                            height: 54,
+                            height: 50,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(14),
                                 gradient: const LinearGradient(
                                   colors: [zadgoGoldLight, zadgoGold],
                                   begin: Alignment.centerLeft,
@@ -237,7 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(14),
                                   onTap: auth.loading ? null : _login,
                                   child: Center(
                                     child: auth.loading
@@ -252,9 +253,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                         : const Text(
                                             'دخول',
                                             style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.w800,
                                               color: bgDarker,
+                                              letterSpacing: 0.3,
                                             ),
                                           ),
                                   ),
@@ -283,13 +285,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: TextButton(
                               onPressed: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                    builder: (_) => const RestaurantManagerRegisterScreen()),
+                                MaterialPageRoute(builder: (_) => const RegisterWithCodeScreen()),
                               ),
                               child: Text(
-                                'هل أنت مدير مطعم؟ سجّل برمز التسجيل',
+                                'لديك رمز تسجيل (مدير مطعم / سائق / مدير)؟ فعّل حسابك',
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.55),
+                                  color: zadgoSilver.withOpacity(0.85),
                                   fontWeight: FontWeight.w600,
                                   fontSize: 12.5,
                                 ),

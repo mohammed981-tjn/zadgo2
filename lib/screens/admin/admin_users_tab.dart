@@ -1,9 +1,10 @@
 // lib/screens/admin/admin_users_tab.dart
 //
 // إدارة المستخدمين — يتيح للمدير العام إدارة الحسابات (تفعيل/تعطيل/حذف/
-// إعادة تعيين كلمة المرور)، وتقييد إنشاء حسابات "مدير مطعم" الجديدة عبر
-// توليد رمز تسجيل وحيد الاستخدام مرتبط بمطعم محدد، يُرسله المدير العام
-// يدوياً (واتساب) لمدير المطعم، الذي يستخدمه بدوره للتسجيل الذاتي.
+// إعادة تعيين كلمة المرور)، وتقييد إنشاء حسابات "مدير عام" و"سائق" و"مدير
+// مطعم" الجديدة عبر توليد رمز تسجيل وحيد الاستخدام لكل دور (ومرتبط بمطعم
+// محدد لحالة مدير المطعم)، يُرسله المدير العام يدوياً (واتساب) للشخص
+// المستهدف، الذي يستخدمه بدوره للتسجيل الذاتي.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
@@ -24,7 +25,7 @@ class AdminUsersTab extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showGenerateRegistrationCodeDialog(context),
         icon: const Icon(Icons.vpn_key_outlined),
-        label: const Text('رمز تسجيل مدير مطعم'),
+        label: const Text('توليد رمز تسجيل'),
       ),
       body: StreamBuilder<List<AppUser>>(
         stream: service.streamUsers(),
@@ -110,79 +111,108 @@ class AdminUsersTab extends StatelessWidget {
   void _showGenerateRegistrationCodeDialog(BuildContext context) {
     final service = context.read<FirebaseService>();
     final phoneCtrl = TextEditingController();
+    UserRole selectedRole = UserRole.restaurantManager;
     String? selectedRestaurantId;
     String? selectedRestaurantName;
     bool loading = false;
-    RestaurantRegistrationCode? generated;
+    RegistrationCode? generated;
+
+    String roleLabel(UserRole r) => switch (r) {
+          UserRole.restaurantManager => 'مدير مطعم',
+          UserRole.driver => 'سائق',
+          UserRole.admin => 'مدير عام',
+          UserRole.customer => 'عميل',
+        };
 
     showDialog(
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx, setState) => AlertDialog(
-          title: const Text('رمز تسجيل مدير مطعم'),
+          title: const Text('توليد رمز تسجيل'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (generated == null) ...[
                 const Text(
-                  'اختر مطعماً لم يُربط بعد بمدير مسجَّل، ثم ولّد رمز تسجيل وحيد الاستخدام '
-                  'لإرساله لمدير المطعم؛ سيستخدمه لتسجيل حسابه بنفسه وربطه تلقائياً بهذا المطعم.',
+                  'اختر الدور، ثم ولّد رمز تسجيل وحيد الاستخدام لإرساله للشخص المستهدف؛ '
+                  'سيستخدمه لتفعيل حسابه بنفسه بالدور المحدَّد (ومطعمه إن كان مدير مطعم).',
                   style: TextStyle(fontSize: 13, color: AppColors.textGray),
                 ),
                 const SizedBox(height: 14),
-                StreamBuilder<List<Restaurant>>(
-                  stream: service.streamRestaurants(),
-                  builder: (ctx, rSnap) {
-                    return StreamBuilder<List<AppUser>>(
-                      stream: service.streamUsers(),
-                      builder: (ctx, uSnap) {
-                        final allRestaurants = rSnap.data ?? [];
-                        final linkedRestaurantIds = (uSnap.data ?? [])
-                            .where((u) => u.role == UserRole.restaurantManager && u.restaurantId != null)
-                            .map((u) => u.restaurantId)
-                            .toSet();
-                        final restaurants = allRestaurants
-                            .where((r) => !linkedRestaurantIds.contains(r.id))
-                            .toList();
-                        if (selectedRestaurantId != null &&
-                            !restaurants.any((r) => r.id == selectedRestaurantId)) {
-                          selectedRestaurantId = null;
-                          selectedRestaurantName = null;
-                        }
-                        if (rSnap.hasData && uSnap.hasData && restaurants.isEmpty) {
-                          return const Text(
-                            'لا توجد مطاعم متاحة حالياً — جميع المطاعم مرتبطة بالفعل بمدير مسجَّل.',
-                            style: TextStyle(fontSize: 13, color: Colors.orange),
-                          );
-                        }
-                        return DropdownButtonFormField<String>(
-                          value: selectedRestaurantId,
-                          decoration: const InputDecoration(labelText: 'المطعم (غير المرتبط بمدير بعد)'),
-                          items: restaurants
-                              .map((r) => DropdownMenuItem(value: r.id, child: Text(r.name)))
-                              .toList(),
-                          onChanged: (v) {
-                            setState(() {
-                              selectedRestaurantId = v;
-                              selectedRestaurantName = restaurants.firstWhere((r) => r.id == v).name;
-                            });
-                          },
-                        );
-                      },
-                    );
+                DropdownButtonFormField<UserRole>(
+                  value: selectedRole,
+                  decoration: const InputDecoration(labelText: 'الدور'),
+                  items: const [
+                    DropdownMenuItem(value: UserRole.restaurantManager, child: Text('مدير مطعم')),
+                    DropdownMenuItem(value: UserRole.driver, child: Text('سائق')),
+                    DropdownMenuItem(value: UserRole.admin, child: Text('مدير عام')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() {
+                      selectedRole = v;
+                      selectedRestaurantId = null;
+                      selectedRestaurantName = null;
+                    });
                   },
                 ),
+                if (selectedRole == UserRole.restaurantManager) ...[
+                  const SizedBox(height: 10),
+                  StreamBuilder<List<Restaurant>>(
+                    stream: service.streamRestaurants(),
+                    builder: (ctx, rSnap) {
+                      return StreamBuilder<List<AppUser>>(
+                        stream: service.streamUsers(),
+                        builder: (ctx, uSnap) {
+                          final allRestaurants = rSnap.data ?? [];
+                          final linkedRestaurantIds = (uSnap.data ?? [])
+                              .where((u) => u.role == UserRole.restaurantManager && u.restaurantId != null)
+                              .map((u) => u.restaurantId)
+                              .toSet();
+                          final restaurants = allRestaurants
+                              .where((r) => !linkedRestaurantIds.contains(r.id))
+                              .toList();
+                          if (selectedRestaurantId != null &&
+                              !restaurants.any((r) => r.id == selectedRestaurantId)) {
+                            selectedRestaurantId = null;
+                            selectedRestaurantName = null;
+                          }
+                          if (rSnap.hasData && uSnap.hasData && restaurants.isEmpty) {
+                            return const Text(
+                              'لا توجد مطاعم متاحة حالياً — جميع المطاعم مرتبطة بالفعل بمدير مسجَّل.',
+                              style: TextStyle(fontSize: 13, color: Colors.orange),
+                            );
+                          }
+                          return DropdownButtonFormField<String>(
+                            value: selectedRestaurantId,
+                            decoration: const InputDecoration(labelText: 'المطعم (غير المرتبط بمدير بعد)'),
+                            items: restaurants
+                                .map((r) => DropdownMenuItem(value: r.id, child: Text(r.name)))
+                                .toList(),
+                            onChanged: (v) {
+                              setState(() {
+                                selectedRestaurantId = v;
+                                selectedRestaurantName = restaurants.firstWhere((r) => r.id == v).name;
+                              });
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: 10),
                 TextField(
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
                   textDirection: TextDirection.ltr,
                   decoration: const InputDecoration(
-                    labelText: 'رقم واتساب مدير المطعم (اختياري)',
+                    labelText: 'رقم واتساب المستلم (اختياري)',
                     hintText: 'مثال: 9665xxxxxxxx',
                   ),
                 ),
               ] else ...[
-                Text('تم توليد رمز لمطعم "${generated!.restaurantName}"'),
+                Text('تم توليد رمز بدور "${roleLabel(generated!.role)}"'
+                    '${generated!.restaurantName.isNotEmpty ? " لمطعم \"${generated!.restaurantName}\"" : ""}'),
                 const SizedBox(height: 14),
                 Container(
                   width: double.infinity,
@@ -220,9 +250,12 @@ class AdminUsersTab extends StatelessWidget {
                           ? null
                           : () async {
                               final phone = phoneCtrl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+                              final roleText = roleLabel(generated!.role);
+                              final restaurantText =
+                                  generated!.restaurantName.isNotEmpty ? ' لمطعم "${generated!.restaurantName}"' : '';
                               final text = Uri.encodeComponent(
-                                  'رمز تسجيل حسابك كمدير لمطعم "${generated!.restaurantName}" في تطبيق ZadGo هو: '
-                                  '${generated!.code}\nافتح التطبيق واختر "هل أنت مدير مطعم؟ سجّل برمز التسجيل" لاستخدامه.');
+                                  'رمز تسجيل حسابك كـ"$roleText"$restaurantText في تطبيق ZadGo هو: '
+                                  '${generated!.code}\nافتح التطبيق واختر "لديك رمز تسجيل؟ فعّل حسابك" لاستخدامه.');
                               final uri = Uri.parse('https://wa.me/$phone?text=$text');
                               await launchUrl(uri, mode: LaunchMode.externalApplication);
                             },
@@ -239,15 +272,17 @@ class AdminUsersTab extends StatelessWidget {
                 onPressed: loading
                     ? null
                     : () async {
-                        if (selectedRestaurantId == null) {
+                        if (selectedRole == UserRole.restaurantManager && selectedRestaurantId == null) {
                           showError(dialogCtx, 'يرجى اختيار المطعم أولاً');
                           return;
                         }
                         setState(() => loading = true);
                         try {
-                          final code = await service.generateRestaurantRegistrationCode(
-                            restaurantId: selectedRestaurantId!,
-                            restaurantName: selectedRestaurantName!,
+                          final code = await service.generateRegistrationCode(
+                            role: selectedRole,
+                            restaurantId: selectedRole == UserRole.restaurantManager ? selectedRestaurantId! : '',
+                            restaurantName:
+                                selectedRole == UserRole.restaurantManager ? selectedRestaurantName! : '',
                           );
                           setState(() {
                             generated = code;

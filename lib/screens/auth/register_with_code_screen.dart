@@ -1,25 +1,29 @@
-// lib/screens/auth/restaurant_manager_register_screen.dart
+// lib/screens/auth/register_with_code_screen.dart
 //
-// تسجيل ذاتي لمدير مطعم باستخدام رمز تسجيل يُصدره المدير العام ويرسله
-// يدوياً (واتساب/اتصال) لمدير المطعم. يتحقق الرمز عبر Firestore ويربط
-// الحساب الجديد تلقائياً بالمطعم صاحب الرمز — لا يوجد اختيار مطعم يدوي هنا
-// حتى لا يتمكن أي شخص من تسجيل حساب مدير مطعم دون رمز صحيح.
+// تسجيل ذاتي بدور محدد (مدير عام / سائق / مدير مطعم) باستخدام رمز تسجيل
+// يُصدره المدير العام ويرسله يدوياً (واتساب/اتصال) للشخص المستهدف. يحدد
+// الرمز نفسه الدور والمطعم المرتبط (إن وُجد) عبر Firestore — لا يوجد أي
+// اختيار للدور أو المطعم هنا حتى لا يتمكن أي شخص من تسجيل حساب حسّاس
+// (مدير عام/سائق/مدير مطعم) دون رمز صحيح صادر مسبقاً.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../admin/admin_home.dart';
+import '../customer/customer_home.dart';
+import '../driver/driver_home.dart';
 import '../restaurant/restaurant_home.dart';
 
-class RestaurantManagerRegisterScreen extends StatefulWidget {
-  const RestaurantManagerRegisterScreen({super.key});
+class RegisterWithCodeScreen extends StatefulWidget {
+  const RegisterWithCodeScreen({super.key});
   @override
-  State<RestaurantManagerRegisterScreen> createState() =>
-      _RestaurantManagerRegisterScreenState();
+  State<RegisterWithCodeScreen> createState() =>
+      _RegisterWithCodeScreenState();
 }
 
-class _RestaurantManagerRegisterScreenState
-    extends State<RestaurantManagerRegisterScreen> {
+class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
   final _form = GlobalKey<FormState>();
   final _codeCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
@@ -28,10 +32,21 @@ class _RestaurantManagerRegisterScreenState
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
+  void _navigate(UserRole role) {
+    Widget dest;
+    switch (role) {
+      case UserRole.admin: dest = const AdminHome(); break;
+      case UserRole.customer: dest = const CustomerHome(); break;
+      case UserRole.driver: dest = const DriverHome(); break;
+      case UserRole.restaurantManager: dest = const RestaurantHome(); break;
+    }
+    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
     final auth = context.read<app_auth.AuthProvider>();
-    final ok = await auth.registerRestaurantManagerWithCode(
+    final ok = await auth.registerWithCode(
       code: _codeCtrl.text,
       name: _nameCtrl.text,
       email: _emailCtrl.text,
@@ -39,9 +54,8 @@ class _RestaurantManagerRegisterScreenState
       phone: _phoneCtrl.text,
     );
     if (!mounted) return;
-    if (ok) {
-      Navigator.pushAndRemoveUntil(
-          context, MaterialPageRoute(builder: (_) => const RestaurantHome()), (_) => false);
+    if (ok && auth.user != null) {
+      _navigate(auth.user!.role);
     } else {
       showError(context, auth.error ?? 'فشل التسجيل');
     }
@@ -51,12 +65,13 @@ class _RestaurantManagerRegisterScreenState
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('تسجيل مدير مطعم برمز التسجيل')),
+      appBar: AppBar(title: const Text('تسجيل برمز التسجيل')),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(20), children: [
           const Text(
-            'أدخل رمز التسجيل الذي أرسله لك المدير العام لربط حسابك بمطعمك تلقائياً.',
+            'أدخل رمز التسجيل الذي أرسله لك المدير العام (مدير عام / سائق / مدير مطعم) '
+            'لتفعيل حسابك تلقائياً بالدور والمطعم المرتبطين به.',
             style: TextStyle(color: AppColors.textGray, fontSize: 13),
           ),
           const SizedBox(height: 18),
@@ -110,13 +125,13 @@ class _RestaurantManagerRegisterScreenState
           const SizedBox(height: 28),
           SizedBox(
             width: double.infinity,
-            height: 52,
+            height: 50,
             child: ElevatedButton(
               onPressed: auth.loading ? null : _submit,
               child: auth.loading
                   ? const SizedBox(
-                      width: 22,
-                      height: 22,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                   : const Text('تفعيل الحساب'),
             ),

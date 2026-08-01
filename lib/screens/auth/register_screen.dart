@@ -1,12 +1,15 @@
+// lib/screens/auth/register_screen.dart
+//
+// التسجيل الذاتي المفتوح — مخصص لحسابات "العميل" فقط. حسابات "مدير عام"
+// و"سائق" و"مدير مطعم" أصبحت تتطلب رمز تسجيل صادراً من المدير العام
+// (راجع register_with_code_screen.dart) لمنع أي شخص من إنشاء حساب حسّاس
+// دون تحقق.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
-import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
-import '../admin/admin_home.dart';
 import '../customer/customer_home.dart';
-import '../driver/driver_home.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -20,24 +23,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  UserRole _role = UserRole.customer;
   bool _obscure = true;
 
   Future<void> _register() async {
     if (!_form.currentState!.validate()) return;
     final auth = context.read<app_auth.AuthProvider>();
     final ok = await auth.register(name: _nameCtrl.text, email: _emailCtrl.text,
-        password: _passCtrl.text, phone: _phoneCtrl.text, role: _role);
+        password: _passCtrl.text, phone: _phoneCtrl.text, role: UserRole.customer);
     if (!mounted) return;
     if (ok) {
-      Widget dest;
-      switch (_role) {
-        case UserRole.admin: dest = const AdminHome(); break;
-        case UserRole.customer: dest = const CustomerHome(); break;
-        case UserRole.driver: dest = const DriverHome(); break;
-        case UserRole.restaurantManager: dest = const CustomerHome(); break;
-      }
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
+      Navigator.pushAndRemoveUntil(
+          context, MaterialPageRoute(builder: (_) => const CustomerHome()), (_) => false);
     } else {
       showError(context, auth.error ?? 'فشل التسجيل');
     }
@@ -66,31 +62,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                     onPressed: () => setState(() => _obscure = !_obscure))),
             validator: validatePassword),
-        const SizedBox(height: 20),
-        const Text('نوع الحساب', style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        Row(children: [
-          _chip(UserRole.customer, '👤 عميل'), const SizedBox(width: 10),
-          _chip(UserRole.driver, '🛵 سائق'), const SizedBox(width: 10),
-          _chip(UserRole.admin, '👨‍💼 مدير'),
-        ]),
         const SizedBox(height: 28),
-        SizedBox(width: double.infinity, height: 52, child: ElevatedButton(
+        SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
             onPressed: auth.loading ? null : _register,
-            child: auth.loading ? const SizedBox(width: 22, height: 22,
+            child: auth.loading ? const SizedBox(width: 20, height: 20,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
               : const Text('إنشاء الحساب'))),
       ])),
     );
-  }
-
-  Widget _chip(UserRole role, String label) {
-    final sel = _role == role;
-    return GestureDetector(onTap: () => setState(() => _role = role),
-      child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: sel ? AppColors.primary : AppColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: sel ? AppColors.primary : AppColors.divider)),
-        child: Text(label, style: TextStyle(color: sel ? Colors.white : AppColors.textDark))));
   }
 }

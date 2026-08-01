@@ -5,13 +5,14 @@ class AppColors {
   static const primary = Color(0xFFD4A017);         // ذهبي/عنبري فاخر
   static const primaryDark = Color(0xFFB8860B);      // ذهبي أغمق للتدرجات والظلال
   static const primaryLight = Color(0xFFE8C547);     // ذهبي أفتح للمس الخفيفة
-  static const dark = Color(0xFF0F1B2E);             // كحلي داكن
-  static const secondary = Color(0xFF16243B);        // كحلي أفتح قليلاً
+  static const dark = Color(0xFF0B3D2E);             // أخضر داكن (اللون الأساسي الجديد للهوية)
+  static const secondary = Color(0xFF14523E);        // أخضر داكن أفتح قليلاً للتدرجات
+  static const silver = Color(0xFFC7CFD6);           // فضي/سحابي للمس الثانوية والخلفيات الفاتحة
   static const success = Color(0xFF00D084);
   static const successLight = Color(0xFFE8F9F1);
   static const warning = Color(0xFFFFB020);
-  static const surface = Color(0xFFF5F5F7);
-  static const textDark = Color(0xFF0F1B2E);
+  static const surface = Color(0xFFF3F5F4);
+  static const textDark = Color(0xFF0B3D2E);
   static const textGray = Color(0xFF8A8A8E);
   static const divider = Color(0xFFEAEAEC);
   static const cardShadow = Color(0x14000000);
@@ -48,19 +49,21 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
-        elevation: 3,
+        elevation: 2,
         shadowColor: AppColors.primary.withOpacity(0.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-        textStyle: GoogleFonts.cairo(fontSize: 15, fontWeight: FontWeight.w700),
+        minimumSize: const Size.fromHeight(48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        textStyle: GoogleFonts.cairo(fontSize: 15.5, fontWeight: FontWeight.w700),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.dark,
         side: const BorderSide(color: AppColors.divider, width: 1.5),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+        minimumSize: const Size.fromHeight(44),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
         textStyle: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w600),
       ),
     ),
