@@ -38,7 +38,7 @@ jobs:
 
       - name: Try direct gradle build if APK missing
         run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+          if ! find build/app/outputs android/app/build/outputs -type f -name "*release*.apk" 2>/dev/null | grep -q .; then
             echo "APK missing, retrying with gradlew directly"
             cd android
             chmod +x ./gradlew
@@ -47,6 +47,17 @@ jobs:
             echo "APK already exists, skipping direct gradle retry"
           fi
 
+      - name: Resolve APK artifact path
+        id: resolve_apk
+        run: |
+          apk_path="$(find build/app/outputs android/app/build/outputs -type f -name "*release*.apk" 2>/dev/null | head -n 1 || true)"
+          if [ -z "$apk_path" ]; then
+            echo "No release APK found after build"
+            exit 1
+          fi
+          echo "Resolved APK path: $apk_path"
+          echo "apk_path=$apk_path" >> "$GITHUB_OUTPUT"
+
       - name: Final APK search
         run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
 
@@ -54,8 +65,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            android/app/build/outputs/apk/release/app-release.apk
+          path: ${{ steps.resolve_apk.outputs.apk_path }}
           if-no-files-found: warn
           retention-days: 1
