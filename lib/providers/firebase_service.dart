@@ -111,7 +111,7 @@ class FirebaseService {
     return List.generate(6, (_) => _codeChars[rnd.nextInt(_codeChars.length)]).join();
   }
 
-  /// يولّد رمز تسجيل جديد وحيد الاستخدام لدور محدد (مدير عام/سائق/مدير
+  /// يولّد كود تسجيل جديد وحيد الاستخدام لدور محدد (مدير عام/سائق/مدير
   /// مطعم)، ليُرسله المدير العام يدوياً (واتساب/اتصال) للشخص المستهدف.
   /// يستخدم الرمز نفسه كمعرّف للمستند لضمان عدم تكرار نفس الرمز لرمزين
   /// مختلفين في آن واحد. [restaurantId]/[restaurantName] مطلوبان فقط عند
@@ -136,7 +136,7 @@ class FirebaseService {
       await ref.set(entry.toMap());
       return entry;
     }
-    throw Exception('تعذّر توليد رمز تسجيل فريد، حاول مرة أخرى');
+    throw Exception('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى');
   }
 
   /// رموز التسجيل الخاصة بمطعم محدد (لعرضها/إعادة إرسالها/إلغائها من لوحة المدير).
@@ -150,11 +150,11 @@ class FirebaseService {
               .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
               .toList());
 
-  /// يُبطل رمز تسجيل لم يُستخدم بعد (مثلاً عند إرسال رمز جديد بدلاً منه).
+  /// يُبطل كود تسجيل لم يُستخدم بعد (مثلاً عند إرسال رمز جديد بدلاً منه).
   Future<void> revokeRegistrationCode(String code) =>
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
 
-  /// يتحقق من رمز التسجيل عبر معاملة Firestore (Transaction) لضمان استخدامه
+  /// يتحقق من كود التسجيل عبر معاملة Firestore (Transaction) لضمان استخدامه
   /// مرة واحدة فقط حتى مع محاولات متزامنة، ثم يُنشئ الحساب بالدور المحدَّد
   /// في الرمز (مدير عام/سائق/مدير مطعم) — ويربطه تلقائياً بالمطعم صاحب
   /// الرمز إن كان الدور مدير مطعم، أو ينشئ سجل سائق إن كان الدور سائق.
@@ -166,12 +166,13 @@ class FirebaseService {
     required String email,
     required String password,
     required String phone,
+    String? nationalId,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
     final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
       final snap = await tx.get(ref);
       if (!snap.exists || snap.data() == null) {
-        throw Exception('رمز التسجيل غير صحيح');
+        throw Exception('كود التسجيل غير صحيح');
       }
       final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
       if (current.isUsed) {
@@ -193,6 +194,7 @@ class FirebaseService {
         createdAt: DateTime.now(),
         restaurantId: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantId : null,
         restaurantName: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantName : null,
+        nationalId: nationalId?.trim().isEmpty ?? true ? null : nationalId!.trim(),
       );
       await createUser(newUser);
       if (claimed.role == models.UserRole.driver) {

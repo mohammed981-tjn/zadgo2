@@ -2,7 +2,7 @@
 //
 // إدارة المستخدمين — يتيح للمدير العام إدارة الحسابات (تفعيل/تعطيل/حذف/
 // إعادة تعيين كلمة المرور)، وتقييد إنشاء حسابات "مدير عام" و"سائق" و"مدير
-// مطعم" الجديدة عبر توليد رمز تسجيل وحيد الاستخدام لكل دور (ومرتبط بمطعم
+// مطعم" الجديدة عبر توليد كود تسجيل وحيد الاستخدام لكل دور (ومرتبط بمطعم
 // محدد لحالة مدير المطعم)، يُرسله المدير العام يدوياً (واتساب) للشخص
 // المستهدف، الذي يستخدمه بدوره للتسجيل الذاتي.
 import 'package:flutter/material.dart';
@@ -25,7 +25,7 @@ class AdminUsersTab extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showGenerateRegistrationCodeDialog(context),
         icon: const Icon(Icons.vpn_key_outlined),
-        label: const Text('توليد رمز تسجيل'),
+        label: const Text('توليد كود تسجيل'),
       ),
       body: StreamBuilder<List<AppUser>>(
         stream: service.streamUsers(),
@@ -33,80 +33,48 @@ class AdminUsersTab extends StatelessWidget {
           if (!snap.hasData) return const AppLoading();
           final users = snap.data!;
           if (users.isEmpty) return const AppEmpty(emoji: '👥', title: 'لا يوجد مستخدمون');
-          return ListView.builder(
+          // ✅ تجميع المستخدمين في قوائم منسدلة قابلة للطي حسب الدور بدل قائمة
+          // طويلة مسطّحة، لتوفير المساحة وتسهيل تصفّح عدد كبير من الحسابات.
+          const order = [
+            UserRole.admin,
+            UserRole.restaurantManager,
+            UserRole.driver,
+            UserRole.customer,
+          ];
+          final grouped = <UserRole, List<AppUser>>{
+            for (final r in order) r: users.where((u) => u.role == r).toList(),
+          };
+          return ListView(
             padding: const EdgeInsets.all(12),
-            itemCount: users.length,
-            itemBuilder: (_, i) {
-              final u = users[i];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: u.isActive
-                        ? AppColors.primary.withOpacity(0.15)
-                        : Colors.grey.shade300,
-                    child: Text(u.name.isNotEmpty ? u.name[0] : '?'),
-                  ),
-                  title: Text(u.name),
-                  subtitle: Text(
-                    '${u.role.label}${u.restaurantName != null ? " • ${u.restaurantName}" : ""}\n${u.email}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    StatusBadge(
-                        label: u.isActive ? 'مفعّل' : 'معطّل',
-                        color: u.isActive ? AppColors.success : Colors.red),
-                    PopupMenuButton<String>(
-                      onSelected: (v) async {
-                        if (v == 'toggle') {
-                          await service.setUserActive(u.uid, !u.isActive);
-                        } else if (v == 'reset_password') {
-                          try {
-                            await service.sendPasswordReset(u.email);
-                            if (context.mounted) {
-                              showSuccess(context,
-                                  'تم إرسال رابط إعادة تعيين كلمة المرور إلى ${u.email}');
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              showError(context, 'تعذر إرسال رابط إعادة التعيين: $e');
-                            }
-                          }
-                        } else if (v == 'delete') {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (_) => AlertDialog(
-                              title: const Text('حذف المستخدم'),
-                              content: Text('هل تريد حذف حساب "${u.name}"؟'),
-                              actions: [
-                                TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
-                                    child: const Text('إلغاء')),
-                                TextButton(
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('حذف')),
-                              ],
-                            ),
-                          );
-                          if (confirm == true) await service.deleteUserDoc(u.uid);
-                        }
-                      },
-                      itemBuilder: (_) => [
-                        PopupMenuItem(value: 'toggle', child: Text(u.isActive ? 'تعطيل' : 'تفعيل')),
-                        const PopupMenuItem(
-                            value: 'reset_password', child: Text('إعادة تعيين كلمة المرور')),
-                        const PopupMenuItem(value: 'delete', child: Text('حذف')),
-                      ],
+            children: [
+              for (final role in order)
+                if (grouped[role]!.isNotEmpty)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
+                      leading: Icon(_roleIcon(role), color: AppColors.primary),
+                      title: Text('${role.label} (${grouped[role]!.length})',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      childrenPadding: const EdgeInsets.only(bottom: 4),
+                      children: grouped[role]!
+                          .map((u) => _UserTile(user: u, service: service))
+                          .toList(),
                     ),
-                  ]),
-                ),
-              );
-            },
+                  ),
+            ],
           );
         },
       ),
     );
   }
+
+  IconData _roleIcon(UserRole role) => switch (role) {
+        UserRole.admin => Icons.admin_panel_settings_outlined,
+        UserRole.restaurantManager => Icons.storefront_outlined,
+        UserRole.driver => Icons.delivery_dining_outlined,
+        UserRole.customer => Icons.person_outline,
+      };
 
   void _showGenerateRegistrationCodeDialog(BuildContext context) {
     final service = context.read<FirebaseService>();
@@ -128,12 +96,12 @@ class AdminUsersTab extends StatelessWidget {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx, setState) => AlertDialog(
-          title: const Text('توليد رمز تسجيل'),
+          title: const Text('توليد كود تسجيل'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (generated == null) ...[
                 const Text(
-                  'اختر الدور، ثم ولّد رمز تسجيل وحيد الاستخدام لإرساله للشخص المستهدف؛ '
+                  'اختر الدور، ثم ولّد كود تسجيل وحيد الاستخدام لإرساله للشخص المستهدف؛ '
                   'سيستخدمه لتفعيل حسابه بنفسه بالدور المحدَّد (ومطعمه إن كان مدير مطعم).',
                   style: TextStyle(fontSize: 13, color: AppColors.textGray),
                 ),
@@ -211,7 +179,7 @@ class AdminUsersTab extends StatelessWidget {
                   ),
                 ),
               ] else ...[
-                Text('تم توليد رمز بدور "${roleLabel(generated!.role)}"'
+                Text('تم توليد كود بدور "${roleLabel(generated!.role)}"'
                     '${generated!.restaurantName.isNotEmpty ? " لمطعم \"${generated!.restaurantName}\"" : ""}'),
                 const SizedBox(height: 14),
                 Container(
@@ -234,10 +202,10 @@ class AdminUsersTab extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.copy_outlined),
-                      label: const Text('نسخ الرمز'),
+                      label: const Text('نسخ الكود'),
                       onPressed: () async {
                         await Clipboard.setData(ClipboardData(text: generated!.code));
-                        if (dialogCtx.mounted) showSuccess(dialogCtx, 'تم نسخ الرمز');
+                        if (dialogCtx.mounted) showSuccess(dialogCtx, 'تم نسخ الكود');
                       },
                     ),
                   ),
@@ -254,8 +222,8 @@ class AdminUsersTab extends StatelessWidget {
                               final restaurantText =
                                   generated!.restaurantName.isNotEmpty ? ' لمطعم "${generated!.restaurantName}"' : '';
                               final text = Uri.encodeComponent(
-                                  'رمز تسجيل حسابك كـ"$roleText"$restaurantText في تطبيق ZadGo هو: '
-                                  '${generated!.code}\nافتح التطبيق واختر "لديك رمز تسجيل؟ فعّل حسابك" لاستخدامه.');
+                                  'كود تسجيل حسابك كـ"$roleText"$restaurantText في تطبيق ZadGo هو: '
+                                  '${generated!.code}\nافتح التطبيق واختر "لديك كود تسجيل؟ فعّل حسابك" لاستخدامه.');
                               final uri = Uri.parse('https://wa.me/$phone?text=$text');
                               await launchUrl(uri, mode: LaunchMode.externalApplication);
                             },
@@ -290,16 +258,86 @@ class AdminUsersTab extends StatelessWidget {
                           });
                         } catch (e) {
                           setState(() => loading = false);
-                          if (dialogCtx.mounted) showError(dialogCtx, 'تعذر توليد الرمز: $e');
+                          if (dialogCtx.mounted) showError(dialogCtx, 'تعذر توليد الكود: $e');
                         }
                       },
                 child: loading
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('توليد الرمز'),
+                    : const Text('توليد الكود'),
               ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _UserTile extends StatelessWidget {
+  final AppUser user;
+  final FirebaseService service;
+  const _UserTile({required this.user, required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    final u = user;
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor:
+            u.isActive ? AppColors.primary.withOpacity(0.15) : Colors.grey.shade300,
+        child: Text(u.name.isNotEmpty ? u.name[0] : '?'),
+      ),
+      title: Text(u.name),
+      subtitle: Text(
+        '${u.restaurantName != null ? "${u.restaurantName} • " : ""}${u.email}'
+        '${u.nationalId != null && u.nationalId!.isNotEmpty ? "\nرقم الإقامة/الهوية: ${u.nationalId}" : ""}',
+      ),
+      isThreeLine: u.nationalId != null && u.nationalId!.isNotEmpty,
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        StatusBadge(
+            label: u.isActive ? 'مفعّل' : 'معطّل',
+            color: u.isActive ? AppColors.success : Colors.red),
+        PopupMenuButton<String>(
+          onSelected: (v) async {
+            if (v == 'toggle') {
+              await service.setUserActive(u.uid, !u.isActive);
+            } else if (v == 'reset_password') {
+              try {
+                await service.sendPasswordReset(u.email);
+                if (context.mounted) {
+                  showSuccess(
+                      context, 'تم إرسال رابط إعادة تعيين كلمة المرور إلى ${u.email}');
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  showError(context, 'تعذر إرسال رابط إعادة التعيين: $e');
+                }
+              }
+            } else if (v == 'delete') {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('حذف المستخدم'),
+                  content: Text('هل تريد حذف حساب "${u.name}"؟'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('إلغاء')),
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('حذف')),
+                  ],
+                ),
+              );
+              if (confirm == true) await service.deleteUserDoc(u.uid);
+            }
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'toggle', child: Text(u.isActive ? 'تعطيل' : 'تفعيل')),
+            const PopupMenuItem(value: 'reset_password', child: Text('إعادة تعيين كلمة المرور')),
+            const PopupMenuItem(value: 'delete', child: Text('حذف')),
+          ],
+        ),
+      ]),
     );
   }
 }

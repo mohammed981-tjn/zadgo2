@@ -88,6 +88,7 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String phone,
+    String? nationalId,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
@@ -97,6 +98,7 @@ class AuthProvider extends ChangeNotifier {
         email: email.trim(),
         password: password.trim(),
         phone: phone.trim(),
+        nationalId: nationalId?.trim(),
       );
       _user = user; _loading = false; notifyListeners();
       return true;

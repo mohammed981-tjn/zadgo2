@@ -80,6 +80,9 @@ extension OrderStatusExt on OrderStatus {
       this != OrderStatus.delivered &&
       this != OrderStatus.cancelled &&
       this != OrderStatus.rejected;
+
+  /// عكس [isActive] — الطلب انتهى (تم توصيله/إلغاؤه/رفضه) ولن تتغيّر حالته بعد الآن.
+  bool get isFinished => !isActive;
 }
 
 extension PaymentMethodExt on PaymentMethod {
@@ -148,6 +151,8 @@ class AppUser {
   final String? restaurantId;
   final String? restaurantName;
   final bool isActive;
+  /// رقم الإقامة/الهوية — مطلوب لحسابات المدير العام والسائق ومدير المطعم.
+  final String? nationalId;
 
   const AppUser({
     required this.uid,
@@ -160,6 +165,7 @@ class AppUser {
     this.restaurantId,
     this.restaurantName,
     this.isActive = true,
+    this.nationalId,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -176,6 +182,7 @@ class AppUser {
         restaurantId: map['restaurantId'] as String?,
         restaurantName: map['restaurantName'] as String?,
         isActive: map['isActive'] as bool? ?? true,
+        nationalId: map['nationalId'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -187,6 +194,7 @@ class AppUser {
         if (fcmToken != null) 'fcmToken': fcmToken,
         if (restaurantId != null) 'restaurantId': restaurantId,
         if (restaurantName != null) 'restaurantName': restaurantName,
+        if (nationalId != null) 'nationalId': nationalId,
         'isActive': isActive,
       };
 
@@ -197,6 +205,7 @@ class AppUser {
     String? restaurantId,
     String? restaurantName,
     bool? isActive,
+    String? nationalId,
   }) =>
       AppUser(
         uid: uid,
@@ -209,6 +218,7 @@ class AppUser {
         restaurantId: restaurantId ?? this.restaurantId,
         restaurantName: restaurantName ?? this.restaurantName,
         isActive: isActive ?? this.isActive,
+        nationalId: nationalId ?? this.nationalId,
       );
 }
 

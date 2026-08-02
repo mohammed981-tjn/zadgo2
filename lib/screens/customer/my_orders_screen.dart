@@ -55,20 +55,24 @@ class _OrderCard extends StatelessWidget {
               Text('#${order.orderNumber}',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              if (order.driverId != null)
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
-                  tooltip: 'محادثة السائق',
-                ),
-              if (order.restaurantLat != null || order.deliveryLat != null)
-                IconButton(
-                  icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
-                  tooltip: 'عرض الخريطة',
-                ),
+              // ✅ المحادثة والخريطة تظهران فقط أثناء استمرار التوصيل، وتُخفيان
+              // تلقائياً بمجرد انتهاء الطلب (تم التوصيل/ملغى/مرفوض).
+              if (!order.status.isFinished) ...[
+                if (order.driverId != null)
+                  IconButton(
+                    icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
+                    tooltip: 'محادثة السائق',
+                  ),
+                if (order.restaurantLat != null || order.deliveryLat != null)
+                  IconButton(
+                    icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
+                    tooltip: 'عرض الخريطة',
+                  ),
+              ],
               StatusBadge(
                   label: order.status.label,
                   color: order.status.color,

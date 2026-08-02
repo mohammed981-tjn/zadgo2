@@ -102,6 +102,54 @@ class _TrackedOrderCard extends StatelessWidget {
               ),
             ),
           ],
+          // ✅ إنهاء الطلب أو إلغاؤه مباشرة من شاشة المتابعة الحية دون التنقل
+          // بين شاشات أخرى — مفيد للطوارئ (مشكلة اتصال، طلب لن يُستكمل...).
+          if (order.status.isActive) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.success,
+                      side: const BorderSide(color: AppColors.success)),
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('إنهاء الطلب'),
+                  onPressed: order.driverId == null || order.driverId!.isEmpty
+                      ? null
+                      : () async {
+                          final ok = await showConfirmDialog(context,
+                              title: 'إنهاء الطلب',
+                              content: 'هل تم توصيل الطلب فعلياً للعميل؟ سيُعتبر الطلب منتهياً.',
+                              confirmLabel: 'إنهاء');
+                          if (ok == true) {
+                            await service.markOrderDelivered(order.id, order.driverId!);
+                            if (context.mounted) showSuccess(context, 'تم إنهاء الطلب');
+                          }
+                        },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                      side: const BorderSide(color: Colors.redAccent)),
+                  icon: const Icon(Icons.cancel_outlined),
+                  label: const Text('إلغاء الطلب'),
+                  onPressed: () async {
+                    final ok = await showConfirmDialog(context,
+                        title: 'إلغاء الطلب',
+                        content: 'هل تريد إلغاء هذا الطلب نهائياً؟ (كأنه لم يُطلب)',
+                        confirmLabel: 'إلغاء الطلب');
+                    if (ok == true) {
+                      await service.cancelOrder(order.id);
+                      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+                    }
+                  },
+                ),
+              ),
+            ]),
+          ],
         ]),
       ),
     );

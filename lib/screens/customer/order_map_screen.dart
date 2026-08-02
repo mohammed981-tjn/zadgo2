@@ -39,11 +39,21 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
     }
   }
 
+  Future<void> _call(String phone) async {
+    if (phone.trim().isEmpty) return;
+    final uri = Uri(scheme: 'tel', path: phone.trim());
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
 
-    if (order.driverId != null && order.status == OrderStatus.outForDelivery) {
+    // ✅ نجلب بيانات السائق (موقعه ورقم جواله) طالما هناك سائق معيّن على
+    // الطلب، وليس فقط أثناء "في الطريق إليك"، لإتاحة الاتصال به من التتبع الحي.
+    if (order.driverId != null && order.driverId!.isNotEmpty) {
       return StreamBuilder<Driver?>(
         stream: service.streamDriver(order.driverId!),
         builder: (ctx, driverSnap) => _buildScaffold(context, service, driverSnap.data),
@@ -99,7 +109,25 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
         : (hasDelivery ? LatLng(order.deliveryLat!, order.deliveryLng!) : points[0].point);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_appBarTitle())),
+      appBar: AppBar(
+        title: Text(_appBarTitle()),
+        actions: [
+          // ✅ الاتصال المباشر بالعميل أو السائق بالضغط على أيقونة الهاتف —
+          // متاحة من التتبع الحي دون الحاجة لمغادرة الشاشة.
+          if (!widget.readOnly && order.customerPhone.isNotEmpty)
+            IconButton(
+              tooltip: 'الاتصال بالعميل',
+              icon: const Icon(Icons.call_outlined),
+              onPressed: () => _call(order.customerPhone),
+            ),
+          if (liveDriver != null && liveDriver.phone.isNotEmpty)
+            IconButton(
+              tooltip: 'الاتصال بالسائق',
+              icon: const Icon(Icons.support_agent_outlined),
+              onPressed: () => _call(liveDriver.phone),
+            ),
+        ],
+      ),
       body: Stack(
         children: [
           Column(

@@ -243,10 +243,12 @@ class _OrderCard extends StatelessWidget {
       ));
     }
 
-    if (order.status == OrderStatus.pending || order.status == OrderStatus.confirmed || order.status == OrderStatus.preparing) {
-      return const Text('بانتظار تجهيز الطلب من المطعم...', style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
+    if (order.status == OrderStatus.pending || order.status == OrderStatus.confirmed) {
+      return const Text('بانتظار تأكيد المطعم للطلب...', style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
     }
-    if (order.status == OrderStatus.readyForPickup) {
+    // ✅ لا داعي لانتظار "جاهز للاستلام" — يمكن للسائق استلام الطلب فور وصوله
+    // للمطعم حتى لو كان لا يزال "جاري التحضير"، فتقدير جاهزية الطلب متروك للسائق ميدانياً.
+    if (order.status == OrderStatus.preparing || order.status == OrderStatus.readyForPickup) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
