@@ -2,7 +2,7 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ copilot/task-255860018-1314616279-a69ca466-0b87-4b1a-abb4-a5db05af7000 ]
+    branches: [ copilot/split-customer-app ]
   workflow_dispatch:
 
 permissions:
@@ -26,29 +26,33 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.27.0'
+          flutter-version: '3.24.0'
           channel: 'stable'
           cache: false
 
-      - name: Create local.properties
-        run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
+      - name: Create android/local.properties
+        run: |
+          echo "flutter.versionCode=1" > android/local.properties
+          echo "flutter.versionName=2.0.0" >> android/local.properties
+
+      - name: Deep clean before build
+        run: |
+          rm -f pubspec.lock
+          rm -rf .dart_tool
+          rm -rf android/.gradle
+          rm -rf build
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK (first attempt via flutter tool)
-        run: flutter build apk --release || echo "flutter build reported failure, continuing to check for APK"
-
-      - name: Try direct gradle build if APK missing
+      - name: Flutter analyze
+        shell: bash
         run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK missing, retrying with gradlew directly"
-            cd android
-            chmod +x ./gradlew
-            ./gradlew assembleRelease --stacktrace
-          else
-            echo "APK already exists, skipping direct gradle retry"
-          fi
+          set -o pipefail
+          flutter analyze | tee flutter_analyze.log
+
+      - name: Build APK
+        run: flutter build apk --release --no-shrink --target-platform android-arm64
 
       - name: Final APK search
         run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
