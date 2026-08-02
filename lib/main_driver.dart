@@ -47,6 +47,8 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   AppFlavorConfig.flavor = AppFlavor.driver;
+  AppFlavorConfig.flavorLabel = 'السائق';
+  AppFlavorConfig.flavorColor = const Color(0xFF1565C0);
   AppFlavorConfig.restrictToRole = UserRole.driver;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات السائقين فقط';
   AppFlavorConfig.allowGuestBrowsing = false;

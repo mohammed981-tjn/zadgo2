@@ -48,6 +48,8 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   AppFlavorConfig.flavor = AppFlavor.customer;
+  AppFlavorConfig.flavorLabel = 'العميل';
+  AppFlavorConfig.flavorColor = const Color(0xFF2E7D32);
   AppFlavorConfig.restrictToRole = UserRole.customer;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات العملاء فقط';
   AppFlavorConfig.allowGuestBrowsing = true;

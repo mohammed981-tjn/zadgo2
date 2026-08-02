@@ -53,17 +53,49 @@ class _SplashScreenState extends State<SplashScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
+    final label = AppFlavorConfig.flavorLabel;
+
     return Scaffold(
       backgroundColor: const Color(0xFF040E1A),
       body: Center(
-        child: SizedBox(
-          width: screenWidth * 0.75,
-          height: screenHeight * 0.75,
-          child: Image.asset(
-            'assets/images/logo_square.png',
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: screenWidth * 0.75,
+              height: screenHeight * 0.75,
+              child: Image.asset(
+                'assets/images/logo_square.png',
+                fit: BoxFit.contain,
+                alignment: Alignment.center,
+              ),
+            ),
+            if (label != null)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppFlavorConfig.flavorColor,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppFlavorConfig.flavorColor.withOpacity(0.5),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

@@ -46,6 +46,8 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   AppFlavorConfig.flavor = AppFlavor.admin;
+  AppFlavorConfig.flavorLabel = 'المدير';
+  AppFlavorConfig.flavorColor = const Color(0xFF6A1B9A);
   AppFlavorConfig.restrictToRole = UserRole.admin;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات الإدارة فقط';
   AppFlavorConfig.allowGuestBrowsing = false;

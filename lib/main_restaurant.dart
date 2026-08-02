@@ -46,6 +46,8 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   AppFlavorConfig.flavor = AppFlavor.restaurant;
+  AppFlavorConfig.flavorLabel = 'المطعم';
+  AppFlavorConfig.flavorColor = const Color(0xFFEF6C00);
   AppFlavorConfig.restrictToRole = UserRole.restaurantManager;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات مديري المطاعم فقط';
   AppFlavorConfig.allowGuestBrowsing = false;
