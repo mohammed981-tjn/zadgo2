@@ -23,7 +23,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyBuU7g3vG5enxaebwxGdGgavG5U8cftwd4',
-      appId: '1:653081498334:android:6d7b3006fc329fda20684f',
+      appId: '1:653081498334:android:4e220e3299ffd87c20684f',
       messagingSenderId: '653081498334',
       projectId: 'restaurant-app-ed699',
       storageBucket: 'restaurant-app-ed699.firebasestorage.app',
@@ -37,7 +37,7 @@ void main() async {
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyBuU7g3vG5enxaebwxGdGgavG5U8cftwd4',
-      appId: '1:653081498334:android:6d7b3006fc329fda20684f',
+      appId: '1:653081498334:android:4e220e3299ffd87c20684f',
       messagingSenderId: '653081498334',
       projectId: 'restaurant-app-ed699',
       storageBucket: 'restaurant-app-ed699.firebasestorage.app',
