@@ -1,8 +1,7 @@
-// نقطة دخول مخصصة لتطبيق "العميل" المستقل (flavor: customer) — يشارك نفس
-// الكود ومشروع Firebase مع بقية النكهات، لكن شجرة الاستيراد هنا تقتصر على
-// شاشات العميل فقط (لا AdminHome/DriverHome/RestaurantHome ولا مسار
-// "تسجيل الموظفين برمز" إطلاقاً)، فلا تُشحن شيفرة الأدوار الأخرى في حزمة
-// هذا التطبيق أصلاً (فصل على مستوى الحزمة، لا مجرد إخفاء في الواجهة).
+// نقطة دخول مستقلة تماماً لتطبيق "لوحة تحكم المدير" (flavor: admin) — شجرة
+// الاستيراد هنا تقتصر على AdminHome وشاشات التسجيل العامة؛ لا CustomerHome
+// ولا DriverHome ولا RestaurantHome ولا شاشة التسجيل المفتوح. أي حساب ليس
+// بدور مدير عام يُرفض ويُسجَّل خروجه تلقائياً.
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -11,12 +10,11 @@ import 'app_flavor.dart';
 import 'navigator_key.dart';
 import 'models/models.dart';
 import 'providers/auth_provider.dart' as app_auth;
-import 'providers/cart_provider.dart';
 import 'providers/firebase_service.dart';
 import 'screens/splash_screen.dart';
-import 'screens/customer/customer_home.dart';
+import 'screens/admin/admin_home.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/auth/register_screen.dart';
+import 'screens/auth/register_with_code_screen.dart';
 import 'utils/theme.dart';
 
 @pragma('vm:entry-point')
@@ -47,20 +45,20 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  AppFlavorConfig.flavor = AppFlavor.customer;
-  AppFlavorConfig.restrictToRole = UserRole.customer;
-  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات العملاء فقط';
-  AppFlavorConfig.allowGuestBrowsing = true;
-  AppFlavorConfig.buildHomeForRole = (role) => const CustomerHome();
-  AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => LoginScreen(fromCheckout: fromCheckout);
-  AppFlavorConfig.buildRegisterScreen = ({fromCheckout = false}) => RegisterScreen(fromCheckout: fromCheckout);
-  AppFlavorConfig.buildRegisterWithCodeScreen = null;
+  AppFlavorConfig.flavor = AppFlavor.admin;
+  AppFlavorConfig.restrictToRole = UserRole.admin;
+  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات الإدارة فقط';
+  AppFlavorConfig.allowGuestBrowsing = false;
+  AppFlavorConfig.buildHomeForRole = (role) => const AdminHome();
+  AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => const LoginScreen();
+  AppFlavorConfig.buildRegisterScreen = null;
+  AppFlavorConfig.buildRegisterWithCodeScreen = () => const RegisterWithCodeScreen();
 
-  runApp(const CustomerApp());
+  runApp(const AdminApp());
 }
 
-class CustomerApp extends StatelessWidget {
-  const CustomerApp({super.key});
+class AdminApp extends StatelessWidget {
+  const AdminApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -71,13 +69,10 @@ class CustomerApp extends StatelessWidget {
         ChangeNotifierProvider<app_auth.AuthProvider>(
           create: (_) => app_auth.AuthProvider(service),
         ),
-        ChangeNotifierProvider<CartProvider>(
-          create: (_) => CartProvider(),
-        ),
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
-        title: 'ZadGo عميل',
+        title: 'ZadGo إدارة',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         builder: (context, child) => Directionality(

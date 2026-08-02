@@ -57,9 +57,10 @@ android {
         multiDexEnabled true
     }
 
-    // نكهات بناء (flavors) لإنتاج تطبيق مخصص للعميل فقط (يحصر الاستخدام على
-    // دور "عميل" ويُخفي مسارات تسجيل الموظفين) بجانب النكهة الكاملة التي
-    // تحتوي كل الأدوار (إدارة/سائق/مطعم/عميل) كما كان الحال سابقاً.
+    // نكهات بناء (flavors) لإنتاج تطبيق مستقل لكل دور (عميل/سائق/مدير
+    // مطعم/مدير عام)، بجانب النكهة الكاملة التي تحتوي كل الأدوار كما كان
+    // الحال سابقاً. applicationIdSuffix مختلف لكل نكهة يسمح بتثبيت الأربعة
+    // معاً على نفس الجهاز بلا تعارض.
     flavorDimensions "app"
     productFlavors {
         full {
@@ -70,6 +71,21 @@ android {
             dimension "app"
             applicationIdSuffix ".customer"
             resValue "string", "app_name", "ZadGo عميل"
+        }
+        driver {
+            dimension "app"
+            applicationIdSuffix ".driver"
+            resValue "string", "app_name", "ZadGo سائق"
+        }
+        restaurant {
+            dimension "app"
+            applicationIdSuffix ".restaurant"
+            resValue "string", "app_name", "ZadGo مطعم"
+        }
+        admin {
+            dimension "app"
+            applicationIdSuffix ".admin"
+            resValue "string", "app_name", "ZadGo إدارة"
         }
     }
 

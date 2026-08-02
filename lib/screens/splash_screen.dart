@@ -2,18 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart' as app_auth;
 import '../models/models.dart';
-import 'auth/login_screen.dart';
-import 'admin/admin_home.dart';
-import 'customer/customer_home.dart';
-import 'driver/driver_home.dart';
-import 'restaurant/restaurant_home.dart';
+import '../app_flavor.dart';
 
 class SplashScreen extends StatefulWidget {
-  /// عند تفعيلها (تطبيق العميل المستقل) يُقصر التنقل التلقائي على حسابات
-  /// العميل فقط؛ أي حساب آخر (إدارة/سائق/مطعم) يُسجَّل خروجه تلقائياً
-  /// ويُعاد توجيهه لشاشة الدخول الخاصة بالعميل.
-  final bool customerOnly;
-  const SplashScreen({super.key, this.customerOnly = false});
+  const SplashScreen({super.key});
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
@@ -33,26 +25,22 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!auth.isLoggedIn) {
       // التسجيل المؤجل: زائر تطبيق العميل يدخل مباشرة لشاشة المطاعم دون أي
       // شاشة تسجيل دخول؛ التسجيل يُطلب فقط عند تأكيد الطلب لاحقاً. هذا لا
-      // يتعارض مع منطق customerOnly أدناه لأنه يعمل فقط حين لا يوجد مستخدم
-      // مسجَّل دخوله أصلاً (حالة الزائر)، ولا يستدعي auth.logout() إطلاقاً.
-      if (widget.customerOnly) {
-        _go(const CustomerHome());
+      // يتعارض مع القيد أدناه لأنه يعمل فقط حين لا يوجد مستخدم مسجَّل دخوله
+      // أصلاً (حالة الزائر)، ولا يستدعي auth.logout() إطلاقاً.
+      if (AppFlavorConfig.allowGuestBrowsing) {
+        _go(AppFlavorConfig.buildHomeForRole(UserRole.customer));
         return;
       }
-      _go(LoginScreen(customerOnly: widget.customerOnly));
+      _go(AppFlavorConfig.buildLoginScreen());
       return;
     }
-    if (widget.customerOnly && auth.user!.role != UserRole.customer) {
+    final restrict = AppFlavorConfig.restrictToRole;
+    if (restrict != null && auth.user!.role != restrict) {
       auth.logout();
-      _go(LoginScreen(customerOnly: widget.customerOnly));
+      _go(AppFlavorConfig.buildLoginScreen());
       return;
     }
-    switch (auth.user!.role) {
-      case UserRole.admin: _go(const AdminHome()); break;
-      case UserRole.customer: _go(const CustomerHome()); break;
-      case UserRole.driver: _go(const DriverHome()); break;
-      case UserRole.restaurantManager: _go(const RestaurantHome()); break;
-    }
+    _go(AppFlavorConfig.buildHomeForRole(auth.user!.role));
   }
 
   void _go(Widget screen) {

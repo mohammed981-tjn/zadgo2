@@ -2,13 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
+import 'app_flavor.dart';
+import 'navigator_key.dart';
+import 'models/models.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/cart_provider.dart';
 import 'providers/firebase_service.dart';
 import 'screens/splash_screen.dart';
+import 'screens/admin/admin_home.dart';
+import 'screens/customer/customer_home.dart';
+import 'screens/driver/driver_home.dart';
+import 'screens/restaurant/restaurant_home.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
+import 'screens/auth/register_with_code_screen.dart';
 import 'utils/theme.dart';
-
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -38,13 +46,34 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  // النكهة الكاملة (full) هي الوحيدة التي تحتوي شيفرة كل الأدوار الأربعة —
+  // بقية النكهات (main_customer.dart/main_driver.dart/main_restaurant.dart/
+  // main_admin.dart) لا تستورد هذا الملف إطلاقاً، ولكل منها شجرة استيراد
+  // مستقلة تقتصر على شاشات دورها فقط.
+  AppFlavorConfig.flavor = AppFlavor.full;
+  AppFlavorConfig.restrictToRole = null;
+  AppFlavorConfig.allowGuestBrowsing = false;
+  AppFlavorConfig.buildHomeForRole = (role) {
+    switch (role) {
+      case UserRole.admin:
+        return const AdminHome();
+      case UserRole.customer:
+        return const CustomerHome();
+      case UserRole.driver:
+        return const DriverHome();
+      case UserRole.restaurantManager:
+        return const RestaurantHome();
+    }
+  };
+  AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => LoginScreen(fromCheckout: fromCheckout);
+  AppFlavorConfig.buildRegisterScreen = ({fromCheckout = false}) => RegisterScreen(fromCheckout: fromCheckout);
+  AppFlavorConfig.buildRegisterWithCodeScreen = () => const RegisterWithCodeScreen();
+
   runApp(const ZadGoApp());
 }
 
 class ZadGoApp extends StatelessWidget {
-  /// عند تفعيلها (نكهة تطبيق العميل) يُقصر التطبيق على واجهات العميل فقط.
-  final bool customerOnly;
-  const ZadGoApp({super.key, this.customerOnly = false});
+  const ZadGoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -68,7 +97,7 @@ class ZadGoApp extends StatelessWidget {
           textDirection: TextDirection.rtl,
           child: child!,
         ),
-        home: SplashScreen(customerOnly: customerOnly),
+        home: const SplashScreen(),
       ),
     );
   }

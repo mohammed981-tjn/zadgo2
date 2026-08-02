@@ -3,22 +3,14 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/models.dart';
 import '../../utils/helpers.dart';
-import '../admin/admin_home.dart';
-import '../customer/customer_home.dart';
-import '../driver/driver_home.dart';
-import '../restaurant/restaurant_home.dart';
-import 'register_screen.dart';
-import 'register_with_code_screen.dart';
+import '../../app_flavor.dart';
 
 class LoginScreen extends StatefulWidget {
-  /// عند تفعيلها (تطبيق العميل المستقل) يُخفى مسار "تسجيل الموظفين برمز"
-  /// ويُرفض تسجيل دخول أي حساب ليس بدور "عميل".
-  final bool customerOnly;
   /// عند تفعيلها (الدخول أثناء إتمام الطلب كزائر) تُغلق الشاشة بعد نجاح
   /// الدخول بدل الانتقال للرئيسية، ليستكمل المستدعي (شاشة السلة) الطلب من
   /// نفس النقطة دون فقدان السلة أو العودة للرئيسية.
   final bool fromCheckout;
-  const LoginScreen({super.key, this.customerOnly = false, this.fromCheckout = false});
+  const LoginScreen({super.key, this.fromCheckout = false});
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -36,14 +28,8 @@ class _LoginScreenState extends State<LoginScreen> {
   static const Color zadgoSilver = Color(0xFFC7CFD6);
 
   void _navigate(UserRole role) {
-    Widget dest;
-    switch (role) {
-      case UserRole.admin: dest = const AdminHome(); break;
-      case UserRole.customer: dest = const CustomerHome(); break;
-      case UserRole.driver: dest = const DriverHome(); break;
-      case UserRole.restaurantManager: dest = const RestaurantHome(); break;
-    }
-    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
+    Navigator.pushAndRemoveUntil(context,
+        MaterialPageRoute(builder: (_) => AppFlavorConfig.buildHomeForRole(role)), (_) => false);
   }
 
   Future<void> _login() async {
@@ -52,10 +38,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(_emailCtrl.text, _passCtrl.text);
     if (!mounted) return;
     if (ok && auth.user != null) {
-      if (widget.customerOnly && auth.user!.role != UserRole.customer) {
+      final restrict = AppFlavorConfig.restrictToRole;
+      if (restrict != null && auth.user!.role != restrict) {
         await auth.logout();
         if (!mounted) return;
-        showError(context, 'هذا التطبيق مخصص لحسابات العملاء فقط');
+        showError(context, AppFlavorConfig.restrictedMessage);
         return;
       }
       if (widget.fromCheckout) {
@@ -281,13 +268,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 18),
+                          if (AppFlavorConfig.buildRegisterScreen != null)
                           Center(
                             child: TextButton(
                               onPressed: () async {
+                                final buildRegister = AppFlavorConfig.buildRegisterScreen!;
                                 final result = await Navigator.push<bool>(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (_) => RegisterScreen(fromCheckout: widget.fromCheckout)),
+                                      builder: (_) => buildRegister(fromCheckout: widget.fromCheckout)),
                                 );
                                 if (widget.fromCheckout && result == true && context.mounted) {
                                   Navigator.pop(context, true);
@@ -303,12 +292,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                          if (!widget.customerOnly)
+                          if (AppFlavorConfig.buildRegisterWithCodeScreen != null)
                           Center(
                             child: TextButton(
                               onPressed: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (_) => const RegisterWithCodeScreen()),
+                                MaterialPageRoute(builder: (_) => AppFlavorConfig.buildRegisterWithCodeScreen!()),
                               ),
                               child: Text(
                                 'لديك كود تسجيل (مدير مطعم / سائق / مدير)؟ فعّل حسابك',

@@ -11,10 +11,7 @@ import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
-import '../admin/admin_home.dart';
-import '../customer/customer_home.dart';
-import '../driver/driver_home.dart';
-import '../restaurant/restaurant_home.dart';
+import '../../app_flavor.dart';
 
 class RegisterWithCodeScreen extends StatefulWidget {
   const RegisterWithCodeScreen({super.key});
@@ -34,14 +31,8 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
   bool _obscure = true;
 
   void _navigate(UserRole role) {
-    Widget dest;
-    switch (role) {
-      case UserRole.admin: dest = const AdminHome(); break;
-      case UserRole.customer: dest = const CustomerHome(); break;
-      case UserRole.driver: dest = const DriverHome(); break;
-      case UserRole.restaurantManager: dest = const RestaurantHome(); break;
-    }
-    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
+    Navigator.pushAndRemoveUntil(context,
+        MaterialPageRoute(builder: (_) => AppFlavorConfig.buildHomeForRole(role)), (_) => false);
   }
 
   Future<void> _submit() async {
@@ -54,6 +45,10 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
       password: _passCtrl.text,
       phone: _phoneCtrl.text,
       nationalId: _nationalIdCtrl.text,
+      // النكهة المقيّدة بدور واحد (سائق/مطعم/أدمن) تقبل فقط أكواداً بنفس
+      // الدور؛ النكهة الكاملة (restrictToRole == null) تقبل أي دور كما كان
+      // الحال سابقاً.
+      expectedRole: AppFlavorConfig.restrictToRole,
     );
     if (!mounted) return;
     if (ok && auth.user != null) {

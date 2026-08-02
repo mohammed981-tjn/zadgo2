@@ -9,7 +9,7 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/helpers.dart';
-import '../customer/customer_home.dart';
+import '../../app_flavor.dart';
 
 class RegisterScreen extends StatefulWidget {
   /// عند تفعيلها (التسجيل أثناء إتمام الطلب كزائر) تُغلق الشاشة بعد نجاح
@@ -41,7 +41,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return;
       }
       Navigator.pushAndRemoveUntil(
-          context, MaterialPageRoute(builder: (_) => const CustomerHome()), (_) => false);
+          context, MaterialPageRoute(builder: (_) => AppFlavorConfig.buildHomeForRole(UserRole.customer)), (_) => false);
     } else {
       showError(context, auth.error ?? 'فشل التسجيل');
     }

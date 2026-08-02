@@ -10,7 +10,7 @@ import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
-import '../../main.dart';
+import '../../navigator_key.dart';
 
 class DriverHome extends StatefulWidget {
   const DriverHome({super.key});

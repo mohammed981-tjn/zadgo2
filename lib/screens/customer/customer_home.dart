@@ -42,13 +42,13 @@ class _CustomerHomeState extends State<CustomerHome> {
           if (isGuest)
             TextButton(
               onPressed: () => Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => const LoginScreen(customerOnly: true))),
+                  context, MaterialPageRoute(builder: (_) => const LoginScreen())),
               child: const Text('تسجيل الدخول'),
             )
           else
             IconButton(icon: const Icon(Icons.logout), onPressed: () async {
               await auth.logout();
-              if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen(customerOnly: true)), (_) => false);
+              if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
             }),
         ],
       ),
@@ -101,7 +101,7 @@ class _GuestOrdersPrompt extends StatelessWidget {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () => Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => const LoginScreen(customerOnly: true))),
+                  context, MaterialPageRoute(builder: (_) => const LoginScreen())),
               child: const Text('تسجيل الدخول / إنشاء حساب'),
             ),
           ]),

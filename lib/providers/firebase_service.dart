@@ -201,6 +201,9 @@ class FirebaseService {
   /// في حال فشل استهلاك الرمز بعد إنشاء الحساب (مثلاً استُهلك الرمز من
   /// محاولة متزامنة أخرى بين التحقق الأولي وإنشاء الحساب)، يُحذف الحساب
   /// المُصادَق حديثاً لتفادي ترك حساب "يتيم" بلا رمز صالح.
+  /// [expectedRole] (اختياري): حين تُمرَّر من نكهة تطبيق مقيّدة بدور واحد
+  /// (سائق/مطعم/أدمن)، يُرفض أي كود بدور مختلف فوراً كقراءة فقط قبل إنشاء
+  /// الحساب أصلاً — لا تغيير في ترتيب استهلاك الرمز.
   Future<models.AppUser> registerWithCode({
     required String code,
     required String name,
@@ -208,6 +211,9 @@ class FirebaseService {
     required String password,
     required String phone,
     String? nationalId,
+    // الدور المتوقَع لهذه النكهة (سائق/مطعم/أدمن)؛ null يعني بلا قيد (النكهة
+    // الكاملة). فحص قراءة فقط لا يغيّر ترتيب الكتابة على registrationCodes.
+    models.UserRole? expectedRole,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
 
@@ -220,6 +226,9 @@ class FirebaseService {
     final initial = models.RegistrationCode.fromMap(initialSnap.data()!, initialSnap.id);
     if (initial.isUsed) {
       throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+    }
+    if (expectedRole != null && initial.role != expectedRole) {
+      throw Exception('هذا الكود غير مخصص لهذا التطبيق');
     }
 
     // 2) إنشاء الحساب بالمصادقة — بعدها يصبح request.auth != null.
@@ -237,6 +246,9 @@ class FirebaseService {
         final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
         if (current.isUsed) {
           throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+        }
+        if (expectedRole != null && current.role != expectedRole) {
+          throw Exception('هذا الكود غير مخصص لهذا التطبيق');
         }
         tx.update(ref, {'isUsed': true, 'usedAt': FieldValue.serverTimestamp()});
         return current;
