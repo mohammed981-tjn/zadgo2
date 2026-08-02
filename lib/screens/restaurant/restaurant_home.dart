@@ -100,7 +100,7 @@ class _RestaurantOrdersList extends StatelessWidget {
                     const Spacer(),
                     StatusBadge(label: o.status.label, color: o.status.color),
                   ]),
-                  InfoRow(icon: Icons.person, text: o.customerName),
+                  InfoRow(icon: Icons.person_outline, text: o.customerName),
                   Text(formatCurrency(o.grandTotal),
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
                   // ملاحظة: تم إزالة زر "رفض/إلغاء الطلب" نهائياً من شاشة المطعم بناءً على

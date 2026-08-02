@@ -71,7 +71,7 @@ class _StatsTab extends StatelessWidget {
         const SizedBox(height: 16),
         GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
-          _stat('الطلبات', '${orders.length}', Icons.receipt_long, AppColors.primary),
+          _stat('الطلبات', '${orders.length}', Icons.receipt_long_outlined, AppColors.primary),
           _stat('النشطة', '$active', Icons.hourglass_empty, AppColors.warning),
           _stat('مكتملة', '$delivered', Icons.done_all, AppColors.success),
         ]),
@@ -98,8 +98,8 @@ class _OrdersTab extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [Text('#${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
                 const Spacer(), StatusBadge(label: o.status.label, color: o.status.color)]),
-            InfoRow(icon: Icons.restaurant, text: o.restaurantName),
-            InfoRow(icon: Icons.person, text: o.customerName),
+            InfoRow(icon: Icons.restaurant_outlined, text: o.restaurantName),
+            InfoRow(icon: Icons.person_outline, text: o.customerName),
             Text(formatCurrency(o.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
             if (o.status == OrderStatus.restaurantPending)
               Row(children: [

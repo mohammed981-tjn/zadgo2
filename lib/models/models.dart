@@ -152,17 +152,17 @@ extension OrderStatusExt on OrderStatus {
     const map = {
       OrderStatus.created: Icons.receipt_long_rounded,
       OrderStatus.restaurantPending: Icons.hourglass_empty_rounded,
-      OrderStatus.restaurantAccepted: Icons.check_circle_outline,
+      OrderStatus.restaurantAccepted: Icons.check_circle_rounded,
       OrderStatus.preparing: Icons.restaurant_rounded,
-      OrderStatus.readyForPickup: Icons.shopping_bag_outlined,
+      OrderStatus.readyForPickup: Icons.shopping_bag_rounded,
       OrderStatus.searchingDriver: Icons.manage_search_rounded,
-      OrderStatus.driverAssigned: Icons.person_pin_circle_outlined,
+      OrderStatus.driverAssigned: Icons.person_pin_circle_rounded,
       OrderStatus.pickedUp: Icons.inventory_2_rounded,
       OrderStatus.onTheWay: Icons.delivery_dining_rounded,
       OrderStatus.delivered: Icons.done_all_rounded,
       OrderStatus.restaurantRejected: Icons.block_rounded,
       OrderStatus.noDriverFound: Icons.person_off_rounded,
-      OrderStatus.cancelled: Icons.cancel_outlined,
+      OrderStatus.cancelled: Icons.cancel_rounded,
       OrderStatus.refunded: Icons.replay_circle_filled_rounded,
     };
     return map[this] ?? Icons.info_outline;

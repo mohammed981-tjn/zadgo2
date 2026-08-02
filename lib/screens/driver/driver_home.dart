@@ -219,7 +219,7 @@ class _OrderCard extends StatelessWidget {
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
           ]),
           const SizedBox(height: 10),
-          InfoRow(icon: Icons.restaurant, text: order.restaurantName),
+          InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
           InfoRow(icon: Icons.person_outline, text: '${order.customerName} — ${order.customerPhone}'),
           InfoRow(icon: Icons.location_on_outlined, text: order.deliveryAddress),
           const Divider(height: 16),

@@ -76,7 +76,7 @@ class _OrderCard extends StatelessWidget {
                   color: order.status.color,
                   icon: order.status.icon),
             ]),
-            InfoRow(icon: Icons.restaurant, text: order.restaurantName),
+            InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
             InfoRow(
                 icon: Icons.access_time,
                 text:

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   static const primary = Color(0xFFD4A017);         // ذهبي/عنبري فاخر
@@ -30,7 +29,9 @@ class AppTheme {
       surface: Colors.white,
       brightness: Brightness.light,
     ),
-    textTheme: GoogleFonts.cairoTextTheme().apply(
+    fontFamily: 'Cairo',
+    textTheme: Typography.material2021().black.apply(
+      fontFamily: 'Cairo',
       bodyColor: AppColors.textDark,
       displayColor: AppColors.textDark,
     ),
@@ -40,7 +41,7 @@ class AppTheme {
       elevation: 0,
       centerTitle: true,
       surfaceTintColor: Colors.transparent,
-      titleTextStyle: GoogleFonts.cairo(
+      titleTextStyle: TextStyle(fontFamily: 'Cairo', 
         fontSize: 18,
         fontWeight: FontWeight.w700,
         color: AppColors.textDark,
@@ -56,7 +57,7 @@ class AppTheme {
         minimumSize: const Size.fromHeight(48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-        textStyle: GoogleFonts.cairo(fontSize: 15.5, fontWeight: FontWeight.w700),
+        textStyle: TextStyle(fontFamily: 'Cairo', fontSize: 15.5, fontWeight: FontWeight.w700),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -66,13 +67,13 @@ class AppTheme {
         minimumSize: const Size.fromHeight(44),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
-        textStyle: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w600),
+        textStyle: TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.w600),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: AppColors.dark,
-        textStyle: GoogleFonts.cairo(fontWeight: FontWeight.w700),
+        textStyle: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -95,7 +96,7 @@ class AppTheme {
         borderSide: const BorderSide(color: AppColors.error, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      labelStyle: GoogleFonts.cairo(color: AppColors.textGray, fontSize: 14),
+      labelStyle: TextStyle(fontFamily: 'Cairo', color: AppColors.textGray, fontSize: 14),
     ),
     cardTheme: CardTheme(
       elevation: 0,
@@ -114,7 +115,7 @@ class AppTheme {
       backgroundColor: Colors.white,
       elevation: 0,
       indicatorColor: AppColors.primary.withOpacity(0.2),
-      labelTextStyle: WidgetStateProperty.resolveWith((states) => GoogleFonts.cairo(
+      labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(fontFamily: 'Cairo', 
             fontSize: 11,
             fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
             color: states.contains(WidgetState.selected) ? AppColors.dark : AppColors.textGray,
@@ -127,13 +128,13 @@ class AppTheme {
     dialogTheme: DialogTheme(
       backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      titleTextStyle: GoogleFonts.cairo(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
-      contentTextStyle: GoogleFonts.cairo(fontSize: 14, color: AppColors.textGray),
+      titleTextStyle: TextStyle(fontFamily: 'Cairo', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
+      contentTextStyle: TextStyle(fontFamily: 'Cairo', fontSize: 14, color: AppColors.textGray),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      labelStyle: GoogleFonts.cairo(fontSize: 12, fontWeight: FontWeight.w600),
+      labelStyle: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.w600),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     ),
     scaffoldBackgroundColor: AppColors.surface,

@@ -88,7 +88,7 @@ class _RestaurantCard extends StatelessWidget {
                 InfoRow(icon: Icons.phone_outlined, text: restaurant.phone),
                 InfoRow(icon: Icons.location_on_outlined, text: restaurant.address),
                 InfoRow(
-                  icon: Icons.delivery_dining,
+                  icon: Icons.delivery_dining_outlined,
                   text:
                       'أجرة التوصيل: نصيب السائق ${formatCurrency(restaurant.driverShareFee)} + نصيب التطبيق ${formatCurrency(restaurant.appShareFee)}',
                 ),

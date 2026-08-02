@@ -227,11 +227,11 @@ class _TrackedOrderCard extends StatelessWidget {
             const SizedBox(height: 8),
             alertBanner,
           ],
-          InfoRow(icon: Icons.restaurant, text: order.restaurantName),
+          InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
           const SizedBox(height: 2),
           // ✅ رقم جوال العميل + زر اتصال مباشر (tel:).
           Row(children: [
-            const Icon(Icons.person, size: 15, color: AppColors.textGray),
+            const Icon(Icons.person_outline, size: 15, color: AppColors.textGray),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -259,7 +259,7 @@ class _TrackedOrderCard extends StatelessWidget {
                 final phone = driver?.phone.trim() ?? '';
                 final name = order.driverName ?? driver?.name ?? 'سائق';
                 return Row(children: [
-                  const Icon(Icons.delivery_dining, size: 15, color: AppColors.textGray),
+                  const Icon(Icons.delivery_dining_outlined, size: 15, color: AppColors.textGray),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -278,7 +278,7 @@ class _TrackedOrderCard extends StatelessWidget {
               },
             )
           else
-            const InfoRow(icon: Icons.delivery_dining, text: 'لم يُعيّن سائق بعد'),
+            const InfoRow(icon: Icons.delivery_dining_outlined, text: 'لم يُعيّن سائق بعد'),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
           OrderTrackingTimeline(status: order.status),
           Text(formatCurrency(order.grandTotal),
