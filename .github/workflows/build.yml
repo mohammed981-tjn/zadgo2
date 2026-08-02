@@ -28,7 +28,10 @@ jobs:
           cache: false
 
       - name: Create local.properties
-        run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
+        run: |
+          echo "flutter.sdk=${FLUTTER_ROOT:-$FLUTTER_HOME}" > android/local.properties
+          echo "flutter.versionCode=1" >> android/local.properties
+          echo "flutter.versionName=4.0.0" >> android/local.properties
 
       - name: Install dependencies
         run: flutter pub get
@@ -38,13 +41,24 @@ jobs:
 
       - name: Try direct gradle build if APK missing
         run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+          apk_path="$(find build android/app/build -name "*.apk" -type f -print -quit 2>/dev/null || true)"
+
+          if [ -z "$apk_path" ]; then
             echo "APK missing, retrying with gradlew directly"
             cd android
             chmod +x ./gradlew
             ./gradlew assembleRelease --stacktrace
           else
-            echo "APK already exists, skipping direct gradle retry"
+            echo "APK already exists at $apk_path, skipping direct gradle retry"
+          fi
+
+      - name: Normalize APK path
+        run: |
+          apk_path="$(find build android/app/build -name "*.apk" -type f -print -quit 2>/dev/null || true)"
+
+          if [ -n "$apk_path" ] && [ "$apk_path" != "build/app/outputs/flutter-apk/app-release.apk" ]; then
+            mkdir -p build/app/outputs/flutter-apk
+            cp "$apk_path" build/app/outputs/flutter-apk/app-release.apk
           fi
 
       - name: Final APK search
