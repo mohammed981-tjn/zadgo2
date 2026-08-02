@@ -13,6 +13,30 @@ if (localPropertiesFile.exists()) {
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
 def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
 
+// إعدادات توقيع الإصدار (release signing) — تُقرأ من key.properties المحلي
+// (غير مُتتبَّع في git) أو من متغيرات البيئة (لبيئات CI/CD)، وتُتاح فقط عند
+// توفر جميع البيانات المطلوبة. في غيابها، يستمر البناء بتوقيع debug كما كان
+// سابقاً حتى لا يتعطل بناء CI أو بيئات التطوير المحلية.
+def keystorePropertiesFile = rootProject.file('key.properties')
+def keystoreProperties = new Properties()
+def hasReleaseSigning = false
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader -> keystoreProperties.load(reader) }
+    hasReleaseSigning = keystoreProperties.getProperty('storeFile') &&
+            keystoreProperties.getProperty('storePassword') &&
+            keystoreProperties.getProperty('keyAlias') &&
+            keystoreProperties.getProperty('keyPassword')
+} else {
+    keystoreProperties.setProperty('storeFile', System.getenv('ZADGO_KEYSTORE_FILE') ?: '')
+    keystoreProperties.setProperty('storePassword', System.getenv('ZADGO_KEYSTORE_PASSWORD') ?: '')
+    keystoreProperties.setProperty('keyAlias', System.getenv('ZADGO_KEY_ALIAS') ?: '')
+    keystoreProperties.setProperty('keyPassword', System.getenv('ZADGO_KEY_PASSWORD') ?: '')
+    hasReleaseSigning = keystoreProperties.getProperty('storeFile') &&
+            keystoreProperties.getProperty('storePassword') &&
+            keystoreProperties.getProperty('keyAlias') &&
+            keystoreProperties.getProperty('keyPassword')
+}
+
 android {
     namespace "com.zadam.delivery"
     compileSdk 35
@@ -33,9 +57,20 @@ android {
         multiDexEnabled true
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(keystoreProperties.getProperty('storeFile'))
+                storePassword keystoreProperties.getProperty('storePassword')
+                keyAlias keystoreProperties.getProperty('keyAlias')
+                keyPassword keystoreProperties.getProperty('keyPassword')
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             shrinkResources false
         }
