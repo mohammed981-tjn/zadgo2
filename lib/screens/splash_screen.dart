@@ -9,7 +9,11 @@ import 'driver/driver_home.dart';
 import 'restaurant/restaurant_home.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  /// عند تفعيلها (تطبيق العميل المستقل) يُقصر التنقل التلقائي على حسابات
+  /// العميل فقط؛ أي حساب آخر (إدارة/سائق/مطعم) يُسجَّل خروجه تلقائياً
+  /// ويُعاد توجيهه لشاشة الدخول الخاصة بالعميل.
+  final bool customerOnly;
+  const SplashScreen({super.key, this.customerOnly = false});
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
@@ -26,7 +30,15 @@ class _SplashScreenState extends State<SplashScreen> {
     if (_navigated || !mounted) return;
     _navigated = true;
     final auth = context.read<app_auth.AuthProvider>();
-    if (!auth.isLoggedIn) { _go(const LoginScreen()); return; }
+    if (!auth.isLoggedIn) {
+      _go(LoginScreen(customerOnly: widget.customerOnly));
+      return;
+    }
+    if (widget.customerOnly && auth.user!.role != UserRole.customer) {
+      auth.logout();
+      _go(LoginScreen(customerOnly: widget.customerOnly));
+      return;
+    }
     switch (auth.user!.role) {
       case UserRole.admin: _go(const AdminHome()); break;
       case UserRole.customer: _go(const CustomerHome()); break;

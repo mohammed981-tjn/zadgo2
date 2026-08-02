@@ -42,7 +42,9 @@ void main() async {
 }
 
 class ZadGoApp extends StatelessWidget {
-  const ZadGoApp({super.key});
+  /// عند تفعيلها (نكهة تطبيق العميل) يُقصر التطبيق على واجهات العميل فقط.
+  final bool customerOnly;
+  const ZadGoApp({super.key, this.customerOnly = false});
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +68,7 @@ class ZadGoApp extends StatelessWidget {
           textDirection: TextDirection.rtl,
           child: child!,
         ),
-        home: const SplashScreen(),
+        home: SplashScreen(customerOnly: customerOnly),
       ),
     );
   }

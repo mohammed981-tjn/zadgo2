@@ -11,7 +11,10 @@ import 'register_screen.dart';
 import 'register_with_code_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  /// عند تفعيلها (تطبيق العميل المستقل) يُخفى مسار "تسجيل الموظفين برمز"
+  /// ويُرفض تسجيل دخول أي حساب ليس بدور "عميل".
+  final bool customerOnly;
+  const LoginScreen({super.key, this.customerOnly = false});
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -45,6 +48,12 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(_emailCtrl.text, _passCtrl.text);
     if (!mounted) return;
     if (ok && auth.user != null) {
+      if (widget.customerOnly && auth.user!.role != UserRole.customer) {
+        await auth.logout();
+        if (!mounted) return;
+        showError(context, 'هذا التطبيق مخصص لحسابات العملاء فقط');
+        return;
+      }
       _navigate(auth.user!.role);
     } else {
       showError(context, auth.error ?? 'فشل تسجيل الدخول');
@@ -280,6 +289,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
+                          if (!widget.customerOnly)
                           Center(
                             child: TextButton(
                               onPressed: () => Navigator.push(
