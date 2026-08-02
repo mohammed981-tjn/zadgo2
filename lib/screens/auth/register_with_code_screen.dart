@@ -67,8 +67,7 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
         key: _form,
         child: ListView(padding: const EdgeInsets.all(20), children: [
           const Text(
-            'أدخل كود التسجيل الذي أرسله لك المدير العام (مدير عام / سائق / مدير مطعم) '
-            'لتفعيل حسابك تلقائياً بالدور والمطعم المرتبطين به.',
+            'أدخل كود التسجيل الذي أرسله لك المدير العام لتفعيل حسابك تلقائياً.',
             style: TextStyle(color: AppColors.textGray, fontSize: 13),
           ),
           const SizedBox(height: 18),

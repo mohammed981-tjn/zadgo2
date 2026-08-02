@@ -12,8 +12,8 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
-import '../customer/order_map_screen.dart';
 import 'restaurant_reports_tab.dart';
+import 'restaurant_menu_prices_tab.dart';
 
 class RestaurantHome extends StatefulWidget {
   const RestaurantHome({super.key});
@@ -32,9 +32,11 @@ class _RestaurantHomeState extends State<RestaurantHome> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tab == 0
-            ? 'طلبات ${auth.user?.restaurantName ?? "المطعم"}'
-            : 'التقارير والحسابات'),
+        title: Text(switch (_tab) {
+          0 => 'طلبات ${auth.user?.restaurantName ?? "المطعم"}',
+          1 => 'التقارير والحسابات',
+          _ => 'أسعار القائمة',
+        }),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -57,6 +59,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           : IndexedStack(index: _tab, children: [
               _RestaurantOrdersList(restaurantId: restaurantId),
               RestaurantReportsTab(restaurantId: restaurantId),
+              RestaurantMenuPricesTab(restaurantId: restaurantId),
             ]),
       bottomNavigationBar: restaurantId == null || restaurantId.isEmpty
           ? null
@@ -68,6 +71,8 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                     icon: Icon(Icons.receipt_long_outlined), label: 'الطلبات'),
                 NavigationDestination(
                     icon: Icon(Icons.bar_chart_outlined), label: 'التقارير والحسابات'),
+                NavigationDestination(
+                    icon: Icon(Icons.sell_outlined), label: 'الأسعار'),
               ],
             ),
     );
@@ -105,38 +110,27 @@ class _RestaurantOrdersList extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
                   // ملاحظة: تم إزالة زر "رفض/إلغاء الطلب" نهائياً من شاشة المطعم بناءً على
                   // طلب المنصة — إلغاء الطلب لا يظهر إلا في شاشة الطلبات بلوحة المدير العام.
+                  // كذلك تتبع السائق وتأكيد إغلاق/تسليم الطلب ليسا من اختصاص المطعم؛ دور
+                  // المطعم يقتصر على تأكيد الاستلام وتجهيز الطلب وتعليمه جاهزاً، ثم يتولى
+                  // السائق ولوحة المدير العام بقية دورة الطلب (تتبع الموقع والتسليم).
                   if (o.status == OrderStatus.restaurantPending)
                     SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                             onPressed: () => service.updateOrderStatus(o.id, OrderStatus.restaurantAccepted),
-                            child: const Text('تأكيد'))),
+                            child: const Text('تأكيد استلام الطلب'))),
                   if (o.status == OrderStatus.restaurantAccepted)
                     SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                             onPressed: () => service.updateOrderStatus(o.id, OrderStatus.preparing),
-                            child: const Text('بدأ التحضير'))),
+                            child: const Text('تجهيز الطلب'))),
                   if (o.status == OrderStatus.preparing)
                     SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
                             onPressed: () => service.updateOrderStatus(o.id, OrderStatus.readyForPickup),
-                            child: const Text('جاهز للاستلام'))),
-                  // خريطة تتبع السائق فقط (بدون أي زر لإلغاء الطلب أو تأكيد التوصيل)
-                  if (o.driverId != null && o.driverId!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          icon: const Icon(Icons.map_outlined),
-                          label: const Text('تتبع موقع السائق'),
-                          onPressed: () => Navigator.push(context,
-                              MaterialPageRoute(builder: (_) => OrderMapScreen(order: o))),
-                        ),
-                      ),
-                    ),
+                            child: const Text('الطلب جاهز'))),
                 ]),
               ),
             );

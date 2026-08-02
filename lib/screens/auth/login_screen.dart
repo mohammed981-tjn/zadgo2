@@ -326,7 +326,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 MaterialPageRoute(builder: (_) => AppFlavorConfig.buildRegisterWithCodeScreen!()),
                               ),
                               child: Text(
-                                'لديك كود تسجيل (مدير مطعم / سائق / مدير)؟ فعّل حسابك',
+                                'لديك كود تسجيل؟ سجّل الآن',
                                 style: TextStyle(
                                   color: zadgoSilver.withOpacity(0.85),
                                   fontWeight: FontWeight.w600,
