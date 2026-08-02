@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
-  static const primary = Color(0xFFD4A017);         // ذهبي/عنبري فاخر
-  static const primaryDark = Color(0xFFB8860B);      // ذهبي أغمق للتدرجات والظلال
-  static const primaryLight = Color(0xFFE8C547);     // ذهبي أفتح للمس الخفيفة
-  static const dark = Color(0xFF0B3D2E);             // أخضر داكن (اللون الأساسي الجديد للهوية)
-  static const secondary = Color(0xFF14523E);        // أخضر داكن أفتح قليلاً للتدرجات
+  static const primary = Color(0xFFD32F2F);          // أحمر أساسي للأزرار والأيقونات
+  static const primaryDark = Color(0xFF8B0000);       // أحمر داكن للتدرجات والظلال
+  static const primaryLight = Color(0xFFEF5350);      // أحمر فاتح للمس الخفيفة
+  static const dark = Color(0xFF000000);              // أسود (اللون الأساسي الجديد للهوية)
+  static const secondary = Color(0xFF1A1A1A);         // أسود فحمي للتدرجات
   static const silver = Color(0xFFC7CFD6);           // فضي/سحابي للمس الثانوية والخلفيات الفاتحة
   static const success = Color(0xFF00D084);
   static const successLight = Color(0xFFE8F9F1);
   static const warning = Color(0xFFFFB020);
   static const surface = Color(0xFFF3F5F4);
-  static const textDark = Color(0xFF0B3D2E);
+  static const textDark = Color(0xFF000000);
   static const textGray = Color(0xFF8A8A8E);
   static const divider = Color(0xFFEAEAEC);
   static const cardShadow = Color(0x14000000);

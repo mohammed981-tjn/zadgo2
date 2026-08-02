@@ -23,10 +23,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const Color bgDark = Color(0xFF08211A);
-  static const Color bgDarker = Color(0xFF04120D);
-  static const Color zadgoGold = Color(0xFFD4A017);
-  static const Color zadgoGoldLight = Color(0xFFF0C550);
+  static const Color bgDark = Color(0xFF0A0A0A);
+  static const Color bgDarker = Color(0xFF000000);
+  static const Color zadgoGold = Color(0xFFD32F2F);
+  static const Color zadgoGoldLight = Color(0xFFEF5350);
   static const Color zadgoSilver = Color(0xFFC7CFD6);
 
   void _navigate(UserRole role) {
