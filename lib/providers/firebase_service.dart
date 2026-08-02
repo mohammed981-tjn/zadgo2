@@ -154,12 +154,16 @@ class FirebaseService {
   Future<void> revokeRegistrationCode(String code) =>
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
 
-  /// يتحقق من كود التسجيل عبر معاملة Firestore (Transaction) لضمان استخدامه
-  /// مرة واحدة فقط حتى مع محاولات متزامنة، ثم يُنشئ الحساب بالدور المحدَّد
-  /// في الرمز (مدير عام/سائق/مدير مطعم) — ويربطه تلقائياً بالمطعم صاحب
-  /// الرمز إن كان الدور مدير مطعم، أو ينشئ سجل سائق إن كان الدور سائق.
-  /// في حال فشل إنشاء الحساب بعد استهلاك الرمز، تتم إعادة الرمز إلى حالته
-  /// غير المستخدم للسماح بمحاولة أخرى.
+  /// يتحقق أولاً (قراءة فقط، بدون تسجيل دخول) من صلاحية كود التسجيل، ثم
+  /// يُنشئ الحساب بالمصادقة (`createUserWithEmailAndPassword`)، وبعد أن
+  /// يصبح المستخدم مُصادَقاً (`request.auth != null`) يستهلك الرمز عبر
+  /// معاملة Firestore (Transaction) لضمان استخدامه مرة واحدة فقط حتى مع
+  /// محاولات متزامنة، بالدور المحدَّد في الرمز (مدير عام/سائق/مدير مطعم) —
+  /// ويربطه تلقائياً بالمطعم صاحب الرمز إن كان الدور مدير مطعم، أو ينشئ سجل
+  /// سائق إن كان الدور سائق.
+  /// في حال فشل استهلاك الرمز بعد إنشاء الحساب (مثلاً استُهلك الرمز من
+  /// محاولة متزامنة أخرى بين التحقق الأولي وإنشاء الحساب)، يُحذف الحساب
+  /// المُصادَق حديثاً لتفادي ترك حساب "يتيم" بلا رمز صالح.
   Future<models.AppUser> registerWithCode({
     required String code,
     required String name,
@@ -169,22 +173,38 @@ class FirebaseService {
     String? nationalId,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
-    final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
-      final snap = await tx.get(ref);
-      if (!snap.exists || snap.data() == null) {
-        throw Exception('كود التسجيل غير صحيح');
-      }
-      final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
-      if (current.isUsed) {
-        throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
-      }
-      tx.update(ref, {'isUsed': true, 'usedAt': FieldValue.serverTimestamp()});
-      return current;
-    });
+
+    // 1) تحقق أولي (قراءة فقط) قبل أي تسجيل دخول — لا يتطلب كتابة على
+    // registrationCodes، فيعمل حتى بدون مصادقة.
+    final initialSnap = await ref.get();
+    if (!initialSnap.exists || initialSnap.data() == null) {
+      throw Exception('كود التسجيل غير صحيح');
+    }
+    final initial = models.RegistrationCode.fromMap(initialSnap.data()!, initialSnap.id);
+    if (initial.isUsed) {
+      throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+    }
+
+    // 2) إنشاء الحساب بالمصادقة — بعدها يصبح request.auth != null.
+    final cred = await register(email.trim(), password.trim());
+    final uid = cred.user!.uid;
 
     try {
-      final cred = await register(email.trim(), password.trim());
-      final uid = cred.user!.uid;
+      // 3) الآن بعد المصادقة، استهلك الرمز عبر معاملة Firestore لضمان
+      // الذرّية حتى مع محاولات متزامنة.
+      final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
+        final snap = await tx.get(ref);
+        if (!snap.exists || snap.data() == null) {
+          throw Exception('كود التسجيل غير صحيح');
+        }
+        final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
+        if (current.isUsed) {
+          throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+        }
+        tx.update(ref, {'isUsed': true, 'usedAt': FieldValue.serverTimestamp()});
+        return current;
+      });
+
       final newUser = models.AppUser(
         uid: uid,
         name: name.trim(),
@@ -204,8 +224,13 @@ class FirebaseService {
       await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
       return newUser;
     } catch (e) {
-      // فشل إنشاء الحساب بعد استهلاك الرمز — نعيده متاحاً مجدداً.
-      await ref.update({'isUsed': false, 'usedAt': null});
+      // فشل استهلاك الرمز أو إنشاء بيانات المستخدم بعد إنشاء حساب المصادقة
+      // — نحذف حساب المصادقة اليتيم لتفادي ترك حساب بلا بيانات مرتبطة به.
+      try {
+        await cred.user?.delete();
+      } catch (_) {
+        // تجاهل أي خطأ أثناء التنظيف، الأولوية لإعادة رمي الخطأ الأصلي.
+      }
       rethrow;
     }
   }
