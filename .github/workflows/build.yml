@@ -28,7 +28,7 @@ jobs:
           cache: false
 
       - name: Create local.properties
-        run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
+        run: echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
 
       - name: Install dependencies
         run: flutter pub get
@@ -38,7 +38,7 @@ jobs:
 
       - name: Try direct gradle build if APK missing
         run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
+          if ! find build/app/outputs/flutter-apk android/app/build/outputs/apk/release -name "*.apk" -print -quit 2>/dev/null | grep -q .; then
             echo "APK missing, retrying with gradlew directly"
             cd android
             chmod +x ./gradlew
@@ -50,12 +50,17 @@ jobs:
       - name: Final APK search
         run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
 
+      - name: Verify APK exists
+        run: |
+          find build/app/outputs/flutter-apk android/app/build/outputs/apk/release -name "*.apk" -print 2>/dev/null
+          find build/app/outputs/flutter-apk android/app/build/outputs/apk/release -name "*.apk" -print -quit 2>/dev/null | grep -q .
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
           path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            android/app/build/outputs/apk/release/app-release.apk
+            build/app/outputs/flutter-apk/*.apk
+            android/app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
           retention-days: 1
