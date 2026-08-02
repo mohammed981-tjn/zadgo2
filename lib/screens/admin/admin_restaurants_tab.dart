@@ -494,14 +494,14 @@ class _ItemTile extends StatelessWidget {
                 _showItemForm(context, restaurantId, item.categoryId, item, categories),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+            icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.error),
             onPressed: () async {
               final ok = await showConfirmDialog(
                 context,
                 title: 'حذف الصنف',
                 content: 'هل تريد حذف "${item.name}"؟',
                 confirmLabel: 'حذف',
-                confirmColor: Colors.red,
+                confirmColor: AppColors.error,
               );
               if (ok == true && context.mounted) {
                 await service.deleteMenuItem(restaurantId, item.id);

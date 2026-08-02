@@ -9,7 +9,7 @@ void showSuccess(BuildContext context, String msg) {
 }
 
 void showError(BuildContext context, String msg) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.error));
 }
 
 Future<bool?> showConfirmDialog(BuildContext context, {required String title, required String content,

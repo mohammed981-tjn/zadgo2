@@ -23,7 +23,7 @@ class AppError extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+          const Icon(Icons.error_outline, color: AppColors.error, size: 48),
           const SizedBox(height: 16),
           Text(
             message ?? 'حدث خطأ أثناء تحميل البيانات',

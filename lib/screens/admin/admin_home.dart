@@ -62,7 +62,7 @@ class _StatsTab extends StatelessWidget {
           .fold(0.0, (s, o) => s + o.grandTotal);
       return ListView(padding: const EdgeInsets.all(16), children: [
         Container(padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.primary, Color(0xFFc1121f)]),
+          decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
               borderRadius: BorderRadius.circular(16)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('إجمالي الإيرادات', style: TextStyle(color: Colors.white70)),

@@ -151,7 +151,7 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
               const SizedBox(width: 8),
               CircleAvatar(
                 backgroundColor: AppColors.primary,
-                child: IconButton(icon: const Icon(Icons.send, color: Colors.white, size: 18), onPressed: _send),
+                child: IconButton(icon: const Icon(Icons.send, color: AppColors.dark, size: 18), onPressed: _send),
               ),
             ]),
           ),

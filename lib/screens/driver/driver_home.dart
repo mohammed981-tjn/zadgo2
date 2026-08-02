@@ -323,7 +323,7 @@ class _DriverEarningsTab extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [AppColors.primary, Color(0xFFc1121f)]),
+          gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

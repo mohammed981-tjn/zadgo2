@@ -292,7 +292,7 @@ class _UserTile extends StatelessWidget {
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         StatusBadge(
             label: u.isActive ? 'مفعّل' : 'معطّل',
-            color: u.isActive ? AppColors.success : Colors.red),
+            color: u.isActive ? AppColors.success : AppColors.error),
         PopupMenuButton<String>(
           onSelected: (v) async {
             if (v == 'toggle') {

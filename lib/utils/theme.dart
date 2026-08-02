@@ -11,6 +11,8 @@ class AppColors {
   static const success = Color(0xFF00D084);
   static const successLight = Color(0xFFE8F9F1);
   static const warning = Color(0xFFFFB020);
+  static const error = Color(0xFFE53935);
+  static const errorLight = Color(0xFFFDECEA);
   static const surface = Color(0xFFF3F5F4);
   static const textDark = Color(0xFF0B3D2E);
   static const textGray = Color(0xFF8A8A8E);
@@ -48,7 +50,7 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        foregroundColor: AppColors.dark,
         elevation: 2,
         shadowColor: AppColors.primary.withOpacity(0.5),
         minimumSize: const Size.fromHeight(48),
@@ -90,7 +92,7 @@ class AppTheme {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        borderSide: const BorderSide(color: AppColors.error, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       labelStyle: GoogleFonts.cairo(color: AppColors.textGray, fontSize: 14),

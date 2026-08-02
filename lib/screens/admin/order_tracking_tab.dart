@@ -209,7 +209,7 @@ class _TrackedOrderCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: isLate ? const BorderSide(color: Colors.redAccent, width: 1.2) : BorderSide.none,
+        side: isLate ? const BorderSide(color: AppColors.error, width: 1.2) : BorderSide.none,
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -218,7 +218,7 @@ class _TrackedOrderCard extends StatelessWidget {
             Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
             const Spacer(),
             if (isLate) ...[
-              const StatusBadge(label: 'متأخر', color: Colors.redAccent, icon: Icons.timer_off_rounded),
+              const StatusBadge(label: 'متأخر', color: AppColors.error, icon: Icons.timer_off_rounded),
               const SizedBox(width: 6),
             ],
             StatusBadge(label: order.status.label, color: order.status.color),
@@ -362,8 +362,8 @@ class _TrackedOrderCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent)),
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error)),
                   icon: const Icon(Icons.cancel_outlined),
                   label: const Text('إلغاء الطلب'),
                   onPressed: () async {
