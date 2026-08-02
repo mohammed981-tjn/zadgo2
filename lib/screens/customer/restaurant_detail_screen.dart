@@ -51,16 +51,35 @@ class RestaurantDetailScreen extends StatelessWidget {
         Expanded(
           child: AppStreamBuilder<List<MenuCategory>>(stream: () => service.streamCategories(restaurant.id), builder: (ctx, cats) {
             return AppStreamBuilder<List<MenuItem>>(stream: () => service.streamMenuItems(restaurant.id), builder: (ctx2, items) {
-              final visibleCats = cats.where((cat) => items.any((i) => i.categoryId == cat.id && i.canOrder)).toList();
-              if (visibleCats.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا توجد أصناف متاحة حالياً');
-              return ListView(children: visibleCats.map((cat) {
-                final catItems = items.where((i) => i.categoryId == cat.id && i.canOrder).toList();
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Text(cat.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textDark))),
-                  ...catItems.map((item) => _ItemTile(item: item, category: cat, restaurant: restaurant)),
-                ]);
-              }).toList());
+              final orderableItems = items.where((i) => i.canOrder).toList();
+              final catIds = cats.map((c) => c.id).toSet();
+              // أصناف قابلة للطلب لكن categoryId فيها فارغ أو يشير لفئة
+              // محذوفة/غير موجودة: سابقاً كانت تختفي بصمت بدل الظهور تحت
+              // فئتها؛ الآن تُجمع في قسم "أصناف أخرى" في نهاية القائمة بدلاً
+              // من فقدانها كلياً من عرض العميل.
+              final unmatchedItems =
+                  orderableItems.where((i) => !catIds.contains(i.categoryId)).toList();
+              final visibleCats = cats.where((cat) => orderableItems.any((i) => i.categoryId == cat.id)).toList();
+              if (visibleCats.isEmpty && unmatchedItems.isEmpty) {
+                return const AppEmpty(emoji: '🍽️', title: 'لا توجد أصناف متاحة حالياً');
+              }
+              const otherCategory = MenuCategory(id: '__other__', restaurantId: '', name: 'أصناف أخرى');
+              return ListView(children: [
+                ...visibleCats.map((cat) {
+                  final catItems = orderableItems.where((i) => i.categoryId == cat.id).toList();
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text(cat.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textDark))),
+                    ...catItems.map((item) => _ItemTile(item: item, category: cat, restaurant: restaurant)),
+                  ]);
+                }),
+                if (unmatchedItems.isNotEmpty)
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text(otherCategory.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textDark))),
+                    ...unmatchedItems.map((item) => _ItemTile(item: item, category: otherCategory, restaurant: restaurant)),
+                  ]),
+              ]);
             });
           }),
         ),
@@ -90,21 +109,36 @@ class _ItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final qty = cart.quantityOf(item.id);
+    final isIncomplete = item.name.trim().isEmpty || item.price <= 0;
     // حد أقصى صريح لارتفاع البطاقة: خط دفاع أخير يمنع أي بطاقة فارغة ضخمة
     // حتى لو فشلت كل عناصر السقوط الآمن الأخرى (صورة/نص) لأي سبب غير متوقع.
+    // يُرفع الحد قليلاً عند وجود سطر تحذير بيانات ناقصة إضافي.
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 120),
+      constraints: BoxConstraints(maxHeight: isIncomplete ? 140 : 120),
       child: Container(margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
         MenuItemVisual(categoryName: category.name, itemName: item.name, imageUrl: item.imageUrl, size: 52),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          Text(item.name.trim().isEmpty ? '(بلا اسم)' : item.name,
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
           if (item.description.trim().isNotEmpty)
             Text(item.description, maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
           Text(formatCurrency(item.price), style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+          // بدل بطاقة بيضاء فارغة/مضلِّلة لصنف بيانات ناقصة (اسم فارغ أو سعر
+          // غير صالح)، تحذير صريح للعميل عوضاً عن السماح بطلب صنف مشكوك فيه.
+          if (isIncomplete)
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.info_outline, size: 13, color: AppColors.warning),
+                SizedBox(width: 4),
+                Text('بيانات الصنف غير مكتملة',
+                    style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600)),
+              ]),
+            ),
         ])),
         if (qty == 0)
           ElevatedButton(
