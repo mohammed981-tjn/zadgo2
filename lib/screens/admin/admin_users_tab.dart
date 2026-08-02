@@ -27,11 +27,9 @@ class AdminUsersTab extends StatelessWidget {
         icon: const Icon(Icons.vpn_key_outlined),
         label: const Text('توليد كود تسجيل'),
       ),
-      body: StreamBuilder<List<AppUser>>(
-        stream: service.streamUsers(),
-        builder: (ctx, snap) {
-          if (!snap.hasData) return const AppLoading();
-          final users = snap.data!;
+      body: AppStreamBuilder<List<AppUser>>(
+        stream: service.streamUsers,
+        builder: (ctx, users) {
           if (users.isEmpty) return const AppEmpty(emoji: '👥', title: 'لا يوجد مستخدمون');
           // ✅ تجميع المستخدمين في قوائم منسدلة قابلة للطي حسب الدور بدل قائمة
           // طويلة مسطّحة، لتوفير المساحة وتسهيل تصفّح عدد كبير من الحسابات.
@@ -125,14 +123,13 @@ class AdminUsersTab extends StatelessWidget {
                 ),
                 if (selectedRole == UserRole.restaurantManager) ...[
                   const SizedBox(height: 10),
-                  StreamBuilder<List<Restaurant>>(
-                    stream: service.streamRestaurants(),
-                    builder: (ctx, rSnap) {
-                      return StreamBuilder<List<AppUser>>(
-                        stream: service.streamUsers(),
-                        builder: (ctx, uSnap) {
-                          final allRestaurants = rSnap.data ?? [];
-                          final linkedRestaurantIds = (uSnap.data ?? [])
+                  AppStreamBuilder<List<Restaurant>>(
+                    stream: service.streamRestaurants,
+                    builder: (ctx, allRestaurants) {
+                      return AppStreamBuilder<List<AppUser>>(
+                        stream: service.streamUsers,
+                        builder: (ctx, allUsers) {
+                          final linkedRestaurantIds = allUsers
                               .where((u) => u.role == UserRole.restaurantManager && u.restaurantId != null)
                               .map((u) => u.restaurantId)
                               .toSet();
@@ -144,7 +141,7 @@ class AdminUsersTab extends StatelessWidget {
                             selectedRestaurantId = null;
                             selectedRestaurantName = null;
                           }
-                          if (rSnap.hasData && uSnap.hasData && restaurants.isEmpty) {
+                          if (restaurants.isEmpty) {
                             return const Text(
                               'لا توجد مطاعم متاحة حالياً — جميع المطاعم مرتبطة بالفعل بمدير مسجَّل.',
                               style: TextStyle(fontSize: 13, color: Colors.orange),

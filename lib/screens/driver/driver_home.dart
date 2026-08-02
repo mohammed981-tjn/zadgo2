@@ -23,6 +23,7 @@ class _DriverHomeState extends State<DriverHome> {
   Timer? _locationTimer;
   double _simLat = 24.7136;
   double _simLng = 46.6753;
+  int _driverStreamRetryToken = 0;
 
   @override
   void initState() {
@@ -53,8 +54,17 @@ class _DriverHomeState extends State<DriverHome> {
     final driverId = auth.user?.uid ?? '';
 
     return StreamBuilder<Driver?>(
+      key: ValueKey(_driverStreamRetryToken),
       stream: service.streamDriver(driverId),
       builder: (ctx, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+            body: AppError(
+              error: snap.error,
+              onRetry: () => setState(() => _driverStreamRetryToken++),
+            ),
+          );
+        }
         final driver = snap.data;
         return Scaffold(
           appBar: AppBar(
@@ -80,6 +90,10 @@ class _DriverHomeState extends State<DriverHome> {
             StreamBuilder<List<BroadcastMessage>>(
               stream: service.streamBroadcasts(BroadcastAudience.drivers),
               builder: (ctx, snap) {
+                if (snap.hasError) {
+                  debugPrint('BroadcastBanner error: ${snap.error}');
+                  return const SizedBox.shrink();
+                }
                 final list = snap.data;
                 if (list == null || list.isEmpty) return const SizedBox.shrink();
                 final latest = list.first;
@@ -114,12 +128,9 @@ class _AvailableOrdersTab extends StatelessWidget {
     final service = context.read<FirebaseService>();
     final isOnline = driver?.isOnline ?? false;
 
-    return StreamBuilder<List<Order>>(
-      stream: service.streamAllOrders(),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final all = snap.data!;
-
+    return AppStreamBuilder<List<Order>>(
+      stream: service.streamAllOrders,
+      builder: (ctx, all) {
         final myOrders = all.where((o) => o.driverId == driverId && o.status.isActive).toList();
 
         final available = isOnline

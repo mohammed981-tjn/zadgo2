@@ -81,11 +81,9 @@ class _RestaurantOrdersList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Order>>(
-      stream: service.streamRestaurantOrders(restaurantId),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final orders = snap.data!;
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamRestaurantOrders(restaurantId),
+      builder: (ctx, orders) {
         if (orders.isEmpty) return const AppEmpty(emoji: '📦', title: 'لا يوجد طلبات لمطعمك حتى الآن');
         return ListView.builder(
           padding: const EdgeInsets.all(12),

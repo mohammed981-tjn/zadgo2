@@ -54,11 +54,9 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
       appBar: AppBar(title: Text('محادثة الطلب #${widget.order.orderNumber}')),
       body: Column(children: [
         Expanded(
-          child: StreamBuilder<List<ChatMessage>>(
-            stream: service.streamChatMessages(widget.order.id),
-            builder: (ctx, snap) {
-              if (!snap.hasData) return const AppLoading();
-              final messages = snap.data!;
+          child: AppStreamBuilder<List<ChatMessage>>(
+            stream: () => service.streamChatMessages(widget.order.id),
+            builder: (ctx, messages) {
               if (messages.isEmpty) {
                 return const AppEmpty(emoji: '💬', title: 'ابدأ المحادثة');
               }

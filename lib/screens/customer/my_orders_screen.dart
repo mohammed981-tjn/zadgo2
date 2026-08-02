@@ -19,11 +19,9 @@ class MyOrdersScreen extends StatelessWidget {
     final service = context.read<FirebaseService>();
     final uid = context.read<app_auth.AuthProvider>().user?.uid ?? '';
 
-    return StreamBuilder<List<Order>>(
-      stream: service.streamCustomerOrders(uid),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final orders = snap.data!;
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamCustomerOrders(uid),
+      builder: (ctx, orders) {
         if (orders.isEmpty) {
           return const AppEmpty(emoji: '📋', title: 'لا يوجد طلبات');
         }

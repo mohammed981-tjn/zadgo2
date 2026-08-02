@@ -1,6 +1,54 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../utils/theme.dart';
+
+/// عرض موحّد لأخطاء StreamBuilder/FutureBuilder: رسالة عربية واضحة + زر
+/// "إعادة المحاولة" + طباعة الخطأ التقني في الـ console للتشخيص.
+///
+/// يُستخدم في كل مكان بدل ترك `hasData == false` تتحول صمتاً إلى تحميل
+/// لا ينتهي عند فشل الاتصال بـ Firestore.
+class AppError extends StatelessWidget {
+  final Object? error;
+  final VoidCallback? onRetry;
+  final String? message;
+  const AppError({super.key, this.error, this.onRetry, this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    if (kDebugMode && error != null) {
+      debugPrint('AppError: $error');
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            message ?? 'حدث خطأ أثناء تحميل البيانات',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى',
+            style: TextStyle(fontSize: 13, color: AppColors.textGray),
+            textAlign: TextAlign.center,
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('إعادة المحاولة'),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+}
 
 class AppLoading extends StatelessWidget {
   final String? message;
@@ -10,6 +58,92 @@ class AppLoading extends StatelessWidget {
     const CircularProgressIndicator(color: AppColors.primary),
     if (message != null) ...[const SizedBox(height: 16), Text(message!)],
   ]));
+}
+
+/// غلاف موحّد حول [StreamBuilder] يفحص صراحة ثلاث حالات: خطأ، تحميل، بيانات.
+/// عند الخطأ يعرض [AppError] مع زر "إعادة المحاولة" الذي يعيد إنشاء الـ
+/// Stream فعلياً (لا مجرد rebuild بلا أثر)، ويطبع الخطأ التقني في الـ console.
+///
+/// يُستخدم بدل تكرار `StreamBuilder` + فحص `hasData` فقط في كل شاشة، وهو ما
+/// كان يسبب تحوّل أخطاء Firestore إلى تحميل لا ينتهي أبداً.
+class AppStreamBuilder<T> extends StatefulWidget {
+  final Stream<T> Function() stream;
+  final Widget Function(BuildContext context, T data) builder;
+  final Widget? loading;
+
+  const AppStreamBuilder({super.key, required this.stream, required this.builder, this.loading});
+
+  @override
+  State<AppStreamBuilder<T>> createState() => _AppStreamBuilderState<T>();
+}
+
+class _AppStreamBuilderState<T> extends State<AppStreamBuilder<T>> {
+  late Stream<T> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = widget.stream();
+  }
+
+  void _retry() => setState(() => _stream = widget.stream());
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<T>(
+      stream: _stream,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return AppError(error: snap.error, onRetry: _retry);
+        }
+        if (!snap.hasData) {
+          return widget.loading ?? const AppLoading();
+        }
+        return widget.builder(context, snap.data as T);
+      },
+    );
+  }
+}
+
+/// غلاف موحّد حول [FutureBuilder] بنفس فلسفة [AppStreamBuilder]: فحص صريح
+/// لثلاث حالات (خطأ/تحميل/بيانات) وإعادة محاولة فعلية تُعيد تنفيذ الـ Future.
+class AppFutureBuilder<T> extends StatefulWidget {
+  final Future<T> Function() future;
+  final Widget Function(BuildContext context, T data) builder;
+  final Widget? loading;
+
+  const AppFutureBuilder({super.key, required this.future, required this.builder, this.loading});
+
+  @override
+  State<AppFutureBuilder<T>> createState() => _AppFutureBuilderState<T>();
+}
+
+class _AppFutureBuilderState<T> extends State<AppFutureBuilder<T>> {
+  late Future<T> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = widget.future();
+  }
+
+  void _retry() => setState(() => _future = widget.future());
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<T>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return AppError(error: snap.error, onRetry: _retry);
+        }
+        if (snap.connectionState != ConnectionState.done) {
+          return widget.loading ?? const AppLoading();
+        }
+        return widget.builder(context, snap.data as T);
+      },
+    );
+  }
 }
 
 class AppEmpty extends StatelessWidget {

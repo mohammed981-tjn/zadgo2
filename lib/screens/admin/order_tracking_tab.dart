@@ -19,11 +19,9 @@ class OrderTrackingTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Order>>(
-      stream: service.streamActiveOrders(),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final orders = snap.data!;
+    return AppStreamBuilder<List<Order>>(
+      stream: service.streamActiveOrders,
+      builder: (ctx, orders) {
         if (orders.isEmpty) {
           return const AppEmpty(emoji: '🛰️', title: 'لا يوجد طلبات نشطة حالياً');
         }
@@ -171,10 +169,10 @@ class _TrackedOrderCard extends StatelessWidget {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('الطلب #${order.orderNumber} — السائق الحالي: ${order.driverName ?? "غير معيّن"}'),
               const SizedBox(height: 14),
-              StreamBuilder<List<Driver>>(
-                stream: service.streamDrivers(),
-                builder: (ctx, dSnap) {
-                  final drivers = (dSnap.data ?? [])
+              AppStreamBuilder<List<Driver>>(
+                stream: service.streamDrivers,
+                builder: (ctx, allDrivers) {
+                  final drivers = allDrivers
                       .where((d) => d.id != order.driverId && d.isOnline)
                       .toList();
                   if (drivers.isEmpty) {

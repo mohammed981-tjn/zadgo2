@@ -16,11 +16,9 @@ class AdminRestaurantsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Restaurant>>(
-      stream: service.streamRestaurants(),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final list = snap.data!;
+    return AppStreamBuilder<List<Restaurant>>(
+      stream: service.streamRestaurants,
+      builder: (ctx, list) {
         return Scaffold(
           body: list.isEmpty
               ? AppEmpty(
@@ -345,15 +343,12 @@ class MenuManagerScreen extends StatelessWidget {
     final service = context.read<FirebaseService>();
     return Scaffold(
       appBar: AppBar(title: Text('قائمة ${restaurant.name}')),
-      body: StreamBuilder<List<MenuCategory>>(
-        stream: service.streamCategories(restaurant.id),
-        builder: (ctx, catSnap) {
-          return StreamBuilder<List<MenuItem>>(
-            stream: service.streamMenuItems(restaurant.id),
-            builder: (ctx2, itemSnap) {
-              if (!catSnap.hasData || !itemSnap.hasData) return const AppLoading();
-              final cats = catSnap.data!;
-              final allItems = itemSnap.data!;
+      body: AppStreamBuilder<List<MenuCategory>>(
+        stream: () => service.streamCategories(restaurant.id),
+        builder: (ctx, cats) {
+          return AppStreamBuilder<List<MenuItem>>(
+            stream: () => service.streamMenuItems(restaurant.id),
+            builder: (ctx2, allItems) {
               return ListView(
                 padding: const EdgeInsets.all(12),
                 children: [

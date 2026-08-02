@@ -17,11 +17,8 @@ class RestaurantDetailScreen extends StatelessWidget {
     final cart = context.watch<CartProvider>();
     return Scaffold(
       appBar: AppBar(title: Text(restaurant.name)),
-      body: StreamBuilder<List<MenuCategory>>(stream: service.streamCategories(restaurant.id), builder: (ctx, catSnap) {
-        return StreamBuilder<List<MenuItem>>(stream: service.streamMenuItems(restaurant.id), builder: (ctx2, itemSnap) {
-          if (!catSnap.hasData || !itemSnap.hasData) return const AppLoading();
-          final cats = catSnap.data!;
-          final items = itemSnap.data!;
+      body: AppStreamBuilder<List<MenuCategory>>(stream: () => service.streamCategories(restaurant.id), builder: (ctx, cats) {
+        return AppStreamBuilder<List<MenuItem>>(stream: () => service.streamMenuItems(restaurant.id), builder: (ctx2, items) {
           return ListView(children: cats.map((cat) {
             final catItems = items.where((i) => i.categoryId == cat.id && i.canOrder).toList();
             if (catItems.isEmpty) return const SizedBox.shrink();

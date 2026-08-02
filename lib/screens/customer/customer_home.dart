@@ -40,6 +40,10 @@ class _CustomerHomeState extends State<CustomerHome> {
         StreamBuilder<List<BroadcastMessage>>(
           stream: context.read<FirebaseService>().streamBroadcasts(BroadcastAudience.customers),
           builder: (ctx, snap) {
+            if (snap.hasError) {
+              debugPrint('BroadcastBanner error: ${snap.error}');
+              return const SizedBox.shrink();
+            }
             final list = snap.data;
             if (list == null || list.isEmpty) return const SizedBox.shrink();
             final latest = list.first;
@@ -62,9 +66,7 @@ class _RestaurantsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Restaurant>>(stream: service.streamRestaurants(), builder: (ctx, snap) {
-      if (!snap.hasData) return const AppLoading();
-      final list = snap.data!;
+    return AppStreamBuilder<List<Restaurant>>(stream: service.streamRestaurants, builder: (ctx, list) {
       if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
       return ListView.builder(padding: const EdgeInsets.all(16), itemCount: list.length, itemBuilder: (_, i) {
         final r = list[i];

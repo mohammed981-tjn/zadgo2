@@ -147,11 +147,9 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: StreamBuilder<List<BroadcastMessage>>(
-            stream: service.streamBroadcasts(widget.audience),
-            builder: (ctx, snap) {
-              if (!snap.hasData) return const AppLoading();
-              final list = snap.data!;
+          child: AppStreamBuilder<List<BroadcastMessage>>(
+            stream: () => service.streamBroadcasts(widget.audience),
+            builder: (ctx, list) {
               if (list.isEmpty) {
                 return const AppEmpty(emoji: '📢', title: 'لا يوجد رسائل بث سابقة');
               }

@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../widgets/common_widgets.dart';
 
 class OrderMapScreen extends StatefulWidget {
   final Order order;
@@ -22,6 +23,7 @@ class OrderMapScreen extends StatefulWidget {
 
 class _OrderMapScreenState extends State<OrderMapScreen> {
   final MapController _mapController = MapController();
+  int _driverStreamRetryToken = 0;
 
   Order get order => widget.order;
 
@@ -55,8 +57,17 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
     // الطلب، وليس فقط أثناء "في الطريق إليك"، لإتاحة الاتصال به من التتبع الحي.
     if (order.driverId != null && order.driverId!.isNotEmpty) {
       return StreamBuilder<Driver?>(
+        key: ValueKey(_driverStreamRetryToken),
         stream: service.streamDriver(order.driverId!),
-        builder: (ctx, driverSnap) => _buildScaffold(context, service, driverSnap.data),
+        builder: (ctx, driverSnap) {
+          if (driverSnap.hasError) {
+            return AppError(
+              error: driverSnap.error,
+              onRetry: () => setState(() => _driverStreamRetryToken++),
+            );
+          }
+          return _buildScaffold(context, service, driverSnap.data);
+        },
       );
     }
     return _buildScaffold(context, service, null);

@@ -55,9 +55,7 @@ class _StatsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Order>>(stream: service.streamAllOrders(), builder: (ctx, snap) {
-      if (!snap.hasData) return const AppLoading();
-      final orders = snap.data!;
+    return AppStreamBuilder<List<Order>>(stream: service.streamAllOrders, builder: (ctx, orders) {
       final delivered = orders.where((o) => o.status == OrderStatus.delivered).length;
       final active = orders.where((o) => o.status.isActive).length;
       final revenue = orders.where((o) => o.status == OrderStatus.delivered)
@@ -92,9 +90,7 @@ class _OrdersTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Order>>(stream: service.streamAllOrders(), builder: (ctx, snap) {
-      if (!snap.hasData) return const AppLoading();
-      final orders = snap.data!;
+    return AppStreamBuilder<List<Order>>(stream: service.streamAllOrders, builder: (ctx, orders) {
       if (orders.isEmpty) return const AppEmpty(emoji: '📦', title: 'لا يوجد طلبات');
       return ListView.builder(padding: const EdgeInsets.all(12), itemCount: orders.length, itemBuilder: (_, i) {
         final o = orders[i];
@@ -116,8 +112,8 @@ class _OrdersTab extends StatelessWidget {
             if (o.status == OrderStatus.preparing)
               SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.readyForPickup), child: const Text('جاهز للاستلام'))),
             if (o.status == OrderStatus.readyForPickup && o.driverId == null)
-              StreamBuilder<List<Driver>>(stream: service.streamDrivers(), builder: (ctx2, dSnap) {
-                final drivers = (dSnap.data ?? []).where((d) => d.isAvailable && d.isOnline).toList();
+              AppStreamBuilder<List<Driver>>(stream: service.streamDrivers, builder: (ctx2, allDrivers) {
+                final drivers = allDrivers.where((d) => d.isAvailable && d.isOnline).toList();
                 if (drivers.isEmpty) return const Text('لا يوجد سائقون متاحون', style: TextStyle(color: Colors.orange));
                 return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   SizedBox(
@@ -165,9 +161,7 @@ class _DriversTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Driver>>(stream: service.streamDrivers(), builder: (ctx, snap) {
-      if (!snap.hasData) return const AppLoading();
-      final list = snap.data!;
+    return AppStreamBuilder<List<Driver>>(stream: service.streamDrivers, builder: (ctx, list) {
       if (list.isEmpty) return const AppEmpty(emoji: '🛵', title: 'لا يوجد سائقون');
       return ListView.builder(padding: const EdgeInsets.all(12), itemCount: list.length, itemBuilder: (_, i) {
         final d = list[i];
@@ -187,9 +181,7 @@ class _ComplaintsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Complaint>>(stream: service.streamComplaints(), builder: (ctx, snap) {
-      if (!snap.hasData) return const AppLoading();
-      final list = snap.data!;
+    return AppStreamBuilder<List<Complaint>>(stream: service.streamComplaints, builder: (ctx, list) {
       if (list.isEmpty) return const AppEmpty(emoji: '✅', title: 'لا يوجد شكاوى');
       return ListView.builder(padding: const EdgeInsets.all(12), itemCount: list.length, itemBuilder: (_, i) {
         final c = list[i];
