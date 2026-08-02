@@ -34,6 +34,7 @@ jobs:
         run: |
           echo "flutter.versionCode=1" > android/local.properties
           echo "flutter.versionName=2.0.0" >> android/local.properties
+          echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
 
       - name: Deep clean before build
         run: |
@@ -50,6 +51,43 @@ jobs:
         run: |
           set -o pipefail
           flutter analyze --no-fatal-warnings --no-fatal-infos | tee flutter_analyze.log
+
+      - name: Run Gradle directly for real error (assembleRelease --stacktrace --info)
+        id: gradle_direct
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd android
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleRelease --stacktrace --info 2>&1 | tee ../gradle_direct_full.log | tail -100
+
+      - name: Upload full direct Gradle log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-direct-full-log
+          path: gradle_direct_full.log
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Inspect android/app/build.gradle signing & build config
+        if: always()
+        run: |
+          echo "== signingConfigs / buildTypes / minify / shrink in android/app/build.gradle =="
+          grep -n -A3 "signingConfigs\|buildTypes\|productFlavors\|minifyEnabled\|shrinkResources" android/app/build.gradle || echo "(no matches)"
+
+      - name: Build debug APK for comparison (signing hypothesis check)
+        id: build_debug
+        if: always()
+        continue-on-error: true
+        run: flutter build apk --debug
+
+      - name: Inspect debug build output
+        if: always()
+        run: |
+          echo "== find build -name *.apk (after debug build) =="
+          find build -name "*.apk" 2>/dev/null || echo "(none found)"
 
       - name: Build APK
         id: build_apk
