@@ -99,7 +99,7 @@ class _PriceTile extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               if (form.currentState!.validate()) {
-                Navigator.pop(dialogCtx, double.parse(ctrl.text));
+                Navigator.pop(dialogCtx, double.parse(ctrl.text.trim()));
               }
             },
             child: const Text('حفظ'),
