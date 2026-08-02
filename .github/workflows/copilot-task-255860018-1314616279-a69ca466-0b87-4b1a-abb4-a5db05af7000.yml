@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -52,9 +52,43 @@ jobs:
           flutter analyze --no-fatal-warnings --no-fatal-infos | tee flutter_analyze.log
 
       - name: Build APK
-        run: flutter build apk --release --no-shrink --target-platform android-arm64
+        id: build_apk
+        continue-on-error: true
+        run: flutter build apk --release --no-shrink --target-platform android-arm64 --verbose
+
+      - name: Inspect build output directories (arm64 build)
+        if: always()
+        run: |
+          echo "== find build -name *.apk -o -name *.aab =="
+          find build -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "(none found)"
+          echo "== ls -la build/app/outputs/flutter-apk/ =="
+          ls -la build/app/outputs/flutter-apk/ 2>/dev/null || echo "(directory not found)"
+          echo "== ls -la build/app/outputs/apk/ =="
+          ls -la build/app/outputs/apk/ 2>/dev/null || echo "(directory not found)"
+
+      - name: Build APK without target-platform (comparison)
+        if: always()
+        continue-on-error: true
+        run: flutter build apk --release --no-shrink
+
+      - name: Inspect build output directories (no target-platform build)
+        if: always()
+        run: |
+          echo "== find build -name *.apk -o -name *.aab =="
+          find build -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "(none found)"
+          echo "== ls -la build/app/outputs/flutter-apk/ =="
+          ls -la build/app/outputs/flutter-apk/ 2>/dev/null || echo "(directory not found)"
+          echo "== ls -la build/app/outputs/apk/ =="
+          ls -la build/app/outputs/apk/ 2>/dev/null || echo "(directory not found)"
+
+      - name: Fail job if the primary arm64 build failed
+        if: steps.build_apk.outcome == 'failure'
+        run: |
+          echo "Primary 'flutter build apk --target-platform android-arm64' step failed. See its logs above for the real error."
+          exit 1
 
       - name: Final APK search
+        if: always()
         run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
 
       - name: Upload APK Artifact
