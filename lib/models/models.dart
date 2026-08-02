@@ -5,14 +5,20 @@ import 'package:flutter/material.dart';
 enum UserRole { admin, customer, driver, restaurantManager }
 
 enum OrderStatus {
-  pending,
-  confirmed,
+  created,
+  restaurantPending,
+  restaurantAccepted,
   preparing,
   readyForPickup,
-  outForDelivery,
+  searchingDriver,
+  driverAssigned,
+  pickedUp,
+  onTheWay,
   delivered,
+  restaurantRejected,
+  noDriverFound,
   cancelled,
-  rejected,
+  refunded,
 }
 
 enum PaymentMethod { cash, card, wallet }
@@ -20,6 +26,74 @@ enum PaymentMethod { cash, card, wallet }
 enum ComplaintStatus { open, inProgress, resolved, closed }
 
 enum ComplaintType { lateDelivery, wrongOrder, badQuality, driverBehavior, other }
+
+T _enumValueFromString<T extends Enum>(
+  String? raw,
+  List<T> values,
+  T fallback,
+  String enumName, {
+  Map<String, T>? legacyValues,
+}) {
+  if (raw != null) {
+    final legacyMatch = legacyValues?[raw];
+    if (legacyMatch != null) return legacyMatch;
+    for (final value in values) {
+      if (value.name == raw) return value;
+    }
+  }
+  debugPrint('⚠️ قيمة غير معروفة لـ $enumName: "$raw"، سيتم استخدام ${fallback.name}');
+  return fallback;
+}
+
+OrderStatus _orderStatusFromString(String? raw) => _enumValueFromString<OrderStatus>(
+      raw,
+      OrderStatus.values,
+      OrderStatus.created,
+      'OrderStatus',
+      legacyValues: const {
+        // توافق عكسي مع القيم القديمة المخزنة في Firestore قبل توسيع دورة الحالة.
+        'pending': OrderStatus.restaurantPending,
+        'confirmed': OrderStatus.restaurantAccepted,
+        'preparing': OrderStatus.preparing,
+        'readyForPickup': OrderStatus.readyForPickup,
+        'outForDelivery': OrderStatus.onTheWay,
+        'delivered': OrderStatus.delivered,
+        'cancelled': OrderStatus.cancelled,
+        'rejected': OrderStatus.restaurantRejected,
+      },
+    );
+
+UserRole _userRoleFromString(String? raw, {UserRole fallback = UserRole.customer}) =>
+    _enumValueFromString<UserRole>(raw, UserRole.values, fallback, 'UserRole');
+
+PaymentMethod _paymentMethodFromString(String? raw) => _enumValueFromString<PaymentMethod>(
+      raw,
+      PaymentMethod.values,
+      PaymentMethod.cash,
+      'PaymentMethod',
+    );
+
+ComplaintType _complaintTypeFromString(String? raw) => _enumValueFromString<ComplaintType>(
+      raw,
+      ComplaintType.values,
+      ComplaintType.other,
+      'ComplaintType',
+    );
+
+ComplaintStatus _complaintStatusFromString(String? raw) => _enumValueFromString<ComplaintStatus>(
+      raw,
+      ComplaintStatus.values,
+      ComplaintStatus.open,
+      'ComplaintStatus',
+    );
+
+BroadcastAudience _broadcastAudienceFromString(String? raw) =>
+    _enumValueFromString<BroadcastAudience>(
+      raw,
+      BroadcastAudience.values,
+      BroadcastAudience.customers,
+      'BroadcastAudience',
+    );
 
 extension UserRoleExt on UserRole {
   String get label {
@@ -36,52 +110,72 @@ extension UserRoleExt on UserRole {
 extension OrderStatusExt on OrderStatus {
   String get label {
     const map = {
-      OrderStatus.pending: 'قيد الانتظار',
-      OrderStatus.confirmed: 'تم التأكيد',
+      OrderStatus.created: 'تم الإنشاء',
+      OrderStatus.restaurantPending: 'بانتظار موافقة المطعم',
+      OrderStatus.restaurantAccepted: 'تم قبول الطلب',
       OrderStatus.preparing: 'جاري التحضير',
       OrderStatus.readyForPickup: 'جاهز للاستلام',
-      OrderStatus.outForDelivery: 'في الطريق إليك',
+      OrderStatus.searchingDriver: 'جاري البحث عن سائق',
+      OrderStatus.driverAssigned: 'تم تعيين سائق',
+      OrderStatus.pickedUp: 'تم استلام الطلب من المطعم',
+      OrderStatus.onTheWay: 'في الطريق إليك',
       OrderStatus.delivered: 'تم التوصيل',
+      OrderStatus.restaurantRejected: 'رفض المطعم الطلب',
+      OrderStatus.noDriverFound: 'تعذر إيجاد سائق',
       OrderStatus.cancelled: 'ملغى',
-      OrderStatus.rejected: 'مرفوض',
+      OrderStatus.refunded: 'تم استرداد المبلغ',
     };
     return map[this] ?? '';
   }
 
   Color get color {
     const map = {
-      OrderStatus.pending: Color(0xFFFF9800),
-      OrderStatus.confirmed: Color(0xFF2196F3),
+      OrderStatus.created: Color(0xFF607D8B),
+      OrderStatus.restaurantPending: Color(0xFFFF9800),
+      OrderStatus.restaurantAccepted: Color(0xFF2196F3),
       OrderStatus.preparing: Color(0xFF9C27B0),
       OrderStatus.readyForPickup: Color(0xFF00BCD4),
-      OrderStatus.outForDelivery: Color(0xFF3F51B5),
+      OrderStatus.searchingDriver: Color(0xFFFFC107),
+      OrderStatus.driverAssigned: Color(0xFF3F51B5),
+      OrderStatus.pickedUp: Color(0xFF673AB7),
+      OrderStatus.onTheWay: Color(0xFF303F9F),
       OrderStatus.delivered: Color(0xFF4CAF50),
+      OrderStatus.restaurantRejected: Color(0xFF795548),
+      OrderStatus.noDriverFound: Color(0xFF9E9E9E),
       OrderStatus.cancelled: Color(0xFFF44336),
-      OrderStatus.rejected: Color(0xFF795548),
+      OrderStatus.refunded: Color(0xFF009688),
     };
     return map[this] ?? Colors.grey;
   }
 
   IconData get icon {
     const map = {
-      OrderStatus.pending: Icons.hourglass_empty_rounded,
-      OrderStatus.confirmed: Icons.check_circle_outline,
+      OrderStatus.created: Icons.receipt_long_rounded,
+      OrderStatus.restaurantPending: Icons.hourglass_empty_rounded,
+      OrderStatus.restaurantAccepted: Icons.check_circle_outline,
       OrderStatus.preparing: Icons.restaurant_rounded,
       OrderStatus.readyForPickup: Icons.shopping_bag_outlined,
-      OrderStatus.outForDelivery: Icons.delivery_dining_rounded,
+      OrderStatus.searchingDriver: Icons.manage_search_rounded,
+      OrderStatus.driverAssigned: Icons.person_pin_circle_outlined,
+      OrderStatus.pickedUp: Icons.inventory_2_rounded,
+      OrderStatus.onTheWay: Icons.delivery_dining_rounded,
       OrderStatus.delivered: Icons.done_all_rounded,
+      OrderStatus.restaurantRejected: Icons.block_rounded,
+      OrderStatus.noDriverFound: Icons.person_off_rounded,
       OrderStatus.cancelled: Icons.cancel_outlined,
-      OrderStatus.rejected: Icons.block_rounded,
+      OrderStatus.refunded: Icons.replay_circle_filled_rounded,
     };
     return map[this] ?? Icons.info_outline;
   }
 
   bool get isActive =>
       this != OrderStatus.delivered &&
+      this != OrderStatus.restaurantRejected &&
+      this != OrderStatus.noDriverFound &&
       this != OrderStatus.cancelled &&
-      this != OrderStatus.rejected;
+      this != OrderStatus.refunded;
 
-  /// عكس [isActive] — الطلب انتهى (تم توصيله/إلغاؤه/رفضه) ولن تتغيّر حالته بعد الآن.
+  /// عكس [isActive] — الطلب انتهى ولن تتغيّر حالته بعد الآن.
   bool get isFinished => !isActive;
 }
 
@@ -173,10 +267,7 @@ class AppUser {
         name: map['name'] as String? ?? '',
         email: map['email'] as String? ?? '',
         phone: map['phone'] as String? ?? '',
-        role: UserRole.values.firstWhere(
-          (r) => r.name == map['role'],
-          orElse: () => UserRole.customer,
-        ),
+        role: _userRoleFromString(map['role'] as String?),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         fcmToken: map['fcmToken'] as String?,
         restaurantId: map['restaurantId'] as String?,
@@ -525,6 +616,7 @@ class Order {
   final bool isPaid;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final DateTime? statusChangedAt;
   final String? driverId;
   final String? driverName;
   final String? notes;
@@ -552,11 +644,12 @@ class Order {
     required this.customerPhone,
     required this.deliveryAddress,
     required this.items,
-    this.status = OrderStatus.pending,
+    this.status = OrderStatus.restaurantPending,
     required this.paymentMethod,
     this.isPaid = false,
     required this.createdAt,
     this.updatedAt,
+    this.statusChangedAt,
     this.driverId,
     this.driverName,
     this.notes,
@@ -593,17 +686,12 @@ class Order {
         items: ((map['items'] as List?) ?? [])
             .map((i) => OrderItem.fromMap(i as Map<String, dynamic>))
             .toList(),
-        status: OrderStatus.values.firstWhere(
-          (s) => s.name == map['status'],
-          orElse: () => OrderStatus.pending,
-        ),
-        paymentMethod: PaymentMethod.values.firstWhere(
-          (p) => p.name == map['paymentMethod'],
-          orElse: () => PaymentMethod.cash,
-        ),
+        status: _orderStatusFromString(map['status'] as String?),
+        paymentMethod: _paymentMethodFromString(map['paymentMethod'] as String?),
         isPaid: map['isPaid'] as bool? ?? false,
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         updatedAt: (map['updatedAt'] as Timestamp?)?.toDate(),
+        statusChangedAt: (map['statusChangedAt'] as Timestamp?)?.toDate(),
         driverId: map['driverId'] as String?,
         driverName: map['driverName'] as String?,
         notes: map['notes'] as String?,
@@ -637,6 +725,8 @@ class Order {
         'isPaid': isPaid,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+        'statusChangedAt':
+            statusChangedAt != null ? Timestamp.fromDate(statusChangedAt!) : null,
         'driverId': driverId,
         'driverName': driverName,
         'notes': notes,
@@ -655,6 +745,51 @@ class Order {
         'restaurantLat': restaurantLat,
         'restaurantLng': restaurantLng,
       };
+
+  Order copyWith({
+    OrderStatus? status,
+    DateTime? updatedAt,
+    DateTime? statusChangedAt,
+    String? driverId,
+    String? driverName,
+    bool? isPaid,
+    double? platformCommission,
+    double? customerRating,
+    String? customerReview,
+    double? driverRating,
+    bool? isRated,
+  }) =>
+      Order(
+        id: id,
+        restaurantId: restaurantId,
+        restaurantName: restaurantName,
+        customerId: customerId,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        deliveryAddress: deliveryAddress,
+        items: items,
+        status: status ?? this.status,
+        paymentMethod: paymentMethod,
+        isPaid: isPaid ?? this.isPaid,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        statusChangedAt: statusChangedAt ?? this.statusChangedAt,
+        driverId: driverId ?? this.driverId,
+        driverName: driverName ?? this.driverName,
+        notes: notes,
+        driverShare: driverShare,
+        appShare: appShare,
+        orderNumber: orderNumber,
+        customerRating: customerRating ?? this.customerRating,
+        customerReview: customerReview ?? this.customerReview,
+        driverRating: driverRating ?? this.driverRating,
+        isRated: isRated ?? this.isRated,
+        platformCommission: platformCommission ?? this.platformCommission,
+        deliveryLat: deliveryLat,
+        deliveryLng: deliveryLng,
+        restaurantLat: restaurantLat,
+        restaurantLng: restaurantLng,
+      );
 }
 
 class Complaint {
@@ -694,15 +829,9 @@ class Complaint {
         customerName: map['customerName'] as String? ?? '',
         restaurantId: map['restaurantId'] as String? ?? '',
         restaurantName: map['restaurantName'] as String? ?? '',
-        type: ComplaintType.values.firstWhere(
-          (t) => t.name == map['type'],
-          orElse: () => ComplaintType.other,
-        ),
+        type: _complaintTypeFromString(map['type'] as String?),
         description: map['description'] as String? ?? '',
-        status: ComplaintStatus.values.firstWhere(
-          (s) => s.name == map['status'],
-          orElse: () => ComplaintStatus.open,
-        ),
+        status: _complaintStatusFromString(map['status'] as String?),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         adminNote: map['adminNote'] as String?,
       );
@@ -843,10 +972,7 @@ class BroadcastMessage {
 
   factory BroadcastMessage.fromMap(Map<String, dynamic> map, String id) => BroadcastMessage(
         id: id,
-        audience: BroadcastAudience.values.firstWhere(
-          (a) => a.name == map['audience'],
-          orElse: () => BroadcastAudience.customers,
-        ),
+        audience: _broadcastAudienceFromString(map['audience'] as String?),
         title: map['title'] as String? ?? '',
         body: map['body'] as String? ?? '',
         sentBy: map['sentBy'] as String? ?? '',
@@ -896,9 +1022,9 @@ class RegistrationCode {
   factory RegistrationCode.fromMap(Map<String, dynamic> map, String id) =>
       RegistrationCode(
         code: map['code'] as String? ?? id,
-        role: UserRole.values.firstWhere(
-          (r) => r.name == map['role'],
-          orElse: () => UserRole.restaurantManager,
+        role: _userRoleFromString(
+          map['role'] as String?,
+          fallback: UserRole.restaurantManager,
         ),
         restaurantId: map['restaurantId'] as String? ?? '',
         restaurantName: map['restaurantName'] as String? ?? '',

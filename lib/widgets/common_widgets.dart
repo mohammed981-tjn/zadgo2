@@ -236,9 +236,9 @@ class BroadcastBanner extends StatelessWidget {
   );
 }
 
-/// خط تتبع الطلب (Stepper) بشكل نقاط متصلة بخط، على غرار تطبيقات مثل
-/// دومينوز بيتزا ومايسترو بيتزا: يبيّن مرحلة الطلب الحالية ضمن مراحله الخمس:
-/// تنفيذ الطلب ← استلام المطعم ← جاري التحضير ← تسليم المندوب ← توصيل الطلب.
+/// خط تتبع الطلب (Stepper) بشكل نقاط متصلة بخط يوضح أين وصل الطلب ضمن
+/// المسار العام: إنشاء الطلب ← قبول المطعم ← التحضير ← الاستلام/الإسناد ←
+/// التوصيل.
 class OrderTrackingTimeline extends StatelessWidget {
   final OrderStatus status;
   const OrderTrackingTimeline({super.key, required this.status});
@@ -251,22 +251,29 @@ class OrderTrackingTimeline extends StatelessWidget {
     _TimelineStep('توصيل الطلب', Icons.home_rounded),
   ];
 
-  /// فهرس المرحلة الحالية ضمن المراحل الخمس، أو -1 إن كان الطلب ملغى/مرفوضاً.
+  /// فهرس المرحلة الحالية ضمن المراحل الخمس، أو -1 إن كان الطلب منتهياً
+  /// بحالة استثنائية (إلغاء/رفض/تعذر سائق/استرداد).
   int get _activeIndex {
     switch (status) {
-      case OrderStatus.pending:
+      case OrderStatus.created:
+      case OrderStatus.restaurantPending:
         return 0;
-      case OrderStatus.confirmed:
+      case OrderStatus.restaurantAccepted:
         return 1;
       case OrderStatus.preparing:
-      case OrderStatus.readyForPickup:
         return 2;
-      case OrderStatus.outForDelivery:
+      case OrderStatus.readyForPickup:
+      case OrderStatus.searchingDriver:
+      case OrderStatus.driverAssigned:
+      case OrderStatus.pickedUp:
         return 3;
+      case OrderStatus.onTheWay:
       case OrderStatus.delivered:
         return 4;
+      case OrderStatus.restaurantRejected:
+      case OrderStatus.noDriverFound:
       case OrderStatus.cancelled:
-      case OrderStatus.rejected:
+      case OrderStatus.refunded:
         return -1;
     }
   }

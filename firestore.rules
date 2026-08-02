@@ -109,7 +109,10 @@ service cloud.firestore {
             isAdmin() ||
             resource.data.customerId == currentUid() ||
             resource.data.driverId == currentUid() ||
-            request.resource.data.driverId == currentUid() ||
+            // السائق يقبل الطلب بنفسه (تصميم مقصود)، لكن فقط إن كان الطلب
+            // بلا سائق مُسنَد أصلاً — يمنع سائقاً من الاستيلاء على طلب مُسنَد
+            // لغيره عبر الكتابة المباشرة على driverId.
+            (resource.data.driverId == null && request.resource.data.driverId == currentUid()) ||
             isRestaurantManagerOf(resource.data.restaurantId)
           );
       allow delete: if isAdmin();
@@ -119,13 +122,16 @@ service cloud.firestore {
     // drivers — القراءة لأي مستخدم مسجّل دخوله (تُستخدم لعرض بيانات السائق
     // ضمن تتبّع الطلب). الكتابة: السائق نفسه لتحديث حالته/موقعه، أو المدير
     // العام لإعادة التوزيع، أو مدير المطعم عند التعيين التلقائي، أو العميل
-    // عند تقييم السائق بعد التوصيل.
+    // عند تقييم السائق بعد التوصيل (مقصور على حقلَي rating/ratingCount فقط
+    // لمنع تعديل موقع السائق أو حالته من طرف عميل).
     // ---------------------------------------------------------------------
     match /drivers/{driverId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && currentUid() == driverId;
       allow update: if isSignedIn() && (
-            isAdmin() || isDriver() || hasRole('restaurantManager') || isCustomer()
+            isAdmin() || isDriver() || hasRole('restaurantManager') ||
+            (isCustomer() &&
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'ratingCount']))
           );
       allow delete: if isAdmin();
     }
@@ -194,16 +200,28 @@ service cloud.firestore {
     // registrationCodes — تُقرأ وثيقة واحدة (بمعرفها/الرمز) حتى بدون تسجيل
     // دخول للتحقق الأولي قبل إنشاء الحساب، لكن لا يُسمح بسرد كل الرموز إلا
     // للمدير العام (لمنع اكتشاف رموز صالحة عبر الاستعراض). الإنشاء/الحذف
-    // للمدير العام فقط، بينما تحديث حالة "مستخدَم" مسموح لأي مستخدم مسجّل
-    // دخوله حديثاً أثناء استهلاك الرمز ضمن معاملة التسجيل.
+    // للمدير العام فقط. التحديث مقصور على خطوتَي "استهلاك" الرمز فقط:
+    // (١) وضعه كمُستخدَم (isUsed: false → true) دون تغيير أي حقل آخر غير
+    // usedAt، و(٢) ربط الحساب المُستهلِك به فور ذلك (usedByUid/usedByName)
+    // من صاحب الحساب نفسه فقط. أي تعديل آخر (تغيير الدور، المطعم، إلخ)
+    // مرفوض تماماً لمنع انتحال الرمز أو التلاعب به بعد إنشائه.
     // ---------------------------------------------------------------------
     match /registrationCodes/{code} {
       allow get: if true;
       allow list: if isAdmin();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() ||
-          (isSignedIn() && resource.data.isUsed == false) ||
-          (isSignedIn() && resource.data.usedByUid == currentUid());
+      allow update: if isAdmin() || (
+            isSignedIn() && (
+              (resource.data.isUsed == false &&
+                  request.resource.data.isUsed == true &&
+                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isUsed', 'usedAt'])) ||
+              (resource.data.isUsed == true &&
+                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedByUid', 'usedByName']) &&
+                  request.resource.data.usedByUid == currentUid() &&
+                  (!('usedByUid' in resource.data) || resource.data.usedByUid == null ||
+                      resource.data.usedByUid == currentUid()))
+            )
+          );
     }
   }
 }

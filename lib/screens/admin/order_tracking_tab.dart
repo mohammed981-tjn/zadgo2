@@ -77,7 +77,11 @@ class _TrackedOrderCard extends StatelessWidget {
           OrderTrackingTimeline(status: order.status),
           Text(formatCurrency(order.grandTotal),
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-          if (order.status == OrderStatus.outForDelivery) ...[
+          if ((order.status == OrderStatus.driverAssigned ||
+                  order.status == OrderStatus.pickedUp ||
+                  order.status == OrderStatus.onTheWay) &&
+              order.driverId != null &&
+              order.driverId!.isNotEmpty) ...[
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,

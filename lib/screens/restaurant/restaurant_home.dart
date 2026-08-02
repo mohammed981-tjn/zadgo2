@@ -105,13 +105,13 @@ class _RestaurantOrdersList extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
                   // ملاحظة: تم إزالة زر "رفض/إلغاء الطلب" نهائياً من شاشة المطعم بناءً على
                   // طلب المنصة — إلغاء الطلب لا يظهر إلا في شاشة الطلبات بلوحة المدير العام.
-                  if (o.status == OrderStatus.pending)
+                  if (o.status == OrderStatus.restaurantPending)
                     SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                            onPressed: () => service.updateOrderStatus(o.id, OrderStatus.confirmed),
+                            onPressed: () => service.updateOrderStatus(o.id, OrderStatus.restaurantAccepted),
                             child: const Text('تأكيد'))),
-                  if (o.status == OrderStatus.confirmed)
+                  if (o.status == OrderStatus.restaurantAccepted)
                     SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(

@@ -101,17 +101,17 @@ class _OrdersTab extends StatelessWidget {
             InfoRow(icon: Icons.restaurant, text: o.restaurantName),
             InfoRow(icon: Icons.person, text: o.customerName),
             Text(formatCurrency(o.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-            if (o.status == OrderStatus.pending)
+            if (o.status == OrderStatus.restaurantPending)
               Row(children: [
-                Expanded(child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.confirmed), child: const Text('تأكيد'))),
+                Expanded(child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.restaurantAccepted), child: const Text('تأكيد'))),
                 const SizedBox(width: 8),
-                Expanded(child: OutlinedButton(onPressed: () => service.cancelOrder(o.id), child: const Text('رفض'))),
+                Expanded(child: OutlinedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.restaurantRejected), child: const Text('رفض'))),
               ]),
-            if (o.status == OrderStatus.confirmed)
+            if (o.status == OrderStatus.restaurantAccepted)
               SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.preparing), child: const Text('بدأ التحضير'))),
             if (o.status == OrderStatus.preparing)
               SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.readyForPickup), child: const Text('جاهز للاستلام'))),
-            if (o.status == OrderStatus.readyForPickup && o.driverId == null)
+            if ((o.status == OrderStatus.readyForPickup || o.status == OrderStatus.searchingDriver) && o.driverId == null)
               AppStreamBuilder<List<Driver>>(stream: service.streamDrivers, builder: (ctx2, allDrivers) {
                 final drivers = allDrivers.where((d) => d.isAvailable && d.isOnline).toList();
                 if (drivers.isEmpty) return const Text('لا يوجد سائقون متاحون', style: TextStyle(color: Colors.orange));
@@ -132,7 +132,7 @@ class _OrdersTab extends StatelessWidget {
                       onPressed: () => service.assignDriver(o.id, d.id, d.name))).toList()),
                 ]);
               }),
-            if (o.status == OrderStatus.outForDelivery)
+            if (o.status == OrderStatus.onTheWay)
               SizedBox(width: double.infinity, child: ElevatedButton(
                   onPressed: () => service.markOrderDelivered(o.id, o.driverId ?? ''),
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),

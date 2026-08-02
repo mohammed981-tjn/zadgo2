@@ -149,6 +149,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentMethod: _payment,
       isPaid: _payment != PaymentMethod.cash,
       createdAt: DateTime.now(),
+      statusChangedAt: DateTime.now(),
       driverShare: cart.driverShare + extraKmFee,
       appShare: cart.appShare,
       orderNumber: orderId.substring(0, 6).toUpperCase(),

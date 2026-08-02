@@ -136,10 +136,8 @@ class _AvailableOrdersTab extends StatelessWidget {
         final available = isOnline
             ? all.where((o) =>
                 o.driverId == null &&
-                (o.status == OrderStatus.pending ||
-                 o.status == OrderStatus.confirmed ||
-                 o.status == OrderStatus.preparing ||
-                 o.status == OrderStatus.readyForPickup)).toList()
+                (o.status == OrderStatus.readyForPickup ||
+                 o.status == OrderStatus.searchingDriver)).toList()
             : <Order>[];
 
         if (myOrders.isEmpty && available.isEmpty) {
@@ -243,9 +241,21 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'قبول الطلب', content: 'هل تريد قبول هذا الطلب والتوجه للمطعم؟', confirmLabel: 'قبول');
           if (ok == true) {
             await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
+            final now = DateTime.now();
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false)),
+              MaterialPageRoute(
+                builder: (_) => OrderMapScreen(
+                  order: order.copyWith(
+                    status: OrderStatus.driverAssigned,
+                    driverId: auth.user!.uid,
+                    driverName: auth.user!.name,
+                    updatedAt: now,
+                    statusChangedAt: now,
+                  ),
+                  readOnly: false,
+                ),
+              ),
             );
           }
         },
@@ -254,20 +264,28 @@ class _OrderCard extends StatelessWidget {
       ));
     }
 
-    if (order.status == OrderStatus.pending || order.status == OrderStatus.confirmed) {
-      return const Text('بانتظار تأكيد المطعم للطلب...', style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
+    if (order.status == OrderStatus.restaurantPending || order.status == OrderStatus.restaurantAccepted) {
+      return const Text('بانتظار إنهاء المطعم لتحضير الطلب...', style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
     }
-    // ✅ لا داعي لانتظار "جاهز للاستلام" — يمكن للسائق استلام الطلب فور وصوله
-    // للمطعم حتى لو كان لا يزال "جاري التحضير"، فتقدير جاهزية الطلب متروك للسائق ميدانياً.
-    if (order.status == OrderStatus.preparing || order.status == OrderStatus.readyForPickup) {
+    if (order.status == OrderStatus.driverAssigned) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
-            await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+            await service.markOrderPickedUp(order.id);
+            final now = DateTime.now();
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false)),
+              MaterialPageRoute(
+                builder: (_) => OrderMapScreen(
+                  order: order.copyWith(
+                    status: OrderStatus.onTheWay,
+                    updatedAt: now,
+                    statusChangedAt: now,
+                  ),
+                  readOnly: false,
+                ),
+              ),
             );
           }
         },
@@ -275,7 +293,7 @@ class _OrderCard extends StatelessWidget {
         label: const Text('استلمت الطلب — في الطريق'),
       ));
     }
-    if (order.status == OrderStatus.outForDelivery) {
+    if (order.status == OrderStatus.onTheWay) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
           final ok = await showConfirmDialog(ctx, title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');

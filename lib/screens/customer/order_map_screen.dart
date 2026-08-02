@@ -28,11 +28,9 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
   Order get order => widget.order;
 
   bool get _headingToRestaurant =>
-      order.status == OrderStatus.confirmed ||
-      order.status == OrderStatus.preparing ||
-      order.status == OrderStatus.readyForPickup;
+      order.status == OrderStatus.driverAssigned;
 
-  bool get _headingToCustomer => order.status == OrderStatus.outForDelivery;
+  bool get _headingToCustomer => order.status == OrderStatus.onTheWay;
 
   Future<void> _openExternalNavigation(double lat, double lng) async {
     final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
@@ -202,7 +200,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                       final ok = await showConfirmDialog(context,
                           title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
                       if (ok == true) {
-                        await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                        await service.markOrderPickedUp(order.id);
                         if (context.mounted) Navigator.pop(context);
                       }
                     },

@@ -21,6 +21,43 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _registrationCodes =>
       _db.collection('registrationCodes');
 
+  bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
+    if (from == to) return true;
+    if (to == models.OrderStatus.cancelled && from.isActive) return true;
+    if (from == models.OrderStatus.delivered && to == models.OrderStatus.refunded) {
+      return true;
+    }
+
+    switch (from) {
+      case models.OrderStatus.created:
+        return to == models.OrderStatus.restaurantPending;
+      case models.OrderStatus.restaurantPending:
+        return to == models.OrderStatus.restaurantAccepted ||
+            to == models.OrderStatus.restaurantRejected;
+      case models.OrderStatus.restaurantAccepted:
+        return to == models.OrderStatus.preparing;
+      case models.OrderStatus.preparing:
+        return to == models.OrderStatus.readyForPickup;
+      case models.OrderStatus.readyForPickup:
+        return to == models.OrderStatus.searchingDriver;
+      case models.OrderStatus.searchingDriver:
+        return to == models.OrderStatus.driverAssigned ||
+            to == models.OrderStatus.noDriverFound;
+      case models.OrderStatus.driverAssigned:
+        return to == models.OrderStatus.pickedUp;
+      case models.OrderStatus.pickedUp:
+        return to == models.OrderStatus.onTheWay;
+      case models.OrderStatus.onTheWay:
+        return to == models.OrderStatus.delivered;
+      case models.OrderStatus.delivered:
+      case models.OrderStatus.restaurantRejected:
+      case models.OrderStatus.noDriverFound:
+      case models.OrderStatus.cancelled:
+      case models.OrderStatus.refunded:
+        return false;
+    }
+  }
+
   CollectionReference<Map<String, dynamic>> _categories(String rId) =>
       _restaurants.doc(rId).collection('categories');
   CollectionReference<Map<String, dynamic>> _items(String rId) =>
@@ -310,7 +347,10 @@ class FirebaseService {
   }
 
   Future<String> placeOrder(models.Order order) async {
-    await _orders.doc(order.id).set(order.toMap());
+    await _orders.doc(order.id).set({
+      ...order.toMap(),
+      if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
+    });
     return order.id;
   }
 
@@ -350,19 +390,56 @@ class FirebaseService {
   Stream<models.Order?> streamOrder(String orderId) => _orders.doc(orderId).snapshots().map(
       (doc) => doc.exists && doc.data() != null ? models.Order.fromMap(doc.data()!, doc.id) : null);
 
-  Future<void> updateOrderStatus(String orderId, models.OrderStatus status) =>
-      _orders.doc(orderId).update({
+  Future<void> updateOrderStatus(String orderId, models.OrderStatus status) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      await ref.set({
         'status': status.name,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+        'statusChangedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return;
+    }
+
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!_isValidStatusTransition(current.status, status)) {
+      throw Exception('انتقال حالة غير صالح: من ${current.status.name} إلى ${status.name}');
+    }
+
+    await ref.update({
+      'status': status.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+  }
 
   Future<void> assignDriver(String orderId, String driverId, String driverName) async {
+    final ref = _orders.doc(orderId);
+    final orderDoc = await ref.get();
+    if (orderDoc.exists && orderDoc.data() != null) {
+      final current = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+      if (current.status == models.OrderStatus.readyForPickup) {
+        await updateOrderStatus(orderId, models.OrderStatus.searchingDriver);
+      }
+    }
+
+    final refreshedDoc = await ref.get();
+    if (refreshedDoc.exists && refreshedDoc.data() != null) {
+      final current = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
+      if (!_isValidStatusTransition(current.status, models.OrderStatus.driverAssigned)) {
+        throw Exception(
+            'انتقال حالة غير صالح: من ${current.status.name} إلى ${models.OrderStatus.driverAssigned.name}');
+      }
+    }
+
     final batch = _db.batch();
-    batch.update(_orders.doc(orderId), {
+    batch.update(ref, {
       'driverId': driverId,
       'driverName': driverName,
-      'status': models.OrderStatus.outForDelivery.name,
+      'status': models.OrderStatus.driverAssigned.name,
       'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
     await batch.commit();
@@ -434,12 +511,21 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.DriverReassignment.fromMap(d.data(), d.id)).toList());
 
+  Future<void> markOrderPickedUp(String orderId) async {
+    await updateOrderStatus(orderId, models.OrderStatus.pickedUp);
+    await updateOrderStatus(orderId, models.OrderStatus.onTheWay);
+  }
+
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();
     double commission = 0;
     double driverPayout = 10;
     if (orderDoc.exists && orderDoc.data() != null) {
       final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+      if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
+        throw Exception(
+            'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
+      }
       commission = order.calculatedCommission;
       driverPayout = order.driverShare;
     }
@@ -448,6 +534,7 @@ class FirebaseService {
       'status': models.OrderStatus.delivered.name,
       'isPaid': true,
       'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
       'platformCommission': commission,
     });
     batch.update(_drivers.doc(driverId), {
@@ -458,10 +545,8 @@ class FirebaseService {
     await batch.commit();
   }
 
-  Future<void> cancelOrder(String orderId) => _orders.doc(orderId).update({
-        'status': models.OrderStatus.cancelled.name,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+  Future<void> cancelOrder(String orderId) =>
+      updateOrderStatus(orderId, models.OrderStatus.cancelled);
 
   Future<void> rateOrder({
     required String orderId,
