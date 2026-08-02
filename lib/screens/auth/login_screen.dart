@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/models.dart';
-import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../admin/admin_home.dart';
 import '../customer/customer_home.dart';

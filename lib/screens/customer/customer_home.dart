@@ -6,7 +6,6 @@ import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
-import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';

@@ -173,7 +173,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cart = context.watch<CartProvider>();
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
       body: ListView(
