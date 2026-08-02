@@ -12,7 +12,11 @@ import '../../utils/helpers.dart';
 import '../customer/customer_home.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  /// عند تفعيلها (التسجيل أثناء إتمام الطلب كزائر) تُغلق الشاشة بعد نجاح
+  /// التسجيل بدل الانتقال للرئيسية، ليستكمل المستدعي (شاشة السلة) الطلب من
+  /// نفس النقطة دون فقدان السلة أو العودة للرئيسية.
+  final bool fromCheckout;
+  const RegisterScreen({super.key, this.fromCheckout = false});
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
@@ -32,6 +36,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passCtrl.text, phone: _phoneCtrl.text, role: UserRole.customer);
     if (!mounted) return;
     if (ok) {
+      if (widget.fromCheckout) {
+        Navigator.pop(context, true);
+        return;
+      }
       Navigator.pushAndRemoveUntil(
           context, MaterialPageRoute(builder: (_) => const CustomerHome()), (_) => false);
     } else {

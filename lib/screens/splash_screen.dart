@@ -31,6 +31,14 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigated = true;
     final auth = context.read<app_auth.AuthProvider>();
     if (!auth.isLoggedIn) {
+      // التسجيل المؤجل: زائر تطبيق العميل يدخل مباشرة لشاشة المطاعم دون أي
+      // شاشة تسجيل دخول؛ التسجيل يُطلب فقط عند تأكيد الطلب لاحقاً. هذا لا
+      // يتعارض مع منطق customerOnly أدناه لأنه يعمل فقط حين لا يوجد مستخدم
+      // مسجَّل دخوله أصلاً (حالة الزائر)، ولا يستدعي auth.logout() إطلاقاً.
+      if (widget.customerOnly) {
+        _go(const CustomerHome());
+        return;
+      }
       _go(LoginScreen(customerOnly: widget.customerOnly));
       return;
     }

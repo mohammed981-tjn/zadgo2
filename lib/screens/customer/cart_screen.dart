@@ -10,11 +10,29 @@ import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../auth/login_screen.dart';
 import '../admin/pick_location_screen.dart';
 import 'my_orders_screen.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
+
+  Future<void> _proceedToCheckout(BuildContext context) async {
+    final auth = context.read<app_auth.AuthProvider>();
+    if (!auth.isLoggedIn) {
+      // التسجيل المؤجل: لا يُطلب تسجيل الدخول إلا هنا، عند تأكيد الطلب.
+      // السلة محفوظة بالفعل (في CartProvider + SharedPreferences) ولن
+      // تُفقد، ويُستكمل الطلب تلقائياً من نفس النقطة بعد نجاح التسجيل.
+      final ok = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen(fromCheckout: true)),
+      );
+      if (ok != true || !context.mounted) return;
+    }
+    if (!context.mounted) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const CheckoutScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
@@ -68,8 +86,7 @@ class CartScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.push(
-                          context, MaterialPageRoute(builder: (_) => const CheckoutScreen())),
+                      onPressed: () => _proceedToCheckout(context),
                       child: Text(
                           'المتابعة للدفع — ${formatCurrency(cart.grandTotalWithVat)}'),
                     ),

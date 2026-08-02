@@ -66,22 +66,23 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // restaurants + التصنيفات/الأصناف الفرعية — تصفّح عام لأي مستخدم مسجّل
-    // دخوله (كل الشاشات تتطلب تسجيل الدخول أولاً)، والتعديل مقصور على
-    // المدير العام أو مدير المطعم صاحب المطعم نفسه.
+    // restaurants + التصنيفات/الأصناف الفرعية — تصفّح عام حتى بدون تسجيل
+    // دخول (التسجيل المؤجل: الزائر يستعرض المطاعم والأصناف قبل إنشاء حساب،
+    // ولا يُطلب تسجيل الدخول إلا عند تأكيد الطلب فعلياً)، والتعديل يبقى
+    // مقصوراً على المدير العام أو مدير المطعم صاحب المطعم نفسه.
     // ---------------------------------------------------------------------
     match /restaurants/{restaurantId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || isRestaurantManagerOf(restaurantId);
 
       match /categories/{categoryId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow write: if isAdmin() || isRestaurantManagerOf(restaurantId);
       }
 
       match /items/{itemId} {
-        allow read: if isSignedIn();
+        allow read: if true;
         allow write: if isAdmin() || isRestaurantManagerOf(restaurantId);
       }
     }

@@ -6,11 +6,17 @@ import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
+import '../../utils/helpers.dart';
+import '../../utils/food_visuals.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
+
+/// عتبة عدد الطلبات المُنجزة التي تُظهر شارة "الأكثر طلباً" على بطاقة
+/// المطعم — لا تتطلب حقلاً إضافياً في البيانات، تُحسب من [Restaurant.totalOrders].
+const int _popularOrdersThreshold = 50;
 
 class CustomerHome extends StatefulWidget {
   const CustomerHome({super.key});
@@ -24,17 +30,28 @@ class _CustomerHomeState extends State<CustomerHome> {
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
     final cart = context.watch<CartProvider>();
+    final isGuest = !auth.isLoggedIn;
     return Scaffold(
-      appBar: AppBar(title: Text('مرحباً ${auth.user?.name ?? ""}'), actions: [
-        badges.Badge(showBadge: cart.itemCount > 0,
-          badgeContent: Text('${cart.itemCount}', style: const TextStyle(color: Colors.white, fontSize: 10)),
-          child: IconButton(icon: const Icon(Icons.shopping_cart_outlined),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())))),
-        IconButton(icon: const Icon(Icons.logout), onPressed: () async {
-          await auth.logout();
-          if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
-        }),
-      ]),
+      appBar: AppBar(
+        title: Text(isGuest ? 'مرحباً بك في ZadGo' : 'مرحباً ${auth.user?.name ?? ""}'),
+        actions: [
+          badges.Badge(showBadge: cart.itemCount > 0,
+            badgeContent: Text('${cart.itemCount}', style: const TextStyle(color: Colors.white, fontSize: 10)),
+            child: IconButton(icon: const Icon(Icons.shopping_cart_outlined),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())))),
+          if (isGuest)
+            TextButton(
+              onPressed: () => Navigator.push(
+                  context, MaterialPageRoute(builder: (_) => const LoginScreen(customerOnly: true))),
+              child: const Text('تسجيل الدخول'),
+            )
+          else
+            IconButton(icon: const Icon(Icons.logout), onPressed: () async {
+              await auth.logout();
+              if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen(customerOnly: true)), (_) => false);
+            }),
+        ],
+      ),
       body: Column(children: [
         StreamBuilder<List<BroadcastMessage>>(
           stream: context.read<FirebaseService>().streamBroadcasts(BroadcastAudience.customers),
@@ -49,7 +66,12 @@ class _CustomerHomeState extends State<CustomerHome> {
             return BroadcastBanner(title: latest.title, body: latest.body);
           },
         ),
-        Expanded(child: IndexedStack(index: _tab, children: const [_RestaurantsPage(), MyOrdersScreen()])),
+        Expanded(
+          child: IndexedStack(index: _tab, children: [
+            const _RestaurantsPage(),
+            isGuest ? const _GuestOrdersPrompt() : const MyOrdersScreen(),
+          ]),
+        ),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
@@ -60,27 +82,187 @@ class _CustomerHomeState extends State<CustomerHome> {
   }
 }
 
-class _RestaurantsPage extends StatelessWidget {
+/// دعوة للتسجيل بدل رسالة خطأ حين يحاول زائر (غير مسجَّل) فتح "طلباتي".
+class _GuestOrdersPrompt extends StatelessWidget {
+  const _GuestOrdersPrompt();
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.receipt_long_outlined, size: 64, color: AppColors.textGray),
+            const SizedBox(height: 16),
+            const Text('سجّل حسابك لمتابعة طلباتك',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            const Text('يمكنك تصفح المطاعم بحرية، وتحتاج حساباً فقط لمتابعة طلباتك',
+                style: TextStyle(color: AppColors.textGray), textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => Navigator.push(
+                  context, MaterialPageRoute(builder: (_) => const LoginScreen(customerOnly: true))),
+              child: const Text('تسجيل الدخول / إنشاء حساب'),
+            ),
+          ]),
+        ),
+      );
+}
+
+class _RestaurantsPage extends StatefulWidget {
   const _RestaurantsPage();
+  @override
+  State<_RestaurantsPage> createState() => _RestaurantsPageState();
+}
+
+class _RestaurantsPageState extends State<_RestaurantsPage> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  String _category = 'الكل';
+
+  static const _categories = ['الكل', 'مشاوي', 'برجر', 'بيتزا', 'مشروبات', 'حلويات'];
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Restaurant> _filter(List<Restaurant> list) {
+    var result = list;
+    if (_category != 'الكل') {
+      result = result.where((r) =>
+          r.name.contains(_category) || r.description.contains(_category)).toList();
+    }
+    if (_query.trim().isNotEmpty) {
+      final q = _query.trim();
+      result = result.where((r) =>
+          r.name.contains(q) || r.description.contains(q) || r.address.contains(q)).toList();
+    }
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return AppStreamBuilder<List<Restaurant>>(stream: service.streamRestaurants, builder: (ctx, list) {
-      if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
-      return ListView.builder(padding: const EdgeInsets.all(16), itemCount: list.length, itemBuilder: (_, i) {
-        final r = list[i];
-        return Card(margin: const EdgeInsets.only(bottom: 12), child: InkWell(
-          onTap: r.isOpen ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: r))) : null,
-          child: Padding(padding: const EdgeInsets.all(14), child: Row(children: [
-            Text(r.emoji, style: const TextStyle(fontSize: 34)),
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: TextField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _query = v),
+          decoration: InputDecoration(
+            hintText: 'ابحث عن مطعم أو صنف...',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _query.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => setState(() { _searchCtrl.clear(); _query = ''; }),
+                  ),
+          ),
+        ),
+      ),
+      SizedBox(
+        height: 42,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: _categories.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (_, i) {
+            final cat = _categories[i];
+            final selected = cat == _category;
+            return ChoiceChip(
+              label: Text(cat),
+              selected: selected,
+              onSelected: (_) => setState(() => _category = cat),
+              selectedColor: AppColors.primary,
+              labelStyle: TextStyle(
+                color: selected ? Colors.white : AppColors.textDark,
+                fontWeight: FontWeight.w600,
+              ),
+              backgroundColor: AppColors.surface,
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 4),
+      Expanded(
+        child: AppStreamBuilder<List<Restaurant>>(stream: service.streamRestaurants, builder: (ctx, list) {
+          final filtered = _filter(list);
+          if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
+          if (filtered.isEmpty) return const AppEmpty(emoji: '🔍', title: 'لا توجد نتائج مطابقة');
+          return ListView.builder(padding: const EdgeInsets.all(16), itemCount: filtered.length, itemBuilder: (_, i) {
+            return _RestaurantCard(restaurant: filtered[i]);
+          });
+        }),
+      ),
+    ]);
+  }
+}
+
+class _RestaurantCard extends StatelessWidget {
+  final Restaurant restaurant;
+  const _RestaurantCard({required this.restaurant});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = restaurant;
+    final isPopular = r.totalOrders >= _popularOrdersThreshold;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: r.isOpen ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: r))) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            RestaurantAvatar(name: r.name, imageUrl: r.imageUrl, size: 64),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [Expanded(child: Text(r.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                  StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.success : Colors.grey)]),
-              Text(r.description, maxLines: 1, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
+              Row(children: [
+                Expanded(
+                  child: Text(r.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textDark),
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+                StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.success : Colors.grey),
+              ]),
+              const SizedBox(height: 2),
+              // المسافة/الحي: يميّز بين فرعين لنفس المطعم في حيَّين مختلفين.
+              if (r.address.trim().isNotEmpty)
+                Row(children: [
+                  const Icon(Icons.place_outlined, size: 13, color: AppColors.textGray),
+                  const SizedBox(width: 3),
+                  Expanded(child: Text(r.address, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: AppColors.textGray, fontSize: 12))),
+                ]),
+              const SizedBox(height: 6),
+              Wrap(spacing: 10, runSpacing: 4, children: [
+                _MetaChip(icon: Icons.star_rounded, label: r.rating.toStringAsFixed(1), color: AppColors.warning),
+                _MetaChip(icon: Icons.timer_outlined, label: '${r.estimatedTimeMin} د', color: AppColors.textGray),
+                _MetaChip(icon: Icons.delivery_dining_outlined,
+                    label: r.deliveryFee > 0 ? formatCurrency(r.deliveryFee) : 'توصيل مجاني',
+                    color: AppColors.textGray),
+                if (isPopular)
+                  const _MetaChip(icon: Icons.local_fire_department_rounded, label: 'الأكثر طلباً', color: AppColors.primary),
+              ]),
             ])),
-          ]))));
-      });
-    });
+          ]),
+        ),
+      ),
+    );
   }
+}
+
+class _MetaChip extends StatelessWidget {
+  final IconData icon; final String label; final Color color;
+  const _MetaChip({required this.icon, required this.label, required this.color});
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 3),
+        Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+      ]);
 }

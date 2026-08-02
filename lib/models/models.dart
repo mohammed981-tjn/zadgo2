@@ -335,6 +335,9 @@ class Restaurant {
   final int totalOrders;
   final double? lat;
   final double? lng;
+  /// رابط صورة اختياري للمطعم؛ إن توفّر يُعرض تلقائياً بدل التصميم البديل
+  /// (تدرج لوني + الحرف الأول من الاسم) دون أي تعديل على الكود.
+  final String? imageUrl;
 
   const Restaurant({
     required this.id,
@@ -354,6 +357,7 @@ class Restaurant {
     this.totalOrders = 0,
     this.lat,
     this.lng,
+    this.imageUrl,
   });
 
   /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الأماكن
@@ -382,6 +386,7 @@ class Restaurant {
         totalOrders: (map['totalOrders'] as num?)?.toInt() ?? 0,
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
+        imageUrl: map['imageUrl'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -403,6 +408,7 @@ class Restaurant {
         'totalOrders': totalOrders,
         'lat': lat,
         'lng': lng,
+        'imageUrl': imageUrl,
       };
 }
 
@@ -446,6 +452,9 @@ class MenuItem {
   final int? stockQuantity;
   final bool trackStock;
   final int totalSold;
+  /// رابط صورة اختياري للصنف؛ إن توفّر يُعرض تلقائياً بدل الأيقونة الرمزية
+  /// حسب الفئة دون أي تعديل على الكود.
+  final String? imageUrl;
 
   const MenuItem({
     required this.id,
@@ -459,6 +468,7 @@ class MenuItem {
     this.stockQuantity,
     this.trackStock = false,
     this.totalSold = 0,
+    this.imageUrl,
   });
 
   bool get canOrder =>
@@ -476,6 +486,7 @@ class MenuItem {
         stockQuantity: (map['stockQuantity'] as num?)?.toInt(),
         trackStock: map['trackStock'] as bool? ?? false,
         totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
+        imageUrl: map['imageUrl'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -489,6 +500,7 @@ class MenuItem {
         'stockQuantity': stockQuantity,
         'trackStock': trackStock,
         'totalSold': totalSold,
+        'imageUrl': imageUrl,
       };
 }
 

@@ -14,7 +14,11 @@ class LoginScreen extends StatefulWidget {
   /// عند تفعيلها (تطبيق العميل المستقل) يُخفى مسار "تسجيل الموظفين برمز"
   /// ويُرفض تسجيل دخول أي حساب ليس بدور "عميل".
   final bool customerOnly;
-  const LoginScreen({super.key, this.customerOnly = false});
+  /// عند تفعيلها (الدخول أثناء إتمام الطلب كزائر) تُغلق الشاشة بعد نجاح
+  /// الدخول بدل الانتقال للرئيسية، ليستكمل المستدعي (شاشة السلة) الطلب من
+  /// نفس النقطة دون فقدان السلة أو العودة للرئيسية.
+  final bool fromCheckout;
+  const LoginScreen({super.key, this.customerOnly = false, this.fromCheckout = false});
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -52,6 +56,10 @@ class _LoginScreenState extends State<LoginScreen> {
         await auth.logout();
         if (!mounted) return;
         showError(context, 'هذا التطبيق مخصص لحسابات العملاء فقط');
+        return;
+      }
+      if (widget.fromCheckout) {
+        Navigator.pop(context, true);
         return;
       }
       _navigate(auth.user!.role);
@@ -275,10 +283,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 18),
                           Center(
                             child: TextButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                              ),
+                              onPressed: () async {
+                                final result = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => RegisterScreen(fromCheckout: widget.fromCheckout)),
+                                );
+                                if (widget.fromCheckout && result == true && context.mounted) {
+                                  Navigator.pop(context, true);
+                                }
+                              },
                               child: Text(
                                 'ليس لديك حساب؟ سجّل الآن',
                                 style: TextStyle(
