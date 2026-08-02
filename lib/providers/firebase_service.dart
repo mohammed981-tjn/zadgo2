@@ -20,6 +20,8 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _broadcasts => _db.collection('broadcasts');
   CollectionReference<Map<String, dynamic>> get _registrationCodes =>
       _db.collection('registrationCodes');
+  CollectionReference<Map<String, dynamic>> get _deliverySettings =>
+      _db.collection('delivery_settings');
 
   bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
     if (from == to) return true;
@@ -49,9 +51,12 @@ class FirebaseService {
         return to == models.OrderStatus.onTheWay;
       case models.OrderStatus.onTheWay:
         return to == models.OrderStatus.delivered;
+      case models.OrderStatus.noDriverFound:
+        // يسمح للمدير بإسناد سائق يدوياً بعد فشل البحث التلقائي (مهلة انتظار
+        // السائق) دون المرور بحالة searchingDriver مجدداً.
+        return to == models.OrderStatus.driverAssigned;
       case models.OrderStatus.delivered:
       case models.OrderStatus.restaurantRejected:
-      case models.OrderStatus.noDriverFound:
       case models.OrderStatus.cancelled:
       case models.OrderStatus.refunded:
         return false;
@@ -371,13 +376,16 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
-  /// جميع الطلبات النشطة والقادمة (لشاشة متابعة الطلبات الحية في لوحة المدير)
+  /// جميع الطلبات النشطة والقادمة (لشاشة متابعة الطلبات الحية في لوحة المدير)،
+  /// بالإضافة إلى طلبات "تعذر إيجاد سائق" (noDriverFound) رغم أنها ليست
+  /// نشطة تقنياً (isActive == false) لأن المدير يحتاج رؤيتها لإسناد سائق
+  /// يدوياً بعد فشل البحث التلقائي — إخفاؤها يعني ضياع الطلب دون تدخل.
   Stream<List<models.Order>> streamActiveOrders() => _orders
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) => s.docs
           .map((d) => models.Order.fromMap(d.data(), d.id))
-          .where((o) => o.status.isActive)
+          .where((o) => o.status.isActive || o.status == models.OrderStatus.noDriverFound)
           .toList());
 
   /// طلبات مطعم محدد فقط (لتطبيق/دور مدير المطعم)
@@ -559,6 +567,15 @@ class FirebaseService {
 
   Future<void> cancelOrder(String orderId) =>
       updateOrderStatus(orderId, models.OrderStatus.cancelled);
+
+  /// مُهل معالجة الطلبات العالقة (بالدقائق)، تُقرأ من مستند واحد ثابت
+  /// delivery_settings/config في Firestore بدل تثبيتها في الكود، ليمكن
+  /// تغييرها فوراً دون إصدار تطبيق جديد. القيم الافتراضية أدناه (يوفّرها
+  /// المستدعي) تُستخدم إن كان المستند أو أي حقل منه غير موجود بعد.
+  Future<Map<String, dynamic>> getDeliverySettings() async {
+    final doc = await _deliverySettings.doc('config').get();
+    return doc.data() ?? {};
+  }
 
   Future<void> rateOrder({
     required String orderId,
