@@ -2,8 +2,11 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ copilot/restaurant-app-integration ]
+    branches: [ copilot/task-255860018-1314616279-a69ca466-0b87-4b1a-abb4-a5db05af7000 ]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
