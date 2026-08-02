@@ -1,8 +1,8 @@
-name: Build Flutter APK
+name: copilot/improve-client-screen-theme
 
 on:
   push:
-    branches: [ copilot/restaurant-app-integration ]
+    branches: [ copilot/improve-client-screen-theme ]
   workflow_dispatch:
 
 jobs:
