@@ -123,6 +123,8 @@ class MenuItemVisual extends StatelessWidget {
           height: size,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => _iconFallback(),
+          loadingBuilder: (ctx, child, progress) =>
+              progress == null ? child : _iconFallback(),
         ),
       );
     }

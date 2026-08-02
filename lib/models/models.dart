@@ -474,20 +474,33 @@ class MenuItem {
   bool get canOrder =>
       isAvailable && (!trackStock || (stockQuantity != null && stockQuantity! > 0));
 
-  factory MenuItem.fromMap(Map<String, dynamic> map, String id) => MenuItem(
-        id: id,
-        restaurantId: map['restaurantId'] as String? ?? '',
-        categoryId: map['categoryId'] as String? ?? '',
-        name: map['name'] as String? ?? '',
-        description: map['description'] as String? ?? '',
-        price: (map['price'] as num?)?.toDouble() ?? 0.0,
-        emoji: map['emoji'] as String? ?? '🍽️',
-        isAvailable: map['isAvailable'] as bool? ?? true,
-        stockQuantity: (map['stockQuantity'] as num?)?.toInt(),
-        trackStock: map['trackStock'] as bool? ?? false,
-        totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
-        imageUrl: map['imageUrl'] as String?,
-      );
+  /// يبني [MenuItem] من مستند Firestore بتسامح أمام أنواع حقول غير متوقعة
+  /// (مثلاً `price` نصّاً أو `imageUrl` بنوع غير نصّي)؛ عنصر واحد بحقل غير
+  /// متوقع لا يجب أن يُسقط تحليل كل قائمة الأصناف بخطأ عام.
+  factory MenuItem.fromMap(Map<String, dynamic> map, String id) {
+    final rawPrice = map['price'];
+    final price = rawPrice is num
+        ? rawPrice.toDouble()
+        : double.tryParse(rawPrice?.toString() ?? '') ?? 0.0;
+    final rawImageUrl = map['imageUrl'];
+    final imageUrl = rawImageUrl is String && rawImageUrl.trim().isNotEmpty
+        ? rawImageUrl
+        : null;
+    return MenuItem(
+      id: id,
+      restaurantId: map['restaurantId'] as String? ?? '',
+      categoryId: map['categoryId'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      price: price,
+      emoji: map['emoji'] as String? ?? '🍽️',
+      isAvailable: map['isAvailable'] as bool? ?? true,
+      stockQuantity: (map['stockQuantity'] as num?)?.toInt(),
+      trackStock: map['trackStock'] as bool? ?? false,
+      totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
+      imageUrl: imageUrl,
+    );
+  }
 
   Map<String, dynamic> toMap() => {
         'restaurantId': restaurantId,

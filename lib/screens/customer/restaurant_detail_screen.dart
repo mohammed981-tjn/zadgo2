@@ -90,7 +90,11 @@ class _ItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final qty = cart.quantityOf(item.id);
-    return Container(margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), padding: const EdgeInsets.all(12),
+    // حد أقصى صريح لارتفاع البطاقة: خط دفاع أخير يمنع أي بطاقة فارغة ضخمة
+    // حتى لو فشلت كل عناصر السقوط الآمن الأخرى (صورة/نص) لأي سبب غير متوقع.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 120),
+      child: Container(margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
         MenuItemVisual(categoryName: category.name, itemName: item.name, imageUrl: item.imageUrl, size: 52),
@@ -119,6 +123,6 @@ class _ItemTile extends StatelessWidget {
               onPressed: () => context.read<CartProvider>().add(item, restaurant.id, restaurant.name, restaurant.emoji, restaurant.driverShareFee, restaurant.appShareFee),
             ),
           ]),
-      ]));
+      ])));
   }
 }
