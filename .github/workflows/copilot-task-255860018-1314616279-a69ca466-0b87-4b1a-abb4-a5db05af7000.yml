@@ -4,14 +4,46 @@ on:
   push:
     branches: [ copilot/split-customer-app ]
   workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'النكهة المطلوب بناؤها'
+        type: choice
+        default: 'all'
+        options:
+          - customer
+          - driver
+          - restaurant
+          - admin
+          - all
 
 permissions:
   contents: read
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      flavors: ${{ steps.set.outputs.flavors }}
+    steps:
+      - name: Determine flavors to build
+        id: set
+        shell: bash
+        run: |
+          selected="${{ github.event.inputs.flavor }}"
+          if [ -z "$selected" ] || [ "$selected" = "all" ]; then
+            echo 'flavors=["customer","driver","restaurant","admin"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "flavors=[\"$selected\"]" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ${{ fromJson(needs.prepare.outputs.flavors) }}
 
     steps:
       - name: Checkout repository
@@ -52,107 +84,19 @@ jobs:
           set -o pipefail
           flutter analyze --no-fatal-warnings --no-fatal-infos | tee flutter_analyze.log
 
-      - name: Run Gradle directly for real error (assembleFullRelease --stacktrace --info)
-        id: gradle_direct
-        continue-on-error: true
-        shell: bash
-        run: |
-          cd android
-          chmod +x gradlew
-          set -o pipefail
-          ./gradlew assembleFullRelease --stacktrace --info 2>&1 | tee ../gradle_direct_full.log | tail -100
-
-      - name: Upload full direct Gradle log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-direct-full-log
-          path: gradle_direct_full.log
-          if-no-files-found: warn
-          retention-days: 3
-
-      - name: Inspect android/app/build.gradle signing & build config
-        if: always()
-        run: |
-          echo "== signingConfigs / buildTypes / minify / shrink in android/app/build.gradle =="
-          grep -n -A3 "signingConfigs\|buildTypes\|productFlavors\|minifyEnabled\|shrinkResources" android/app/build.gradle || echo "(no matches)"
-
-      - name: Build debug APK for comparison (signing hypothesis check)
-        id: build_debug
-        if: always()
-        continue-on-error: true
-        run: flutter build apk --debug --flavor full -t lib/main.dart
-
-      - name: Inspect debug build output
-        if: always()
-        run: |
-          echo "== find build -name *.apk (after debug build) =="
-          find build -name "*.apk" 2>/dev/null || echo "(none found)"
-
-      - name: Build APK (full flavor)
-        id: build_apk
-        continue-on-error: true
-        run: flutter build apk --release --no-shrink --target-platform android-arm64 --verbose --flavor full -t lib/main.dart
-
-      - name: Inspect build output directories (arm64 build)
-        if: always()
-        run: |
-          echo "== find build -name *.apk -o -name *.aab =="
-          find build -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "(none found)"
-          echo "== ls -la build/app/outputs/flutter-apk/ =="
-          ls -la build/app/outputs/flutter-apk/ 2>/dev/null || echo "(directory not found)"
-          echo "== ls -la build/app/outputs/apk/ =="
-          ls -la build/app/outputs/apk/ 2>/dev/null || echo "(directory not found)"
-
-      - name: Build APK without target-platform (comparison)
-        if: always()
-        continue-on-error: true
-        run: flutter build apk --release --no-shrink --flavor full -t lib/main.dart
-
-      - name: Inspect build output directories (no target-platform build)
-        if: always()
-        run: |
-          echo "== find build -name *.apk -o -name *.aab =="
-          find build -name "*.apk" -o -name "*.aab" 2>/dev/null || echo "(none found)"
-          echo "== ls -la build/app/outputs/flutter-apk/ =="
-          ls -la build/app/outputs/flutter-apk/ 2>/dev/null || echo "(directory not found)"
-          echo "== ls -la build/app/outputs/apk/ =="
-          ls -la build/app/outputs/apk/ 2>/dev/null || echo "(directory not found)"
-
-      - name: Fail job if the primary arm64 build failed
-        if: steps.build_apk.outcome == 'failure'
-        run: |
-          echo "Primary 'flutter build apk --target-platform android-arm64' step failed. See its logs above for the real error."
-          exit 1
-
-      - name: Build APK (customer flavor)
-        id: build_apk_customer
-        continue-on-error: true
-        run: flutter build apk --release --no-shrink --flavor customer -t lib/main_customer.dart
+      - name: Build APK (${{ matrix.flavor }} flavor)
+        run: flutter build apk --release --no-shrink --flavor ${{ matrix.flavor }} -t lib/main_${{ matrix.flavor }}.dart
 
       - name: Final APK search
         if: always()
         run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
 
-      - name: Upload APK Artifact (full)
+      - name: Upload APK Artifact (${{ matrix.flavor }})
         uses: actions/upload-artifact@v4
         with:
-          name: zadgo-app-release
+          name: zadgo-${{ matrix.flavor }}-app-release
           path: |
-            build/app/outputs/flutter-apk/app-full-release.apk
-            android/app/build/outputs/apk/full/release/app-full-release.apk
+            build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk
+            android/app/build/outputs/apk/${{ matrix.flavor }}/release/app-${{ matrix.flavor }}-release.apk
           if-no-files-found: warn
-          retention-days: 1
-
-      - name: Upload APK Artifact (customer)
-        uses: actions/upload-artifact@v4
-        with:
-          name: zadgo-customer-app-release
-          path: |
-            build/app/outputs/flutter-apk/app-customer-release.apk
-            android/app/build/outputs/apk/customer/release/app-customer-release.apk
-          if-no-files-found: warn
-          retention-days: 1
-
-
-
+          retention-days: 7
