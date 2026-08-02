@@ -27,6 +27,7 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
   final _form = GlobalKey<FormState>();
   final _codeCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
+  final _nationalIdCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -52,6 +53,7 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
       email: _emailCtrl.text,
       password: _passCtrl.text,
       phone: _phoneCtrl.text,
+      nationalId: _nationalIdCtrl.text,
     );
     if (!mounted) return;
     if (ok && auth.user != null) {
@@ -65,12 +67,12 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('تسجيل برمز التسجيل')),
+      appBar: AppBar(title: const Text('تسجيل بكود التسجيل')),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(20), children: [
           const Text(
-            'أدخل رمز التسجيل الذي أرسله لك المدير العام (مدير عام / سائق / مدير مطعم) '
+            'أدخل كود التسجيل الذي أرسله لك المدير العام (مدير عام / سائق / مدير مطعم) '
             'لتفعيل حسابك تلقائياً بالدور والمطعم المرتبطين به.',
             style: TextStyle(color: AppColors.textGray, fontSize: 13),
           ),
@@ -80,8 +82,8 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
             textDirection: TextDirection.ltr,
             textCapitalization: TextCapitalization.characters,
             decoration: const InputDecoration(
-                labelText: 'رمز التسجيل', prefixIcon: Icon(Icons.vpn_key_outlined)),
-            validator: (v) => validateRequired(v, 'رمز التسجيل'),
+                labelText: 'كود التسجيل', prefixIcon: Icon(Icons.vpn_key_outlined)),
+            validator: (v) => validateRequired(v, 'كود التسجيل'),
           ),
           const SizedBox(height: 14),
           TextFormField(
@@ -89,6 +91,14 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
             decoration: const InputDecoration(
                 labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person_outline)),
             validator: (v) => validateRequired(v, 'الاسم'),
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _nationalIdCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+                labelText: 'رقم الهوية/الإقامة', prefixIcon: Icon(Icons.badge_outlined)),
+            validator: validateNationalId,
           ),
           const SizedBox(height: 14),
           TextFormField(

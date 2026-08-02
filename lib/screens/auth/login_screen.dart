@@ -288,7 +288,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 MaterialPageRoute(builder: (_) => const RegisterWithCodeScreen()),
                               ),
                               child: Text(
-                                'لديك رمز تسجيل (مدير مطعم / سائق / مدير)؟ فعّل حسابك',
+                                'لديك كود تسجيل (مدير مطعم / سائق / مدير)؟ فعّل حسابك',
                                 style: TextStyle(
                                   color: zadgoSilver.withOpacity(0.85),
                                   fontWeight: FontWeight.w600,

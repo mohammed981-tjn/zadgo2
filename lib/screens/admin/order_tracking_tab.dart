@@ -5,6 +5,7 @@
 // (عطل مركبة، حادث، إلخ) دون التأثير على آلية استقبال السائق الأول.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
@@ -12,6 +13,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../customer/order_map_screen.dart';
+import '../customer/order_chat_screen.dart';
 
 class OrderTrackingTab extends StatelessWidget {
   const OrderTrackingTab({super.key});
@@ -54,6 +56,7 @@ class _TrackedOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     final isLate = DateTime.now().difference(order.createdAt).inMinutes > 30;
+    final hasDriver = order.driverId != null && order.driverId!.isNotEmpty;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
@@ -69,42 +72,98 @@ class _TrackedOrderCard extends StatelessWidget {
             StatusBadge(label: order.status.label, color: order.status.color),
           ]),
           InfoRow(icon: Icons.restaurant, text: order.restaurantName),
-          InfoRow(icon: Icons.person, text: order.customerName),
-          InfoRow(
-              icon: Icons.delivery_dining,
-              text: order.driverName != null && order.driverName!.isNotEmpty
-                  ? 'السائق: ${order.driverName}'
-                  : 'لم يُعيّن سائق بعد'),
+          Row(children: [
+            Expanded(child: InfoRow(icon: Icons.person, text: order.customerName)),
+            if (order.customerPhone.isNotEmpty)
+              _CallIconButton(phone: order.customerPhone, tooltip: 'اتصال بالعميل'),
+          ]),
+          Row(children: [
+            Expanded(
+              child: InfoRow(
+                  icon: Icons.delivery_dining,
+                  text: order.driverName != null && order.driverName!.isNotEmpty
+                      ? 'السائق: ${order.driverName}'
+                      : 'لم يُعيّن سائق بعد'),
+            ),
+            if (hasDriver)
+              StreamBuilder<Driver?>(
+                stream: service.streamDriver(order.driverId!),
+                builder: (ctx, dSnap) {
+                  final phone = dSnap.data?.phone ?? '';
+                  if (phone.isEmpty) return const SizedBox.shrink();
+                  return _CallIconButton(phone: phone, tooltip: 'اتصال بالسائق');
+                },
+              ),
+          ]),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
           OrderTrackingTimeline(status: order.status),
           Text(formatCurrency(order.grandTotal),
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-          if (order.status == OrderStatus.outForDelivery) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.swap_horiz),
-                label: const Text('تحويل الطلب لسائق آخر'),
-                onPressed: () => _showReassignDialog(context, service, order),
+          const SizedBox(height: 10),
+          // ✅ إجراءات المدير: محادثة/خريطة للمتابعة، وتحويل/إنهاء/إلغاء
+          // الطلب لأي طارئ يمنع اكتمال التوصيل الطبيعي.
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            if (hasDriver)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: const Text('محادثة'),
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
               ),
-            ),
-          ],
-          if (order.driverId != null && order.driverId!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('تتبع موقع السائق على الخريطة'),
+            if (hasDriver)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.map_outlined, size: 18),
+                label: const Text('تتبع الخريطة'),
                 onPressed: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
               ),
-            ),
-          ],
+            if (order.status == OrderStatus.outForDelivery)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: const Text('تحويل لسائق آخر'),
+                onPressed: () => _showReassignDialog(context, service, order),
+              ),
+            if (order.status.isActive)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.success, side: const BorderSide(color: AppColors.success)),
+                icon: const Icon(Icons.done_all_rounded, size: 18),
+                label: const Text('إنهاء الطلب'),
+                onPressed: () => _finishOrder(context, service, order),
+              ),
+            if (order.status.isActive)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                icon: const Icon(Icons.cancel_outlined, size: 18),
+                label: const Text('إلغاء الطلب'),
+                onPressed: () => _cancelOrder(context, service, order),
+              ),
+          ]),
         ]),
       ),
     );
+  }
+
+  Future<void> _finishOrder(BuildContext context, FirebaseService service, Order order) async {
+    final ok = await showConfirmDialog(context,
+        title: 'إنهاء الطلب', content: 'هل تريد تأكيد إنهاء (تسليم) هذا الطلب يدوياً؟', confirmLabel: 'إنهاء');
+    if (ok == true) {
+      await service.markOrderDelivered(order.id, order.driverId ?? '');
+      if (context.mounted) showSuccess(context, 'تم إنهاء الطلب');
+    }
+  }
+
+  Future<void> _cancelOrder(BuildContext context, FirebaseService service, Order order) async {
+    final ok = await showConfirmDialog(context,
+        title: 'إلغاء الطلب',
+        content: 'هل تريد إلغاء هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.',
+        confirmLabel: 'إلغاء الطلب',
+        confirmColor: Colors.red);
+    if (ok == true) {
+      await service.cancelOrder(order.id);
+      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+    }
   }
 
   void _showReassignDialog(BuildContext context, FirebaseService service, Order order) {
@@ -187,6 +246,26 @@ class _TrackedOrderCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CallIconButton extends StatelessWidget {
+  final String phone;
+  final String tooltip;
+  const _CallIconButton({required this.phone, required this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.call_outlined, color: AppColors.success, size: 20),
+      tooltip: tooltip,
+      onPressed: () async {
+        final uri = Uri(scheme: 'tel', path: phone);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+        }
+      },
     );
   }
 }

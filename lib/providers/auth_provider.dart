@@ -41,7 +41,19 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> login(String email, String password) async {
     _loading = true; _error = null; notifyListeners();
     try {
-      await _service.signIn(email.trim(), password.trim());
+      final cred = await _service.signIn(email.trim(), password.trim());
+      final uid = cred.user!.uid;
+      // ✅ نجلب بيانات المستخدم مباشرة بدل الاعتماد فقط على مستمع authStateChanges
+      // غير المتزامن، لتفادي التنقّل بحساب auth.user فارغ (شاشة بيضاء معلّقة).
+      final fetched = await _service.getUser(uid);
+      if (fetched != null && !fetched.isActive) {
+        await _service.signOut();
+        _user = null;
+        _error = 'تم تعطيل هذا الحساب، يرجى مراجعة الإدارة';
+        _loading = false; notifyListeners();
+        return false;
+      }
+      _user = fetched;
       _loading = false; notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
@@ -55,14 +67,15 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> register({
     required String name, required String email, required String password,
-    required String phone, required UserRole role,
+    required String phone, required UserRole role, String? nationalId,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
       final cred = await _service.register(email.trim(), password.trim());
       final uid = cred.user!.uid;
       final newUser = AppUser(uid: uid, name: name.trim(), email: email.trim(),
-          phone: phone.trim(), role: role, createdAt: DateTime.now());
+          phone: phone.trim(), role: role, createdAt: DateTime.now(),
+          nationalId: nationalId?.trim());
       await _service.createUser(newUser);
       if (role == UserRole.driver) {
         await _service.addDriver(Driver(id: uid, name: name.trim(), phone: phone.trim(),
@@ -88,6 +101,7 @@ class AuthProvider extends ChangeNotifier {
     required String email,
     required String password,
     required String phone,
+    required String nationalId,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
@@ -97,6 +111,7 @@ class AuthProvider extends ChangeNotifier {
         email: email.trim(),
         password: password.trim(),
         phone: phone.trim(),
+        nationalId: nationalId.trim(),
       );
       _user = user; _loading = false; notifyListeners();
       return true;

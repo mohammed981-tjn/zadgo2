@@ -39,6 +39,13 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
     }
   }
 
+  Future<void> _call(String phone) async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
@@ -99,7 +106,22 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
         : (hasDelivery ? LatLng(order.deliveryLat!, order.deliveryLng!) : points[0].point);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_appBarTitle())),
+      appBar: AppBar(title: Text(_appBarTitle()), actions: [
+        // ✅ زر اتصال مباشر بالطرف الآخر (السائق يتصل بالعميل، والعميل/الإدارة
+        // يتصل بالسائق) لتسهيل التواصل أثناء المتابعة الحية.
+        if (widget.readOnly && liveDriver != null && liveDriver.phone.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.call_outlined),
+            tooltip: 'اتصال بالسائق',
+            onPressed: () => _call(liveDriver.phone),
+          ),
+        if (!widget.readOnly && order.customerPhone.isNotEmpty)
+          IconButton(
+            icon: const Icon(Icons.call_outlined),
+            tooltip: 'اتصال بالعميل',
+            onPressed: () => _call(order.customerPhone),
+          ),
+      ]),
       body: Stack(
         children: [
           Column(

@@ -166,12 +166,13 @@ class FirebaseService {
     required String email,
     required String password,
     required String phone,
+    String? nationalId,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
     final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
       final snap = await tx.get(ref);
       if (!snap.exists || snap.data() == null) {
-        throw Exception('رمز التسجيل غير صحيح');
+        throw Exception('كود التسجيل غير صحيح');
       }
       final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
       if (current.isUsed) {
@@ -193,6 +194,7 @@ class FirebaseService {
         createdAt: DateTime.now(),
         restaurantId: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantId : null,
         restaurantName: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantName : null,
+        nationalId: nationalId?.trim(),
       );
       await createUser(newUser);
       if (claimed.role == models.UserRole.driver) {
@@ -329,12 +331,14 @@ class FirebaseService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+  /// يُسند سائقاً للطلب فقط (دون تغيير حالة الطلب الحالية) — بذلك يبقى
+  /// الطلب في المطعم (قيد التحضير/جاهز للاستلام) حتى يستلمه السائق فعلياً
+  /// عند وصوله، بدل قفزه مباشرة لحالة "في الطريق للعميل".
   Future<void> assignDriver(String orderId, String driverId, String driverName) async {
     final batch = _db.batch();
     batch.update(_orders.doc(orderId), {
       'driverId': driverId,
       'driverName': driverName,
-      'status': models.OrderStatus.outForDelivery.name,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});

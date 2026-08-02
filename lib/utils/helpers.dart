@@ -41,6 +41,13 @@ String? validatePassword(String? v) {
 
 String? validatePhone(String? v) => (v == null || v.trim().length < 9) ? 'رقم هاتف غير صالح' : null;
 
+/// رقم الهوية الوطنية/الإقامة السعودي: 10 أرقام.
+String? validateNationalId(String? v) {
+  if (v == null || v.trim().isEmpty) return 'رقم الهوية/الإقامة مطلوب';
+  if (!RegExp(r'^\d{10}$').hasMatch(v.trim())) return 'يجب أن يتكوّن من 10 أرقام';
+  return null;
+}
+
 String? validatePrice(String? v) {
   if (v == null || v.trim().isEmpty) return 'السعر مطلوب';
   final n = double.tryParse(v.trim());

@@ -20,6 +20,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _form = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
+  final _nationalIdCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -29,7 +30,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_form.currentState!.validate()) return;
     final auth = context.read<app_auth.AuthProvider>();
     final ok = await auth.register(name: _nameCtrl.text, email: _emailCtrl.text,
-        password: _passCtrl.text, phone: _phoneCtrl.text, role: UserRole.customer);
+        password: _passCtrl.text, phone: _phoneCtrl.text, role: UserRole.customer,
+        nationalId: _nationalIdCtrl.text);
     if (!mounted) return;
     if (ok) {
       Navigator.pushAndRemoveUntil(
@@ -48,6 +50,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         TextFormField(controller: _nameCtrl,
             decoration: const InputDecoration(labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person_outline)),
             validator: (v) => validateRequired(v, 'الاسم')),
+        const SizedBox(height: 14),
+        TextFormField(controller: _nationalIdCtrl, keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'رقم الهوية/الإقامة', prefixIcon: Icon(Icons.badge_outlined)),
+            validator: validateNationalId),
         const SizedBox(height: 14),
         TextFormField(controller: _emailCtrl, keyboardType: TextInputType.emailAddress, textDirection: TextDirection.ltr,
             decoration: const InputDecoration(labelText: 'البريد الإلكتروني', prefixIcon: Icon(Icons.email_outlined)),
