@@ -93,50 +93,133 @@ class _RestaurantOrdersList extends StatelessWidget {
         return ListView.builder(
           padding: const EdgeInsets.all(12),
           itemCount: orders.length,
-          itemBuilder: (_, i) {
-            final o = orders[i];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Text('#${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const Spacer(),
-                    StatusBadge(label: o.status.label, color: o.status.color),
-                  ]),
-                  InfoRow(icon: Icons.person_outline, text: o.customerName),
-                  Text(formatCurrency(o.grandTotal),
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                  // ملاحظة: تم إزالة زر "رفض/إلغاء الطلب" نهائياً من شاشة المطعم بناءً على
-                  // طلب المنصة — إلغاء الطلب لا يظهر إلا في شاشة الطلبات بلوحة المدير العام.
-                  // كذلك تتبع السائق وتأكيد إغلاق/تسليم الطلب ليسا من اختصاص المطعم؛ دور
-                  // المطعم يقتصر على تأكيد الاستلام وتجهيز الطلب وتعليمه جاهزاً، ثم يتولى
-                  // السائق ولوحة المدير العام بقية دورة الطلب (تتبع الموقع والتسليم).
-                  if (o.status == OrderStatus.restaurantPending)
-                    SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                            onPressed: () => service.updateOrderStatus(o.id, OrderStatus.restaurantAccepted),
-                            child: const Text('تأكيد استلام الطلب'))),
-                  if (o.status == OrderStatus.restaurantAccepted)
-                    SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                            onPressed: () => service.updateOrderStatus(o.id, OrderStatus.preparing),
-                            child: const Text('تجهيز الطلب'))),
-                  if (o.status == OrderStatus.preparing)
-                    SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                            onPressed: () => service.updateOrderStatus(o.id, OrderStatus.readyForPickup),
-                            child: const Text('الطلب جاهز'))),
-                ]),
-              ),
-            );
-          },
+          itemBuilder: (_, i) => _RestaurantOrderCard(order: orders[i], service: service),
         );
       },
     );
   }
+}
+
+/// بطاقة طلب واحدة بتصميم مقتبس من شاشة "الطلبات" السابقة في لوحة المدير:
+/// شارة حالة بارزة أعلى البطاقة، وزر إجراء واحد بلون مميز أسفلها بدل زر
+/// ElevatedButton عادي. القيود على صلاحيات المطعم كما هي دون أي تغيير: لا
+/// تتبع سائق، لا إلغاء، لا تأكيد توصيل — تتوقف الإجراءات عند "الطلب جاهز".
+class _RestaurantOrderCard extends StatelessWidget {
+  final Order order;
+  final FirebaseService service;
+  const _RestaurantOrderCard({required this.order, required this.service});
+
+  /// نص وأيقونة الشارة العلوية حسب حالة الطلب — بلغة موجّهة للمطعم بدل
+  /// النص التقني العام لكل الأدوار (order.status.label).
+  (String, Color, IconData) get _bannerInfo {
+    switch (order.status) {
+      case OrderStatus.restaurantPending:
+        return ('طلب جديد بانتظار التأكيد', AppColors.warning, Icons.fiber_new_rounded);
+      case OrderStatus.restaurantAccepted:
+        return ('تم الاستلام — جاري التجهيز', AppColors.primary, Icons.hourglass_top_rounded);
+      case OrderStatus.preparing:
+        return ('قيد التحضير', AppColors.primary, Icons.restaurant_rounded);
+      case OrderStatus.readyForPickup:
+        return ('جاهز للاستلام', Colors.teal, Icons.shopping_bag_rounded);
+      case OrderStatus.searchingDriver:
+        return ('بانتظار سائق', Colors.deepPurple, Icons.manage_search_rounded);
+      case OrderStatus.driverAssigned:
+      case OrderStatus.pickedUp:
+      case OrderStatus.onTheWay:
+        return ('في الطريق إلى العميل', Colors.deepPurple, Icons.delivery_dining_rounded);
+      default:
+        return (order.status.label, order.status.color, Icons.info_outline_rounded);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (bannerLabel, bannerColor, bannerIcon) = _bannerInfo;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // الشارة العلوية البارزة (بديل StatusBadge الصغير السابق).
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: bannerColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(bannerIcon, size: 16, color: bannerColor),
+              const SizedBox(width: 6),
+              Text(bannerLabel,
+                  style: TextStyle(color: bannerColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            const Spacer(),
+            Text(formatCurrency(order.grandTotal),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 15)),
+          ]),
+          const SizedBox(height: 4),
+          InfoRow(icon: Icons.person_outline, text: order.customerName),
+          // ملاحظة: تم إزالة زر "رفض/إلغاء الطلب" نهائياً من شاشة المطعم بناءً على
+          // طلب المنصة — إلغاء الطلب لا يظهر إلا في شاشة الطلبات بلوحة المدير العام.
+          // كذلك تتبع السائق وتأكيد إغلاق/تسليم الطلب ليسا من اختصاص المطعم؛ دور
+          // المطعم يقتصر على تأكيد الاستلام وتجهيز الطلب وتعليمه جاهزاً، ثم يتولى
+          // السائق ولوحة المدير العام بقية دورة الطلب (تتبع الموقع والتسليم).
+          if (order.status == OrderStatus.restaurantPending) ...[
+            const SizedBox(height: 10),
+            _ActionButton(
+              label: 'تأكيد استلام الطلب',
+              color: AppColors.primary,
+              onPressed: () => service.updateOrderStatus(order.id, OrderStatus.restaurantAccepted),
+            ),
+          ],
+          if (order.status == OrderStatus.restaurantAccepted) ...[
+            const SizedBox(height: 10),
+            _ActionButton(
+              label: 'تجهيز الطلب',
+              color: AppColors.primary,
+              onPressed: () => service.updateOrderStatus(order.id, OrderStatus.preparing),
+            ),
+          ],
+          if (order.status == OrderStatus.preparing) ...[
+            const SizedBox(height: 10),
+            _ActionButton(
+              label: 'الطلب جاهز',
+              color: AppColors.success,
+              onPressed: () => service.updateOrderStatus(order.id, OrderStatus.readyForPickup),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+/// زر إجراء بارز بخلفية ملوّنة كاملة العرض — بديل ElevatedButton الافتراضي
+/// ليطابق الطابع البصري لزر "تأكيد التوصيل" الأخضر في التصميم المرجعي.
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+  const _ActionButton({required this.label, required this.color, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: double.infinity,
+        height: 48,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: onPressed,
+          child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      );
 }
