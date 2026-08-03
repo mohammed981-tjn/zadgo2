@@ -1,8 +1,6 @@
 Name: Build Flutter APK
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       flavor:
@@ -102,6 +100,4 @@ jobs:
             build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk
             android/app/build/outputs/apk/${{ matrix.flavor }}/release/app-${{ matrix.flavor }}-release.apk
           if-no-files-found: warn
-          retention-days: 8
-
-
+          retention-days: 7
