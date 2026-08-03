@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart' as app_auth;
 import '../models/models.dart';
-import 'auth/login_screen.dart';
-import 'admin/admin_home.dart';
-import 'customer/customer_home.dart';
-import 'driver/driver_home.dart';
+import '../app_flavor.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -25,12 +22,25 @@ class _SplashScreenState extends State<SplashScreen> {
     if (_navigated || !mounted) return;
     _navigated = true;
     final auth = context.read<app_auth.AuthProvider>();
-    if (!auth.isLoggedIn) { _go(const LoginScreen()); return; }
-    switch (auth.user!.role) {
-      case UserRole.admin: _go(const AdminHome()); break;
-      case UserRole.customer: _go(const CustomerHome()); break;
-      case UserRole.driver: _go(const DriverHome()); break;
+    if (!auth.isLoggedIn) {
+      // التسجيل المؤجل: زائر تطبيق العميل يدخل مباشرة لشاشة المطاعم دون أي
+      // شاشة تسجيل دخول؛ التسجيل يُطلب فقط عند تأكيد الطلب لاحقاً. هذا لا
+      // يتعارض مع القيد أدناه لأنه يعمل فقط حين لا يوجد مستخدم مسجَّل دخوله
+      // أصلاً (حالة الزائر)، ولا يستدعي auth.logout() إطلاقاً.
+      if (AppFlavorConfig.allowGuestBrowsing) {
+        _go(AppFlavorConfig.buildHomeForRole(UserRole.customer));
+        return;
+      }
+      _go(AppFlavorConfig.buildLoginScreen());
+      return;
     }
+    final restrict = AppFlavorConfig.restrictToRole;
+    if (restrict != null && auth.user!.role != restrict) {
+      auth.logout();
+      _go(AppFlavorConfig.buildLoginScreen());
+      return;
+    }
+    _go(AppFlavorConfig.buildHomeForRole(auth.user!.role));
   }
 
   void _go(Widget screen) {
@@ -43,17 +53,49 @@ class _SplashScreenState extends State<SplashScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
+    final label = AppFlavorConfig.flavorLabel;
+
     return Scaffold(
       backgroundColor: const Color(0xFF040E1A),
       body: Center(
-        child: SizedBox(
-          width: screenWidth * 0.75,
-          height: screenHeight * 0.75,
-          child: Image.asset(
-            'assets/images/logo_square.png',
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: screenWidth * 0.75,
+              height: screenHeight * 0.75,
+              child: Image.asset(
+                'assets/images/logo_square.png',
+                fit: BoxFit.contain,
+                alignment: Alignment.center,
+              ),
+            ),
+            if (label != null)
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppFlavorConfig.flavorColor,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppFlavorConfig.flavorColor.withOpacity(0.5),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

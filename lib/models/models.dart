@@ -2,17 +2,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 
-enum UserRole { admin, customer, driver }
+enum UserRole { admin, customer, driver, restaurantManager }
 
 enum OrderStatus {
-  pending,
-  confirmed,
+  created,
+  restaurantPending,
+  restaurantAccepted,
   preparing,
   readyForPickup,
-  outForDelivery,
+  searchingDriver,
+  driverAssigned,
+  pickedUp,
+  onTheWay,
   delivered,
+  restaurantRejected,
+  noDriverFound,
   cancelled,
-  rejected,
+  refunded,
 }
 
 enum PaymentMethod { cash, card, wallet }
@@ -21,53 +27,156 @@ enum ComplaintStatus { open, inProgress, resolved, closed }
 
 enum ComplaintType { lateDelivery, wrongOrder, badQuality, driverBehavior, other }
 
+T _enumValueFromString<T extends Enum>(
+  String? raw,
+  List<T> values,
+  T fallback,
+  String enumName, {
+  Map<String, T>? legacyValues,
+}) {
+  if (raw != null) {
+    final legacyMatch = legacyValues?[raw];
+    if (legacyMatch != null) return legacyMatch;
+    for (final value in values) {
+      if (value.name == raw) return value;
+    }
+  }
+  debugPrint('⚠️ قيمة غير معروفة لـ $enumName: "$raw"، سيتم استخدام ${fallback.name}');
+  return fallback;
+}
+
+OrderStatus _orderStatusFromString(String? raw) => _enumValueFromString<OrderStatus>(
+      raw,
+      OrderStatus.values,
+      OrderStatus.created,
+      'OrderStatus',
+      legacyValues: const {
+        // توافق عكسي مع القيم القديمة المخزنة في Firestore قبل توسيع دورة الحالة.
+        'pending': OrderStatus.restaurantPending,
+        'confirmed': OrderStatus.restaurantAccepted,
+        'preparing': OrderStatus.preparing,
+        'readyForPickup': OrderStatus.readyForPickup,
+        'outForDelivery': OrderStatus.onTheWay,
+        'delivered': OrderStatus.delivered,
+        'cancelled': OrderStatus.cancelled,
+        'rejected': OrderStatus.restaurantRejected,
+      },
+    );
+
+UserRole _userRoleFromString(String? raw, {UserRole fallback = UserRole.customer}) =>
+    _enumValueFromString<UserRole>(raw, UserRole.values, fallback, 'UserRole');
+
+PaymentMethod _paymentMethodFromString(String? raw) => _enumValueFromString<PaymentMethod>(
+      raw,
+      PaymentMethod.values,
+      PaymentMethod.cash,
+      'PaymentMethod',
+    );
+
+ComplaintType _complaintTypeFromString(String? raw) => _enumValueFromString<ComplaintType>(
+      raw,
+      ComplaintType.values,
+      ComplaintType.other,
+      'ComplaintType',
+    );
+
+ComplaintStatus _complaintStatusFromString(String? raw) => _enumValueFromString<ComplaintStatus>(
+      raw,
+      ComplaintStatus.values,
+      ComplaintStatus.open,
+      'ComplaintStatus',
+    );
+
+BroadcastAudience _broadcastAudienceFromString(String? raw) =>
+    _enumValueFromString<BroadcastAudience>(
+      raw,
+      BroadcastAudience.values,
+      BroadcastAudience.customers,
+      'BroadcastAudience',
+    );
+
+extension UserRoleExt on UserRole {
+  String get label {
+    const map = {
+      UserRole.admin: 'مدير عام',
+      UserRole.customer: 'عميل',
+      UserRole.driver: 'سائق',
+      UserRole.restaurantManager: 'مدير مطعم',
+    };
+    return map[this] ?? '';
+  }
+}
+
 extension OrderStatusExt on OrderStatus {
   String get label {
     const map = {
-      OrderStatus.pending: 'قيد الانتظار',
-      OrderStatus.confirmed: 'تم التأكيد',
+      OrderStatus.created: 'تم الإنشاء',
+      OrderStatus.restaurantPending: 'بانتظار موافقة المطعم',
+      OrderStatus.restaurantAccepted: 'تم قبول الطلب',
       OrderStatus.preparing: 'جاري التحضير',
       OrderStatus.readyForPickup: 'جاهز للاستلام',
-      OrderStatus.outForDelivery: 'في الطريق إليك',
+      OrderStatus.searchingDriver: 'جاري البحث عن سائق',
+      OrderStatus.driverAssigned: 'تم تعيين سائق',
+      OrderStatus.pickedUp: 'تم استلام الطلب من المطعم',
+      OrderStatus.onTheWay: 'في الطريق إليك',
       OrderStatus.delivered: 'تم التوصيل',
+      OrderStatus.restaurantRejected: 'رفض المطعم الطلب',
+      OrderStatus.noDriverFound: 'تعذر إيجاد سائق',
       OrderStatus.cancelled: 'ملغى',
-      OrderStatus.rejected: 'مرفوض',
+      OrderStatus.refunded: 'تم استرداد المبلغ',
     };
     return map[this] ?? '';
   }
 
   Color get color {
     const map = {
-      OrderStatus.pending: Color(0xFFFF9800),
-      OrderStatus.confirmed: Color(0xFF2196F3),
+      OrderStatus.created: Color(0xFF607D8B),
+      OrderStatus.restaurantPending: Color(0xFFFF9800),
+      OrderStatus.restaurantAccepted: Color(0xFF2196F3),
       OrderStatus.preparing: Color(0xFF9C27B0),
       OrderStatus.readyForPickup: Color(0xFF00BCD4),
-      OrderStatus.outForDelivery: Color(0xFF3F51B5),
+      OrderStatus.searchingDriver: Color(0xFFFFC107),
+      OrderStatus.driverAssigned: Color(0xFF3F51B5),
+      OrderStatus.pickedUp: Color(0xFF673AB7),
+      OrderStatus.onTheWay: Color(0xFF303F9F),
       OrderStatus.delivered: Color(0xFF4CAF50),
+      OrderStatus.restaurantRejected: Color(0xFF795548),
+      OrderStatus.noDriverFound: Color(0xFF9E9E9E),
       OrderStatus.cancelled: Color(0xFFF44336),
-      OrderStatus.rejected: Color(0xFF795548),
+      OrderStatus.refunded: Color(0xFF009688),
     };
     return map[this] ?? Colors.grey;
   }
 
   IconData get icon {
     const map = {
-      OrderStatus.pending: Icons.hourglass_empty_rounded,
-      OrderStatus.confirmed: Icons.check_circle_outline,
+      OrderStatus.created: Icons.receipt_long_rounded,
+      OrderStatus.restaurantPending: Icons.hourglass_empty_rounded,
+      OrderStatus.restaurantAccepted: Icons.check_circle_rounded,
       OrderStatus.preparing: Icons.restaurant_rounded,
-      OrderStatus.readyForPickup: Icons.shopping_bag_outlined,
-      OrderStatus.outForDelivery: Icons.delivery_dining_rounded,
+      OrderStatus.readyForPickup: Icons.shopping_bag_rounded,
+      OrderStatus.searchingDriver: Icons.manage_search_rounded,
+      OrderStatus.driverAssigned: Icons.person_pin_circle_rounded,
+      OrderStatus.pickedUp: Icons.inventory_2_rounded,
+      OrderStatus.onTheWay: Icons.delivery_dining_rounded,
       OrderStatus.delivered: Icons.done_all_rounded,
-      OrderStatus.cancelled: Icons.cancel_outlined,
-      OrderStatus.rejected: Icons.block_rounded,
+      OrderStatus.restaurantRejected: Icons.block_rounded,
+      OrderStatus.noDriverFound: Icons.person_off_rounded,
+      OrderStatus.cancelled: Icons.cancel_rounded,
+      OrderStatus.refunded: Icons.replay_circle_filled_rounded,
     };
     return map[this] ?? Icons.info_outline;
   }
 
   bool get isActive =>
       this != OrderStatus.delivered &&
+      this != OrderStatus.restaurantRejected &&
+      this != OrderStatus.noDriverFound &&
       this != OrderStatus.cancelled &&
-      this != OrderStatus.rejected;
+      this != OrderStatus.refunded;
+
+  /// عكس [isActive] — الطلب انتهى ولن تتغيّر حالته بعد الآن.
+  bool get isFinished => !isActive;
 }
 
 extension PaymentMethodExt on PaymentMethod {
@@ -133,6 +242,11 @@ class AppUser {
   final UserRole role;
   final DateTime createdAt;
   final String? fcmToken;
+  final String? restaurantId;
+  final String? restaurantName;
+  final bool isActive;
+  /// رقم الإقامة/الهوية — مطلوب لحسابات المدير العام والسائق ومدير المطعم.
+  final String? nationalId;
 
   const AppUser({
     required this.uid,
@@ -142,6 +256,10 @@ class AppUser {
     required this.role,
     required this.createdAt,
     this.fcmToken,
+    this.restaurantId,
+    this.restaurantName,
+    this.isActive = true,
+    this.nationalId,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -149,12 +267,13 @@ class AppUser {
         name: map['name'] as String? ?? '',
         email: map['email'] as String? ?? '',
         phone: map['phone'] as String? ?? '',
-        role: UserRole.values.firstWhere(
-          (r) => r.name == map['role'],
-          orElse: () => UserRole.customer,
-        ),
+        role: _userRoleFromString(map['role'] as String?),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         fcmToken: map['fcmToken'] as String?,
+        restaurantId: map['restaurantId'] as String?,
+        restaurantName: map['restaurantName'] as String?,
+        isActive: map['isActive'] as bool? ?? true,
+        nationalId: map['nationalId'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -164,7 +283,34 @@ class AppUser {
         'role': role.name,
         'createdAt': Timestamp.fromDate(createdAt),
         if (fcmToken != null) 'fcmToken': fcmToken,
+        if (restaurantId != null) 'restaurantId': restaurantId,
+        if (restaurantName != null) 'restaurantName': restaurantName,
+        if (nationalId != null) 'nationalId': nationalId,
+        'isActive': isActive,
       };
+
+  AppUser copyWith({
+    String? name,
+    String? phone,
+    UserRole? role,
+    String? restaurantId,
+    String? restaurantName,
+    bool? isActive,
+    String? nationalId,
+  }) =>
+      AppUser(
+        uid: uid,
+        name: name ?? this.name,
+        email: email,
+        phone: phone ?? this.phone,
+        role: role ?? this.role,
+        createdAt: createdAt,
+        fcmToken: fcmToken,
+        restaurantId: restaurantId ?? this.restaurantId,
+        restaurantName: restaurantName ?? this.restaurantName,
+        isActive: isActive ?? this.isActive,
+        nationalId: nationalId ?? this.nationalId,
+      );
 }
 
 class Restaurant {
@@ -174,7 +320,14 @@ class Restaurant {
   final String emoji;
   final String phone;
   final bool isOpen;
-  final double deliveryFee;
+  /// نصيب السائق من أجرة التوصيل (بدلاً من رقم رسوم توصيل واحد).
+  final double driverShareFee;
+  /// نصيب التطبيق/المنصة من أجرة التوصيل.
+  final double appShareFee;
+  /// أجرة كل كيلومتر إضافي (تُضاف كاملة لنصيب السائق) بعد تجاوز [freeKm].
+  final double perKmFee;
+  /// عدد الكيلومترات المشمولة ضمن أجرة التوصيل الأساسية دون رسوم إضافية.
+  final double freeKm;
   final double minOrder;
   final String address;
   final int estimatedTimeMin;
@@ -182,6 +335,9 @@ class Restaurant {
   final int totalOrders;
   final double? lat;
   final double? lng;
+  /// رابط صورة اختياري للمطعم؛ إن توفّر يُعرض تلقائياً بدل التصميم البديل
+  /// (تدرج لوني + الحرف الأول من الاسم) دون أي تعديل على الكود.
+  final String? imageUrl;
 
   const Restaurant({
     required this.id,
@@ -190,7 +346,10 @@ class Restaurant {
     required this.emoji,
     required this.phone,
     this.isOpen = true,
-    this.deliveryFee = 5.0,
+    this.driverShareFee = 5.0,
+    this.appShareFee = 0.0,
+    this.perKmFee = 0.0,
+    this.freeKm = 3.0,
     this.minOrder = 20.0,
     required this.address,
     this.estimatedTimeMin = 30,
@@ -198,7 +357,12 @@ class Restaurant {
     this.totalOrders = 0,
     this.lat,
     this.lng,
+    this.imageUrl,
   });
+
+  /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الأماكن
+  /// التي كانت تعرض رقماً واحداً فقط.
+  double get deliveryFee => driverShareFee + appShareFee;
 
   factory Restaurant.fromMap(Map<String, dynamic> map, String id) =>
       Restaurant(
@@ -208,7 +372,13 @@ class Restaurant {
         emoji: map['emoji'] as String? ?? '🍽️',
         phone: map['phone'] as String? ?? '',
         isOpen: map['isOpen'] as bool? ?? true,
-        deliveryFee: (map['deliveryFee'] as num?)?.toDouble() ?? 5.0,
+        // توافق مع البيانات القديمة التي كانت تخزّن deliveryFee كرقم واحد فقط.
+        driverShareFee: (map['driverShareFee'] as num?)?.toDouble() ??
+            (map['deliveryFee'] as num?)?.toDouble() ??
+            5.0,
+        appShareFee: (map['appShareFee'] as num?)?.toDouble() ?? 0.0,
+        perKmFee: (map['perKmFee'] as num?)?.toDouble() ?? 0.0,
+        freeKm: (map['freeKm'] as num?)?.toDouble() ?? 3.0,
         minOrder: (map['minOrder'] as num?)?.toDouble() ?? 20.0,
         address: map['address'] as String? ?? '',
         estimatedTimeMin: (map['estimatedTimeMin'] as num?)?.toInt() ?? 30,
@@ -216,6 +386,7 @@ class Restaurant {
         totalOrders: (map['totalOrders'] as num?)?.toInt() ?? 0,
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
+        imageUrl: map['imageUrl'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -224,6 +395,11 @@ class Restaurant {
         'emoji': emoji,
         'phone': phone,
         'isOpen': isOpen,
+        'driverShareFee': driverShareFee,
+        'appShareFee': appShareFee,
+        'perKmFee': perKmFee,
+        'freeKm': freeKm,
+        // نُبقي على الحقل القديم مؤقتاً لتوافق النسخ الأقدم من التطبيق.
         'deliveryFee': deliveryFee,
         'minOrder': minOrder,
         'address': address,
@@ -232,6 +408,7 @@ class Restaurant {
         'totalOrders': totalOrders,
         'lat': lat,
         'lng': lng,
+        'imageUrl': imageUrl,
       };
 }
 
@@ -275,6 +452,9 @@ class MenuItem {
   final int? stockQuantity;
   final bool trackStock;
   final int totalSold;
+  /// رابط صورة اختياري للصنف؛ إن توفّر يُعرض تلقائياً بدل الأيقونة الرمزية
+  /// حسب الفئة دون أي تعديل على الكود.
+  final String? imageUrl;
 
   const MenuItem({
     required this.id,
@@ -288,24 +468,39 @@ class MenuItem {
     this.stockQuantity,
     this.trackStock = false,
     this.totalSold = 0,
+    this.imageUrl,
   });
 
   bool get canOrder =>
       isAvailable && (!trackStock || (stockQuantity != null && stockQuantity! > 0));
 
-  factory MenuItem.fromMap(Map<String, dynamic> map, String id) => MenuItem(
-        id: id,
-        restaurantId: map['restaurantId'] as String? ?? '',
-        categoryId: map['categoryId'] as String? ?? '',
-        name: map['name'] as String? ?? '',
-        description: map['description'] as String? ?? '',
-        price: (map['price'] as num?)?.toDouble() ?? 0.0,
-        emoji: map['emoji'] as String? ?? '🍽️',
-        isAvailable: map['isAvailable'] as bool? ?? true,
-        stockQuantity: (map['stockQuantity'] as num?)?.toInt(),
-        trackStock: map['trackStock'] as bool? ?? false,
-        totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
-      );
+  /// يبني [MenuItem] من مستند Firestore بتسامح أمام أنواع حقول غير متوقعة
+  /// (مثلاً `price` نصّاً أو `imageUrl` بنوع غير نصّي)؛ عنصر واحد بحقل غير
+  /// متوقع لا يجب أن يُسقط تحليل كل قائمة الأصناف بخطأ عام.
+  factory MenuItem.fromMap(Map<String, dynamic> map, String id) {
+    final rawPrice = map['price'];
+    final price = rawPrice is num
+        ? rawPrice.toDouble()
+        : double.tryParse(rawPrice?.toString() ?? '') ?? 0.0;
+    final rawImageUrl = map['imageUrl'];
+    final imageUrl = rawImageUrl is String && rawImageUrl.trim().isNotEmpty
+        ? rawImageUrl
+        : null;
+    return MenuItem(
+      id: id,
+      restaurantId: map['restaurantId'] as String? ?? '',
+      categoryId: map['categoryId'] as String? ?? '',
+      name: map['name'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      price: price,
+      emoji: map['emoji'] as String? ?? '🍽️',
+      isAvailable: map['isAvailable'] as bool? ?? true,
+      stockQuantity: (map['stockQuantity'] as num?)?.toInt(),
+      trackStock: map['trackStock'] as bool? ?? false,
+      totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
+      imageUrl: imageUrl,
+    );
+  }
 
   Map<String, dynamic> toMap() => {
         'restaurantId': restaurantId,
@@ -318,6 +513,7 @@ class MenuItem {
         'stockQuantity': stockQuantity,
         'trackStock': trackStock,
         'totalSold': totalSold,
+        'imageUrl': imageUrl,
       };
 }
 
@@ -445,10 +641,14 @@ class Order {
   final bool isPaid;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final DateTime? statusChangedAt;
   final String? driverId;
   final String? driverName;
   final String? notes;
-  final double deliveryFee;
+  /// نصيب السائق من أجرة التوصيل لهذا الطلب (بدلاً من رقم رسوم توصيل واحد).
+  final double driverShare;
+  /// نصيب التطبيق/المنصة من أجرة التوصيل لهذا الطلب.
+  final double appShare;
   final String orderNumber;
   final double? customerRating;
   final String? customerReview;
@@ -469,15 +669,17 @@ class Order {
     required this.customerPhone,
     required this.deliveryAddress,
     required this.items,
-    this.status = OrderStatus.pending,
+    this.status = OrderStatus.restaurantPending,
     required this.paymentMethod,
     this.isPaid = false,
     required this.createdAt,
     this.updatedAt,
+    this.statusChangedAt,
     this.driverId,
     this.driverName,
     this.notes,
-    this.deliveryFee = 5.0,
+    this.driverShare = 5.0,
+    this.appShare = 0.0,
     required this.orderNumber,
     this.customerRating,
     this.customerReview,
@@ -490,9 +692,13 @@ class Order {
     this.restaurantLng,
   });
 
+  /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الحسابات
+  /// السابقة التي كانت تعتمد رقماً واحداً.
+  double get deliveryFee => driverShare + appShare;
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
   double get grandTotal => itemsTotal + deliveryFee;
-  double get calculatedCommission => itemsTotal * 0.01;
+  /// عمولة التطبيق من المطعم — ١٥٪ من قيمة الوجبة (لا تشمل أجرة التوصيل).
+  double get calculatedCommission => itemsTotal * 0.15;
 
   factory Order.fromMap(Map<String, dynamic> map, String id) => Order(
         id: id,
@@ -505,21 +711,20 @@ class Order {
         items: ((map['items'] as List?) ?? [])
             .map((i) => OrderItem.fromMap(i as Map<String, dynamic>))
             .toList(),
-        status: OrderStatus.values.firstWhere(
-          (s) => s.name == map['status'],
-          orElse: () => OrderStatus.pending,
-        ),
-        paymentMethod: PaymentMethod.values.firstWhere(
-          (p) => p.name == map['paymentMethod'],
-          orElse: () => PaymentMethod.cash,
-        ),
+        status: _orderStatusFromString(map['status'] as String?),
+        paymentMethod: _paymentMethodFromString(map['paymentMethod'] as String?),
         isPaid: map['isPaid'] as bool? ?? false,
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         updatedAt: (map['updatedAt'] as Timestamp?)?.toDate(),
+        statusChangedAt: (map['statusChangedAt'] as Timestamp?)?.toDate(),
         driverId: map['driverId'] as String?,
         driverName: map['driverName'] as String?,
         notes: map['notes'] as String?,
-        deliveryFee: (map['deliveryFee'] as num?)?.toDouble() ?? 5.0,
+        // توافق مع الطلبات القديمة التي كانت تخزّن deliveryFee كرقم واحد فقط.
+        driverShare: (map['driverShare'] as num?)?.toDouble() ??
+            (map['deliveryFee'] as num?)?.toDouble() ??
+            5.0,
+        appShare: (map['appShare'] as num?)?.toDouble() ?? 0.0,
         orderNumber: (map['orderNumber'] as String?) ?? id.substring(0, 6).toUpperCase(),
         customerRating: (map['customerRating'] as num?)?.toDouble(),
         customerReview: map['customerReview'] as String?,
@@ -545,9 +750,14 @@ class Order {
         'isPaid': isPaid,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
+        'statusChangedAt':
+            statusChangedAt != null ? Timestamp.fromDate(statusChangedAt!) : null,
         'driverId': driverId,
         'driverName': driverName,
         'notes': notes,
+        'driverShare': driverShare,
+        'appShare': appShare,
+        // نُبقي على الحقل القديم مؤقتاً لتوافق النسخ الأقدم من التطبيق.
         'deliveryFee': deliveryFee,
         'orderNumber': orderNumber,
         'customerRating': customerRating,
@@ -560,6 +770,51 @@ class Order {
         'restaurantLat': restaurantLat,
         'restaurantLng': restaurantLng,
       };
+
+  Order copyWith({
+    OrderStatus? status,
+    DateTime? updatedAt,
+    DateTime? statusChangedAt,
+    String? driverId,
+    String? driverName,
+    bool? isPaid,
+    double? platformCommission,
+    double? customerRating,
+    String? customerReview,
+    double? driverRating,
+    bool? isRated,
+  }) =>
+      Order(
+        id: id,
+        restaurantId: restaurantId,
+        restaurantName: restaurantName,
+        customerId: customerId,
+        customerName: customerName,
+        customerPhone: customerPhone,
+        deliveryAddress: deliveryAddress,
+        items: items,
+        status: status ?? this.status,
+        paymentMethod: paymentMethod,
+        isPaid: isPaid ?? this.isPaid,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        statusChangedAt: statusChangedAt ?? this.statusChangedAt,
+        driverId: driverId ?? this.driverId,
+        driverName: driverName ?? this.driverName,
+        notes: notes,
+        driverShare: driverShare,
+        appShare: appShare,
+        orderNumber: orderNumber,
+        customerRating: customerRating ?? this.customerRating,
+        customerReview: customerReview ?? this.customerReview,
+        driverRating: driverRating ?? this.driverRating,
+        isRated: isRated ?? this.isRated,
+        platformCommission: platformCommission ?? this.platformCommission,
+        deliveryLat: deliveryLat,
+        deliveryLng: deliveryLng,
+        restaurantLat: restaurantLat,
+        restaurantLng: restaurantLng,
+      );
 }
 
 class Complaint {
@@ -599,15 +854,9 @@ class Complaint {
         customerName: map['customerName'] as String? ?? '',
         restaurantId: map['restaurantId'] as String? ?? '',
         restaurantName: map['restaurantName'] as String? ?? '',
-        type: ComplaintType.values.firstWhere(
-          (t) => t.name == map['type'],
-          orElse: () => ComplaintType.other,
-        ),
+        type: _complaintTypeFromString(map['type'] as String?),
         description: map['description'] as String? ?? '',
-        status: ComplaintStatus.values.firstWhere(
-          (s) => s.name == map['status'],
-          orElse: () => ComplaintStatus.open,
-        ),
+        status: _complaintStatusFromString(map['status'] as String?),
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         adminNote: map['adminNote'] as String?,
       );
@@ -672,4 +921,154 @@ class CartItem {
   String? extras;
   CartItem({required this.item, this.quantity = 1, this.extras});
   double get subtotal => item.price * quantity;
+}
+
+class DriverReassignment {
+  final String id;
+  final String orderId;
+  final String orderNumber;
+  final String? oldDriverId;
+  final String? oldDriverName;
+  final String newDriverId;
+  final String newDriverName;
+  final String reason;
+  final String performedBy;
+  final DateTime createdAt;
+
+  const DriverReassignment({
+    required this.id,
+    required this.orderId,
+    required this.orderNumber,
+    this.oldDriverId,
+    this.oldDriverName,
+    required this.newDriverId,
+    required this.newDriverName,
+    required this.reason,
+    required this.performedBy,
+    required this.createdAt,
+  });
+
+  factory DriverReassignment.fromMap(Map<String, dynamic> map, String id) => DriverReassignment(
+        id: id,
+        orderId: map['orderId'] as String? ?? '',
+        orderNumber: map['orderNumber'] as String? ?? '',
+        oldDriverId: map['oldDriverId'] as String?,
+        oldDriverName: map['oldDriverName'] as String?,
+        newDriverId: map['newDriverId'] as String? ?? '',
+        newDriverName: map['newDriverName'] as String? ?? '',
+        reason: map['reason'] as String? ?? '',
+        performedBy: map['performedBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'orderId': orderId,
+        'orderNumber': orderNumber,
+        if (oldDriverId != null) 'oldDriverId': oldDriverId,
+        if (oldDriverName != null) 'oldDriverName': oldDriverName,
+        'newDriverId': newDriverId,
+        'newDriverName': newDriverName,
+        'reason': reason,
+        'performedBy': performedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
+/// جمهور الرسالة الجماعية (البث): كل السائقين أو كل العملاء، كل مجموعة منفصلة
+/// تماماً عن الأخرى ولا علاقة لها بدردشة الطلب بين العميل والسائق.
+enum BroadcastAudience { drivers, customers }
+
+class BroadcastMessage {
+  final String id;
+  final BroadcastAudience audience;
+  final String title;
+  final String body;
+  final String sentBy;
+  final DateTime createdAt;
+
+  const BroadcastMessage({
+    required this.id,
+    required this.audience,
+    required this.title,
+    required this.body,
+    required this.sentBy,
+    required this.createdAt,
+  });
+
+  factory BroadcastMessage.fromMap(Map<String, dynamic> map, String id) => BroadcastMessage(
+        id: id,
+        audience: _broadcastAudienceFromString(map['audience'] as String?),
+        title: map['title'] as String? ?? '',
+        body: map['body'] as String? ?? '',
+        sentBy: map['sentBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'audience': audience.name,
+        'title': title,
+        'body': body,
+        'sentBy': sentBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
+/// رمز تسجيل يُصدره المدير العام ويرتبط بمطعم محدد — يُرسل يدوياً لمدير
+/// المطعم المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر شاشة
+/// "التسجيل بمدير مطعم" بدلاً من إنشاء المدير العام للحساب مباشرة.
+/// رمز تسجيل يُصدره المدير العام لدور محدد (مدير عام / سائق / مدير مطعم) —
+/// يُرسل يدوياً للشخص المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر
+/// شاشة "التسجيل برمز" بدلاً من فتح التسجيل الذاتي لهذه الأدوار الحساسة.
+/// [restaurantId]/[restaurantName] تُستخدمان فقط عندما يكون [role] هو
+/// مدير مطعم؛ تبقى فارغتين لبقية الأدوار.
+class RegistrationCode {
+  final String code;
+  final UserRole role;
+  final String restaurantId;
+  final String restaurantName;
+  final bool isUsed;
+  final DateTime createdAt;
+  final DateTime? usedAt;
+  final String? usedByUid;
+  final String? usedByName;
+
+  const RegistrationCode({
+    required this.code,
+    required this.role,
+    this.restaurantId = '',
+    this.restaurantName = '',
+    this.isUsed = false,
+    required this.createdAt,
+    this.usedAt,
+    this.usedByUid,
+    this.usedByName,
+  });
+
+  factory RegistrationCode.fromMap(Map<String, dynamic> map, String id) =>
+      RegistrationCode(
+        code: map['code'] as String? ?? id,
+        role: _userRoleFromString(
+          map['role'] as String?,
+          fallback: UserRole.restaurantManager,
+        ),
+        restaurantId: map['restaurantId'] as String? ?? '',
+        restaurantName: map['restaurantName'] as String? ?? '',
+        isUsed: map['isUsed'] as bool? ?? false,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        usedAt: (map['usedAt'] as Timestamp?)?.toDate(),
+        usedByUid: map['usedByUid'] as String?,
+        usedByName: map['usedByName'] as String?,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'code': code,
+        'role': role.name,
+        'restaurantId': restaurantId,
+        'restaurantName': restaurantName,
+        'isUsed': isUsed,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'usedAt': usedAt != null ? Timestamp.fromDate(usedAt!) : null,
+        'usedByUid': usedByUid,
+        'usedByName': usedByName,
+      };
 }

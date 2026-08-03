@@ -22,7 +22,18 @@ class AuthProvider extends ChangeNotifier {
     if (firebaseUser == null) {
       _user = null;
     } else {
-      try { _user = await _service.getUser(firebaseUser.uid); } catch (_) { _user = null; }
+      try {
+        final fetched = await _service.getUser(firebaseUser.uid);
+        if (fetched != null && !fetched.isActive) {
+          await _service.signOut();
+          _user = null;
+          _error = 'تم تعطيل هذا الحساب، يرجى مراجعة الإدارة';
+        } else {
+          _user = fetched;
+        }
+      } catch (_) {
+        _user = null;
+      }
     }
     notifyListeners();
   }
@@ -64,6 +75,41 @@ class AuthProvider extends ChangeNotifier {
       return false;
     } catch (e) {
       _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      return false;
+    }
+  }
+
+  /// تسجيل ذاتي بدور محدد (مدير عام/سائق/مدير مطعم) باستخدام رمز تسجيل
+  /// صادر من المدير العام — يحدد الرمز نفسه الدور، ويربط حساب مدير المطعم
+  /// تلقائياً بالمطعم صاحب الرمز عند الحاجة.
+  Future<bool> registerWithCode({
+    required String code,
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    String? nationalId,
+    UserRole? expectedRole,
+  }) async {
+    _loading = true; _error = null; notifyListeners();
+    try {
+      final user = await _service.registerWithCode(
+        code: code.trim(),
+        name: name.trim(),
+        email: email.trim(),
+        password: password.trim(),
+        phone: phone.trim(),
+        nationalId: nationalId?.trim(),
+        expectedRole: expectedRole,
+      );
+      _user = user; _loading = false; notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = _mapError(e.code); _loading = false; notifyListeners();
+      return false;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
+      _loading = false; notifyListeners();
       return false;
     }
   }

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/theme.dart';
 
@@ -8,7 +9,7 @@ void showSuccess(BuildContext context, String msg) {
 }
 
 void showError(BuildContext context, String msg) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.error));
 }
 
 Future<bool?> showConfirmDialog(BuildContext context, {required String title, required String content,
@@ -46,3 +47,28 @@ String? validatePrice(String? v) {
   if (n == null || n < 0) return 'سعر غير صالح';
   return null;
 }
+
+/// المسافة بالكيلومترات بين نقطتين باستخدام معادلة Haversine.
+double haversineDistanceKm(double lat1, double lng1, double lat2, double lng2) {
+  const earthRadiusKm = 6371.0;
+  final dLat = _deg2rad(lat2 - lat1);
+  final dLng = _deg2rad(lng2 - lng1);
+  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+      math.cos(_deg2rad(lat1)) * math.cos(_deg2rad(lat2)) * math.sin(dLng / 2) * math.sin(dLng / 2);
+  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+double _deg2rad(double deg) => deg * (math.pi / 180.0);
+
+/// عدد الكيلومترات الإضافية بعد المسافة المجانية — لا تُحسب كسور الكيلومتر،
+/// بل تُجبر للأعلى دائماً (Ceil) حتى لو كان الكسر بسيطاً.
+int ceilExtraKm(double distanceKm, double freeKm) {
+  final extra = distanceKm - freeKm;
+  if (extra <= 0) return 0;
+  return extra.ceil();
+}
+
+/// أجرة الكيلومترات الإضافية بعد إجبار التقريب للأعلى — بدون كسور.
+double calculateExtraKmFee(double distanceKm, double freeKm, double perKmFee) =>
+    ceilExtraKm(distanceKm, freeKm) * perKmFee;

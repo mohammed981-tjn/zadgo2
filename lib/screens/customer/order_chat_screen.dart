@@ -19,6 +19,22 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
 
+  /// اسم الدور الظاهر أعلى كل رسالة — يميّز بوضوح حين يكتب "الإدارة" (المدير
+  /// العام) حتى لا يظن العميل أو السائق أنه يتحدث مع الطرف الآخر للطلب.
+  String _roleLabel(String senderRole) {
+    if (senderRole == UserRole.admin.name) return 'الإدارة';
+    for (final r in UserRole.values) {
+      if (r.name == senderRole) return r.label;
+    }
+    return senderRole;
+  }
+
+  Color _roleColor(String senderRole) {
+    if (senderRole == UserRole.admin.name) return Colors.deepPurple;
+    if (senderRole == UserRole.driver.name) return AppColors.primary;
+    return AppColors.secondary;
+  }
+
   Future<void> _send() async {
     final text = _msgCtrl.text.trim();
     if (text.isEmpty) return;
@@ -54,11 +70,9 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
       appBar: AppBar(title: Text('محادثة الطلب #${widget.order.orderNumber}')),
       body: Column(children: [
         Expanded(
-          child: StreamBuilder<List<ChatMessage>>(
-            stream: service.streamChatMessages(widget.order.id),
-            builder: (ctx, snap) {
-              if (!snap.hasData) return const AppLoading();
-              final messages = snap.data!;
+          child: AppStreamBuilder<List<ChatMessage>>(
+            stream: () => service.streamChatMessages(widget.order.id),
+            builder: (ctx, messages) {
               if (messages.isEmpty) {
                 return const AppEmpty(emoji: '💬', title: 'ابدأ المحادثة');
               }
@@ -74,6 +88,8 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                 itemBuilder: (_, i) {
                   final m = messages[i];
                   final isMe = m.senderId == myUid;
+                  final isAdminMsg = m.senderRole == UserRole.admin.name;
+                  final roleColor = _roleColor(m.senderRole);
                   return Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                     child: Container(
@@ -81,14 +97,38 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
                       decoration: BoxDecoration(
-                        color: isMe ? AppColors.primary : Colors.white,
+                        color: isAdminMsg
+                            ? Colors.deepPurple.withOpacity(0.12)
+                            : (isMe ? AppColors.primary : Colors.white),
                         borderRadius: BorderRadius.circular(14),
+                        border: isAdminMsg ? Border.all(color: Colors.deepPurple, width: 1) : null,
                       ),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        if (!isMe)
+                        // ✅ اسم المرسل ودوره دائماً ظاهران — لا يقتصر على
+                        // رسائل الطرف الآخر — حتى يُدرك العميل والسائق بوضوح
+                        // متى تكتب "الإدارة" بدل الطرف الآخر في الطلب.
+                        Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(m.senderName,
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.secondary)),
-                        Text(m.text, style: TextStyle(color: isMe ? Colors.white : AppColors.textDark)),
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: isAdminMsg
+                                      ? Colors.deepPurple
+                                      : (isMe ? Colors.white70 : AppColors.secondary))),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: roleColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(_roleLabel(m.senderRole),
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: roleColor)),
+                          ),
+                        ]),
+                        const SizedBox(height: 2),
+                        Text(m.text,
+                            style: TextStyle(color: isAdminMsg ? AppColors.textDark : (isMe ? Colors.white : AppColors.textDark))),
                       ]),
                     ),
                   );
@@ -111,7 +151,7 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
               const SizedBox(width: 8),
               CircleAvatar(
                 backgroundColor: AppColors.primary,
-                child: IconButton(icon: const Icon(Icons.send, color: Colors.white, size: 18), onPressed: _send),
+                child: IconButton(icon: const Icon(Icons.send, color: AppColors.dark, size: 18), onPressed: _send),
               ),
             ]),
           ),

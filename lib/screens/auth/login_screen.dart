@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/models.dart';
-import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
-import '../admin/admin_home.dart';
-import '../customer/customer_home.dart';
-import '../driver/driver_home.dart';
-import 'register_screen.dart';
+import '../../app_flavor.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  /// عند تفعيلها (الدخول أثناء إتمام الطلب كزائر) تُغلق الشاشة بعد نجاح
+  /// الدخول بدل الانتقال للرئيسية، ليستكمل المستدعي (شاشة السلة) الطلب من
+  /// نفس النقطة دون فقدان السلة أو العودة للرئيسية.
+  final bool fromCheckout;
+  const LoginScreen({super.key, this.fromCheckout = false});
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -21,19 +21,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const Color bgDark = Color(0xFF040E1A);
-  static const Color bgDarker = Color(0xFF020810);
+  static const Color bgDark = Color(0xFF08211A);
+  static const Color bgDarker = Color(0xFF04120D);
   static const Color zadgoGold = Color(0xFFD4A017);
   static const Color zadgoGoldLight = Color(0xFFF0C550);
+  static const Color zadgoSilver = Color(0xFFC7CFD6);
 
   void _navigate(UserRole role) {
-    Widget dest;
-    switch (role) {
-      case UserRole.admin: dest = const AdminHome(); break;
-      case UserRole.customer: dest = const CustomerHome(); break;
-      case UserRole.driver: dest = const DriverHome(); break;
-    }
-    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => dest), (_) => false);
+    Navigator.pushAndRemoveUntil(context,
+        MaterialPageRoute(builder: (_) => AppFlavorConfig.buildHomeForRole(role)), (_) => false);
   }
 
   Future<void> _login() async {
@@ -42,6 +38,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(_emailCtrl.text, _passCtrl.text);
     if (!mounted) return;
     if (ok && auth.user != null) {
+      final restrict = AppFlavorConfig.restrictToRole;
+      if (restrict != null && auth.user!.role != restrict) {
+        await auth.logout();
+        if (!mounted) return;
+        showError(context, AppFlavorConfig.restrictedMessage);
+        return;
+      }
+      if (widget.fromCheckout) {
+        Navigator.pop(context, true);
+        return;
+      }
       _navigate(auth.user!.role);
     } else {
       showError(context, auth.error ?? 'فشل تسجيل الدخول');
@@ -165,6 +172,32 @@ class _LoginScreenState extends State<LoginScreen> {
                         letterSpacing: 0.5,
                       ),
                     ),
+                    if (AppFlavorConfig.flavorLabel != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppFlavorConfig.flavorColor,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppFlavorConfig.flavorColor.withOpacity(0.45),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          AppFlavorConfig.flavorLabel!,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 40),
                     // ✅ النموذج - نفس الخلفية الداكنة، حقول شفافة
                     Form(
@@ -214,10 +247,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 26),
                           SizedBox(
-                            height: 54,
+                            height: 50,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(14),
                                 gradient: const LinearGradient(
                                   colors: [zadgoGoldLight, zadgoGold],
                                   begin: Alignment.centerLeft,
@@ -234,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: Material(
                                 color: Colors.transparent,
                                 child: InkWell(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(14),
                                   onTap: auth.loading ? null : _login,
                                   child: Center(
                                     child: auth.loading
@@ -249,9 +282,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                         : const Text(
                                             'دخول',
                                             style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.w800,
                                               color: bgDarker,
+                                              letterSpacing: 0.3,
                                             ),
                                           ),
                                   ),
@@ -260,18 +294,43 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 18),
+                          if (AppFlavorConfig.buildRegisterScreen != null)
                           Center(
                             child: TextButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                              ),
+                              onPressed: () async {
+                                final buildRegister = AppFlavorConfig.buildRegisterScreen!;
+                                final result = await Navigator.push<bool>(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => buildRegister(fromCheckout: widget.fromCheckout)),
+                                );
+                                if (widget.fromCheckout && result == true && context.mounted) {
+                                  Navigator.pop(context, true);
+                                }
+                              },
                               child: Text(
                                 'ليس لديك حساب؟ سجّل الآن',
                                 style: TextStyle(
                                   color: zadgoGoldLight,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (AppFlavorConfig.buildRegisterWithCodeScreen != null)
+                          Center(
+                            child: TextButton(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => AppFlavorConfig.buildRegisterWithCodeScreen!()),
+                              ),
+                              child: Text(
+                                'لديك كود تسجيل؟ سجّل الآن',
+                                style: TextStyle(
+                                  color: zadgoSilver.withOpacity(0.85),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12.5,
                                 ),
                               ),
                             ),

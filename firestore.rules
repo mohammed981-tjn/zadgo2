@@ -1,0 +1,238 @@
+rules_version = '2';
+
+// قواعد أمان Firestore لتطبيق ZadGo — تمنح كل دور (عميل/سائق/مدير مطعم/مدير
+// عام) الصلاحيات التي يحتاجها فعلياً في التطبيق فقط، بدلاً من ترك القاعدة
+// مفتوحة بالكامل (وضع الاختبار الافتراضي) أو معتمدة على تكوين يدوي غير
+// موثّق في المستودع.
+//
+// ملاحظة: التطبيق لا يستخدم Cloud Functions، لذا بعض التحقق (كضمان صحة
+// القيم الرقمية المحوّلة كالعمولات أو أرصدة السائقين) يبقى على مسؤولية
+// التطبيق نفسه؛ القواعد هنا تركّز على منع أي مستخدم من الوصول لبيانات لا
+// تخصّه أو انتحال دور لا يملكه.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentUid() {
+      return request.auth.uid;
+    }
+
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(currentUid())).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() &&
+          exists(/databases/$(database)/documents/users/$(currentUid())) &&
+          userData().role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isDriver() {
+      return hasRole('driver');
+    }
+
+    function isCustomer() {
+      return hasRole('customer');
+    }
+
+    function isRestaurantManagerOf(restaurantId) {
+      return hasRole('restaurantManager') && userData().restaurantId == restaurantId;
+    }
+
+    // ---------------------------------------------------------------------
+    // users — كل مستخدم يرى ويعدّل بياناته فقط؛ المدير العام يرى الجميع.
+    // إنشاء المستند مسموح فقط لصاحب الـ uid نفسه (تسجيل ذاتي)، ولا يمكن لأي
+    // مستخدم غير المدير العام تغيير دوره الخاص (role) أو حالة تفعيله
+    // (isActive) بعد الإنشاء لمنع تصعيد الصلاحيات ذاتياً.
+    // ---------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isSignedIn() && (currentUid() == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && currentUid() == userId;
+      allow update: if isSignedIn() && (
+            isAdmin() ||
+            (currentUid() == userId &&
+                request.resource.data.role == resource.data.role &&
+                request.resource.data.isActive == resource.data.isActive)
+          );
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // restaurants + التصنيفات/الأصناف الفرعية — تصفّح عام حتى بدون تسجيل
+    // دخول (التسجيل المؤجل: الزائر يستعرض المطاعم والأصناف قبل إنشاء حساب،
+    // ولا يُطلب تسجيل الدخول إلا عند تأكيد الطلب فعلياً)، والتعديل يبقى
+    // مقصوراً على المدير العام أو مدير المطعم صاحب المطعم نفسه.
+    // ---------------------------------------------------------------------
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isRestaurantManagerOf(restaurantId);
+
+      match /categories/{categoryId} {
+        allow read: if true;
+        allow write: if isAdmin() || isRestaurantManagerOf(restaurantId);
+      }
+
+      match /items/{itemId} {
+        allow read: if true;
+        allow write: if isAdmin() || isRestaurantManagerOf(restaurantId);
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // orders — يراها ويعدّلها فقط أطراف الطلب (العميل صاحبه، السائق المُسنَد
+    // إليه، مدير المطعم صاحب الطلب) أو المدير العام. الإنشاء مقصور على
+    // العميل نفسه بصفته customerId.
+    // ---------------------------------------------------------------------
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && (
+            isAdmin() ||
+            resource.data.customerId == currentUid() ||
+            resource.data.driverId == currentUid() ||
+            isRestaurantManagerOf(resource.data.restaurantId)
+          );
+      allow list: if isSignedIn() && (
+            isAdmin() ||
+            resource.data.customerId == currentUid() ||
+            resource.data.driverId == currentUid() ||
+            isRestaurantManagerOf(resource.data.restaurantId)
+          );
+      allow create: if isCustomer() && request.resource.data.customerId == currentUid();
+      allow update: if isSignedIn() && (
+            isAdmin() ||
+            resource.data.customerId == currentUid() ||
+            resource.data.driverId == currentUid() ||
+            // السائق يقبل الطلب بنفسه (تصميم مقصود)، لكن فقط إن كان الطلب
+            // بلا سائق مُسنَد أصلاً — يمنع سائقاً من الاستيلاء على طلب مُسنَد
+            // لغيره عبر الكتابة المباشرة على driverId.
+            (resource.data.driverId == null && request.resource.data.driverId == currentUid()) ||
+            isRestaurantManagerOf(resource.data.restaurantId)
+          );
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // drivers — القراءة لأي مستخدم مسجّل دخوله (تُستخدم لعرض بيانات السائق
+    // ضمن تتبّع الطلب). الكتابة: السائق نفسه لتحديث حالته/موقعه، أو المدير
+    // العام لإعادة التوزيع، أو مدير المطعم عند التعيين التلقائي، أو العميل
+    // عند تقييم السائق بعد التوصيل (مقصور على حقلَي rating/ratingCount فقط
+    // لمنع تعديل موقع السائق أو حالته من طرف عميل).
+    // ---------------------------------------------------------------------
+    match /drivers/{driverId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && currentUid() == driverId;
+      allow update: if isSignedIn() && (
+            isAdmin() || isDriver() || hasRole('restaurantManager') ||
+            (isCustomer() &&
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'ratingCount']))
+          );
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // complaints — العميل ينشئ شكوى على طلبه الخاص فقط. يراها العميل صاحبها،
+    // مدير المطعم المعني، أو المدير العام. حلّها/تحديث حالتها للمدير العام.
+    // ---------------------------------------------------------------------
+    match /complaints/{complaintId} {
+      allow get: if isSignedIn() && (
+            isAdmin() ||
+            resource.data.customerId == currentUid() ||
+            isRestaurantManagerOf(resource.data.restaurantId)
+          );
+      allow list: if isAdmin();
+      allow create: if isCustomer() && request.resource.data.customerId == currentUid();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // chat_messages — محادثة الطلب بين العميل والسائق فقط (بالإضافة للمدير
+    // العام للمراجعة عند الحاجة).
+    // ---------------------------------------------------------------------
+    match /chat_messages/{messageId} {
+      function relatedOrder() {
+        return get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data;
+      }
+      function relatedOrderFromRequest() {
+        return get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data;
+      }
+
+      allow get: if isSignedIn() && (
+            isAdmin() ||
+            relatedOrder().customerId == currentUid() ||
+            relatedOrder().driverId == currentUid()
+          );
+      allow list: if isSignedIn() && (
+            isAdmin() ||
+            relatedOrder().customerId == currentUid() ||
+            relatedOrder().driverId == currentUid()
+          );
+      allow create: if isSignedIn() && request.resource.data.senderId == currentUid() && (
+            relatedOrderFromRequest().customerId == currentUid() ||
+            relatedOrderFromRequest().driverId == currentUid()
+          );
+    }
+
+    // ---------------------------------------------------------------------
+    // reassignments — سجل تدقيق لإعادة توزيع السائقين، للمدير العام فقط.
+    // ---------------------------------------------------------------------
+    match /reassignments/{reassignmentId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // delivery_settings — مستند إعدادات (delivery_settings/config) يضبط مُهل
+    // Timeout لمعالجة الطلبات العالقة، يُقرأ من شاشة متابعة الطلبات في لوحة
+    // المدير ويُعدَّل يدوياً من Firestore مباشرة، لذا القراءة والكتابة
+    // مقصورتان على المدير العام فقط.
+    // ---------------------------------------------------------------------
+    match /delivery_settings/{settingId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // broadcasts — إرسال رسائل جماعية للمدير العام فقط، وقراءتها لأي مستخدم
+    // مسجّل دخوله (كل من السائقين والعملاء يقرؤون الرسائل الموجّهة لهم).
+    // ---------------------------------------------------------------------
+    match /broadcasts/{broadcastId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // registrationCodes — تُقرأ وثيقة واحدة (بمعرفها/الرمز) حتى بدون تسجيل
+    // دخول للتحقق الأولي قبل إنشاء الحساب، لكن لا يُسمح بسرد كل الرموز إلا
+    // للمدير العام (لمنع اكتشاف رموز صالحة عبر الاستعراض). الإنشاء/الحذف
+    // للمدير العام فقط. التحديث مقصور على خطوتَي "استهلاك" الرمز فقط:
+    // (١) وضعه كمُستخدَم (isUsed: false → true) دون تغيير أي حقل آخر غير
+    // usedAt، و(٢) ربط الحساب المُستهلِك به فور ذلك (usedByUid/usedByName)
+    // من صاحب الحساب نفسه فقط. أي تعديل آخر (تغيير الدور، المطعم، إلخ)
+    // مرفوض تماماً لمنع انتحال الرمز أو التلاعب به بعد إنشائه.
+    // ---------------------------------------------------------------------
+    match /registrationCodes/{code} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+            isSignedIn() && (
+              (resource.data.isUsed == false &&
+                  request.resource.data.isUsed == true &&
+                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isUsed', 'usedAt'])) ||
+              (resource.data.isUsed == true &&
+                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedByUid', 'usedByName']) &&
+                  request.resource.data.usedByUid == currentUid() &&
+                  (!('usedByUid' in resource.data) || resource.data.usedByUid == null ||
+                      resource.data.usedByUid == currentUid()))
+            )
+          );
+    }
+  }
+}

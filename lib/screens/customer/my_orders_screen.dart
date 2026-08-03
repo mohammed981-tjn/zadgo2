@@ -19,11 +19,9 @@ class MyOrdersScreen extends StatelessWidget {
     final service = context.read<FirebaseService>();
     final uid = context.read<app_auth.AuthProvider>().user?.uid ?? '';
 
-    return StreamBuilder<List<Order>>(
-      stream: service.streamCustomerOrders(uid),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final orders = snap.data!;
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamCustomerOrders(uid),
+      builder: (ctx, orders) {
         if (orders.isEmpty) {
           return const AppEmpty(emoji: '📋', title: 'لا يوجد طلبات');
         }
@@ -55,30 +53,35 @@ class _OrderCard extends StatelessWidget {
               Text('#${order.orderNumber}',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              if (order.driverId != null)
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
-                  tooltip: 'محادثة السائق',
-                ),
-              if (order.restaurantLat != null || order.deliveryLat != null)
-                IconButton(
-                  icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                  onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
-                  tooltip: 'عرض الخريطة',
-                ),
+              // ✅ المحادثة والخريطة تظهران فقط أثناء استمرار التوصيل، وتُخفيان
+              // تلقائياً بمجرد انتهاء الطلب (تم التوصيل/ملغى/مرفوض).
+              if (!order.status.isFinished) ...[
+                if (order.driverId != null)
+                  IconButton(
+                    icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
+                    tooltip: 'محادثة السائق',
+                  ),
+                if (order.restaurantLat != null || order.deliveryLat != null)
+                  IconButton(
+                    icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
+                    tooltip: 'عرض الخريطة',
+                  ),
+              ],
               StatusBadge(
                   label: order.status.label,
                   color: order.status.color,
                   icon: order.status.icon),
             ]),
-            InfoRow(icon: Icons.restaurant, text: order.restaurantName),
+            InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
             InfoRow(
                 icon: Icons.access_time,
                 text:
                     '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}'),
+            OrderTrackingTimeline(status: order.status),
             const Divider(),
             Text(formatCurrency(order.grandTotal),
                 style: const TextStyle(

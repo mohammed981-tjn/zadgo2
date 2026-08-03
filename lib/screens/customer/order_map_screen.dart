@@ -7,10 +7,15 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../widgets/common_widgets.dart';
 
 class OrderMapScreen extends StatefulWidget {
   final Order order;
-  const OrderMapScreen({super.key, required this.order});
+  /// عندما تكون true (الافتراضي) تُعرض الخريطة للمتابعة فقط دون أزرار تغيير حالة
+  /// الطلب (استلمت الطلب / تم التوصيل) — تُستخدم للعميل والمطعم ولوحة المدير.
+  /// السائق فقط هو من يستخدم readOnly=false لتمكين أزرار الإجراء.
+  final bool readOnly;
+  const OrderMapScreen({super.key, required this.order, this.readOnly = true});
 
   @override
   State<OrderMapScreen> createState() => _OrderMapScreenState();
@@ -18,15 +23,14 @@ class OrderMapScreen extends StatefulWidget {
 
 class _OrderMapScreenState extends State<OrderMapScreen> {
   final MapController _mapController = MapController();
+  int _driverStreamRetryToken = 0;
 
   Order get order => widget.order;
 
   bool get _headingToRestaurant =>
-      order.status == OrderStatus.confirmed ||
-      order.status == OrderStatus.preparing ||
-      order.status == OrderStatus.readyForPickup;
+      order.status == OrderStatus.driverAssigned;
 
-  bool get _headingToCustomer => order.status == OrderStatus.outForDelivery;
+  bool get _headingToCustomer => order.status == OrderStatus.onTheWay;
 
   Future<void> _openExternalNavigation(double lat, double lng) async {
     final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
@@ -35,14 +39,33 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
     }
   }
 
+  Future<void> _call(String phone) async {
+    if (phone.trim().isEmpty) return;
+    final uri = Uri(scheme: 'tel', path: phone.trim());
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
 
-    if (order.driverId != null && order.status == OrderStatus.outForDelivery) {
+    // ✅ نجلب بيانات السائق (موقعه ورقم جواله) طالما هناك سائق معيّن على
+    // الطلب، وليس فقط أثناء "في الطريق إليك"، لإتاحة الاتصال به من التتبع الحي.
+    if (order.driverId != null && order.driverId!.isNotEmpty) {
       return StreamBuilder<Driver?>(
+        key: ValueKey(_driverStreamRetryToken),
         stream: service.streamDriver(order.driverId!),
-        builder: (ctx, driverSnap) => _buildScaffold(context, service, driverSnap.data),
+        builder: (ctx, driverSnap) {
+          if (driverSnap.hasError) {
+            return AppError(
+              error: driverSnap.error,
+              onRetry: () => setState(() => _driverStreamRetryToken++),
+            );
+          }
+          return _buildScaffold(context, service, driverSnap.data);
+        },
       );
     }
     return _buildScaffold(context, service, null);
@@ -95,7 +118,25 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
         : (hasDelivery ? LatLng(order.deliveryLat!, order.deliveryLng!) : points[0].point);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_appBarTitle())),
+      appBar: AppBar(
+        title: Text(_appBarTitle()),
+        actions: [
+          // ✅ الاتصال المباشر بالعميل أو السائق بالضغط على أيقونة الهاتف —
+          // متاحة من التتبع الحي دون الحاجة لمغادرة الشاشة.
+          if (!widget.readOnly && order.customerPhone.isNotEmpty)
+            IconButton(
+              tooltip: 'الاتصال بالعميل',
+              icon: const Icon(Icons.call_outlined),
+              onPressed: () => _call(order.customerPhone),
+            ),
+          if (liveDriver != null && liveDriver.phone.isNotEmpty)
+            IconButton(
+              tooltip: 'الاتصال بالسائق',
+              icon: const Icon(Icons.support_agent_outlined),
+              onPressed: () => _call(liveDriver.phone),
+            ),
+        ],
+      ),
       body: Stack(
         children: [
           Column(
@@ -151,15 +192,15 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة)
-              if (_headingToRestaurant)
+              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة) — لا يظهر إلا للسائق (readOnly = false)
+              if (!widget.readOnly && _headingToRestaurant)
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       final ok = await showConfirmDialog(context,
                           title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
                       if (ok == true) {
-                        await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+                        await service.markOrderPickedUp(order.id);
                         if (context.mounted) Navigator.pop(context);
                       }
                     },
@@ -167,7 +208,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                     label: const Text('استلمت الطلب'),
                   ),
                 ),
-              if (_headingToCustomer)
+              if (!widget.readOnly && _headingToCustomer)
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
@@ -176,7 +217,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                       if (ok == true) {
                         await service.markOrderDelivered(order.id, order.driverId ?? '');
                         if (context.mounted) {
-                          showSuccess(context, 'تم التوصيل! +10 ر.س أرباح');
+                          showSuccess(context, 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
                           Navigator.pop(context);
                         }
                       }

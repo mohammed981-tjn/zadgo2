@@ -10,11 +10,29 @@ import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../auth/login_screen.dart';
 import '../admin/pick_location_screen.dart';
 import 'my_orders_screen.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
+
+  Future<void> _proceedToCheckout(BuildContext context) async {
+    final auth = context.read<app_auth.AuthProvider>();
+    if (!auth.isLoggedIn) {
+      // التسجيل المؤجل: لا يُطلب تسجيل الدخول إلا هنا، عند تأكيد الطلب.
+      // السلة محفوظة بالفعل (في CartProvider + SharedPreferences) ولن
+      // تُفقد، ويُستكمل الطلب تلقائياً من نفس النقطة بعد نجاح التسجيل.
+      final ok = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen(fromCheckout: true)),
+      );
+      if (ok != true || !context.mounted) return;
+    }
+    if (!context.mounted) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const CheckoutScreen()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
@@ -68,8 +86,7 @@ class CartScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.push(
-                          context, MaterialPageRoute(builder: (_) => const CheckoutScreen())),
+                      onPressed: () => _proceedToCheckout(context),
                       child: Text(
                           'المتابعة للدفع — ${formatCurrency(cart.grandTotalWithVat)}'),
                     ),
@@ -130,6 +147,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     final restaurant = await service.getRestaurantOnce(cart.restaurantId!);
 
+    // إجبار تقريب الكيلومترات الإضافية للأعلى (بدون كسور) عند حساب أجرة المسافة.
+    double extraKmFee = 0;
+    if (restaurant != null && restaurant.lat != null && restaurant.lng != null) {
+      final distanceKm = haversineDistanceKm(restaurant.lat!, restaurant.lng!, _lat!, _lng!);
+      extraKmFee = calculateExtraKmFee(distanceKm, restaurant.freeKm, restaurant.perKmFee);
+    }
+
     final order = Order(
       id: orderId,
       restaurantId: cart.restaurantId!,
@@ -142,7 +166,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentMethod: _payment,
       isPaid: _payment != PaymentMethod.cash,
       createdAt: DateTime.now(),
-      deliveryFee: cart.deliveryFee,
+      statusChangedAt: DateTime.now(),
+      driverShare: cart.driverShare + extraKmFee,
+      appShare: cart.appShare,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
       platformCommission: cart.platformCommission,
       deliveryLat: _lat,
@@ -165,7 +191,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cart = context.watch<CartProvider>();
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
       body: ListView(

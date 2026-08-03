@@ -10,7 +10,7 @@ import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
-import '../../main.dart';
+import '../../navigator_key.dart';
 
 class DriverHome extends StatefulWidget {
   const DriverHome({super.key});
@@ -23,6 +23,7 @@ class _DriverHomeState extends State<DriverHome> {
   Timer? _locationTimer;
   double _simLat = 24.7136;
   double _simLng = 46.6753;
+  int _driverStreamRetryToken = 0;
 
   @override
   void initState() {
@@ -53,8 +54,17 @@ class _DriverHomeState extends State<DriverHome> {
     final driverId = auth.user?.uid ?? '';
 
     return StreamBuilder<Driver?>(
+      key: ValueKey(_driverStreamRetryToken),
       stream: service.streamDriver(driverId),
       builder: (ctx, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+            body: AppError(
+              error: snap.error,
+              onRetry: () => setState(() => _driverStreamRetryToken++),
+            ),
+          );
+        }
         final driver = snap.data;
         return Scaffold(
           appBar: AppBar(
@@ -76,9 +86,26 @@ class _DriverHomeState extends State<DriverHome> {
               }),
             ],
           ),
-          body: IndexedStack(index: _tab, children: [
-            _AvailableOrdersTab(driverId: driverId, driver: driver),
-            _DriverEarningsTab(driver: driver),
+          body: Column(children: [
+            StreamBuilder<List<BroadcastMessage>>(
+              stream: service.streamBroadcasts(BroadcastAudience.drivers),
+              builder: (ctx, snap) {
+                if (snap.hasError) {
+                  debugPrint('BroadcastBanner error: ${snap.error}');
+                  return const SizedBox.shrink();
+                }
+                final list = snap.data;
+                if (list == null || list.isEmpty) return const SizedBox.shrink();
+                final latest = list.first;
+                return BroadcastBanner(title: latest.title, body: latest.body);
+              },
+            ),
+            Expanded(
+              child: IndexedStack(index: _tab, children: [
+                _AvailableOrdersTab(driverId: driverId, driver: driver),
+                _DriverEarningsTab(driver: driver),
+              ]),
+            ),
           ]),
           bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
             destinations: const [
@@ -101,21 +128,16 @@ class _AvailableOrdersTab extends StatelessWidget {
     final service = context.read<FirebaseService>();
     final isOnline = driver?.isOnline ?? false;
 
-    return StreamBuilder<List<Order>>(
-      stream: service.streamAllOrders(),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final all = snap.data!;
-
+    return AppStreamBuilder<List<Order>>(
+      stream: service.streamAllOrders,
+      builder: (ctx, all) {
         final myOrders = all.where((o) => o.driverId == driverId && o.status.isActive).toList();
 
         final available = isOnline
             ? all.where((o) =>
                 o.driverId == null &&
-                (o.status == OrderStatus.pending ||
-                 o.status == OrderStatus.confirmed ||
-                 o.status == OrderStatus.preparing ||
-                 o.status == OrderStatus.readyForPickup)).toList()
+                (o.status == OrderStatus.readyForPickup ||
+                 o.status == OrderStatus.searchingDriver)).toList()
             : <Order>[];
 
         if (myOrders.isEmpty && available.isEmpty) {
@@ -191,13 +213,13 @@ class _OrderCard extends StatelessWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false))),
               ),
             ],
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
           ]),
           const SizedBox(height: 10),
-          InfoRow(icon: Icons.restaurant, text: order.restaurantName),
+          InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
           InfoRow(icon: Icons.person_outline, text: '${order.customerName} — ${order.customerPhone}'),
           InfoRow(icon: Icons.location_on_outlined, text: order.deliveryAddress),
           const Divider(height: 16),
@@ -219,9 +241,21 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'قبول الطلب', content: 'هل تريد قبول هذا الطلب والتوجه للمطعم؟', confirmLabel: 'قبول');
           if (ok == true) {
             await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
+            final now = DateTime.now();
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(
+                builder: (_) => OrderMapScreen(
+                  order: order.copyWith(
+                    status: OrderStatus.driverAssigned,
+                    driverId: auth.user!.uid,
+                    driverName: auth.user!.name,
+                    updatedAt: now,
+                    statusChangedAt: now,
+                  ),
+                  readOnly: false,
+                ),
+              ),
             );
           }
         },
@@ -230,18 +264,28 @@ class _OrderCard extends StatelessWidget {
       ));
     }
 
-    if (order.status == OrderStatus.pending || order.status == OrderStatus.confirmed || order.status == OrderStatus.preparing) {
-      return const Text('بانتظار تجهيز الطلب من المطعم...', style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
+    if (order.status == OrderStatus.restaurantPending || order.status == OrderStatus.restaurantAccepted) {
+      return const Text('بانتظار إنهاء المطعم لتحضير الطلب...', style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
     }
-    if (order.status == OrderStatus.readyForPickup) {
+    if (order.status == OrderStatus.driverAssigned) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
           final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
-            await service.updateOrderStatus(order.id, OrderStatus.outForDelivery);
+            await service.markOrderPickedUp(order.id);
+            final now = DateTime.now();
             // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
-              MaterialPageRoute(builder: (_) => OrderMapScreen(order: order)),
+              MaterialPageRoute(
+                builder: (_) => OrderMapScreen(
+                  order: order.copyWith(
+                    status: OrderStatus.onTheWay,
+                    updatedAt: now,
+                    statusChangedAt: now,
+                  ),
+                  readOnly: false,
+                ),
+              ),
             );
           }
         },
@@ -249,13 +293,13 @@ class _OrderCard extends StatelessWidget {
         label: const Text('استلمت الطلب — في الطريق'),
       ));
     }
-    if (order.status == OrderStatus.outForDelivery) {
+    if (order.status == OrderStatus.onTheWay) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
           final ok = await showConfirmDialog(ctx, title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
           if (ok == true) {
             await service.markOrderDelivered(order.id, order.driverId ?? '');
-            if (ctx.mounted) showSuccess(ctx, 'تم التوصيل! +10 ر.س أرباح');
+            if (ctx.mounted) showSuccess(ctx, 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
           }
         },
         style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
@@ -279,7 +323,7 @@ class _DriverEarningsTab extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [AppColors.primary, Color(0xFFc1121f)]),
+          gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

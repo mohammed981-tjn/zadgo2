@@ -1,0 +1,14 @@
+# انسخ هذا الملف إلى android/key.properties (بدون .example) وعبّئ القيم
+# الحقيقية لتوقيع نسخة الإصدار (release) بمفتاح إنتاج حقيقي بدلاً من مفتاح
+# debug الافتراضي. لا تضف android/key.properties أو ملف الـ keystore إلى git
+# (كلاهما مُستثنيان مسبقاً في .gitignore).
+#
+# لتوليد keystore جديد (مرة واحدة فقط، واحفظه في مكان آمن):
+#   keytool -genkey -v -keystore zadgo-release.jks -keyalg RSA -keysize 2048 \
+#     -validity 10000 -alias zadgo
+#
+# storeFile: مسار الملف نسبةً إلى مجلد android/app (أو مسار مطلق).
+storeFile=../zadgo-release.jks
+storePassword=REPLACE_WITH_STORE_PASSWORD
+keyAlias=zadgo
+keyPassword=REPLACE_WITH_KEY_PASSWORD

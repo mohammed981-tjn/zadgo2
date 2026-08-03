@@ -4,3 +4,8 @@ build/
 .gradle/
 *.iml
 .idea/
+
+# Release signing secrets — never commit the real keystore or credentials.
+android/key.properties
+*.jks
+*.keystore

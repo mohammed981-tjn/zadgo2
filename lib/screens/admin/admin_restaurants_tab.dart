@@ -16,11 +16,9 @@ class AdminRestaurantsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return StreamBuilder<List<Restaurant>>(
-      stream: service.streamRestaurants(),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const AppLoading();
-        final list = snap.data!;
+    return AppStreamBuilder<List<Restaurant>>(
+      stream: service.streamRestaurants,
+      builder: (ctx, list) {
         return Scaffold(
           body: list.isEmpty
               ? AppEmpty(
@@ -90,8 +88,9 @@ class _RestaurantCard extends StatelessWidget {
                 InfoRow(icon: Icons.phone_outlined, text: restaurant.phone),
                 InfoRow(icon: Icons.location_on_outlined, text: restaurant.address),
                 InfoRow(
-                  icon: Icons.delivery_dining,
-                  text: 'رسوم التوصيل: ${formatCurrency(restaurant.deliveryFee)}',
+                  icon: Icons.delivery_dining_outlined,
+                  text:
+                      'أجرة التوصيل: نصيب السائق ${formatCurrency(restaurant.driverShareFee)} + نصيب التطبيق ${formatCurrency(restaurant.appShareFee)}',
                 ),
                 InfoRow(
                   icon: Icons.timer_outlined,
@@ -158,7 +157,7 @@ class _RestaurantForm extends StatefulWidget {
 class _RestaurantFormState extends State<_RestaurantForm> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _name, _desc, _phone, _addr,
-      _fee, _min, _time, _emoji;
+      _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji;
   bool _loading = false;
   double? _lat, _lng;
 
@@ -170,7 +169,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _desc  = TextEditingController(text: r?.description ?? '');
     _phone = TextEditingController(text: r?.phone ?? '');
     _addr  = TextEditingController(text: r?.address ?? '');
-    _fee   = TextEditingController(text: r?.deliveryFee.toString() ?? '5');
+    _driverFee = TextEditingController(text: r?.driverShareFee.toString() ?? '5');
+    _appFee    = TextEditingController(text: r?.appShareFee.toString() ?? '0');
+    _perKm = TextEditingController(text: r?.perKmFee.toString() ?? '0');
+    _freeKm = TextEditingController(text: r?.freeKm.toString() ?? '3');
     _min   = TextEditingController(text: r?.minOrder.toString() ?? '20');
     _time  = TextEditingController(text: r?.estimatedTimeMin.toString() ?? '30');
     _emoji = TextEditingController(text: r?.emoji ?? '🍽️');
@@ -180,7 +182,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _desc, _phone, _addr, _fee, _min, _time, _emoji]) {
+    for (final c in [_name, _desc, _phone, _addr, _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji]) {
       c.dispose();
     }
     super.dispose();
@@ -214,7 +216,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       emoji: _emoji.text.trim(),
       phone: _phone.text.trim(),
       address: _addr.text.trim(),
-      deliveryFee: double.tryParse(_fee.text) ?? 5,
+      driverShareFee: double.tryParse(_driverFee.text) ?? 5,
+      appShareFee: double.tryParse(_appFee.text) ?? 0,
+      perKmFee: double.tryParse(_perKm.text) ?? 0,
+      freeKm: double.tryParse(_freeKm.text) ?? 3,
       minOrder: double.tryParse(_min.text) ?? 20,
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
@@ -264,11 +269,20 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 _f(_phone, 'رقم الهاتف', type: TextInputType.phone),
                 _f(_addr, 'العنوان'),
                 Row(children: [
-                  Expanded(child: _f(_fee, 'رسوم التوصيل', type: TextInputType.number, validator: validatePrice)),
+                  Expanded(child: _f(_driverFee, 'نصيب السائق', type: TextInputType.number, validator: validatePrice)),
                   const SizedBox(width: 10),
-                  Expanded(child: _f(_min, 'الحد الأدنى', type: TextInputType.number, validator: validatePrice)),
+                  Expanded(child: _f(_appFee, 'نصيب التطبيق', type: TextInputType.number, validator: validatePrice)),
                 ]),
-                _f(_time, 'وقت التوصيل (دقيقة)', type: TextInputType.number),
+                Row(children: [
+                  Expanded(child: _f(_perKm, 'أجرة الكيلومتر الإضافي', type: TextInputType.number, isReq: false)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _f(_freeKm, 'الكيلومترات المجانية', type: TextInputType.number, isReq: false)),
+                ]),
+                Row(children: [
+                  Expanded(child: _f(_min, 'الحد الأدنى', type: TextInputType.number, validator: validatePrice)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _f(_time, 'وقت التوصيل (دقيقة)', type: TextInputType.number)),
+                ]),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: _pickLocation,
@@ -329,15 +343,20 @@ class MenuManagerScreen extends StatelessWidget {
     final service = context.read<FirebaseService>();
     return Scaffold(
       appBar: AppBar(title: Text('قائمة ${restaurant.name}')),
-      body: StreamBuilder<List<MenuCategory>>(
-        stream: service.streamCategories(restaurant.id),
-        builder: (ctx, catSnap) {
-          return StreamBuilder<List<MenuItem>>(
-            stream: service.streamMenuItems(restaurant.id),
-            builder: (ctx2, itemSnap) {
-              if (!catSnap.hasData || !itemSnap.hasData) return const AppLoading();
-              final cats = catSnap.data!;
-              final allItems = itemSnap.data!;
+      body: AppStreamBuilder<List<MenuCategory>>(
+        stream: () => service.streamCategories(restaurant.id),
+        builder: (ctx, cats) {
+          return AppStreamBuilder<List<MenuItem>>(
+            stream: () => service.streamMenuItems(restaurant.id),
+            builder: (ctx2, allItems) {
+              // أصناف بلا فئة صالحة: categoryId فارغ أو يشير لفئة محذوفة/غير
+              // موجودة. سابقاً كانت تختفي بصمت (لا تظهر في أي فئة) فيصعب
+              // على المدير حتى معرفة وجودها لتصحيحها؛ الآن تُجمع في قسم
+              // منفصل "أصناف بلا فئة" يبقى ظاهراً دائماً طالما يوجد صنف واحد
+              // فيه، مع إمكانية تعديل الصنف واختيار فئة صحيحة له.
+              final catIds = cats.map((c) => c.id).toSet();
+              final unclassifiedItems =
+                  allItems.where((i) => !catIds.contains(i.categoryId)).toList();
               return ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
@@ -357,15 +376,30 @@ class MenuManagerScreen extends StatelessWidget {
                         subtitle: Text('${catItems.length} صنف'),
                         trailing: IconButton(
                           icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
-                          onPressed: () => _showItemForm(context, restaurant.id, cat.id, null),
+                          onPressed: () => _showItemForm(context, restaurant.id, cat.id, null, cats),
                         ),
                         children: catItems
                             .map((item) => _ItemTile(
-                                item: item, restaurantId: restaurant.id))
+                                item: item, restaurantId: restaurant.id, categories: cats))
                             .toList(),
                       ),
                     );
                   }),
+                  if (unclassifiedItems.isNotEmpty)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      color: AppColors.warning.withOpacity(0.08),
+                      child: ExpansionTile(
+                        initiallyExpanded: true,
+                        title: const Text('أصناف بلا فئة',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.warning)),
+                        subtitle: Text('${unclassifiedItems.length} صنف — يحتاج تعيين فئة'),
+                        children: unclassifiedItems
+                            .map((item) => _ItemTile(
+                                item: item, restaurantId: restaurant.id, categories: cats))
+                            .toList(),
+                      ),
+                    ),
                 ],
               );
             },
@@ -414,17 +448,36 @@ class MenuManagerScreen extends StatelessWidget {
 class _ItemTile extends StatelessWidget {
   final MenuItem item;
   final String restaurantId;
-  const _ItemTile({required this.item, required this.restaurantId});
+  final List<MenuCategory> categories;
+  const _ItemTile({required this.item, required this.restaurantId, required this.categories});
 
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return ListTile(
       leading: Text(item.emoji, style: const TextStyle(fontSize: 28)),
-      title: Text(item.name),
-      subtitle: Text(
-        '${formatCurrency(item.price)}${item.trackStock ? "  •  مخزون: ${item.stockQuantity ?? "∞"}" : ""}',
-        style: const TextStyle(fontSize: 12),
+      title: Text(item.name.trim().isEmpty ? '(بلا اسم)' : item.name),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${formatCurrency(item.price)}${item.trackStock ? "  •  مخزون: ${item.stockQuantity ?? "∞"}" : ""}',
+            style: const TextStyle(fontSize: 12),
+          ),
+          // تحذير واضح بدل ترك المدير يكتشف صنفاً ناقص البيانات صدفة —
+          // اسم فارغ أو سعر صفري/غير صالح غالباً يعني إدخالاً غير مكتمل.
+          if (item.name.trim().isEmpty || item.price <= 0)
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.info_outline, size: 13, color: AppColors.warning),
+                SizedBox(width: 4),
+                Text('بيانات الصنف غير مكتملة',
+                    style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+        ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -438,17 +491,17 @@ class _ItemTile extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.edit_outlined, size: 18),
             onPressed: () =>
-                _showItemForm(context, restaurantId, item.categoryId, item),
+                _showItemForm(context, restaurantId, item.categoryId, item, categories),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+            icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.error),
             onPressed: () async {
               final ok = await showConfirmDialog(
                 context,
                 title: 'حذف الصنف',
                 content: 'هل تريد حذف "${item.name}"؟',
                 confirmLabel: 'حذف',
-                confirmColor: Colors.red,
+                confirmColor: AppColors.error,
               );
               if (ok == true && context.mounted) {
                 await service.deleteMenuItem(restaurantId, item.id);
@@ -461,23 +514,27 @@ class _ItemTile extends StatelessWidget {
   }
 }
 
-void _showItemForm(
-    BuildContext context, String rId, String catId, MenuItem? existing) {
+void _showItemForm(BuildContext context, String rId, String catId, MenuItem? existing,
+    List<MenuCategory> categories) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-    builder: (_) =>
-        _ItemForm(restaurantId: rId, categoryId: catId, existing: existing),
+    builder: (_) => _ItemForm(
+        restaurantId: rId, categoryId: catId, existing: existing, categories: categories),
   );
 }
 
 class _ItemForm extends StatefulWidget {
   final String restaurantId, categoryId;
   final MenuItem? existing;
+  final List<MenuCategory> categories;
   const _ItemForm(
-      {required this.restaurantId, required this.categoryId, this.existing});
+      {required this.restaurantId,
+      required this.categoryId,
+      this.existing,
+      required this.categories});
   @override
   State<_ItemForm> createState() => _ItemFormState();
 }
@@ -487,6 +544,7 @@ class _ItemFormState extends State<_ItemForm> {
   late final TextEditingController _name, _desc, _price, _emoji, _stock;
   bool _loading = false;
   bool _trackStock = false;
+  late String? _categoryId;
 
   @override
   void initState() {
@@ -498,6 +556,11 @@ class _ItemFormState extends State<_ItemForm> {
     _emoji = TextEditingController(text: i?.emoji ?? '🍽️');
     _stock = TextEditingController(text: i?.stockQuantity?.toString() ?? '');
     _trackStock = i?.trackStock ?? false;
+    // القيمة المبدئية للفئة: فئة الصنف الحالية إن كانت لا تزال موجودة فعلاً
+    // ضمن قائمة الفئات، وإلا (صنف "بلا فئة" مثلاً) تُترك بلا اختيار مبدئي
+    // ليختار المدير فئة صريحة بدل الإبقاء على معرّف فئة غير موجود.
+    final currentCatId = widget.categoryId;
+    _categoryId = widget.categories.any((c) => c.id == currentCatId) ? currentCatId : null;
   }
 
   @override
@@ -508,12 +571,13 @@ class _ItemFormState extends State<_ItemForm> {
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
+    if (_categoryId == null) return;
     setState(() => _loading = true);
     final service = context.read<FirebaseService>();
     final item = MenuItem(
       id: widget.existing?.id ?? const Uuid().v4(),
       restaurantId: widget.restaurantId,
-      categoryId: widget.categoryId,
+      categoryId: _categoryId!,
       name: _name.text.trim(),
       description: _desc.text.trim(),
       price: double.tryParse(_price.text) ?? 0,
@@ -549,6 +613,16 @@ class _ItemFormState extends State<_ItemForm> {
                   style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _categoryId,
+                  decoration: const InputDecoration(labelText: 'الفئة'),
+                  items: widget.categories
+                      .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _categoryId = v),
+                  validator: (v) => v == null ? 'اختر فئة للصنف' : null,
+                ),
+                const SizedBox(height: 12),
                 _f(_emoji, 'رمز الصنف', isReq: false),
                 _f(_name, 'اسم الصنف'),
                 _f(_desc, 'الوصف'),

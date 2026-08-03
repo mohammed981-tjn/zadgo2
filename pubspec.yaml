@@ -17,7 +17,6 @@ dependencies:
 
   provider: ^6.1.2
 
-  google_fonts: ^6.2.1
   flutter_rating_bar: ^4.0.1
   badges: ^3.1.2
   fl_chart: ^0.69.0
@@ -28,6 +27,12 @@ dependencies:
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   url_launcher: ^6.3.1
+  shared_preferences: ^2.3.3
+
+  pdf: ^3.11.1
+  printing: ^5.13.4
+  excel: ^4.0.6
+  share_plus: ^10.1.2
 
 dev_dependencies:
   flutter_test:
@@ -38,3 +43,12 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo_square.png
+  fonts:
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/Cairo-Variable.ttf
+          weight: 600
+        - asset: assets/fonts/Cairo-Variable.ttf
+          weight: 700
