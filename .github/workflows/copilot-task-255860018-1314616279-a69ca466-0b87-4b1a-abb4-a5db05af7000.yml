@@ -56,11 +56,30 @@ jobs:
           java-version: '17'
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+        uses: nick-invision/retry@v3
         with:
-          flutter-version: '3.24.0'
-          channel: 'stable'
-          cache: false
+          timeout_minutes: 10
+          max_attempts: 3
+          command: |
+            set -e
+            echo "Attempting to set up Flutter..."
+            # Download Flutter using curl with retries
+            mkdir -p /tmp/flutter
+            curl -fsSL -m 600 --retry 3 --retry-delay 5 \
+              https://github.com/flutter/flutter/archive/refs/tags/3.24.0.tar.gz \
+              -o /tmp/flutter.tar.gz
+            
+            # Extract and setup Flutter
+            tar -xzf /tmp/flutter.tar.gz -C /tmp/flutter --strip-components=1
+            
+            # Setup environment variables
+            echo "/tmp/flutter/bin" >> $GITHUB_PATH
+            echo "FLUTTER_ROOT=/tmp/flutter" >> $GITHUB_ENV
+            
+            # Verify Flutter setup
+            /tmp/flutter/bin/flutter --version
+            /tmp/flutter/bin/flutter doctor -v
+
 
       - name: Create android/local.properties
         run: |
