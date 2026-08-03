@@ -30,6 +30,8 @@ class _CustomerHomeState extends State<CustomerHome> {
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
     final cart = context.watch<CartProvider>();
+    // الزائر (غير مسجَّل الدخول) يتصفح المطاعم بحرية؛ التسجيل يُطلب فقط عند
+    // تأكيد الطلب أو فتح "طلباتي".
     final isGuest = !auth.isLoggedIn;
     return Scaffold(
       appBar: AppBar(
@@ -53,6 +55,8 @@ class _CustomerHomeState extends State<CustomerHome> {
         ],
       ),
       body: Column(children: [
+        // شريط الرسائل الجماعية: فشله لا يجب أن يعطّل الشاشة كلها، لذلك
+        // يُخفى بصمت عند الخطأ بدل عرض رسالة خطأ للعميل.
         StreamBuilder<List<BroadcastMessage>>(
           stream: context.read<FirebaseService>().streamBroadcasts(BroadcastAudience.customers),
           builder: (ctx, snap) {
@@ -120,6 +124,8 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   String _query = '';
   String _category = 'الكل';
 
+  // قائمة الفئات ثابتة في الكود (لا تُقرأ من Firestore)، لذلك تظهر دائماً
+  // حتى لو فشل جلب المطاعم.
   static const _categories = ['الكل', 'مشاوي', 'برجر', 'بيتزا', 'مشروبات', 'حلويات'];
 
   @override
@@ -128,6 +134,8 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
     super.dispose();
   }
 
+  /// تصفية محلية (على الجهاز) حسب الفئة المختارة ونص البحث — لا استعلام
+  /// إضافي على Firestore.
   List<Restaurant> _filter(List<Restaurant> list) {
     var result = list;
     if (_category != 'الكل') {
@@ -189,6 +197,9 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
       ),
       const SizedBox(height: 4),
       Expanded(
+        // ملاحظة مهمة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس Stream
+        // جاهزاً، لذلك يُمرَّر اسم الدالة بلا أقواس (tear-off). إضافة أقواس
+        // هنا تكسر التوقيع.
         child: AppStreamBuilder<List<Restaurant>>(stream: service.streamRestaurants, builder: (ctx, list) {
           final filtered = _filter(list);
           if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
@@ -202,6 +213,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   }
 }
 
+/// بطاقة مطعم واحد في القائمة — لا تفتح إلا إذا كان المطعم مفتوحاً.
 class _RestaurantCard extends StatelessWidget {
   final Restaurant restaurant;
   const _RestaurantCard({required this.restaurant});
@@ -256,6 +268,7 @@ class _RestaurantCard extends StatelessWidget {
   }
 }
 
+/// عنصر معلومة صغير (تقييم/وقت/رسوم) داخل بطاقة المطعم.
 class _MetaChip extends StatelessWidget {
   final IconData icon; final String label; final Color color;
   const _MetaChip({required this.icon, required this.label, required this.color});
