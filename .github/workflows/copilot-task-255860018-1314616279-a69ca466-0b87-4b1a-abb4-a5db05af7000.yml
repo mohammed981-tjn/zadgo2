@@ -39,7 +39,7 @@ jobs:
   build:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -55,41 +55,15 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Download Flutter SDK (resumable)
-        uses: nick-invision/retry@v3
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
         with:
-          timeout_minutes: 20
-          max_attempts: 6
-          retry_wait_seconds: 30
-          command: |
-            echo "=== حالة الملف قبل هذه المحاولة ==="
-            if [ -f /tmp/flutter.tar.gz ]; then
-              ls -lh /tmp/flutter.tar.gz
-              echo "الحجم بالبايت: $(stat -c%s /tmp/flutter.tar.gz)"
-            else
-              echo "لا يوجد ملف جزئي — تحميل جديد من الصفر"
-            fi
-            echo "=== بدء/استئناف التحميل ==="
-            curl -fL --http1.1 -C - -m 1200 \
-              --retry 5 --retry-delay 10 --retry-all-errors \
-              --progress-bar \
-              https://github.com/flutter/flutter/archive/refs/tags/3.24.0.tar.gz \
-              -o /tmp/flutter.tar.gz
-            echo "=== حالة الملف بعد التحميل ==="
-            ls -lh /tmp/flutter.tar.gz
-            echo "الحجم بالبايت: $(stat -c%s /tmp/flutter.tar.gz)"
-            echo "=== التحقق من سلامة الأرشيف ==="
-            gzip -t /tmp/flutter.tar.gz
-            echo "الأرشيف سليم ✓"
+          flutter-version: '3.24.0'
+          channel: 'stable'
+          cache: true
 
-      - name: Extract Flutter SDK
-        run: |
-          rm -rf /tmp/flutter
-          mkdir -p /tmp/flutter
-          tar -xzf /tmp/flutter.tar.gz -C /tmp/flutter --strip-components=1
-          echo "/tmp/flutter/bin" >> $GITHUB_PATH
-          echo "FLUTTER_ROOT=/tmp/flutter" >> $GITHUB_ENV
-          /tmp/flutter/bin/flutter doctor -v
+      - name: Verify Flutter installation
+        run: flutter doctor -v
 
       - name: Create android/local.properties
         run: |
