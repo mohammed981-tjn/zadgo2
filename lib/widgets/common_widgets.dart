@@ -16,9 +16,11 @@ class AppError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (kDebugMode && error != null) {
-      debugPrint('AppError: $error');
-    }
+    // ملاحظة تشخيصية مؤقتة: كانت الطباعة سابقاً محصورة بوضع التطوير فقط
+    // (kDebugMode)، فكانت أخطاء Firestore الحقيقية تختفي تماماً في نسخة
+    // الإصدار (release) التي نختبرها على الجهاز. الآن تُطبع دائماً.
+    debugPrint('AppError: $error');
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -36,6 +38,55 @@ class AppError extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: AppColors.textGray),
             textAlign: TextAlign.center,
           ),
+
+          // ===================================================================
+          // كتلة تشخيص مؤقتة — تُحذف بعد معرفة سبب المشكلة
+          // ===================================================================
+          // تعرض نص الخطأ التقني القادم من Firestore مباشرة على الشاشة، لأن
+          // الرسالة العربية العامة أعلاه تُخفي السبب الحقيقي. النص المتوقع
+          // يحدد المشكلة فوراً:
+          //   • PERMISSION_DENIED  → قواعد Firestore لم تُنشر بعد على المشروع
+          //   • FAILED_PRECONDITION → الاستعلام يحتاج فهرساً مركّباً (index)
+          //   • UNAVAILABLE        → مشكلة اتصال شبكة فعلية
+          //   • أي خطأ تحويل بيانات → حقل في Firestore بنوع غير متوقع
+          if (error != null) ...[
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.error.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'تفاصيل تقنية (مؤقتة للتشخيص):',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // SelectableText يسمح بنسخ نص الخطأ ولصقه بدل تصويره.
+                  SelectableText(
+                    error.toString(),
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textDark,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          // ===================== نهاية كتلة التشخيص ==========================
+
           if (onRetry != null) ...[
             const SizedBox(height: 16),
             OutlinedButton.icon(
@@ -50,6 +101,7 @@ class AppError extends StatelessWidget {
   }
 }
 
+/// مؤشر تحميل موحّد مع رسالة اختيارية أسفله.
 class AppLoading extends StatelessWidget {
   final String? message;
   const AppLoading({super.key, this.message});
@@ -64,8 +116,11 @@ class AppLoading extends StatelessWidget {
 /// عند الخطأ يعرض [AppError] مع زر "إعادة المحاولة" الذي يعيد إنشاء الـ
 /// Stream فعلياً (لا مجرد rebuild بلا أثر)، ويطبع الخطأ التقني في الـ console.
 ///
-/// يُستخدم بدل تكرار `StreamBuilder` + فحص `hasData` فقط في كل شاشة، وهو ما
-/// كان يسبب تحوّل أخطاء Firestore إلى تحميل لا ينتهي أبداً.
+/// مهم عند الاستخدام: البارامتر [stream] نوعه `Stream<T> Function()` — أي
+/// **دالة تُرجع Stream**، وليس Stream جاهزاً. لذلك يُمرَّر إما كـ
+/// `stream: service.streamRestaurants` (بلا أقواس) أو
+/// `stream: () => service.streamCategories(id)`. إضافة الأقواس مباشرة
+/// (`service.streamRestaurants()`) خطأ يكسر التوقيع.
 class AppStreamBuilder<T> extends StatefulWidget {
   final Stream<T> Function() stream;
   final Widget Function(BuildContext context, T data) builder;
@@ -83,9 +138,11 @@ class _AppStreamBuilderState<T> extends State<AppStreamBuilder<T>> {
   @override
   void initState() {
     super.initState();
+    // إنشاء الـ Stream مرة واحدة فقط عند بناء الودجت أول مرة، لا في كل rebuild.
     _stream = widget.stream();
   }
 
+  /// إعادة محاولة حقيقية: تُنشئ Stream جديداً بالكامل بدل مجرد إعادة رسم.
   void _retry() => setState(() => _stream = widget.stream());
 
   @override
@@ -146,6 +203,8 @@ class _AppFutureBuilderState<T> extends State<AppFutureBuilder<T>> {
   }
 }
 
+/// حالة "لا توجد بيانات" — تُستخدم حين ينجح الجلب لكن النتيجة فارغة فعلاً،
+/// وهي مختلفة تماماً عن حالة الخطأ ([AppError]).
 class AppEmpty extends StatelessWidget {
   final String emoji; final String title; final String? subtitle; final Widget? action;
   const AppEmpty({super.key, required this.emoji, required this.title, this.subtitle, this.action});
@@ -161,6 +220,7 @@ class AppEmpty extends StatelessWidget {
   ));
 }
 
+/// شارة حالة ملوّنة (مفتوح/مغلق، حالة الطلب... إلخ).
 class StatusBadge extends StatelessWidget {
   final String label; final Color color; final IconData? icon;
   const StatusBadge({super.key, required this.label, required this.color, this.icon});
@@ -175,6 +235,7 @@ class StatusBadge extends StatelessWidget {
   );
 }
 
+/// سطر معلومة بأيقونة — يُستخدم في بطاقات الطلب وتفاصيله.
 class InfoRow extends StatelessWidget {
   final IconData icon; final String text; final bool bold;
   const InfoRow({super.key, required this.icon, required this.text, this.bold = false});
@@ -188,6 +249,7 @@ class InfoRow extends StatelessWidget {
     ]));
 }
 
+/// عنوان قسم بخط عمودي ملوّن على جانبه.
 class SectionHeader extends StatelessWidget {
   final String title;
   const SectionHeader({super.key, required this.title});
@@ -200,6 +262,7 @@ class SectionHeader extends StatelessWidget {
     ]));
 }
 
+/// سطر سعر (المجموع/التوصيل/الضريبة/الإجمالي) مع إبراز اختياري للسطر النهائي.
 class PriceRow extends StatelessWidget {
   final String label; final String value; final bool bold;
   const PriceRow({super.key, required this.label, required this.value, this.bold = false});
@@ -212,6 +275,7 @@ class PriceRow extends StatelessWidget {
     ]));
 }
 
+/// شريط الرسائل الجماعية (البث) أعلى الشاشة الرئيسية.
 class BroadcastBanner extends StatelessWidget {
   final String title;
   final String body;
@@ -286,6 +350,7 @@ class OrderTrackingTimeline extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(children: [
         Row(
+          // العناصر الفردية خطوط واصلة، والزوجية نقاط المراحل نفسها.
           children: List.generate(_steps.length * 2 - 1, (i) {
             if (i.isOdd) {
               final lineDone = (i ~/ 2) < active;
