@@ -6,7 +6,6 @@
 import 'dart:typed_data';
 import 'package:excel/excel.dart' as xl;
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
@@ -83,7 +82,7 @@ Future<void> exportRestaurantReportPdf({
         pw.Text('إجمالي قيمة الوجبات المباعة: ${formatCurrency(totalMealsValue)}',
             textDirection: pw.TextDirection.rtl, style: const pw.TextStyle(fontSize: 14)),
         pw.SizedBox(height: 16),
-        pw.Table.fromTextArray(
+        pw.TableHelper.fromTextArray(
           headerDirection: pw.TextDirection.rtl,
           tableDirection: pw.TextDirection.rtl,
           headers: ['التاريخ', 'قيمة الوجبات', 'الحالة', 'رقم الطلب'],
