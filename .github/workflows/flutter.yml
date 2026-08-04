@@ -1,17 +1,16 @@
-name: Build Flutter APK
+name: Build Android
 
 on:
   push:
     branches:
       - main
-      - master
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v3
 
       - name: Setup Flutter
@@ -19,13 +18,13 @@ jobs:
         with:
           channel: stable
 
-      - name: Install dependencies
+      - name: Get packages
         run: flutter pub get
 
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v3
         with:
           name: app-release
