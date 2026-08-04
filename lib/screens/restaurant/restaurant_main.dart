@@ -70,8 +70,21 @@ class RestaurantMain extends StatelessWidget {
                       const SizedBox(height: 20),
 
                       Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         child: ListTile(
-                          title: const Text("حالة المطعم"),
+                          leading: Icon(
+                            isOpen ? Icons.store : Icons.storefront,
+                            color: isOpen ? Colors.green : Colors.red,
+                          ),
+                          title: const Text(
+                            "حالة المطعم",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           trailing: Text(
                             isOpen ? "مفتوح" : "مغلق",
                             style: TextStyle(
@@ -160,11 +173,16 @@ class _OrdersList extends StatelessWidget {
             final order = orders[i];
             return Card(
               margin: const EdgeInsets.only(bottom: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 3,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // العنوان + الحالة
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -176,9 +194,17 @@ class _OrdersList extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          order.status.label,
+                          order.status == OrderStatus.onTheWay
+                              ? "في الطريق"
+                              : order.status == OrderStatus.completed
+                                  ? "مكتمل"
+                                  : order.status.label,
                           style: TextStyle(
-                            color: order.status.color,
+                            color: order.status == OrderStatus.onTheWay
+                                ? Colors.orange
+                                : order.status == OrderStatus.completed
+                                    ? Colors.green
+                                    : order.status.color,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -226,10 +252,10 @@ class _OrdersList extends StatelessWidget {
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red),
+                            backgroundColor: Colors.red,
+                          ),
                           child: const Text("إلغاء"),
                         ),
-
                         ElevatedButton(
                           onPressed: () async {
                             await service.updateOrderStatus(
@@ -244,7 +270,8 @@ class _OrdersList extends StatelessWidget {
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue),
+                            backgroundColor: Colors.blue,
+                          ),
                           child: const Text("إعادة"),
                         ),
                       ],
