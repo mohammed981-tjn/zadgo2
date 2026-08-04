@@ -17,7 +17,11 @@ class RestaurantMain extends StatelessWidget {
           .streamRestaurants()
           .map((list) => list.firstWhere(
                 (r) => r.id == restaurantId,
-                orElse: () => null,
+                orElse: () => Restaurant(
+                  id: restaurantId,
+                  name: "",
+                  isOpen: false,
+                ),
               )),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data == null) {
@@ -47,6 +51,7 @@ class RestaurantMain extends StatelessWidget {
             ),
             body: TabBarView(
               children: [
+                // شاشة الرئيسية
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -98,6 +103,7 @@ class RestaurantMain extends StatelessWidget {
                   ),
                 ),
 
+                // شاشة الطلبات
                 RestaurantOrders(service: service),
               ],
             ),
@@ -182,7 +188,7 @@ class _OrdersList extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // العنوان + الحالة
+                    // رقم الطلب + الحالة
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -194,17 +200,9 @@ class _OrdersList extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          order.status == OrderStatus.onTheWay
-                              ? "في الطريق"
-                              : order.status == OrderStatus.completed
-                                  ? "مكتمل"
-                                  : order.status.label,
+                          order.status.label,
                           style: TextStyle(
-                            color: order.status == OrderStatus.onTheWay
-                                ? Colors.orange
-                                : order.status == OrderStatus.completed
-                                    ? Colors.green
-                                    : order.status.color,
+                            color: order.status.color,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
