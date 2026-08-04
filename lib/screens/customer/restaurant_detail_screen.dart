@@ -22,7 +22,6 @@ class RestaurantDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(restaurant.name),
-        // اسم الفرع/الحي يُميّز بين فرعين لنفس المطعم في حيَّين مختلفين.
         bottom: restaurant.address.trim().isEmpty
             ? null
             : PreferredSize(
@@ -35,7 +34,6 @@ class RestaurantDetailScreen extends StatelessWidget {
               ),
       ),
       body: Column(children: [
-        // شريط معلومات المطعم (تقييم/وقت التوصيل/الرسوم) أعلى قائمة الأصناف.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Row(children: [
@@ -53,9 +51,6 @@ class RestaurantDetailScreen extends StatelessWidget {
           ]),
         ),
         Expanded(
-          // تدفّقان متداخلان: الفئات أولاً ثم الأصناف، ليُبنى التقسيم حسب
-          // الفئة. ملاحظة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس
-          // Stream جاهزاً — لذلك تُمرَّر بصيغة () => ...
           child: AppStreamBuilder<List<MenuCategory>>(
             stream: () => service.streamCategories(restaurant.id),
             builder: (ctx, cats) {
@@ -65,14 +60,9 @@ class RestaurantDetailScreen extends StatelessWidget {
                   final orderableItems = items.where((i) => i.canOrder).toList();
                   final catIds = cats.map((c) => c.id).toSet();
 
-                  // أصناف قابلة للطلب لكن categoryId فيها فارغ أو يشير لفئة
-                  // محذوفة/غير موجودة: سابقاً كانت تختفي بصمت بدل الظهور تحت
-                  // فئتها؛ الآن تُجمع في قسم "أصناف أخرى" في نهاية القائمة
-                  // بدلاً من فقدانها كلياً من عرض العميل.
                   final unmatchedItems =
                       orderableItems.where((i) => !catIds.contains(i.categoryId)).toList();
 
-                  // لا تُعرض فئة لا تحتوي أي صنف قابل للطلب بعد الفلترة.
                   final visibleCats =
                       cats.where((cat) => orderableItems.any((i) => i.categoryId == cat.id)).toList();
 
@@ -80,8 +70,6 @@ class RestaurantDetailScreen extends StatelessWidget {
                     return const AppEmpty(emoji: '🍽️', title: 'لا توجد أصناف متاحة حالياً');
                   }
 
-                  // فئة وهمية تحمل الأصناف غير المرتبطة بأي فئة حقيقية،
-                  // للحفاظ على بنية عرض واحدة متسقة.
                   const otherCategory =
                       MenuCategory(id: '__other__', restaurantId: '', name: 'أصناف أخرى');
 
@@ -99,7 +87,7 @@ class RestaurantDetailScreen extends StatelessWidget {
                                   color: AppColors.textDark)),
                         ),
                         ...catItems.map((item) =>
-                            _ItemTile(item: item, category: cat, restaurant: restaurant)),
+                            _SafeItemTile(item: item, category: cat, restaurant: restaurant)),
                       ]);
                     }),
                     if (unmatchedItems.isNotEmpty)
@@ -112,7 +100,7 @@ class RestaurantDetailScreen extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textDark)),
                         ),
-                        ...unmatchedItems.map((item) => _ItemTile(
+                        ...unmatchedItems.map((item) => _SafeItemTile(
                             item: item, category: otherCategory, restaurant: restaurant)),
                       ]),
                   ]);
@@ -138,7 +126,6 @@ class RestaurantDetailScreen extends StatelessWidget {
   }
 }
 
-/// عنصر معلومة صغير (تقييم/وقت/رسوم) في شريط معلومات المطعم.
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -153,13 +140,53 @@ class _InfoChip extends StatelessWidget {
       ]);
 }
 
+/// ===========================================================================
+/// كتلة تشخيص مؤقتة — تُحذف بعد معرفة سبب المشكلة
+/// ===========================================================================
+/// غلاف يلتقط أي خطأ يحدث أثناء بناء بطاقة صنف واحدة (_ItemTile) ويعرضه
+/// كنص صريح على الشاشة بدل انهيار صامت يترك مساحة بيضاء بلا استجابة. هذا
+/// يعزل المشكلة لصنف واحد بدل أن يفشل بناء الشاشة كلها، ويكشف الخطأ الحقيقي
+/// (اسم الاستثناء ورسالته) الذي كان مخفياً تماماً حتى الآن.
+class _SafeItemTile extends StatelessWidget {
+  final MenuItem item;
+  final MenuCategory category;
+  final Restaurant restaurant;
+  const _SafeItemTile({required this.item, required this.category, required this.restaurant});
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      return _ItemTile(item: item, category: category, restaurant: restaurant);
+    } catch (e, stack) {
+      debugPrint('❌ فشل بناء بطاقة الصنف "${item.name}": $e\n$stack');
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.error.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.error.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('تعذّر عرض الصنف: ${item.name.isEmpty ? "(بلا اسم)" : item.name}',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+            const SizedBox(height: 4),
+            SelectableText(
+              e.toString(),
+              textDirection: TextDirection.ltr,
+              style: const TextStyle(fontSize: 11, color: AppColors.textDark),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+}
+/// ===================== نهاية كتلة التشخيص ==================================
+
 /// بطاقة صنف واحد في قائمة المطعم.
-///
-/// ملاحظة مهمة: كان هنا سابقاً ConstrainedBox بارتفاع أقصى صارم (120px)
-/// أُضيف "كخط دفاع" ضد بطاقات فارغة ضخمة، لكنه كان هو نفسه سبب المشكلة —
-/// حين يتجاوز المحتوى ذلك الحد ينهار التخطيط ويُقصّ المحتوى كاملاً، فتظهر
-/// البطاقة كإطار أبيض فارغ لا يستجيب للمس. أُزيل القيد نهائياً، والبطاقة
-/// الآن تأخذ ارتفاعها الطبيعي من محتواها.
 class _ItemTile extends StatelessWidget {
   final MenuItem item;
   final MenuCategory category;
@@ -170,8 +197,6 @@ class _ItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final qty = cart.quantityOf(item.id);
-    // صنف ناقص البيانات (بلا اسم أو بسعر غير صالح) — يُعرض بتحذير صريح بدل
-    // بطاقة بيضاء مضلِّلة تسمح بطلب صنف مشكوك فيه.
     final isIncomplete = item.name.trim().isEmpty || item.price <= 0;
 
     return Container(
@@ -221,7 +246,6 @@ class _ItemTile extends StatelessWidget {
           ]),
         ),
         const SizedBox(width: 8),
-        // زر الإضافة، أو أدوات زيادة/إنقاص الكمية إن كان الصنف في السلة.
         if (qty == 0)
           ElevatedButton(
             onPressed: () => context.read<CartProvider>().add(
