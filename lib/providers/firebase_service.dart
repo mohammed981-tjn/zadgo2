@@ -41,11 +41,6 @@ class FirebaseService {
       case models.OrderStatus.preparing:
         return to == models.OrderStatus.readyForPickup;
       case models.OrderStatus.readyForPickup:
-        // المطعم يضغط "تم التسليم" (المرحلة الرابعة والأخيرة في دوره) فينتقل
-        // الطلب مباشرة إلى onTheWay — وهي نفسها "جاري التوصيل" التي يراها
-        // السائق والعميل والإدارة. بذلك ينتهي دور المطعم تماماً.
-        // searchingDriver يبقى مسموحاً للمسار الإداري (بحث عن سائق قبل
-        // تسليم الطلب فعلياً).
         return to == models.OrderStatus.searchingDriver ||
             to == models.OrderStatus.onTheWay;
       case models.OrderStatus.searchingDriver:
@@ -58,8 +53,6 @@ class FirebaseService {
       case models.OrderStatus.onTheWay:
         return to == models.OrderStatus.delivered;
       case models.OrderStatus.noDriverFound:
-        // يسمح للمدير بإسناد سائق يدوياً بعد فشل البحث التلقائي (مهلة انتظار
-        // السائق) دون المرور بحالة searchingDriver مجدداً.
         return to == models.OrderStatus.driverAssigned;
       case models.OrderStatus.delivered:
       case models.OrderStatus.restaurantRejected:
@@ -108,8 +101,6 @@ class FirebaseService {
 
   Future<void> deleteUserDoc(String uid) => _users.doc(uid).delete();
 
-  /// ينشئ حساب مستخدم جديد (مثل مدير مطعم) بدون تسجيل خروج المدير الحالي،
-  /// عبر تطبيق Firebase ثانوي مؤقت.
   Future<void> createManagedUser({
     required String name,
     required String email,
@@ -146,9 +137,6 @@ class FirebaseService {
     await createUser(newUser);
   }
 
-  /// يرسل رابط إعادة تعيين كلمة المرور إلى بريد المستخدم — تُستخدم من إدارة
-  /// التطبيق للتحكم الكامل في بيانات اعتماد أي حساب (بما فيه مدير المطعم)
-  /// دون الحاجة لمعرفة كلمة المرور الحالية.
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
 
@@ -159,11 +147,6 @@ class FirebaseService {
     return List.generate(6, (_) => _codeChars[rnd.nextInt(_codeChars.length)]).join();
   }
 
-  /// يولّد كود تسجيل جديد وحيد الاستخدام لدور محدد (مدير عام/سائق/مدير
-  /// مطعم)، ليُرسله المدير العام يدوياً (واتساب/اتصال) للشخص المستهدف.
-  /// يستخدم الرمز نفسه كمعرّف للمستند لضمان عدم تكرار نفس الرمز لرمزين
-  /// مختلفين في آن واحد. [restaurantId]/[restaurantName] مطلوبان فقط عند
-  /// توليد رمز لدور مدير مطعم.
   Future<models.RegistrationCode> generateRegistrationCode({
     required models.UserRole role,
     String restaurantId = '',
@@ -187,7 +170,6 @@ class FirebaseService {
     throw Exception('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى');
   }
 
-  /// رموز التسجيل الخاصة بمطعم محدد (لعرضها/إعادة إرسالها/إلغائها من لوحة المدير).
   Stream<List<models.RegistrationCode>> streamRegistrationCodes(
           String restaurantId) =>
       _registrationCodes
@@ -198,15 +180,9 @@ class FirebaseService {
               .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
               .toList());
 
-  /// يُبطل كود تسجيل لم يُستخدم بعد (مثلاً عند إرسال رمز جديد بدلاً منه).
   Future<void> revokeRegistrationCode(String code) =>
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
 
-  /// يتحقق أولاً (قراءة فقط، بدون تسجيل دخول) من صلاحية كود التسجيل، ثم
-  /// يُنشئ الحساب بالمصادقة، وبعد أن يصبح المستخدم مُصادَقاً يستهلك الرمز
-  /// عبر معاملة Firestore لضمان استخدامه مرة واحدة فقط حتى مع محاولات
-  /// متزامنة، بالدور المحدَّد في الرمز — ويربطه تلقائياً بالمطعم صاحب الرمز
-  /// إن كان الدور مدير مطعم، أو ينشئ سجل سائق إن كان الدور سائق.
   Future<models.AppUser> registerWithCode({
     required String code,
     required String name,
@@ -326,7 +302,6 @@ class FirebaseService {
   Future<void> setDriverOnline(String id, bool isOnline) =>
       _drivers.doc(id).update({'isOnline': isOnline});
 
-  // ✅ تتبع حي لموقع السائق
   Future<void> updateDriverLocation(String driverId, double lat, double lng) =>
       _drivers.doc(driverId).update({
         'lat': lat,
@@ -365,9 +340,6 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
-  /// جميع الطلبات النشطة والقادمة (لشاشة متابعة الطلبات الحية في لوحة المدير)،
-  /// بالإضافة إلى طلبات "تعذر إيجاد سائق" (noDriverFound) رغم أنها ليست
-  /// نشطة تقنياً لأن المدير يحتاج رؤيتها لإسناد سائق يدوياً.
   Stream<List<models.Order>> streamActiveOrders() => _orders
       .orderBy('createdAt', descending: true)
       .snapshots()
@@ -376,7 +348,6 @@ class FirebaseService {
           .where((o) => o.status.isActive || o.status == models.OrderStatus.noDriverFound)
           .toList());
 
-  /// طلبات مطعم محدد فقط (لتطبيق/دور مدير المطعم)
   Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
       .where('restaurantId', isEqualTo: restaurantId)
       .orderBy('createdAt', descending: true)
@@ -389,6 +360,10 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
+  /// طلبات سائق محدد — المصدر الوحيد الآمن لشاشة السائق تحت قواعد Firestore
+  /// الحالية (allow list تشترط driverId == currentUid() في الاستعلام نفسه).
+  /// يشمل كل حالات الطلب طالما driverId يساوي هذا السائق: بدءاً من
+  /// restaurantAccepted (بعد التعيين المبكر) وحتى delivered.
   Stream<List<models.Order>> streamDriverOrders(String driverId) => _orders
       .where('driverId', isEqualTo: driverId)
       .orderBy('createdAt', descending: true)
@@ -422,11 +397,6 @@ class FirebaseService {
     });
   }
 
-  /// رفض المطعم للطلب مع تسجيل سبب الرفض (نص حر يكتبه مدير المطعم).
-  ///
-  /// يختلف تماماً عن إلغاء الطلب (cancelOrder) الذي يبقى للمدير العام حصراً:
-  /// الرفض هنا لا يقع إلا في بداية دورة الطلب، حين يكون بحالة
-  /// restaurantPending ولم يبدأ التحضير بعد.
   Future<void> rejectOrderByRestaurant(String orderId, String reason) async {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
@@ -478,8 +448,10 @@ class FirebaseService {
     await batch.commit();
   }
 
-  /// خوارزمية تعيين السائق التلقائي: تبحث عن أقرب سائق متصل ومتاح لموقع
-  /// المطعم (باستخدام معادلة Haversine) وتُسند له الطلب تلقائياً.
+  /// البحث عن أقرب سائق متصل ومتاح وإسناده للطلب فوراً — دون تغيير حالة
+  /// الطلب (تبقى كما هي: restaurantAccepted عادة). تُستخدم داخلياً من
+  /// [tryAutoAssignOnAcceptance] و[retryAutoAssignIfNeeded]، ومن الزر
+  /// اليدوي في لوحة المدير كما كانت.
   Future<bool> autoAssignNearestDriver(models.Order order) async {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
@@ -496,11 +468,36 @@ class FirebaseService {
       }
     }
     if (nearest == null) return false;
-    await assignDriver(order.id, nearest.id, nearest.name);
+    // إسناد مباشر بدون المرور بـ assignDriver (التي تفرض searchingDriver
+    // أولاً)، لأن التعيين هنا مبكر جداً — الطلب ما زال في مرحلة التحضير
+    // ولا داعي لتغيير حالته إطلاقاً، فقط ربط السائق به.
+    final batch = _db.batch();
+    batch.update(_orders.doc(order.id), {
+      'driverId': nearest.id,
+      'driverName': nearest.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(_drivers.doc(nearest.id), {'isAvailable': false});
+    await batch.commit();
     return true;
   }
 
-  /// تحويل الطلب من سائق إلى آخر (يستخدمها المدير فقط عند الطوارئ)
+  /// [مرحلة التعيين المبكر — الدالة الأولى] تُستدعى فور ضغط المطعم "تأكيد
+  /// الاستلام" (لحظة restaurantPending → restaurantAccepted). تمنح النظام
+  /// أطول وقت ممكن (التحضير كاملاً) للعثور على سائق قبل أن يصبح الطلب
+  /// جاهزاً فعلياً. لا تفشل بصمت ولا ترمي استثناءً إن لم تجد سائقاً — فقط
+  /// تُعيد false، على أن تُعالج الحالة لاحقاً بواسطة [retryAutoAssignIfNeeded].
+  Future<bool> tryAutoAssignOnAcceptance(models.Order order) => autoAssignNearestDriver(order);
+
+  /// [شبكة الأمان — الدالة الثانية] تُستدعى فور ضغط المطعم "جاهز للاستلام"
+  /// *فقط* إن فشلت المحاولة الأولى (driverId ما زال فارغاً) — الوقت مرّ منذ
+  /// محاولة القبول، وربما صار سائق آخر متاحاً الآن. لا تفعل شيئاً إن كان
+  /// الطلب مُسنَداً بالفعل، فلا تكرار ولا تعارض مع تعيين سابق.
+  Future<bool> retryAutoAssignIfNeeded(models.Order order) async {
+    if (order.driverId != null && order.driverId!.isNotEmpty) return true;
+    return autoAssignNearestDriver(order);
+  }
+
   Future<void> reassignDriver({
     required models.Order order,
     required String newDriverId,
@@ -579,8 +576,6 @@ class FirebaseService {
   Future<void> cancelOrder(String orderId) =>
       updateOrderStatus(orderId, models.OrderStatus.cancelled);
 
-  /// مُهل معالجة الطلبات العالقة (بالدقائق)، تُقرأ من مستند واحد ثابت
-  /// delivery_settings/config في Firestore بدل تثبيتها في الكود.
   Future<Map<String, dynamic>> getDeliverySettings() async {
     final doc = await _deliverySettings.doc('config').get();
     return doc.data() ?? {};
@@ -622,7 +617,6 @@ class FirebaseService {
         if (resolution != null) 'resolution': resolution,
       });
 
-  // ✅ الشات — دردشة بين العميل والسائق
   Stream<List<models.ChatMessage>> streamChatMessages(String orderId) => _messages
       .where('orderId', isEqualTo: orderId)
       .orderBy('createdAt')
@@ -632,7 +626,6 @@ class FirebaseService {
   Future<void> sendChatMessage(models.ChatMessage message) =>
       _messages.doc(message.id).set(message.toMap());
 
-  // ✅ البث الجماعي (Broadcast)
   Stream<List<models.BroadcastMessage>> streamBroadcasts(models.BroadcastAudience audience) => _broadcasts
       .where('audience', isEqualTo: audience.name)
       .orderBy('createdAt', descending: true)
