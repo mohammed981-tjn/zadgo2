@@ -9,10 +9,6 @@ import '../../utils/food_visuals.dart';
 import '../../widgets/common_widgets.dart';
 import 'cart_screen.dart';
 
-/// شاشة تفاصيل المطعم — نسخة مؤقتة بلا تصنيف فئات، لعزل مشكلة عدم ظهور
-/// الأصناف عن أي احتمال خلل في مطابقة categoryId. تعرض كل صنف قابل
-/// للطلب في قائمة واحدة مسطحة بصرف النظر عن فئته. تُستبدل بالنسخة
-/// المصنَّفة بالفئات بعد التأكد من وصول بيانات الأصناف فعلياً.
 class RestaurantDetailScreen extends StatelessWidget {
   final Restaurant restaurant;
   const RestaurantDetailScreen({super.key, required this.restaurant});
@@ -56,25 +52,17 @@ class RestaurantDetailScreen extends StatelessWidget {
           child: AppStreamBuilder<List<MenuItem>>(
             stream: () => service.streamMenuItems(restaurant.id),
             builder: (ctx, items) {
-              // ===== شريط تشخيص مؤقت — يُحذف بعد التأكد من وصول البيانات =====
-              // يعرض أرقاماً خام لا تعتمد على أي مطابقة فئة، لمعرفة هل
-              // الأصناف تصل أصلاً من Firestore أم لا.
+              final orderableItems = items.where((i) => i.canOrder).toList();
+
               final diagnosticBar = Container(
                 width: double.infinity,
                 color: Colors.amber.withOpacity(0.15),
                 padding: const EdgeInsets.all(8),
                 child: Text(
-                  'تشخيص: وصل ${items.length} صنف كلي، '
-                  '${items.where((i) => i.canOrder).length} منها قابل للطلب.'
-                  '${items.isNotEmpty ? ' أول صنف: "${items.first.name}" '
-                      '(categoryId="${items.first.categoryId}", السعر=${items.first.price}, '
-                      'isAvailable=${items.first.isAvailable})' : ''}',
+                  'تشخيص: وصل ${items.length} صنف، ${orderableItems.length} قابل للطلب.',
                   style: const TextStyle(fontSize: 11, color: Colors.black87),
                 ),
               );
-              // ===== نهاية شريط التشخيص =====
-
-              final orderableItems = items.where((i) => i.canOrder).toList();
 
               if (orderableItems.isEmpty) {
                 return Column(children: [
@@ -88,23 +76,12 @@ class RestaurantDetailScreen extends StatelessWidget {
               return Column(children: [
                 diagnosticBar,
                 Expanded(
-                  child: ListView(children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                      child: Text('كل الأصناف',
-                          style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textDark)),
-                    ),
-                    ...orderableItems.map((item) => _ItemTile(
-                          item: item,
-                          categoryName: item.categoryId.trim().isEmpty
-                              ? 'بلا فئة'
-                              : item.categoryId,
-                          restaurant: restaurant,
-                        )),
-                  ]),
+                  child: ListView(
+                    padding: const EdgeInsets.all(12),
+                    children: orderableItems
+                        .map((item) => _SafeItemTile(item: item, restaurant: restaurant))
+                        .toList(),
+                  ),
                 ),
               ]);
             },
@@ -141,13 +118,49 @@ class _InfoChip extends StatelessWidget {
       ]);
 }
 
-/// بطاقة صنف واحد — النسخة المسطحة تستقبل اسم الفئة كنص مباشر بدل كائن
-/// MenuCategory، لأنها لا تعتمد على أي مطابقة فئة فعلية.
+/// غلاف يلتقط أي خطأ في بناء البطاقة ويعرضه كنص صريح بدل بطاقة بيضاء صامتة.
+class _SafeItemTile extends StatelessWidget {
+  final MenuItem item;
+  final Restaurant restaurant;
+  const _SafeItemTile({required this.item, required this.restaurant});
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      return _ItemTile(item: item, restaurant: restaurant);
+    } catch (e, stack) {
+      debugPrint('❌ خطأ بناء "${item.name}": $e\n$stack');
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('❌ فشل بناء: ${item.name}',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            const SizedBox(height: 6),
+            SelectableText(
+              e.toString(),
+              textDirection: TextDirection.ltr,
+              style: const TextStyle(fontSize: 12, color: Colors.black87),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+}
+
 class _ItemTile extends StatelessWidget {
   final MenuItem item;
-  final String categoryName;
   final Restaurant restaurant;
-  const _ItemTile({required this.item, required this.categoryName, required this.restaurant});
+  const _ItemTile({required this.item, required this.restaurant});
 
   @override
   Widget build(BuildContext context) {
@@ -156,7 +169,7 @@ class _ItemTile extends StatelessWidget {
     final isIncomplete = item.name.trim().isEmpty || item.price <= 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -164,7 +177,7 @@ class _ItemTile extends StatelessWidget {
       ),
       child: Row(children: [
         MenuItemVisual(
-          categoryName: categoryName,
+          categoryName: 'عام',
           itemName: item.name,
           imageUrl: item.imageUrl,
           size: 52,
@@ -195,8 +208,7 @@ class _ItemTile extends StatelessWidget {
                   Icon(Icons.info_outline, size: 13, color: AppColors.warning),
                   SizedBox(width: 4),
                   Text('بيانات الصنف غير مكتملة',
-                      style: TextStyle(
-                          fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600)),
+                      style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600)),
                 ]),
               ),
           ]),
@@ -220,9 +232,7 @@ class _ItemTile extends StatelessWidget {
               icon: const Icon(Icons.remove_circle_outline, color: AppColors.primary),
               onPressed: () => context.read<CartProvider>().remove(item.id),
             ),
-            Text('$qty',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 16)),
+            Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 16)),
             IconButton(
               icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
               onPressed: () => context.read<CartProvider>().add(
