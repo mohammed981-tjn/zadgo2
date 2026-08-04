@@ -15,6 +15,19 @@ class RestaurantDetailScreen extends StatelessWidget {
   final Restaurant restaurant;
   const RestaurantDetailScreen({super.key, required this.restaurant});
 
+  /// يحدد هل الصنف ينتمي لفئة معيّنة، بمطابقة مزدوجة:
+  /// أولاً بالمعرّف (categoryId == cat.id) إن كان المعرّف موجوداً فعلياً،
+  /// وإن كان فارغاً يُسقَط لمطابقة اسم الفئة نصياً (بعض الأصناف القديمة
+  /// خُزِّنت باسم الفئة نصاً لا بمعرّفها — انظر التوثيق في models.dart).
+  /// هذا يمنع اختفاء أصناف أُنشئت بطريقتين مختلفتين عبر الزمن.
+  static bool _itemBelongsToCategory(MenuItem item, MenuCategory cat) {
+    final id = item.categoryId.trim();
+    if (id.isNotEmpty) return id == cat.id;
+    // لا معرّف على الإطلاق: قارن بالاسم كحل احتياطي، دون حساسية لحالة
+    // الأحرف أو المسافات الزائدة.
+    return item.categoryId.trim().toLowerCase() == cat.name.trim().toLowerCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
@@ -58,13 +71,18 @@ class RestaurantDetailScreen extends StatelessWidget {
                 stream: () => service.streamMenuItems(restaurant.id),
                 builder: (ctx2, items) {
                   final orderableItems = items.where((i) => i.canOrder).toList();
-                  final catIds = cats.map((c) => c.id).toSet();
 
-                  final unmatchedItems =
-                      orderableItems.where((i) => !catIds.contains(i.categoryId)).toList();
+                  // أصناف لا تطابق أي فئة إطلاقاً (لا بالمعرّف ولا بالاسم
+                  // النصي) — تُجمع في قسم "أصناف أخرى" بدل الاختفاء بصمت.
+                  final unmatchedItems = orderableItems
+                      .where((i) => !cats.any((cat) => _itemBelongsToCategory(i, cat)))
+                      .toList();
 
-                  final visibleCats =
-                      cats.where((cat) => orderableItems.any((i) => i.categoryId == cat.id)).toList();
+                  // لا تُعرض فئة لا تحتوي أي صنف قابل للطلب بعد المطابقة.
+                  final visibleCats = cats
+                      .where((cat) =>
+                          orderableItems.any((i) => _itemBelongsToCategory(i, cat)))
+                      .toList();
 
                   if (visibleCats.isEmpty && unmatchedItems.isEmpty) {
                     return const AppEmpty(emoji: '🍽️', title: 'لا توجد أصناف متاحة حالياً');
@@ -75,8 +93,9 @@ class RestaurantDetailScreen extends StatelessWidget {
 
                   return ListView(children: [
                     ...visibleCats.map((cat) {
-                      final catItems =
-                          orderableItems.where((i) => i.categoryId == cat.id).toList();
+                      final catItems = orderableItems
+                          .where((i) => _itemBelongsToCategory(i, cat))
+                          .toList();
                       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -87,7 +106,7 @@ class RestaurantDetailScreen extends StatelessWidget {
                                   color: AppColors.textDark)),
                         ),
                         ...catItems.map((item) =>
-                            _SafeItemTile(item: item, category: cat, restaurant: restaurant)),
+                            _ItemTile(item: item, category: cat, restaurant: restaurant)),
                       ]);
                     }),
                     if (unmatchedItems.isNotEmpty)
@@ -100,7 +119,7 @@ class RestaurantDetailScreen extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textDark)),
                         ),
-                        ...unmatchedItems.map((item) => _SafeItemTile(
+                        ...unmatchedItems.map((item) => _ItemTile(
                             item: item, category: otherCategory, restaurant: restaurant)),
                       ]),
                   ]);
@@ -139,52 +158,6 @@ class _InfoChip extends StatelessWidget {
         Text(label, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
       ]);
 }
-
-/// ===========================================================================
-/// كتلة تشخيص مؤقتة — تُحذف بعد معرفة سبب المشكلة
-/// ===========================================================================
-/// غلاف يلتقط أي خطأ يحدث أثناء بناء بطاقة صنف واحدة (_ItemTile) ويعرضه
-/// كنص صريح على الشاشة بدل انهيار صامت يترك مساحة بيضاء بلا استجابة. هذا
-/// يعزل المشكلة لصنف واحد بدل أن يفشل بناء الشاشة كلها، ويكشف الخطأ الحقيقي
-/// (اسم الاستثناء ورسالته) الذي كان مخفياً تماماً حتى الآن.
-class _SafeItemTile extends StatelessWidget {
-  final MenuItem item;
-  final MenuCategory category;
-  final Restaurant restaurant;
-  const _SafeItemTile({required this.item, required this.category, required this.restaurant});
-
-  @override
-  Widget build(BuildContext context) {
-    try {
-      return _ItemTile(item: item, category: category, restaurant: restaurant);
-    } catch (e, stack) {
-      debugPrint('❌ فشل بناء بطاقة الصنف "${item.name}": $e\n$stack');
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.error.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.error.withOpacity(0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('تعذّر عرض الصنف: ${item.name.isEmpty ? "(بلا اسم)" : item.name}',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
-            const SizedBox(height: 4),
-            SelectableText(
-              e.toString(),
-              textDirection: TextDirection.ltr,
-              style: const TextStyle(fontSize: 11, color: AppColors.textDark),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-}
-/// ===================== نهاية كتلة التشخيص ==================================
 
 /// بطاقة صنف واحد في قائمة المطعم.
 class _ItemTile extends StatelessWidget {
