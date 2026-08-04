@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/cart_provider.dart';
+
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/food_visuals.dart';
+
 import '../../widgets/common_widgets.dart';
 import 'cart_screen.dart';
 
@@ -100,7 +104,6 @@ class RestaurantDetailScreen extends StatelessWidget {
                   ),
                 ),
 
-                // شريط تشخيص — يؤكد وصول البيانات وتحديث الملف فعلياً.
                 Container(
                   width: double.infinity,
                   color: Colors.yellow,
@@ -174,11 +177,6 @@ class _InfoChip extends StatelessWidget {
       );
 }
 
-/// بطاقة تشخيصية تتجاهل الثيم العام بالكامل:
-/// خلفية صفراء صارخة (لتأكيد أن البطاقة تُبنى وتأخذ مساحتها فعلياً)،
-/// وارتفاع ثابت 100 (يمنع أي انهيار تخطيط يجعلها بارتفاع صفر)،
-/// و DefaultTextStyle يفرض لون وحجم النص صراحة (يتجاوز أي لون أو حجم
-/// قد يفرضه الثيم العام ويجعل النص غير مرئي).
 class _BasicItemCard extends StatelessWidget {
   final MenuItem item;
   const _BasicItemCard({required this.item});
