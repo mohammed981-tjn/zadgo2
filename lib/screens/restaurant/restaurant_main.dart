@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
+import '../../utils/alerts.dart';
 
 class RestaurantMain extends StatelessWidget {
   final String restaurantId;
@@ -20,6 +21,10 @@ class RestaurantMain extends StatelessWidget {
               )),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            showAlert(context, "المطعم غير موجود", AlertType.error);
+          });
+
           return const Scaffold(
             body: Center(child: Text("المطعم غير موجود")),
           );
@@ -42,7 +47,6 @@ class RestaurantMain extends StatelessWidget {
             ),
             body: TabBarView(
               children: [
-                // شاشة الرئيسية
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -52,12 +56,10 @@ class RestaurantMain extends StatelessWidget {
                           await service.toggleRestaurant(
                               restaurantId, !isOpen);
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(!isOpen
-                                  ? "تم فتح المطعم"
-                                  : "تم إغلاق المطعم"),
-                            ),
+                          showAlert(
+                            context,
+                            !isOpen ? "تم فتح المطعم" : "تم إغلاق المطعم",
+                            AlertType.success,
                           );
                         },
                         child: Text(
@@ -83,7 +85,6 @@ class RestaurantMain extends StatelessWidget {
                   ),
                 ),
 
-                // شاشة الطلبات
                 RestaurantOrders(service: service),
               ],
             ),
@@ -134,6 +135,12 @@ class _OrdersList extends StatelessWidget {
     return StreamBuilder<List<Order>>(
       stream: service.streamAllOrders(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            showAlert(context, "خطأ أثناء تحميل الطلبات", AlertType.error);
+          });
+        }
+
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -158,7 +165,6 @@ class _OrdersList extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // رقم الطلب + الحالة
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -199,6 +205,49 @@ class _OrdersList extends StatelessWidget {
                           ),
                         );
                       }).toList(),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () async {
+                            await service.updateOrderStatus(
+                              order.id,
+                              OrderStatus.cancelled,
+                            );
+
+                            showAlert(
+                              context,
+                              "تم إلغاء الطلب",
+                              AlertType.warning,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red),
+                          child: const Text("إلغاء"),
+                        ),
+
+                        ElevatedButton(
+                          onPressed: () async {
+                            await service.updateOrderStatus(
+                              order.id,
+                              OrderStatus.pending,
+                            );
+
+                            showAlert(
+                              context,
+                              "تم إعادة الطلب",
+                              AlertType.info,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue),
+                          child: const Text("إعادة"),
+                        ),
+                      ],
                     ),
                   ],
                 ),
