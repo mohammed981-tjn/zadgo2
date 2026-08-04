@@ -1,8 +1,8 @@
-Name: Build Flutter APK
+name: Build Flutter APK
 
 on:
   push:
-    branches: [ copilot/split-customer-app ]
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       flavor:
