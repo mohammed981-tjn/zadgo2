@@ -2,9 +2,8 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ copilot/add-new-email ]
+    branches: [ main ]
   workflow_dispatch:
-    branches: [ copilot/add-new-email ]
 
 jobs:
   build:
@@ -16,9 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-
         uses: actions/setup-java@v4
-
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -28,42 +25,16 @@ jobs:
         with:
           flutter-version: '3.27.0'
           channel: 'stable'
-          cache: false
-
-      - name: Create local.properties
-        run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build APK (first attempt via flutter tool)
-        run: flutter build apk --release || echo "flutter build reported failure, continuing to check for APK"
-
-      - name: Try direct gradle build if APK missing
-        run: |
-          if [ ! -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-            echo "APK missing, retrying with gradlew directly"
-            cd android
-            chmod +x ./gradlew
-            ./gradlew assembleRelease --stacktrace
-          else
-            echo "APK already exists, skipping direct gradle retry"
-          fi
-
-      - name: Final APK search
-        run: find . -name "*.apk" -type f 2>/dev/null || echo "No APK found anywhere"
+      - name: Build APK
+        run: flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            android/app/build/outputs/apk/release/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: warn
-
-
-
-
-
-      
