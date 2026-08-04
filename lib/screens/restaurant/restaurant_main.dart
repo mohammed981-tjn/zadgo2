@@ -14,11 +14,14 @@ class RestaurantMain extends StatelessWidget {
     return StreamBuilder<Restaurant?>(
       stream: service
           .streamRestaurants()
-          .map((list) => list.firstWhere((r) => r.id == restaurantId)),
+          .map((list) => list.firstWhere(
+                (r) => r.id == restaurantId,
+                orElse: () => null,
+              )),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
+        if (!snapshot.hasData || snapshot.data == null) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(child: Text("المطعم غير موجود")),
           );
         }
 
@@ -39,9 +42,7 @@ class RestaurantMain extends StatelessWidget {
             ),
             body: TabBarView(
               children: [
-                // -------------------------
                 // شاشة الرئيسية
-                // -------------------------
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -82,9 +83,7 @@ class RestaurantMain extends StatelessWidget {
                   ),
                 ),
 
-                // -------------------------
                 // شاشة الطلبات
-                // -------------------------
                 RestaurantOrders(service: service),
               ],
             ),
