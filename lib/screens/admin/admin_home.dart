@@ -7,7 +7,6 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
-import '../customer/order_map_screen.dart';
 import 'admin_restaurants_tab.dart';
 import 'admin_users_tab.dart';
 import 'order_tracking_tab.dart';
@@ -32,14 +31,18 @@ class _AdminHomeState extends State<AdminHome> {
               MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
         }),
       ]),
+      // تبويب "الطلبات" (_OrdersTab) حُذف نهائياً من هنا — كان مكرَّراً مع
+      // "المتابعة الحية" (OrderTrackingTab) الأكثر اكتمالاً (تنبيهات مُهل،
+      // تحويل سائق، إسناد يدوي)، بالإضافة إلى احتوائه أزرار "بدأ التحضير"
+      // و"جاهز للاستلام" التي هي من اختصاص المطعم حصراً (موجودة فعلياً في
+      // restaurant_home.dart)، لا المدير العام.
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), _OrdersTab(), OrderTrackingTab(), _DriversTab(), _ComplaintsTab(), BroadcastTab(), AdminUsersTab(),
+        _StatsTab(), AdminRestaurantsTab(), OrderTrackingTab(), _DriversTab(), _ComplaintsTab(), BroadcastTab(), AdminUsersTab(),
       ]),
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'الرئيسية'),
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'الطلبات'),
           NavigationDestination(icon: Icon(Icons.gps_fixed_outlined), label: 'المتابعة الحية'),
           NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
@@ -83,77 +86,6 @@ class _StatsTab extends StatelessWidget {
       Icon(i, color: c, size: 28), Text(v, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: c)),
       Text(l, style: const TextStyle(fontSize: 12)),
     ])));
-}
-
-class _OrdersTab extends StatelessWidget {
-  const _OrdersTab();
-  @override
-  Widget build(BuildContext context) {
-    final service = context.read<FirebaseService>();
-    return AppStreamBuilder<List<Order>>(stream: service.streamAllOrders, builder: (ctx, orders) {
-      if (orders.isEmpty) return const AppEmpty(emoji: '📦', title: 'لا يوجد طلبات');
-      return ListView.builder(padding: const EdgeInsets.all(12), itemCount: orders.length, itemBuilder: (_, i) {
-        final o = orders[i];
-        return Card(margin: const EdgeInsets.only(bottom: 10), child: Padding(padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Text('#${o.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                const Spacer(), StatusBadge(label: o.status.label, color: o.status.color)]),
-            InfoRow(icon: Icons.restaurant_outlined, text: o.restaurantName),
-            InfoRow(icon: Icons.person_outline, text: o.customerName),
-            Text(formatCurrency(o.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-            if (o.status == OrderStatus.restaurantPending)
-              Row(children: [
-                Expanded(child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.restaurantAccepted), child: const Text('تأكيد'))),
-                const SizedBox(width: 8),
-                Expanded(child: OutlinedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.restaurantRejected), child: const Text('رفض'))),
-              ]),
-            if (o.status == OrderStatus.restaurantAccepted)
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.preparing), child: const Text('بدأ التحضير'))),
-            if (o.status == OrderStatus.preparing)
-              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => service.updateOrderStatus(o.id, OrderStatus.readyForPickup), child: const Text('جاهز للاستلام'))),
-            if ((o.status == OrderStatus.readyForPickup || o.status == OrderStatus.searchingDriver) && o.driverId == null)
-              AppStreamBuilder<List<Driver>>(stream: service.streamDrivers, builder: (ctx2, allDrivers) {
-                final drivers = allDrivers.where((d) => d.isAvailable && d.isOnline).toList();
-                if (drivers.isEmpty) return const Text('لا يوجد سائقون متاحون', style: TextStyle(color: Colors.orange));
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.bolt_outlined),
-                      label: const Text('تعيين تلقائي (أقرب سائق متاح)'),
-                      onPressed: () async {
-                        final assigned = await service.autoAssignNearestDriver(o);
-                        if (!assigned && context.mounted) showError(context, 'تعذّر إيجاد سائق متاح مناسب');
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Wrap(spacing: 8, children: drivers.map((d) => ActionChip(label: Text(d.name),
-                      onPressed: () => service.assignDriver(o.id, d.id, d.name))).toList()),
-                ]);
-              }),
-            if (o.status == OrderStatus.onTheWay)
-              SizedBox(width: double.infinity, child: ElevatedButton(
-                  onPressed: () => service.markOrderDelivered(o.id, o.driverId ?? ''),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-                  child: const Text('تأكيد التوصيل'))),
-            if (o.driverId != null && o.driverId!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.map_outlined),
-                    label: const Text('تتبع موقع السائق'),
-                    onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => OrderMapScreen(order: o))),
-                  ),
-                ),
-              ),
-          ])));
-      });
-    });
-  }
 }
 
 class _DriversTab extends StatelessWidget {
