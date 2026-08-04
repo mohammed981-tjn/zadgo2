@@ -1,31 +1,21 @@
 // lib/screens/restaurant/restaurant_home.dart
 //
-// شاشة "مدير المطعم" — أساس أُعيد استخدامه من شاشة الطلبات في لوحة المدير
-// (admin_home.dart) مع فلترة تلقائية على restaurantId الخاص بالمستخدم فقط.
-// هذه الشاشة هي نقطة الانطلاق التي سيُبنى فوقها تطبيق المطعم المنفصل مستقبلاً.
+// شاشة "مدير المطعم" — دور المطعم أربع مراحل فقط لا خامس لها:
+//   ١) تأكيد الاستلام   (restaurantPending  → restaurantAccepted)
+//   ٢) جاري التحضير     (restaurantAccepted → preparing)
+//   ٣) جاهز للاستلام    (preparing          → readyForPickup)
+//   ٤) تم التسليم       (readyForPickup     → onTheWay)
 //
-// [مرحلة أ]: عرض أصناف الطلب داخل البطاقة، ملاحظة العميل العامة، رقم جواله
-// مع زر اتصال مباشر، ووقت انتظار الطلب منذ إنشائه.
+// المرحلة الرابعة هي آخر ضغطة للمطعم: "تم التسليم" عنده = "جاري التوصيل"
+// عند السائق والعميل والإدارة — نفس اللحظة ونفس الحدث بتسميتين مختلفتين
+// حسب من ينظر. بعدها يخرج الطلب من مسؤولية المطعم نهائياً وينتقل لتبويب
+// "منتهية" عنده، ولا شأن له إطلاقاً بما يجري بين السائق والعميل بعد ذلك
+// (استلام السائق، التوصيل الفعلي، تأكيد العميل).
 //
-// [مرحلة ب]: قائمة الطلبات مقسّمة لتبويبين فرعيين بشريط TabBar — "نشطة"
-// (الأقدم أولاً) و"منتهية" (الأحدث أولاً). التصنيف الآن يعتمد على
-// [Order.isDoneForRestaurant] لا على status.isActive وحدها — انظر مرحلة (د).
-//
-// [مرحلة ج]: تنبيه صوتي (SystemSound، بلا مكتبات أو ملفات صوت إضافية) يتكرر
-// 5 مرات عند وصول طلب جديد بينما التطبيق مفتوح، مع ثلاثة مؤشرات بصرية معاً:
-// شارة عددية حمراء على تبويب "الطلبات" بالشريط السفلي، وميض لخلفية أول طلب
-// جديد لثوانٍ عند ظهوره، وشريط علوي مؤقت (Banner) يظهر حتى لو كان المطعم
-// متصفحاً تبويباً آخر (التقارير/الأسعار) وقت وصول الطلب. لا يغطي هذا إشعار
-// نظام حين يكون التطبيق مغلقاً تماماً — ذاك يتطلب Cloud Functions، والمشروع
-// مبني عمداً على تجنّبها (انظر تعليق أعلى firestore.rules).
-//
-// [مرحلة د]: دورة حياة الطلب في شاشة المطعم اكتملت. المطعم لا علاقة له
-// إطلاقاً بما يجري بين السائق والعميل — آخر ما يفعله تأكيد خروج الطلب من
-// عنده. أُضيف: زرّا قبول/رفض (مع سبب نصي حر) عند restaurantPending، وزر
-// "تم تسليم الطلب" عند readyForPickup يكتب Order.restaurantHandedOff عبر
-// FirebaseService.markRestaurantHandedOff — بعده ينتقل الطلب فوراً لتبويب
-// "منتهية" عند المطعم رغم بقاء حالته الفعلية readyForPickup (السائق يستلمها
-// من نظامه بنفس الآلية القديمة دون أي تغيير).
+// [مرحلة أ]: عرض أصناف الطلب داخل البطاقة، ملاحظة العميل، رقم جواله مع زر
+// اتصال مباشر، ووقت انتظار الطلب منذ إنشائه.
+// [مرحلة ب]: تبويبان فرعيان — "نشطة" (الأقدم أولاً) و"منتهية" (الأحدث أولاً).
+// [مرحلة ج]: تنبيه صوتي 5 مرات + شارة عددية + وميض البطاقة + شريط علوي.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemSound, SystemSoundType;
 import 'package:provider/provider.dart';
@@ -50,10 +40,6 @@ class RestaurantHome extends StatefulWidget {
 class _RestaurantHomeState extends State<RestaurantHome> {
   int _tab = 0;
 
-  /// معرّفات الطلبات الجديدة (restaurantPending) المعروفة من آخر مرة وصلت
-  /// فيها بيانات — تُستخدم لاكتشاف وصول طلب جديد فعلياً (id لم يكن موجوداً
-  /// سابقاً) بدل الاعتماد على مجرد تغيّر عدد الطلبات، الذي قد يتغيّر أيضاً
-  /// عند تحديث حالة طلب موجود مسبقاً.
   Set<String> _knownPendingIds = {};
   bool _firstSnapshot = true;
   int _newOrdersBadgeCount = 0;
@@ -65,16 +51,13 @@ class _RestaurantHomeState extends State<RestaurantHome> {
     super.dispose();
   }
 
-  /// يُستدعى مع كل دفعة جديدة من الطلبات القادمة من Firestore. يقارن
-  /// الطلبات الجديدة الحالية (بانتظار تأكيد المطعم) بما كان معروفاً سابقاً،
-  /// ويطلق التنبيه الصوتي/البصري فقط عند ظهور معرّف لم يكن موجوداً من قبل.
+  /// يقارن الطلبات الجديدة (بانتظار تأكيد المطعم) بما كان معروفاً سابقاً،
+  /// ويطلق التنبيه فقط عند ظهور معرّف لم يكن موجوداً من قبل.
   void _detectNewOrders(List<Order> allOrders) {
     final pendingNow =
         allOrders.where((o) => o.status == OrderStatus.restaurantPending).map((o) => o.id).toSet();
 
     if (_firstSnapshot) {
-      // أول تحميل للشاشة: لا نُطلق تنبيهات لطلبات كانت موجودة أصلاً قبل
-      // فتح التطبيق، فقط نسجّلها كنقطة انطلاق للمقارنة.
       _firstSnapshot = false;
       _knownPendingIds = pendingNow;
       return;
@@ -97,8 +80,6 @@ class _RestaurantHomeState extends State<RestaurantHome> {
     }
   }
 
-  /// شريط علوي مؤقت يظهر فوق أي تبويب حالي (حتى لو كان المطعم يتصفّح
-  /// التقارير أو الأسعار وقت وصول الطلب)، ويختفي تلقائياً أو بالضغط عليه.
   void _showNewOrderBanner(int count) {
     _bannerEntry?.remove();
     final overlay = Overlay.of(context);
@@ -221,13 +202,13 @@ class _RestaurantHomeState extends State<RestaurantHome> {
   }
 }
 
-/// قائمة طلبات المطعم، مقسّمة لتبويبين فرعيين: نشطة ومنتهية.
+/// قائمة طلبات المطعم، مقسّمة لتبويبين: نشطة ومنتهية.
 ///
-/// "نشطة" = كل طلب لم ينتهِ دور المطعم فيه بعد ([Order.isDoneForRestaurant]
-/// == false)، مرتّبة تصاعدياً بوقت الإنشاء (الأقدم أولاً) لأنه الأكثر
-/// إلحاحاً. "منتهية" = كل طلب انتهى دور المطعم فيه — إما لأن الطلب نفسه
-/// انتهى (توصيل/إلغاء/رفض) أو لأن المطعم أكّد بنفسه خروجه (الزر الأخير)،
-/// مرتّبة تنازلياً (الأحدث أولاً) لأنها للمراجعة لا للتنفيذ.
+/// "نشطة" = الطلبات التي ما زالت ضمن مسؤولية المطعم فعلياً (المراحل الأربع
+/// فقط، حسب [OrderStatusExt.isRestaurantResponsibility])، مرتّبة تصاعدياً
+/// بوقت الإنشاء لأن الأقدم هو الأكثر إلحاحاً.
+/// "منتهية" = كل ما خرج من مسؤولية المطعم: بعد ضغط "تم التسليم" (onTheWay
+/// وما بعدها)، أو الطلبات المرفوضة/الملغاة/المكتملة — مرتّبة تنازلياً.
 class _RestaurantOrdersList extends StatefulWidget {
   final String restaurantId;
   final void Function(List<Order> allOrders) onOrdersChanged;
@@ -275,20 +256,19 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
         child: AppStreamBuilder<List<Order>>(
           stream: () => service.streamRestaurantOrders(widget.restaurantId),
           builder: (ctx, orders) {
-            // إبلاغ الشاشة الأم بكل دفعة بيانات جديدة لاكتشاف الطلبات
-            // الجديدة فعلياً (بعد انتهاء بناء هذا الإطار، تفادياً لاستدعاء
-            // setState أثناء البناء).
             WidgetsBinding.instance.addPostFrameCallback((_) {
               widget.onOrdersChanged(orders);
             });
 
-            // التصنيف الآن على isDoneForRestaurant (تجمع بين انتهاء الطلب
-            // فعلياً وبين تأكيد المطعم اليدوي لخروجه)، لا status.isActive
-            // وحدها كما كان سابقاً.
-            final active = orders.where((o) => !o.isDoneForRestaurant).toList()
-              ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-            final finished = orders.where((o) => o.isDoneForRestaurant).toList()
-              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            // التصنيف على أساس "هل الطلب ضمن مسؤولية المطعم؟" فقط — لا على
+            // status.isActive العامة، لأن الطلب قد يكون نشطاً في النظام
+            // (جاري التوصيل مثلاً) لكنه خرج تماماً من مسؤولية المطعم.
+            final active =
+                orders.where((o) => o.status.isRestaurantResponsibility).toList()
+                  ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+            final finished =
+                orders.where((o) => !o.status.isRestaurantResponsibility).toList()
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
             return TabBarView(controller: _tabController, children: [
               _OrdersListView(
@@ -311,8 +291,6 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
   }
 }
 
-/// قائمة عرض بسيطة قابلة لإعادة الاستخدام بين تبويبَي "نشطة" و"منتهية"،
-/// كل واحد برسالة فراغ مختلفة.
 class _OrdersListView extends StatelessWidget {
   final List<Order> orders;
   final FirebaseService service;
@@ -334,27 +312,13 @@ class _OrdersListView extends StatelessWidget {
       itemBuilder: (_, i) => _RestaurantOrderCard(
         order: orders[i],
         service: service,
-        // وميض لخلفية البطاقة يُفعَّل فقط لأول طلب جديد بانتظار التأكيد —
-        // أكثر الحالات إلحاحاً وأولها ظهوراً في القائمة (الأقدم أولاً).
         highlightAsNew: i == 0 && orders[i].status == OrderStatus.restaurantPending,
       ),
     );
   }
 }
 
-/// بطاقة طلب واحد — شارة حالة بارزة أعلى البطاقة، قائمة الأصناف المطلوبة
-/// فعلياً، ثم زر/أزرار الإجراء أسفلها. تدعم وميضاً اختيارياً لخلفية البطاقة
-/// عند تفعيل [highlightAsNew] لجذب الانتباه لطلب وصل للتو.
-///
-/// دورة حياة الطلب الكاملة في شاشة المطعم:
-///   restaurantPending  → قبول / رفض (مع سبب)
-///   restaurantAccepted → بدء التحضير
-///   preparing          → جاهز للاستلام
-///   readyForPickup     → تم تسليم الطلب (يضغطه المطعم نفسه، ينهي دوره)
-///
-/// القيود الثابتة: لا تتبع سائق، لا إلغاء بعد القبول، لا تأكيد توصيل — هذه
-/// كلها من اختصاص السائق ولوحة المدير العام حصراً. المطعم لا يعرف ولا يهتم
-/// بما يجري بعد أن يؤكد خروج الطلب من عنده.
+/// بطاقة طلب واحد بشارة حالة بارزة، قائمة الأصناف، وزر/أزرار المرحلة الحالية.
 class _RestaurantOrderCard extends StatefulWidget {
   final Order order;
   final FirebaseService service;
@@ -379,7 +343,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     super.initState();
     if (widget.highlightAsNew) {
       // AnimationController.repeat() ليس له معامل لعدد التكرارات؛ الإيقاف
-      // بعد 5 دورات (ذهاب وعودة) يُنفَّذ يدوياً هنا عبر عدّاد في المستمع.
+      // بعد 5 دورات يُنفَّذ يدوياً عبر عدّاد في المستمع.
       var completedCycles = 0;
       _pulseController = AnimationController(
         vsync: this,
@@ -402,40 +366,30 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     super.dispose();
   }
 
-  /// نص ولون وأيقونة الشارة العلوية حسب حالة الطلب — بلغة موجّهة للمطعم
-  /// بدل النص التقني العام المشترك بين كل الأدوار (order.status.label).
+  /// نص ولون وأيقونة الشارة العلوية — بلغة المطعم لا اللغة العامة المشتركة.
   (String, Color, IconData) get _bannerInfo {
-    final order = widget.order;
-    // بعد تأكيد المطعم لخروج الطلب، الشارة تعكس ذلك صراحة رغم أن الحالة
-    // الفعلية في القاعدة تبقى readyForPickup (يخص السائق فقط).
-    if (order.restaurantHandedOff) {
-      return ('تم تسليم الطلب — خرج من مسؤوليتك', AppColors.success, Icons.check_circle_rounded);
-    }
-    switch (order.status) {
+    switch (widget.order.status) {
       case OrderStatus.restaurantPending:
         return ('طلب جديد بانتظار التأكيد', AppColors.warning, Icons.fiber_new_rounded);
       case OrderStatus.restaurantAccepted:
-        return ('تم الاستلام — جاري التجهيز', AppColors.primary, Icons.hourglass_top_rounded);
+        return ('تم تأكيد الاستلام', AppColors.primary, Icons.check_circle_outline_rounded);
       case OrderStatus.preparing:
-        return ('قيد التحضير', AppColors.primary, Icons.restaurant_rounded);
+        return ('جاري التحضير', AppColors.primary, Icons.restaurant_rounded);
       case OrderStatus.readyForPickup:
-        return ('جاهز — بانتظار خروجه من عندك', Colors.teal, Icons.shopping_bag_rounded);
+        return ('جاهز للاستلام', Colors.teal, Icons.shopping_bag_rounded);
       case OrderStatus.restaurantRejected:
         return ('تم رفض الطلب', AppColors.error, Icons.block_rounded);
-      case OrderStatus.searchingDriver:
-      case OrderStatus.driverAssigned:
-      case OrderStatus.pickedUp:
+      // ما بعد "تم التسليم" — خارج مسؤولية المطعم، تُعرض للاطلاع فقط في
+      // تبويب "منتهية" بنفس تسميات النظام العامة.
       case OrderStatus.onTheWay:
+        return ('تم التسليم — جاري التوصيل', AppColors.success, Icons.delivery_dining_rounded);
       case OrderStatus.delivered:
-        // هذه المراحل لا تخص المطعم عملياً؛ لا تظهر بطاقاتها إلا نادراً
-        // (طلب قديم لم يُصنَّف "منتهياً" بعد الترحيل)، فيُكتفى بنص عام محايد.
-        return ('خارج مسؤوليتك الآن', Colors.grey, Icons.info_outline_rounded);
+        return ('تم التوصيل للعميل', AppColors.success, Icons.done_all_rounded);
       default:
-        return (order.status.label, order.status.color, Icons.info_outline_rounded);
+        return (widget.order.status.label, widget.order.status.color, Icons.info_outline_rounded);
     }
   }
 
-  /// نص وقت الانتظار منذ إنشاء الطلب، بصياغة عربية مختصرة (دقائق أو ساعات).
   String _waitingLabel() {
     final elapsed = DateTime.now().difference(widget.order.createdAt);
     if (elapsed.inMinutes < 1) return 'منذ لحظات';
@@ -459,7 +413,19 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     }
   }
 
-  /// حوار رفض الطلب — سبب نصي حر مطلوب، لا يُرسل بسبب فارغ.
+  /// تنفيذ انتقال حالة مع تعطيل الأزرار أثناءه ومعالجة الخطأ.
+  Future<void> _runStatusChange(BuildContext context, OrderStatus to) async {
+    setState(() => _actionLoading = true);
+    try {
+      await widget.service.updateOrderStatus(widget.order.id, to);
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  /// حوار رفض الطلب — سبب نصي حر إلزامي، متاح فقط في المرحلة الأولى.
   Future<void> _showRejectDialog(BuildContext context) async {
     final ctrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -498,20 +464,21 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     setState(() => _actionLoading = true);
     try {
       await widget.service.rejectOrderByRestaurant(widget.order.id, reason);
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) showError(context, 'تعذّر رفض الطلب');
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
   }
 
-  /// حوار تأكيد قبل تسليم الطلب فعلياً للسائق — إجراء نهائي ينهي دور المطعم.
+  /// حوار تأكيد المرحلة الرابعة — آخر إجراء للمطعم، لا رجعة فيه.
   Future<void> _confirmHandOff(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
         title: const Text('تأكيد تسليم الطلب'),
-        content: const Text('هل سلّمت الطلب فعلياً للسائق؟ لن يظهر لك بعدها ضمن الطلبات النشطة.'),
+        content: const Text(
+            'هل سلّمت الطلب فعلياً للسائق؟ سينتقل الطلب إلى "جاري التوصيل" ويخرج من طلباتك النشطة.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('تراجع')),
           ElevatedButton(
@@ -523,26 +490,17 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       ),
     );
     if (confirmed != true || !context.mounted) return;
-    setState(() => _actionLoading = true);
-    try {
-      await widget.service.markRestaurantHandedOff(widget.order.id);
-    } catch (e) {
-      if (context.mounted) showError(context, 'تعذّر تأكيد التسليم');
-    } finally {
-      if (mounted) setState(() => _actionLoading = false);
-    }
+    await _runStatusChange(context, OrderStatus.onTheWay);
   }
 
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
-    final service = widget.service;
     final (bannerLabel, bannerColor, bannerIcon) = _bannerInfo;
 
     final cardContent = Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // الشارة العلوية البارزة.
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
@@ -564,7 +522,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 15)),
         ]),
         const SizedBox(height: 4),
-        // اسم العميل + وقت الانتظار + زر اتصال (إن توفّر الرقم).
         Row(children: [
           const Icon(Icons.person_outline, size: 15, color: AppColors.textGray),
           const SizedBox(width: 6),
@@ -586,7 +543,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ),
         ]),
         const Divider(height: 20),
-        // قائمة الأصناف المطلوبة.
+        // قائمة الأصناف المطلوبة — بدونها لا يعرف المطبخ ماذا يُحضّر.
         ...order.items.map((item) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -617,8 +574,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                 ),
               ]),
             )),
-        // ملاحظة العميل العامة على الطلب كله (مختلفة عن extras الخاصة بكل
-        // صنف على حدة).
         if (order.notes != null && order.notes!.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
           Container(
@@ -638,7 +593,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ]),
           ),
         ],
-        // سبب الرفض (يظهر فقط للطلبات المرفوضة، للمراجعة في تبويب "منتهية").
         if (order.status == OrderStatus.restaurantRejected &&
             order.rejectionReason != null &&
             order.rejectionReason!.trim().isNotEmpty) ...[
@@ -661,21 +615,19 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           ),
         ],
         // ===================================================================
-        // دورة حياة الطلب الكاملة في شاشة المطعم — أربع مراحل، كل واحدة
-        // بإجراء واحد (أو زوج قبول/رفض في البداية). ينتهي دور المطعم تماماً
-        // عند الضغط على "تم تسليم الطلب"؛ ما بعدها (تتبع سائق، إلغاء بعد
-        // القبول، تأكيد توصيل) ليس من اختصاص المطعم إطلاقاً.
+        // المراحل الأربع — كل حالة لها إجراؤها الواحد، وبالمرحلة الرابعة
+        // ينتهي دور المطعم تماماً.
         // ===================================================================
+        // (١) طلب جديد: تأكيد الاستلام أو الرفض بسبب.
         if (order.status == OrderStatus.restaurantPending) ...[
           const SizedBox(height: 10),
           Row(children: [
             Expanded(
               child: _ActionButton(
-                label: 'قبول الطلب',
+                label: 'تأكيد الاستلام',
                 color: AppColors.primary,
                 loading: _actionLoading,
-                onPressed: () =>
-                    service.updateOrderStatus(order.id, OrderStatus.restaurantAccepted),
+                onPressed: () => _runStatusChange(context, OrderStatus.restaurantAccepted),
               ),
             ),
             const SizedBox(width: 8),
@@ -689,28 +641,32 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ),
           ]),
         ],
+        // (٢) بعد التأكيد: بدء التحضير.
         if (order.status == OrderStatus.restaurantAccepted) ...[
           const SizedBox(height: 10),
           _ActionButton(
-            label: 'بدء التحضير',
+            label: 'جاري التحضير',
             color: AppColors.primary,
             loading: _actionLoading,
-            onPressed: () => service.updateOrderStatus(order.id, OrderStatus.preparing),
+            onPressed: () => _runStatusChange(context, OrderStatus.preparing),
           ),
         ],
+        // (٣) أثناء التحضير: تعليمه جاهزاً.
         if (order.status == OrderStatus.preparing) ...[
           const SizedBox(height: 10),
           _ActionButton(
             label: 'جاهز للاستلام',
             color: AppColors.success,
             loading: _actionLoading,
-            onPressed: () => service.updateOrderStatus(order.id, OrderStatus.readyForPickup),
+            onPressed: () => _runStatusChange(context, OrderStatus.readyForPickup),
           ),
         ],
-        if (order.status == OrderStatus.readyForPickup && !order.restaurantHandedOff) ...[
+        // (٤) آخر مرحلة: تم التسليم — تنقل الطلب إلى "جاري التوصيل" عند
+        // السائق والعميل والإدارة، ويخرج من مسؤولية المطعم نهائياً.
+        if (order.status == OrderStatus.readyForPickup) ...[
           const SizedBox(height: 10),
           _ActionButton(
-            label: 'تم تسليم الطلب',
+            label: 'تم التسليم',
             color: AppColors.success,
             loading: _actionLoading,
             onPressed: () => _confirmHandOff(context),
@@ -727,8 +683,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       );
     }
 
-    // البطاقة المميَّزة كطلب جديد: وميض لوني خفيف لخلفيتها عبر AnimatedBuilder
-    // بدل تغيير لون الشارة نفسها، حتى لا يتعارض مع لون شارة الحالة.
     return AnimatedBuilder(
       animation: _pulseController!,
       builder: (context, child) => Card(
@@ -745,10 +699,8 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
   }
 }
 
-/// زر إجراء بارز بخلفية ملوّنة كاملة العرض — بديل ElevatedButton الافتراضي
-/// ليطابق الطابع البصري لزر "تأكيد التوصيل" الأخضر في التصميم المرجعي.
-/// يدعم حالة تحميل (loading) لتعطيل الزر أثناء تنفيذ الإجراء ومنع الضغط
-/// المتكرر (مهم خصوصاً لزرَّي الرفض والتسليم النهائي).
+/// زر إجراء بارز بخلفية ملوّنة كاملة العرض، يدعم حالة تحميل تمنع الضغط
+/// المتكرر أثناء تنفيذ الإجراء.
 class _ActionButton extends StatelessWidget {
   final String label;
   final Color color;
