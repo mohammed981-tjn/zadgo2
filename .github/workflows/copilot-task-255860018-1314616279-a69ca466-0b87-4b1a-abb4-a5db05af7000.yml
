@@ -103,3 +103,4 @@ jobs:
             android/app/build/outputs/apk/${{ matrix.flavor }}/release/app-${{ matrix.flavor }}-release.apk
           if-no-files-found: warn
           retention-days: 7
+
