@@ -1,67 +1,93 @@
-// نقطة ربط عامة بين الشاشات المشتركة (البداية/تسجيل الدخول/التسجيل) وشاشات
-// كل نكهة الرئيسية (عميل/سائق/مطعم/أدمن/كامل) دون أن تستورد الشاشات
-// المشتركة أي شاشة دور مباشرة.
+// نقطة دخول مستقلة تماماً لتطبيق "المدير العام" (flavor: admin) — شجرة
+// الاستيراد هنا تقتصر على AdminHome وشاشات التسجيل العامة؛ لا CustomerHome
+// ولا DriverHome ولا RestaurantHome ولا شاشة التسجيل المفتوح. أي حساب ليس
+// بدور مدير عام يُرفض ويُسجَّل خروجه تلقائياً.
 //
-// لماذا هذا مهم أمنياً: مترجم Dart (tree shaking) يُبقي في الحزمة النهائية
-// كل شيفرة يمكن الوصول إليها سكونياً (static reachability) من `main()`، بصرف
-// النظر عن أي قيمة شرطية وقت التشغيل. فإن استوردت شاشة "تسجيل الدخول"
-// المشتركة مثلاً شاشات AdminHome/DriverHome/RestaurantHome مباشرة (حتى لو
-// خلف `if` لا يتحقق إلا لدور واحد وقت التشغيل)، فستُشحن شيفرة تلك الشاشات
-// كاملة ضمن تطبيق أي نكهة تستورد شاشة تسجيل الدخول — بما يخالف متطلب أن
-// يكون الفصل بين النكهات على مستوى ما يُشحن في الحزمة، لا مجرد إخفاء واجهة.
-//
-// الحل: كل `main_X.dart` يضبط القيم أدناه مرة واحدة عند الإقلاع (قبل
-// runApp)، مستورداً فقط شاشات دوره الخاصة. الشاشات المشتركة (splash_screen،
-// login_screen، register_screen، register_with_code_screen) تستورد هذا
-// الملف فقط (الذي لا يستورد أي شاشة دور)، وتستدعي هذه الدوال دون أن "تعرف"
-// فعلياً أي الشاشات الفعلية خلفها.
-import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Color, Colors;
+// [هوية لونية]: يستخدم AppTheme.build(palette: FlavorPalette.admin) بدل
+// AppTheme.light الافتراضي، فتظهر كل عناصر واجهة هذا التطبيق باللون البني
+// الخاص بنكهة المدير — مختلف عمداً عن الذهبي الخاص بنكهة المطعم حتى لا
+// يُخلَط بينهما بصرياً.
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:provider/provider.dart';
+import 'app_flavor.dart';
+import 'navigator_key.dart';
 import 'models/models.dart';
+import 'providers/auth_provider.dart' as app_auth;
+import 'providers/firebase_service.dart';
+import 'screens/splash_screen.dart';
+import 'screens/admin/admin_home.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_with_code_screen.dart';
+import 'utils/theme.dart';
 
-/// نكهة التطبيق الحالية، لأغراض تشخيصية/تحليلية فقط (لا تُستخدم في منطق
-/// الصلاحيات نفسه — ذاك مبني على [AppFlavorConfig.restrictToRole]).
-enum AppFlavor { full, customer, driver, restaurant, admin }
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: 'AIzaSyBuU7g3vG5enxaebwxGdGgavG5U8cftwd4',
+      appId: '1:653081498334:android:8795624d947fdb0820684f',
+      messagingSenderId: '653081498334',
+      projectId: 'restaurant-app-ed699',
+      storageBucket: 'restaurant-app-ed699.firebasestorage.app',
+    ),
+  );
+}
 
-class AppFlavorConfig {
-  AppFlavorConfig._();
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  static AppFlavor flavor = AppFlavor.full;
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: 'AIzaSyBuU7g3vG5enxaebwxGdGgavG5U8cftwd4',
+      appId: '1:653081498334:android:8795624d947fdb0820684f',
+      messagingSenderId: '653081498334',
+      projectId: 'restaurant-app-ed699',
+      storageBucket: 'restaurant-app-ed699.firebasestorage.app',
+    ),
+  );
 
-  /// الدور الوحيد المسموح بتسجيل الدخول به في هذه النكهة؛ `null` يعني بلا
-  /// قيد (النكهة الكاملة فقط تسمح بكل الأدوار).
-  static UserRole? restrictToRole;
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  /// رسالة الرفض حين يحاول حساب من دور آخر الدخول على نكهة مقيّدة بدور واحد.
-  static String restrictedMessage = 'هذا التطبيق غير مخصص لهذا الحساب';
+  AppFlavorConfig.flavor = AppFlavor.admin;
+  AppFlavorConfig.flavorLabel = 'المدير العام';
+  AppFlavorConfig.flavorColor = const Color(0xFF6D4C41);
+  AppFlavorConfig.restrictToRole = UserRole.admin;
+  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات المدير العام فقط';
+  AppFlavorConfig.allowGuestBrowsing = false;
+  AppFlavorConfig.buildHomeForRole = (role) => const AdminHome();
+  AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => const LoginScreen();
+  AppFlavorConfig.buildRegisterScreen = null;
+  AppFlavorConfig.buildRegisterWithCodeScreen = () => const RegisterWithCodeScreen();
 
-  /// يسمح بتصفح الضيف (بلا تسجيل دخول) مباشرة كعميل — نكهة العميل فقط.
-  static bool allowGuestBrowsing = false;
+  runApp(const AdminApp());
+}
 
-  /// اسم النكهة الظاهر في شارة ملوّنة أعلى شاشتَي البداية وتسجيل الدخول
-  /// (مثل "المطعم"، "السائق"، "المدير"، "العميل")؛ `null` يعني عدم إظهار
-  /// الشارة (تُستخدم للنكهة الكاملة فقط). كل التطبيقات تتشارك نفس شيفرة
-  /// الشاشتين — لا فرق في حجم أو محتوى الحزمة بين النكهات بسبب هذه الشارة،
-  /// فقط قيمة نصية ولونية تُضبط عند الإقلاع في `main_X.dart`.
-  static String? flavorLabel;
+class AdminApp extends StatelessWidget {
+  const AdminApp({super.key});
 
-  /// لون الشارة المرافقة لـ [flavorLabel]، مميّز لكل نكهة.
-  static Color flavorColor = Colors.grey;
-
-  /// يبني الشاشة الرئيسية المناسبة لدور مُصادَق عليه بالفعل ومطابق للقيد.
-  static Widget Function(UserRole role) buildHomeForRole =
-      (role) => throw StateError('AppFlavorConfig.buildHomeForRole لم يُضبط بعد');
-
-  /// يبني شاشة "تسجيل الدخول" المهيّأة لهذه النكهة تحديداً.
-  static Widget Function({bool fromCheckout}) buildLoginScreen =
-      ({bool fromCheckout = false}) =>
-          throw StateError('AppFlavorConfig.buildLoginScreen لم يُضبط بعد');
-
-  /// يبني شاشة "حساب جديد" المفتوحة (عميل فقط)؛ `null` يعني إخفاء الزر
-  /// تماماً (نكهات سائق/مطعم/أدمن لا تسمح بالتسجيل المفتوح).
-  static Widget Function({bool fromCheckout})? buildRegisterScreen;
-
-  /// يبني شاشة "التفعيل برمز تسجيل"؛ `null` يعني إخفاء الزر تماماً (نكهة
-  /// العميل لا تستخدم أكواد التسجيل).
-  static Widget Function()? buildRegisterWithCodeScreen;
+  @override
+  Widget build(BuildContext context) {
+    final service = FirebaseService();
+    return MultiProvider(
+      providers: [
+        Provider<FirebaseService>(create: (_) => service),
+        ChangeNotifierProvider<app_auth.AuthProvider>(
+          create: (_) => app_auth.AuthProvider(service),
+        ),
+      ],
+      child: MaterialApp(
+        navigatorKey: navigatorKey,
+        title: 'ZadGo إدارة',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.build(palette: FlavorPalette.admin),
+        builder: (context, child) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: child!,
+        ),
+        home: const SplashScreen(),
+      ),
+    );
+  }
 }
