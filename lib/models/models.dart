@@ -118,7 +118,7 @@ extension OrderStatusExt on OrderStatus {
       OrderStatus.searchingDriver: 'جاري البحث عن سائق',
       OrderStatus.driverAssigned: 'تم تعيين سائق',
       OrderStatus.pickedUp: 'تم استلام الطلب من المطعم',
-      OrderStatus.onTheWay: 'في الطريق إليك',
+      OrderStatus.onTheWay: 'جاري التوصيل',
       OrderStatus.delivered: 'تم التوصيل',
       OrderStatus.restaurantRejected: 'رفض المطعم الطلب',
       OrderStatus.noDriverFound: 'تعذر إيجاد سائق',
@@ -177,6 +177,22 @@ extension OrderStatusExt on OrderStatus {
 
   /// عكس [isActive] — الطلب انتهى ولن تتغيّر حالته بعد الآن.
   bool get isFinished => !isActive;
+
+  /// هل الطلب ما زال ضمن مسؤولية المطعم؟
+  ///
+  /// دور المطعم أربع مراحل فقط: تأكيد الاستلام ← جاري التحضير ← جاهز
+  /// للاستلام ← تم التسليم. بمجرد ضغط "تم التسليم" تصير الحالة [onTheWay]
+  /// (وهي نفسها "جاري التوصيل" عند السائق والعميل والإدارة)، فيخرج الطلب
+  /// من مسؤولية المطعم نهائياً وينتقل عنده لتبويب "منتهية".
+  ///
+  /// أي حالة أخرى (بحث سائق/تعيين/استلام/توصيل/إلغاء/رفض) لا تخص المطعم
+  /// إطلاقاً — إما لأنها بعد خروج الطلب من عنده، أو لأنها إجراء إداري.
+  bool get isRestaurantResponsibility =>
+      this == OrderStatus.created ||
+      this == OrderStatus.restaurantPending ||
+      this == OrderStatus.restaurantAccepted ||
+      this == OrderStatus.preparing ||
+      this == OrderStatus.readyForPickup;
 }
 
 extension PaymentMethodExt on PaymentMethod {
@@ -660,16 +676,6 @@ class Order {
   final double? restaurantLat;
   final double? restaurantLng;
 
-  /// هل أكّد المطعم خروج الطلب من عنده (تسليمه فعلياً للسائق الذي جاء
-  /// لاستلامه)؟ يضغطه مدير المطعم بنفسه في حالة readyForPickup.
-  ///
-  /// مهم: هذا الحقل يخص **شاشة المطعم وحدها** — تستخدمه لتصنيف الطلب
-  /// "نشط/منتهٍ" عندها، فبمجرد ضغطه ينتقل الطلب لتبويب "منتهية" ولا يعود
-  /// يشغل المطعم. بقية الأطراف (السائق/العميل/المدير) لا يعتمدون عليه
-  /// إطلاقاً ويستمرون بالاعتماد على [status] وحدها؛ فحالة الطلب في القاعدة
-  /// تبقى readyForPickup حتى يسجّل السائق استلامه من نظامه كالمعتاد.
-  final bool restaurantHandedOff;
-
   /// سبب رفض المطعم للطلب (نص حر يكتبه مدير المطعم) — يُملأ فقط حين تكون
   /// [status] هي restaurantRejected، ويبقى null فيما عدا ذلك.
   final String? rejectionReason;
@@ -704,7 +710,6 @@ class Order {
     this.deliveryLng,
     this.restaurantLat,
     this.restaurantLng,
-    this.restaurantHandedOff = false,
     this.rejectionReason,
   });
 
@@ -715,11 +720,6 @@ class Order {
   double get grandTotal => itemsTotal + deliveryFee;
   /// عمولة التطبيق من المطعم — ١٥٪ من قيمة الوجبة (لا تشمل أجرة التوصيل).
   double get calculatedCommission => itemsTotal * 0.15;
-
-  /// هل انتهى دور المطعم في هذا الطلب؟ يُستخدم في شاشة المطعم فقط لتصنيف
-  /// "نشطة/منتهية": ينتهي الدور إما بانتهاء الطلب نفسه (توصيل/إلغاء/رفض)
-  /// أو بتأكيد المطعم خروج الطلب من عنده.
-  bool get isDoneForRestaurant => status.isFinished || restaurantHandedOff;
 
   factory Order.fromMap(Map<String, dynamic> map, String id) => Order(
         id: id,
@@ -756,9 +756,6 @@ class Order {
         deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
         restaurantLat: (map['restaurantLat'] as num?)?.toDouble(),
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
-        // الطلبات القديمة لا تحتوي هذا الحقل إطلاقاً — تُعامل كأن المطعم لم
-        // يؤكد خروجها بعد (false)، فلا حاجة لأي ترحيل بيانات يدوي.
-        restaurantHandedOff: map['restaurantHandedOff'] as bool? ?? false,
         rejectionReason: map['rejectionReason'] as String?,
       );
 
@@ -794,7 +791,6 @@ class Order {
         'deliveryLng': deliveryLng,
         'restaurantLat': restaurantLat,
         'restaurantLng': restaurantLng,
-        'restaurantHandedOff': restaurantHandedOff,
         'rejectionReason': rejectionReason,
       };
 
@@ -810,7 +806,6 @@ class Order {
     String? customerReview,
     double? driverRating,
     bool? isRated,
-    bool? restaurantHandedOff,
     String? rejectionReason,
   }) =>
       Order(
@@ -843,7 +838,6 @@ class Order {
         deliveryLng: deliveryLng,
         restaurantLat: restaurantLat,
         restaurantLng: restaurantLng,
-        restaurantHandedOff: restaurantHandedOff ?? this.restaurantHandedOff,
         rejectionReason: rejectionReason ?? this.rejectionReason,
       );
 }
