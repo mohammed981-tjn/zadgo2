@@ -41,7 +41,13 @@ class FirebaseService {
       case models.OrderStatus.preparing:
         return to == models.OrderStatus.readyForPickup;
       case models.OrderStatus.readyForPickup:
-        return to == models.OrderStatus.searchingDriver;
+        // المطعم يضغط "تم التسليم" (المرحلة الرابعة والأخيرة في دوره) فينتقل
+        // الطلب مباشرة إلى onTheWay — وهي نفسها "جاري التوصيل" التي يراها
+        // السائق والعميل والإدارة. بذلك ينتهي دور المطعم تماماً.
+        // searchingDriver يبقى مسموحاً للمسار الإداري (بحث عن سائق قبل
+        // تسليم الطلب فعلياً).
+        return to == models.OrderStatus.searchingDriver ||
+            to == models.OrderStatus.onTheWay;
       case models.OrderStatus.searchingDriver:
         return to == models.OrderStatus.driverAssigned ||
             to == models.OrderStatus.noDriverFound;
@@ -197,18 +203,10 @@ class FirebaseService {
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
 
   /// يتحقق أولاً (قراءة فقط، بدون تسجيل دخول) من صلاحية كود التسجيل، ثم
-  /// يُنشئ الحساب بالمصادقة (`createUserWithEmailAndPassword`)، وبعد أن
-  /// يصبح المستخدم مُصادَقاً (`request.auth != null`) يستهلك الرمز عبر
-  /// معاملة Firestore (Transaction) لضمان استخدامه مرة واحدة فقط حتى مع
-  /// محاولات متزامنة، بالدور المحدَّد في الرمز (مدير عام/سائق/مدير مطعم) —
-  /// ويربطه تلقائياً بالمطعم صاحب الرمز إن كان الدور مدير مطعم، أو ينشئ سجل
-  /// سائق إن كان الدور سائق.
-  /// في حال فشل استهلاك الرمز بعد إنشاء الحساب (مثلاً استُهلك الرمز من
-  /// محاولة متزامنة أخرى بين التحقق الأولي وإنشاء الحساب)، يُحذف الحساب
-  /// المُصادَق حديثاً لتفادي ترك حساب "يتيم" بلا رمز صالح.
-  /// [expectedRole] (اختياري): حين تُمرَّر من نكهة تطبيق مقيّدة بدور واحد
-  /// (سائق/مطعم/أدمن)، يُرفض أي كود بدور مختلف فوراً كقراءة فقط قبل إنشاء
-  /// الحساب أصلاً — لا تغيير في ترتيب استهلاك الرمز.
+  /// يُنشئ الحساب بالمصادقة، وبعد أن يصبح المستخدم مُصادَقاً يستهلك الرمز
+  /// عبر معاملة Firestore لضمان استخدامه مرة واحدة فقط حتى مع محاولات
+  /// متزامنة، بالدور المحدَّد في الرمز — ويربطه تلقائياً بالمطعم صاحب الرمز
+  /// إن كان الدور مدير مطعم، أو ينشئ سجل سائق إن كان الدور سائق.
   Future<models.AppUser> registerWithCode({
     required String code,
     required String name,
@@ -216,14 +214,10 @@ class FirebaseService {
     required String password,
     required String phone,
     String? nationalId,
-    // الدور المتوقَع لهذه النكهة (سائق/مطعم/أدمن)؛ null يعني بلا قيد (النكهة
-    // الكاملة). فحص قراءة فقط لا يغيّر ترتيب الكتابة على registrationCodes.
     models.UserRole? expectedRole,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
 
-    // 1) تحقق أولي (قراءة فقط) قبل أي تسجيل دخول — لا يتطلب كتابة على
-    // registrationCodes، فيعمل حتى بدون مصادقة.
     final initialSnap = await ref.get();
     if (!initialSnap.exists || initialSnap.data() == null) {
       throw Exception('كود التسجيل غير صحيح');
@@ -236,13 +230,10 @@ class FirebaseService {
       throw Exception('هذا الكود غير مخصص لهذا التطبيق');
     }
 
-    // 2) إنشاء الحساب بالمصادقة — بعدها يصبح request.auth != null.
     final cred = await register(email.trim(), password.trim());
     final uid = cred.user!.uid;
 
     try {
-      // 3) الآن بعد المصادقة، استهلك الرمز عبر معاملة Firestore لضمان
-      // الذرّية حتى مع محاولات متزامنة.
       final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
         final snap = await tx.get(ref);
         if (!snap.exists || snap.data() == null) {
@@ -278,8 +269,6 @@ class FirebaseService {
       await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
       return newUser;
     } catch (e) {
-      // فشل استهلاك الرمز أو إنشاء بيانات المستخدم بعد إنشاء حساب المصادقة
-      // — نحذف حساب المصادقة اليتيم لتفادي ترك حساب بلا بيانات مرتبطة به.
       try {
         await cred.user?.delete();
       } catch (_) {
@@ -378,8 +367,7 @@ class FirebaseService {
 
   /// جميع الطلبات النشطة والقادمة (لشاشة متابعة الطلبات الحية في لوحة المدير)،
   /// بالإضافة إلى طلبات "تعذر إيجاد سائق" (noDriverFound) رغم أنها ليست
-  /// نشطة تقنياً (isActive == false) لأن المدير يحتاج رؤيتها لإسناد سائق
-  /// يدوياً بعد فشل البحث التلقائي — إخفاؤها يعني ضياع الطلب دون تدخل.
+  /// نشطة تقنياً لأن المدير يحتاج رؤيتها لإسناد سائق يدوياً.
   Stream<List<models.Order>> streamActiveOrders() => _orders
       .orderBy('createdAt', descending: true)
       .snapshots()
@@ -434,10 +422,6 @@ class FirebaseService {
     });
   }
 
-  // ===========================================================================
-  // إجراءات مدير المطعم على الطلب
-  // ===========================================================================
-
   /// رفض المطعم للطلب مع تسجيل سبب الرفض (نص حر يكتبه مدير المطعم).
   ///
   /// يختلف تماماً عن إلغاء الطلب (cancelOrder) الذي يبقى للمدير العام حصراً:
@@ -460,32 +444,6 @@ class FirebaseService {
       'rejectionReason': reason.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  /// تأكيد مدير المطعم أن الطلب خرج فعلياً من عنده (سلّمه يدوياً للسائق
-  /// الذي جاء لاستلامه).
-  ///
-  /// مهم: هذا **لا يغيّر حالة الطلب** (تبقى readyForPickup) لأن دورة الطلب
-  /// الرسمية بين السائق والعميل والمدير لا شأن للمطعم بها — السائق هو من
-  /// يسجّل استلامه من نظامه كما كان تماماً. كل ما يفعله هذا الحقل أن شاشة
-  /// المطعم تعتبر الطلب منتهياً عندها وتنقله لتبويب "منتهية" فوراً، بشكل
-  /// دائم محفوظ في القاعدة (لا مجرد إخفاء محلي يعود بعد إعادة فتح التطبيق).
-  Future<void> markRestaurantHandedOff(String orderId) async {
-    final ref = _orders.doc(orderId);
-    final doc = await ref.get();
-    if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
-    }
-
-    final current = models.Order.fromMap(doc.data()!, doc.id);
-    if (current.status != models.OrderStatus.readyForPickup) {
-      throw Exception('لا يمكن تأكيد خروج الطلب قبل تعليمه "جاهز للاستلام"');
-    }
-
-    await ref.update({
-      'restaurantHandedOff': true,
-      'updatedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -522,7 +480,6 @@ class FirebaseService {
 
   /// خوارزمية تعيين السائق التلقائي: تبحث عن أقرب سائق متصل ومتاح لموقع
   /// المطعم (باستخدام معادلة Haversine) وتُسند له الطلب تلقائياً.
-  /// تُعيد true إذا تم إيجاد سائق مناسب وتعيينه، أو false إن لم يوجد.
   Future<bool> autoAssignNearestDriver(models.Order order) async {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
@@ -544,7 +501,6 @@ class FirebaseService {
   }
 
   /// تحويل الطلب من سائق إلى آخر (يستخدمها المدير فقط عند الطوارئ)
-  /// آلية استقبال الطلب من قبل السائق الأول تبقى دون أي تغيير.
   Future<void> reassignDriver({
     required models.Order order,
     required String newDriverId,
@@ -624,9 +580,7 @@ class FirebaseService {
       updateOrderStatus(orderId, models.OrderStatus.cancelled);
 
   /// مُهل معالجة الطلبات العالقة (بالدقائق)، تُقرأ من مستند واحد ثابت
-  /// delivery_settings/config في Firestore بدل تثبيتها في الكود، ليمكن
-  /// تغييرها فوراً دون إصدار تطبيق جديد. القيم الافتراضية أدناه (يوفّرها
-  /// المستدعي) تُستخدم إن كان المستند أو أي حقل منه غير موجود بعد.
+  /// delivery_settings/config في Firestore بدل تثبيتها في الكود.
   Future<Map<String, dynamic>> getDeliverySettings() async {
     final doc = await _deliverySettings.doc('config').get();
     return doc.data() ?? {};
@@ -678,8 +632,7 @@ class FirebaseService {
   Future<void> sendChatMessage(models.ChatMessage message) =>
       _messages.doc(message.id).set(message.toMap());
 
-  // ✅ البث الجماعي (Broadcast) — رسالة عامة من المدير العام لكل السائقين أو
-  // لكل العملاء دفعة واحدة. شاشة منفصلة تماماً عن دردشة الطلب الفردية.
+  // ✅ البث الجماعي (Broadcast)
   Stream<List<models.BroadcastMessage>> streamBroadcasts(models.BroadcastAudience audience) => _broadcasts
       .where('audience', isEqualTo: audience.name)
       .orderBy('createdAt', descending: true)
