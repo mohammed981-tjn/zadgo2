@@ -660,6 +660,20 @@ class Order {
   final double? restaurantLat;
   final double? restaurantLng;
 
+  /// هل أكّد المطعم خروج الطلب من عنده (تسليمه فعلياً للسائق الذي جاء
+  /// لاستلامه)؟ يضغطه مدير المطعم بنفسه في حالة readyForPickup.
+  ///
+  /// مهم: هذا الحقل يخص **شاشة المطعم وحدها** — تستخدمه لتصنيف الطلب
+  /// "نشط/منتهٍ" عندها، فبمجرد ضغطه ينتقل الطلب لتبويب "منتهية" ولا يعود
+  /// يشغل المطعم. بقية الأطراف (السائق/العميل/المدير) لا يعتمدون عليه
+  /// إطلاقاً ويستمرون بالاعتماد على [status] وحدها؛ فحالة الطلب في القاعدة
+  /// تبقى readyForPickup حتى يسجّل السائق استلامه من نظامه كالمعتاد.
+  final bool restaurantHandedOff;
+
+  /// سبب رفض المطعم للطلب (نص حر يكتبه مدير المطعم) — يُملأ فقط حين تكون
+  /// [status] هي restaurantRejected، ويبقى null فيما عدا ذلك.
+  final String? rejectionReason;
+
   const Order({
     required this.id,
     required this.restaurantId,
@@ -690,6 +704,8 @@ class Order {
     this.deliveryLng,
     this.restaurantLat,
     this.restaurantLng,
+    this.restaurantHandedOff = false,
+    this.rejectionReason,
   });
 
   /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الحسابات
@@ -699,6 +715,11 @@ class Order {
   double get grandTotal => itemsTotal + deliveryFee;
   /// عمولة التطبيق من المطعم — ١٥٪ من قيمة الوجبة (لا تشمل أجرة التوصيل).
   double get calculatedCommission => itemsTotal * 0.15;
+
+  /// هل انتهى دور المطعم في هذا الطلب؟ يُستخدم في شاشة المطعم فقط لتصنيف
+  /// "نشطة/منتهية": ينتهي الدور إما بانتهاء الطلب نفسه (توصيل/إلغاء/رفض)
+  /// أو بتأكيد المطعم خروج الطلب من عنده.
+  bool get isDoneForRestaurant => status.isFinished || restaurantHandedOff;
 
   factory Order.fromMap(Map<String, dynamic> map, String id) => Order(
         id: id,
@@ -735,6 +756,10 @@ class Order {
         deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
         restaurantLat: (map['restaurantLat'] as num?)?.toDouble(),
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
+        // الطلبات القديمة لا تحتوي هذا الحقل إطلاقاً — تُعامل كأن المطعم لم
+        // يؤكد خروجها بعد (false)، فلا حاجة لأي ترحيل بيانات يدوي.
+        restaurantHandedOff: map['restaurantHandedOff'] as bool? ?? false,
+        rejectionReason: map['rejectionReason'] as String?,
       );
 
   Map<String, dynamic> toMap() => {
@@ -769,6 +794,8 @@ class Order {
         'deliveryLng': deliveryLng,
         'restaurantLat': restaurantLat,
         'restaurantLng': restaurantLng,
+        'restaurantHandedOff': restaurantHandedOff,
+        'rejectionReason': rejectionReason,
       };
 
   Order copyWith({
@@ -783,6 +810,8 @@ class Order {
     String? customerReview,
     double? driverRating,
     bool? isRated,
+    bool? restaurantHandedOff,
+    String? rejectionReason,
   }) =>
       Order(
         id: id,
@@ -814,6 +843,8 @@ class Order {
         deliveryLng: deliveryLng,
         restaurantLat: restaurantLat,
         restaurantLng: restaurantLng,
+        restaurantHandedOff: restaurantHandedOff ?? this.restaurantHandedOff,
+        rejectionReason: rejectionReason ?? this.rejectionReason,
       );
 }
 
@@ -1013,9 +1044,6 @@ class BroadcastMessage {
       };
 }
 
-/// رمز تسجيل يُصدره المدير العام ويرتبط بمطعم محدد — يُرسل يدوياً لمدير
-/// المطعم المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر شاشة
-/// "التسجيل بمدير مطعم" بدلاً من إنشاء المدير العام للحساب مباشرة.
 /// رمز تسجيل يُصدره المدير العام لدور محدد (مدير عام / سائق / مدير مطعم) —
 /// يُرسل يدوياً للشخص المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر
 /// شاشة "التسجيل برمز" بدلاً من فتح التسجيل الذاتي لهذه الأدوار الحساسة.
