@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -25,33 +24,16 @@ jobs:
         with:
           flutter-version: '3.27.0'
           channel: 'stable'
-          cache: false
-
-      - name: Create local.properties
-        run: echo "flutter.sdk=$FLUTTER_HOME" > android/local.properties
 
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release || echo "flutter build reported failure, checking whether an APK was still generated"
-
-      - name: Locate built APK
-        id: locate_apk
-        run: |
-          mapfile -t apks < <(find build android/app/build -type f -name "*.apk" 2>/dev/null | sort)
-          if [ "${#apks[@]}" -eq 0 ]; then
-            echo "No APK found after build"
-            exit 1
-          fi
-
-          printf 'Found APK(s):\n%s\n' "${apks[@]}"
-          echo "apk_path=${apks[0]}" >> "$GITHUB_OUTPUT"
+        run: flutter build apk --release
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zadgo-app-release
-          path: ${{ steps.locate_apk.outputs.apk_path }}
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: warn
-          retention-days: 1
