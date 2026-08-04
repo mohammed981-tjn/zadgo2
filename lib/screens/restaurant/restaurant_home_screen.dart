@@ -11,52 +11,47 @@ class RestaurantHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = Provider.of<FirebaseService>(context, listen: false);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("لوحة المطعم")),
-      body: StreamBuilder<Restaurant?>(
-        stream: service._restaurants.doc(restaurantId).snapshots().map(
-          (doc) => doc.exists && doc.data() != null
-              ? Restaurant.fromMap(doc.data()!, doc.id)
-              : null,
-        ),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return StreamBuilder<Restaurant?>(
+      stream: service
+          .streamRestaurants()
+          .map((list) => list.firstWhere((r) => r.id == restaurantId)),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          final restaurant = snapshot.data!;
-          final isOpen = restaurant.isOpen;
+        final restaurant = snapshot.data!;
+        final isOpen = restaurant.isOpen;
 
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                ElevatedButton(
-                  onPressed: () {
-                    service.toggleRestaurant(restaurantId, !isOpen);
-                  },
-                  child: Text(isOpen ? "إغلاق المطعم" : "فتح المطعم"),
-                ),
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  service.toggleRestaurant(restaurantId, !isOpen);
+                },
+                child: Text(isOpen ? "إغلاق المطعم" : "فتح المطعم"),
+              ),
 
-                const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-                Card(
-                  child: ListTile(
-                    title: const Text("حالة المطعم"),
-                    trailing: Text(
-                      isOpen ? "مفتوح" : "مغلق",
-                      style: TextStyle(
-                        color: isOpen ? Colors.green : Colors.red,
-                        fontWeight: FontWeight.bold,
-                      ),
+              Card(
+                child: ListTile(
+                  title: const Text("حالة المطعم"),
+                  trailing: Text(
+                    isOpen ? "مفتوح" : "مغلق",
+                    style: TextStyle(
+                      color: isOpen ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-              ],
-            ),
-          );
-        },
-      ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
