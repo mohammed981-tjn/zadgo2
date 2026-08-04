@@ -9,24 +9,13 @@ import '../../utils/food_visuals.dart';
 import '../../widgets/common_widgets.dart';
 import 'cart_screen.dart';
 
-/// شاشة تفاصيل المطعم: تعرض أصنافه مقسّمة على فئاته، وتتيح الإضافة للسلة
-/// مباشرة دون تسجيل دخول (التسجيل المؤجل — يُطلب فقط عند تأكيد الطلب).
+/// شاشة تفاصيل المطعم — نسخة مؤقتة بلا تصنيف فئات، لعزل مشكلة عدم ظهور
+/// الأصناف عن أي احتمال خلل في مطابقة categoryId. تعرض كل صنف قابل
+/// للطلب في قائمة واحدة مسطحة بصرف النظر عن فئته. تُستبدل بالنسخة
+/// المصنَّفة بالفئات بعد التأكد من وصول بيانات الأصناف فعلياً.
 class RestaurantDetailScreen extends StatelessWidget {
   final Restaurant restaurant;
   const RestaurantDetailScreen({super.key, required this.restaurant});
-
-  /// يحدد هل الصنف ينتمي لفئة معيّنة، بمطابقة مزدوجة:
-  /// أولاً بالمعرّف (categoryId == cat.id) إن كان المعرّف موجوداً فعلياً،
-  /// وإن كان فارغاً يُسقَط لمطابقة اسم الفئة نصياً (بعض الأصناف القديمة
-  /// خُزِّنت باسم الفئة نصاً لا بمعرّفها — انظر التوثيق في models.dart).
-  /// هذا يمنع اختفاء أصناف أُنشئت بطريقتين مختلفتين عبر الزمن.
-  static bool _itemBelongsToCategory(MenuItem item, MenuCategory cat) {
-    final id = item.categoryId.trim();
-    if (id.isNotEmpty) return id == cat.id;
-    // لا معرّف على الإطلاق: قارن بالاسم كحل احتياطي، دون حساسية لحالة
-    // الأحرف أو المسافات الزائدة.
-    return item.categoryId.trim().toLowerCase() == cat.name.trim().toLowerCase();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,67 +53,60 @@ class RestaurantDetailScreen extends StatelessWidget {
           ]),
         ),
         Expanded(
-          child: AppStreamBuilder<List<MenuCategory>>(
-            stream: () => service.streamCategories(restaurant.id),
-            builder: (ctx, cats) {
-              return AppStreamBuilder<List<MenuItem>>(
-                stream: () => service.streamMenuItems(restaurant.id),
-                builder: (ctx2, items) {
-                  final orderableItems = items.where((i) => i.canOrder).toList();
-
-                  // أصناف لا تطابق أي فئة إطلاقاً (لا بالمعرّف ولا بالاسم
-                  // النصي) — تُجمع في قسم "أصناف أخرى" بدل الاختفاء بصمت.
-                  final unmatchedItems = orderableItems
-                      .where((i) => !cats.any((cat) => _itemBelongsToCategory(i, cat)))
-                      .toList();
-
-                  // لا تُعرض فئة لا تحتوي أي صنف قابل للطلب بعد المطابقة.
-                  final visibleCats = cats
-                      .where((cat) =>
-                          orderableItems.any((i) => _itemBelongsToCategory(i, cat)))
-                      .toList();
-
-                  if (visibleCats.isEmpty && unmatchedItems.isEmpty) {
-                    return const AppEmpty(emoji: '🍽️', title: 'لا توجد أصناف متاحة حالياً');
-                  }
-
-                  const otherCategory =
-                      MenuCategory(id: '__other__', restaurantId: '', name: 'أصناف أخرى');
-
-                  return ListView(children: [
-                    ...visibleCats.map((cat) {
-                      final catItems = orderableItems
-                          .where((i) => _itemBelongsToCategory(i, cat))
-                          .toList();
-                      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Text(cat.name,
-                              style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textDark)),
-                        ),
-                        ...catItems.map((item) =>
-                            _ItemTile(item: item, category: cat, restaurant: restaurant)),
-                      ]);
-                    }),
-                    if (unmatchedItems.isNotEmpty)
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: Text(otherCategory.name,
-                              style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textDark)),
-                        ),
-                        ...unmatchedItems.map((item) => _ItemTile(
-                            item: item, category: otherCategory, restaurant: restaurant)),
-                      ]),
-                  ]);
-                },
+          child: AppStreamBuilder<List<MenuItem>>(
+            stream: () => service.streamMenuItems(restaurant.id),
+            builder: (ctx, items) {
+              // ===== شريط تشخيص مؤقت — يُحذف بعد التأكد من وصول البيانات =====
+              // يعرض أرقاماً خام لا تعتمد على أي مطابقة فئة، لمعرفة هل
+              // الأصناف تصل أصلاً من Firestore أم لا.
+              final diagnosticBar = Container(
+                width: double.infinity,
+                color: Colors.amber.withOpacity(0.15),
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  'تشخيص: وصل ${items.length} صنف كلي، '
+                  '${items.where((i) => i.canOrder).length} منها قابل للطلب.'
+                  '${items.isNotEmpty ? ' أول صنف: "${items.first.name}" '
+                      '(categoryId="${items.first.categoryId}", السعر=${items.first.price}, '
+                      'isAvailable=${items.first.isAvailable})' : ''}',
+                  style: const TextStyle(fontSize: 11, color: Colors.black87),
+                ),
               );
+              // ===== نهاية شريط التشخيص =====
+
+              final orderableItems = items.where((i) => i.canOrder).toList();
+
+              if (orderableItems.isEmpty) {
+                return Column(children: [
+                  diagnosticBar,
+                  const Expanded(
+                    child: AppEmpty(emoji: '🍽️', title: 'لا توجد أصناف متاحة حالياً'),
+                  ),
+                ]);
+              }
+
+              return Column(children: [
+                diagnosticBar,
+                Expanded(
+                  child: ListView(children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text('كل الأصناف',
+                          style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textDark)),
+                    ),
+                    ...orderableItems.map((item) => _ItemTile(
+                          item: item,
+                          categoryName: item.categoryId.trim().isEmpty
+                              ? 'بلا فئة'
+                              : item.categoryId,
+                          restaurant: restaurant,
+                        )),
+                  ]),
+                ),
+              ]);
             },
           ),
         ),
@@ -159,12 +141,13 @@ class _InfoChip extends StatelessWidget {
       ]);
 }
 
-/// بطاقة صنف واحد في قائمة المطعم.
+/// بطاقة صنف واحد — النسخة المسطحة تستقبل اسم الفئة كنص مباشر بدل كائن
+/// MenuCategory، لأنها لا تعتمد على أي مطابقة فئة فعلية.
 class _ItemTile extends StatelessWidget {
   final MenuItem item;
-  final MenuCategory category;
+  final String categoryName;
   final Restaurant restaurant;
-  const _ItemTile({required this.item, required this.category, required this.restaurant});
+  const _ItemTile({required this.item, required this.categoryName, required this.restaurant});
 
   @override
   Widget build(BuildContext context) {
@@ -181,7 +164,7 @@ class _ItemTile extends StatelessWidget {
       ),
       child: Row(children: [
         MenuItemVisual(
-          categoryName: category.name,
+          categoryName: categoryName,
           itemName: item.name,
           imageUrl: item.imageUrl,
           size: 52,
