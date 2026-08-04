@@ -43,12 +43,28 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo_square.png
-  fonts:
-    - family: Cairo
-      fonts:
-        - asset: assets/fonts/Cairo-Variable.ttf
-          weight: 400
-        - asset: assets/fonts/Cairo-Variable.ttf
-          weight: 600
-        - asset: assets/fonts/Cairo-Variable.ttf
-          weight: 700
+  # ═══════════════════════════════════════════════════════════════════
+  # خط Cairo معطَّل مؤقتاً — تشخيص اختفاء كل النصوص في التطبيق.
+  #
+  # السبب: Cairo-Variable.ttf خط متغيّر (Variable Font)، ودعم Flutter له
+  # على Android إشكالي، خصوصاً حين يُسجَّل نفس الملف ثلاث مرات بأوزان
+  # مختلفة (400/600/700) كما كان هنا. النتيجة فشل صامت في رسم النص: لا
+  # خطأ ولا استثناء، فقط نص غير مرئي بينما تُرسم الحاويات والحدود
+  # والألوان طبيعياً — وهو ما ظهر كبطاقات أصناف بيضاء فارغة وأزرار بلا
+  # عناوين في تطبيق العميل.
+  #
+  # بتعطيله يسقط Flutter للخط الافتراضي للنظام (يدعم العربية بالكامل).
+  #
+  # الحل الدائم لاحقاً: تنزيل ملفات ثابتة منفصلة من Google Fonts
+  # (Cairo-Regular.ttf / Cairo-SemiBold.ttf / Cairo-Bold.ttf) ووضع كل
+  # وزن في ملفه الخاص بدل ملف متغيّر واحد مكرَّر.
+  # ═══════════════════════════════════════════════════════════════════
+  # fonts:
+  #   - family: Cairo
+  #     fonts:
+  #       - asset: assets/fonts/Cairo-Variable.ttf
+  #         weight: 400
+  #       - asset: assets/fonts/Cairo-Variable.ttf
+  #         weight: 600
+  #       - asset: assets/fonts/Cairo-Variable.ttf
+  #         weight: 700
