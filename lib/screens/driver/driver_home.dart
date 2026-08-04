@@ -1,3 +1,20 @@
+// lib/screens/driver/driver_home.dart
+//
+// شاشة السائق — لا يملك حق رفض طلب مُسنَد إليه؛ الالتزام إلزامي حتى
+// التسليم، إلا في حالة عطل يعالجه المدير يدوياً (تحويل الطلب لسائق آخر).
+//
+// [إصلاح permission-denied]: كانت الشاشة تستدعي streamAllOrders() — استعلام
+// list بلا أي فلتر، ترفضه قواعد Firestore فوراً لأن السائق لا يملك حق
+// list على كل الطلبات (فقط على ما يخصه: driverId == currentUid()). استُبدلت
+// بـ streamDriverOrders(driverId)، المصدر الوحيد الآمن تحت القواعد الحالية.
+//
+// أثر جانبي مقصود: هذا يُلغي تبويب "طلبات متاحة للقبول" بالكامل — لم يعد
+// له داعٍ أصلاً، لأن التعيين صار تلقائياً بالكامل من طرف النظام (عند تأكيد
+// المطعم للاستلام، وشبكة أمان عند تعليمه جاهزاً)، لا باختيار السائق يدوياً.
+// السائق يرى فقط طلباته المُسنَدة، بدءاً من اللحظة التي يؤكد فيها المطعم
+// الاستلام (قد تكون الحالة عندها restaurantAccepted أو preparing، قبل أن
+// يصبح الطلب جاهزاً فعلياً) — فيرى شارة توضح أن الطلب قيد التحضير، بلا أي
+// زر إجراء، حتى تصل الحالة فعلياً لـ driverAssigned.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -102,7 +119,7 @@ class _DriverHomeState extends State<DriverHome> {
             ),
             Expanded(
               child: IndexedStack(index: _tab, children: [
-                _AvailableOrdersTab(driverId: driverId, driver: driver),
+                _MyOrdersTab(driverId: driverId, driver: driver),
                 _DriverEarningsTab(driver: driver),
               ]),
             ),
@@ -118,81 +135,48 @@ class _DriverHomeState extends State<DriverHome> {
   }
 }
 
-class _AvailableOrdersTab extends StatelessWidget {
+/// طلبات السائق الخاصة به فقط — عبر streamDriverOrders الآمنة تحت القواعد.
+/// تعرض كل طلب مُسنَد له بصرف النظر عن حالته (حتى لو ما زال قيد التحضير
+/// عند المطعم، بسبب التعيين المبكر)، حتى المكتمل منها (delivered) — يستفيد
+/// السائق من رؤية سجل توصيلاته دون تبويب منفصل مخصص لذلك.
+class _MyOrdersTab extends StatelessWidget {
   final String driverId;
   final Driver? driver;
-  const _AvailableOrdersTab({required this.driverId, this.driver});
+  const _MyOrdersTab({required this.driverId, this.driver});
 
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    final isOnline = driver?.isOnline ?? false;
 
     return AppStreamBuilder<List<Order>>(
-      stream: service.streamAllOrders,
+      stream: () => service.streamDriverOrders(driverId),
       builder: (ctx, all) {
-        final myOrders = all.where((o) => o.driverId == driverId && o.status.isActive).toList();
+        final active = all.where((o) => o.status.isActive).toList();
 
-        final available = isOnline
-            ? all.where((o) =>
-                o.driverId == null &&
-                (o.status == OrderStatus.readyForPickup ||
-                 o.status == OrderStatus.searchingDriver)).toList()
-            : <Order>[];
-
-        if (myOrders.isEmpty && available.isEmpty) {
+        if (active.isEmpty) {
           return AppEmpty(
-            emoji: isOnline ? '📦' : '🔌',
-            title: isOnline ? 'لا توجد طلبات الآن' : 'أنت غير متصل',
-            subtitle: isOnline
-                ? 'ستظهر الطلبات هنا فور توفرها'
-                : 'فعّل زر "متصل" في الأعلى لاستقبال طلبات جديدة',
+            emoji: (driver?.isOnline ?? false) ? '📦' : '🔌',
+            title: 'لا توجد طلبات نشطة حالياً',
+            subtitle: 'سيُسند إليك أي طلب جديد تلقائياً فور توفره',
           );
         }
 
         return ListView(padding: const EdgeInsets.all(12), children: [
-          if (myOrders.isNotEmpty) ...[
-            const SectionHeader(title: 'طلباتي النشطة'),
-            ...myOrders.map((o) => _OrderCard(order: o, mode: _CardMode.mine)),
-            const SizedBox(height: 16),
-          ],
-          if (available.isNotEmpty) ...[
-            const SectionHeader(title: 'طلبات متاحة للقبول'),
-            ...available.map((o) => _OrderCard(order: o, mode: _CardMode.available)),
-          ],
-          if (!isOnline && myOrders.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Card(
-                color: AppColors.warning.withOpacity(0.1),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(children: [
-                    const Icon(Icons.info_outline, color: AppColors.warning),
-                    const SizedBox(width: 10),
-                    const Expanded(child: Text('أنت غير متصل — لن تستقبل طلبات جديدة حتى تفعّل الاتصال',
-                        style: TextStyle(fontSize: 13))),
-                  ]),
-                ),
-              ),
-            ),
+          const SectionHeader(title: 'طلباتي'),
+          ...active.map((o) => _OrderCard(order: o)),
         ]);
       },
     );
   }
 }
 
-enum _CardMode { mine, available }
-
 class _OrderCard extends StatelessWidget {
   final Order order;
-  final _CardMode mode;
-  const _OrderCard({required this.order, required this.mode});
+  const _OrderCard({required this.order});
 
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    final auth = context.read<app_auth.AuthProvider>();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -206,16 +190,14 @@ class _OrderCard extends StatelessWidget {
               child: Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
             ),
             const Spacer(),
-            if (mode == _CardMode.mine) ...[
-              IconButton(
-                icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
-              ),
-              IconButton(
-                icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false))),
-              ),
-            ],
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
+            ),
+            IconButton(
+              icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false))),
+            ),
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
           ]),
           const SizedBox(height: 10),
@@ -228,44 +210,28 @@ class _OrderCard extends StatelessWidget {
             Text(order.paymentMethod.label, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
           ]),
           const SizedBox(height: 12),
-          _buildAction(context, service, auth),
+          _buildAction(context, service),
         ]),
       ),
     );
   }
 
-  Widget _buildAction(BuildContext ctx, FirebaseService service, app_auth.AuthProvider auth) {
-    if (mode == _CardMode.available) {
-      return SizedBox(width: double.infinity, child: ElevatedButton.icon(
-        onPressed: () async {
-          final ok = await showConfirmDialog(ctx, title: 'قبول الطلب', content: 'هل تريد قبول هذا الطلب والتوجه للمطعم؟', confirmLabel: 'قبول');
-          if (ok == true) {
-            await service.assignDriver(order.id, auth.user!.uid, auth.user!.name);
-            final now = DateTime.now();
-            // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
-            navigatorKey.currentState?.push(
-              MaterialPageRoute(
-                builder: (_) => OrderMapScreen(
-                  order: order.copyWith(
-                    status: OrderStatus.driverAssigned,
-                    driverId: auth.user!.uid,
-                    driverName: auth.user!.name,
-                    updatedAt: now,
-                    statusChangedAt: now,
-                  ),
-                  readOnly: false,
-                ),
-              ),
-            );
-          }
-        },
-        icon: const Icon(Icons.check_circle_outline),
-        label: const Text('قبول الطلب'),
-      ));
+  /// إجراء السائق حسب الحالة — لا زر رفض أو قبول: التعيين تلقائي والالتزام
+  /// إلزامي، فلا حاجة لأي إجراء من السائق قبل driverAssigned.
+  Widget _buildAction(BuildContext ctx, FirebaseService service) {
+    // الطلب مُسنَد له مبكراً لكن ما زال عند المطعم — لا إجراء ممكن بعد،
+    // فقط رسالة توضيحية بدل زر معطل قد يوحي بإمكانية غير متاحة فعلاً.
+    if (order.status == OrderStatus.restaurantPending ||
+        order.status == OrderStatus.restaurantAccepted ||
+        order.status == OrderStatus.preparing) {
+      return const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
+          style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
     }
-
-    if (order.status == OrderStatus.restaurantPending || order.status == OrderStatus.restaurantAccepted) {
-      return const Text('بانتظار إنهاء المطعم لتحضير الطلب...', style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
+    // جاهز عند المطعم لكن لم يُسلَّم للسائق فعلياً بعد (المطعم لم يضغط "تم
+    // التسليم" بعد رغم تعليمه جاهزاً).
+    if (order.status == OrderStatus.readyForPickup || order.status == OrderStatus.searchingDriver) {
+      return const Text('الطلب جاهز — بانتظار تسليمه إليك من المطعم',
+          style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
     }
     if (order.status == OrderStatus.driverAssigned) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
@@ -274,7 +240,6 @@ class _OrderCard extends StatelessWidget {
           if (ok == true) {
             await service.markOrderPickedUp(order.id);
             final now = DateTime.now();
-            // ✅ استخدام navigatorKey الثابت بدل ctx المحلي
             navigatorKey.currentState?.push(
               MaterialPageRoute(
                 builder: (_) => OrderMapScreen(
