@@ -1,5 +1,11 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/firebase_service.dart';
+import '../../models/models.dart';
+
 class RestaurantHomeScreen extends StatelessWidget {
-  const RestaurantHomeScreen({super.key});
+  final String restaurantId;
+  const RestaurantHomeScreen({super.key, required this.restaurantId});
 
   @override
   Widget build(BuildContext context) {
@@ -7,36 +13,49 @@ class RestaurantHomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text("لوحة المطعم")),
-      body: StreamBuilder<List<Order>>(
-        stream: service.streamAllOrders(),
+      body: StreamBuilder<Restaurant?>(
+        stream: service._restaurants.doc(restaurantId).snapshots().map(
+          (doc) => doc.exists && doc.data() != null
+              ? Restaurant.fromMap(doc.data()!, doc.id)
+              : null,
+        ),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final orders = snapshot.data!;
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          final newOrders = orders.where((o) => o.status == OrderStatus.pending).length;
-          final preparing = orders.where((o) => o.status == OrderStatus.preparing).length;
-          final ready = orders.where((o) => o.status == OrderStatus.readyForPickup).length;
-          final finished = orders.where((o) => o.status == OrderStatus.delivered).length;
+          final restaurant = snapshot.data!;
+          final isOpen = restaurant.isOpen;
 
-          return ListView(
+          return Padding(
             padding: const EdgeInsets.all(16),
-            children: [
-              _buildCounter("طلبات جديدة", newOrders),
-              _buildCounter("قيد التحضير", preparing),
-              _buildCounter("جاهزة", ready),
-              _buildCounter("اكتملت اليوم", finished),
-            ],
+            child: Column(
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    service.toggleRestaurant(restaurantId, !isOpen);
+                  },
+                  child: Text(isOpen ? "إغلاق المطعم" : "فتح المطعم"),
+                ),
+
+                const SizedBox(height: 20),
+
+                Card(
+                  child: ListTile(
+                    title: const Text("حالة المطعم"),
+                    trailing: Text(
+                      isOpen ? "مفتوح" : "مغلق",
+                      style: TextStyle(
+                        color: isOpen ? Colors.green : Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildCounter(String title, int count) {
-    return Card(
-      child: ListTile(
-        title: Text(title),
-        trailing: Text("$count"),
       ),
     );
   }
