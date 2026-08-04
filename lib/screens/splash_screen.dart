@@ -1,66 +1,66 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart' as app_auth;
-import '../models/models.dart';
-import 'auth/login_screen.dart';
-import 'admin/admin_home.dart';
-import 'customer/customer_home.dart';
-import 'driver/driver_home.dart';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({Key? key}) : super(key: key);
+
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  bool _navigated = false;
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), _navigate);
-  }
-
-  void _navigate() {
-    if (_navigated || !mounted) return;
-    _navigated = true;
-    final auth = context.read<app_auth.AuthProvider>();
-    if (!auth.isLoggedIn) { _go(const LoginScreen()); return; }
-    final user = auth.user!;
-    switch (user.role) {
-      case UserRole.admin:
-        _go(const AdminHome());
-        break;
-      case UserRole.customer:
-        _go(const CustomerHome());
-        break;
-      case UserRole.driver:
-        // Unapproved drivers land on the waiting screen instead of the main app.
-        _go(user.isApproved ? const DriverHome() : const DriverPendingScreen());
-        break;
-    }
-  }
-
-  void _go(Widget screen) {
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => screen), (_) => false);
+    Future.delayed(const Duration(seconds: 3), () {
+      // غيّر اسم الراوت حسب مشروعك
+      Navigator.pushReplacementNamed(context, '/auth');
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
-      backgroundColor: const Color(0xFF040E1A),
-      body: Center(
-        child: SizedBox(
-          width: screenWidth * 0.75,
-          height: screenHeight * 0.75,
-          child: Image.asset(
-            'assets/images/logo_square.png',
-            fit: BoxFit.contain,
-            alignment: Alignment.center,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF2196F3),
+              Color(0xFF673AB7),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              // استبدلها بصورة اللوغو الخاصة بك
+              Icon(
+                Icons.delivery_dining,
+                size: 80,
+                color: Colors.white,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'ZADAM',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 2,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'تطبيق التوصيل الخاص بك',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
           ),
         ),
       ),
