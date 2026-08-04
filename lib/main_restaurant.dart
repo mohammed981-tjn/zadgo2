@@ -2,6 +2,10 @@
 // الاستيراد هنا تقتصر على RestaurantHome وشاشات التسجيل العامة؛ لا AdminHome
 // ولا CustomerHome ولا DriverHome ولا شاشة التسجيل المفتوح. أي حساب ليس
 // بدور مدير مطعم يُرفض ويُسجَّل خروجه تلقائياً.
+//
+// [هوية لونية]: يستخدم AppTheme.build(palette: FlavorPalette.restaurant)
+// بدل AppTheme.light الافتراضي، فتظهر كل أزرار وعناصر واجهة هذا التطبيق
+// بالدرجة الذهبية الخاصة بنكهة المطعم بدل الذهبي الافتراضي للنكهة الكاملة.
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -47,7 +51,7 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.restaurant;
   AppFlavorConfig.flavorLabel = 'المطعم';
-  AppFlavorConfig.flavorColor = const Color(0xFFEF6C00);
+  AppFlavorConfig.flavorColor = const Color(0xFFC8960C);
   AppFlavorConfig.restrictToRole = UserRole.restaurantManager;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات مديري المطاعم فقط';
   AppFlavorConfig.allowGuestBrowsing = false;
@@ -76,7 +80,7 @@ class RestaurantApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         title: 'ZadGo مطعم',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.build(palette: FlavorPalette.restaurant),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
           child: child!,
