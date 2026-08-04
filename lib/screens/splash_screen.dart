@@ -1,66 +1,117 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fade;
+  late Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 3), () {
-      // غيّر اسم الراوت حسب مشروعك
-      Navigator.pushReplacementNamed(context, '/auth');
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+
+    _fade = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+
+    _slide = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+
+    _controller.forward();
+
+    // الانتقال بعد 2 ثواني
+    Timer(const Duration(seconds: 2), () {
+      Navigator.pushReplacementNamed(context, "/login");
     });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color(0xFF2196F3),
-              Color(0xFF673AB7),
+              Color(0xFF0D1B2A),
+              Color(0xFF1B263B),
+              Color(0xFF415A77),
             ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              // استبدلها بصورة اللوغو الخاصة بك
-              Icon(
-                Icons.delivery_dining,
-                size: 80,
-                color: Colors.white,
-              ),
-              SizedBox(height: 16),
-              Text(
-                'ZADAM',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 2,
+        child: FadeTransition(
+          opacity: _fade,
+          child: SlideTransition(
+            position: _slide,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // شعار التطبيق
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Center(
+                    child: Text(
+                      "ZadGo",
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade900,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'تطبيق التوصيل الخاص بك',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white70,
+
+                const SizedBox(height: 30),
+
+                // اسم التطبيق
+                const Text(
+                  "ZadGo",
+                  style: TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-            ],
+
+                const SizedBox(height: 10),
+
+                // عبارة التسويق
+                const Text(
+                  "توصيل طلباتك بالشكل اللي يريحك",
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
