@@ -41,10 +41,6 @@ class FirebaseService {
       case models.OrderStatus.preparing:
         return to == models.OrderStatus.readyForPickup;
       case models.OrderStatus.readyForPickup:
-        // الانتقال الوحيد المسموح من هنا الآن هو onTheWay، وينتج حصراً عن
-        // ضغطة السائق (markPickedUpBySelf) — لا يملك المطعم أي زر ينقل
-        // الحالة من هنا؛ searchingDriver يبقى للمسار الإداري (بحث المدير
-        // عن سائق يدوياً قبل الاستلام الفعلي).
         return to == models.OrderStatus.searchingDriver ||
             to == models.OrderStatus.onTheWay;
       case models.OrderStatus.searchingDriver:
@@ -273,20 +269,6 @@ class FirebaseService {
     return models.Restaurant.fromMap(doc.data()!, doc.id);
   }
 
-  // ===========================================================================
-  // تعديل حاسم هنا: كانت هذه الدالة سابقاً تستخدم
-  //   .orderBy('sortOrder')
-  // مباشرة على مستوى Firestore. مشكلة orderBy في Firestore أنه يستبعد
-  // بصمت أي مستند لا يحتوي الحقل المُستخدَم في الترتيب — فأي فئة قديمة
-  // (من بداية المشروع، قبل أن تُنشأ شاشة إدارة المطعم لاحقاً) لم تُخزَّن
-  // بها sortOrder وقت الإنشاء تُستبعد بالكامل من نتائج الاستعلام، فتصل
-  // شاشة العميل بقائمة فئات فارغة أو ناقصة دون أي خطأ ظاهر إطلاقاً.
-  //
-  // الحل: نجلب كل الفئات بلا أي شرط ترتيب من Firestore، ثم نرتبها نحن
-  // داخل التطبيق بعد وصولها. بما أن MenuCategory.fromMap يعطي sortOrder
-  // قيمة افتراضية 0 عند غيابه، لن يُستبعد أي مستند بعد الآن مهما كانت
-  // حالة البيانات القديمة.
-  // ===========================================================================
   Stream<List<models.MenuCategory>> streamCategories(String rId) => _categories(rId)
       .snapshots()
       .map((s) {
@@ -435,12 +417,6 @@ class FirebaseService {
     });
   }
 
-  /// السائق يؤكد استلامه الفعلي للطلب من المطعم — هذا هو الفعل الوحيد الذي
-  /// ينقل الطلب من readyForPickup إلى onTheWay مباشرة. لا يوجد أي زر عند
-  /// المطعم ينفّذ هذا الانتقال؛ ضغطة المطعم غير موثوقة لتأكيد استلام لم
-  /// يحدث فعلياً (قد يضغط قبل أن يصل السائق). بمجرد هذا الاستدعاء، شاشة
-  /// المطعم تعرض تلقائياً "تم التسليم" لأنها تعتمد على نفس الحالة onTheWay
-  /// دون أي إجراء إضافي من طرفها.
   Future<void> markPickedUpBySelf(String orderId) async {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
@@ -493,29 +469,54 @@ class FirebaseService {
     await batch.commit();
   }
 
+  /// عدد السائقين المرشحين للمقارنة بالتقييم — نأخذ أقرب هذا العدد جغرافياً
+  /// ثم نختار الأعلى تقييماً من بينهم فقط. ثابت بسيط يسهل تعديله لاحقاً.
+  static const int _driverCandidatesCount = 3;
+
+  /// خوارزمية تعيين السائق التلقائي على مرحلتين:
+  /// ١) نحصر أقرب [_driverCandidatesCount] سائقين متصلين ومتاحين لموقع
+  ///    المطعم (معادلة Haversine).
+  /// ٢) من بين هؤلاء المرشحين فقط، نختار الأعلى تقييماً — وليس الأقرب
+  ///    المطلق — لأن فارق مسافة بسيط بين مرشحين لا يستحق التضحية بسائق
+  ///    أعلى تقييماً بشكل واضح.
+  /// تُعيد true إذا تم إيجاد سائق مناسب وتعيينه، أو false إن لم يوجد.
   Future<bool> autoAssignNearestDriver(models.Order order) async {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
-    models.Driver? nearest;
-    double nearestDistance = double.infinity;
+
+    // كل سائق متصل ومتاح بموقع معروف، مع مسافته المحسوبة عن المطعم.
+    final candidateDrivers = <models.Driver>[];
+    final candidateDistances = <double>[];
     for (final doc in driversSnap.docs) {
       final d = models.Driver.fromMap(doc.data(), doc.id);
       if (!d.isOnline || !d.isAvailable) continue;
       if (d.lat == null || d.lng == null) continue;
-      final distance = haversineDistanceKm(order.restaurantLat!, order.restaurantLng!, d.lat!, d.lng!);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = d;
-      }
+      final distance =
+          haversineDistanceKm(order.restaurantLat!, order.restaurantLng!, d.lat!, d.lng!);
+      candidateDrivers.add(d);
+      candidateDistances.add(distance);
     }
-    if (nearest == null) return false;
+    if (candidateDrivers.isEmpty) return false;
+
+    // فهرس السائقين مرتباً حسب المسافة تصاعدياً.
+    final indices = List<int>.generate(candidateDrivers.length, (i) => i);
+    indices.sort((a, b) => candidateDistances[a].compareTo(candidateDistances[b]));
+
+    // المرحلة ١: أقرب عدد محدود من السائقين جغرافياً.
+    final nearestIndices = indices.take(_driverCandidatesCount).toList();
+
+    // المرحلة ٢: من بين هؤلاء فقط، الأعلى تقييماً.
+    nearestIndices.sort(
+        (a, b) => candidateDrivers[b].rating.compareTo(candidateDrivers[a].rating));
+    final chosen = candidateDrivers[nearestIndices.first];
+
     final batch = _db.batch();
     batch.update(_orders.doc(order.id), {
-      'driverId': nearest.id,
-      'driverName': nearest.name,
+      'driverId': chosen.id,
+      'driverName': chosen.name,
       'updatedAt': FieldValue.serverTimestamp(),
     });
-    batch.update(_drivers.doc(nearest.id), {'isAvailable': false});
+    batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
     await batch.commit();
     return true;
   }
