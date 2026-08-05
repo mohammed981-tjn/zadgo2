@@ -10,6 +10,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import 'order_map_screen.dart';
 import 'order_chat_screen.dart';
+import 'submit_complaint_screen.dart';
 
 class MyOrdersScreen extends StatelessWidget {
   const MyOrdersScreen({super.key});
@@ -42,6 +43,7 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
+    final auth = context.read<app_auth.AuthProvider>();
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -53,9 +55,6 @@ class _OrderCard extends StatelessWidget {
               Text('#${order.orderNumber}',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              // ✅ الدردشة والخريطة تظهران للعميل فقط بعد استلام السائق فعلياً
-              // من المطعم (pickedUp/onTheWay) — وليس منذ إنشاء الطلب، لأن لا
-              // معنى لمتابعة سائق لم يُسند بعد أو ما زال متوجهاً للمطعم فقط.
               if (order.status == OrderStatus.pickedUp ||
                   order.status == OrderStatus.onTheWay) ...[
                 if (order.driverId != null)
@@ -73,6 +72,21 @@ class _OrderCard extends StatelessWidget {
                     tooltip: 'عرض الخريطة',
                   ),
               ],
+              IconButton(
+                icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning),
+                tooltip: 'تقديم شكوى',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SubmitComplaintScreen(
+                      order: order,
+                      submittedByUid: auth.user?.uid ?? '',
+                      submittedByName: auth.user?.name ?? '',
+                      submittedByRole: UserRole.customer,
+                    ),
+                  ),
+                ),
+              ),
               StatusBadge(
                   label: order.status.label,
                   color: order.status.color,
