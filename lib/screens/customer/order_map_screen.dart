@@ -12,8 +12,9 @@ import '../../widgets/common_widgets.dart';
 class OrderMapScreen extends StatefulWidget {
   final Order order;
   /// عندما تكون true (الافتراضي) تُعرض الخريطة للمتابعة فقط دون أزرار تغيير حالة
-  /// الطلب (استلمت الطلب / تم التوصيل) — تُستخدم للعميل والمطعم ولوحة المدير.
-  /// السائق فقط هو من يستخدم readOnly=false لتمكين أزرار الإجراء.
+  /// الطلب (استلمت الطلب / تم التوصيل) ودون زر الملاحة الخارجية — تُستخدم
+  /// للعميل والمطعم ولوحة المدير. السائق فقط هو من يستخدم readOnly=false
+  /// لتمكين أزرار الإجراء والملاحة.
   final bool readOnly;
   const OrderMapScreen({super.key, required this.order, this.readOnly = true});
 
@@ -51,8 +52,6 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
 
-    // ✅ نجلب بيانات السائق (موقعه ورقم جواله) طالما هناك سائق معيّن على
-    // الطلب، وليس فقط أثناء "في الطريق إليك"، لإتاحة الاتصال به من التتبع الحي.
     if (order.driverId != null && order.driverId!.isNotEmpty) {
       return StreamBuilder<Driver?>(
         key: ValueKey(_driverStreamRetryToken),
@@ -121,8 +120,6 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
       appBar: AppBar(
         title: Text(_appBarTitle()),
         actions: [
-          // ✅ الاتصال المباشر بالعميل أو السائق بالضغط على أيقونة الهاتف —
-          // متاحة من التتبع الحي دون الحاجة لمغادرة الشاشة.
           if (!widget.readOnly && order.customerPhone.isNotEmpty)
             IconButton(
               tooltip: 'الاتصال بالعميل',
@@ -161,7 +158,6 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
               ),
             ],
           ),
-          // ✅ زر إعادة التوسيط على الهدف
           Positioned(
             bottom: 100,
             left: 16,
@@ -174,70 +170,83 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // ✅ زر ابدأ الملاحة الخارجية (Google Maps)
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () => _openExternalNavigation(targetPoint.latitude, targetPoint.longitude),
-                  icon: const Icon(Icons.navigation),
-                  label: const Text('ابدأ الملاحة'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
+      // ✅ الشريط السفلي بأكمله يخص السائق فقط الآن (زر الملاحة الخارجية +
+      // أزرار تغيير حالة الطلب). العميل يرى خريطة المتابعة فقط دون أي زر
+      // أسفلها، لأن "ابدأ الملاحة" لا معنى له لمن لا يقود لأي مكان.
+      bottomNavigationBar: widget.readOnly
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _openExternalNavigation(
+                            targetPoint.latitude, targetPoint.longitude),
+                        icon: const Icon(Icons.navigation),
+                        label: const Text('ابدأ الملاحة'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    if (_headingToRestaurant || _headingToCustomer)
+                      const SizedBox(width: 10),
+                    if (_headingToRestaurant)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final ok = await showConfirmDialog(context,
+                                title: 'استلام الطلب',
+                                content: 'هل استلمت الطلب من المطعم؟',
+                                confirmLabel: 'نعم');
+                            if (ok == true) {
+                              await service.markOrderPickedUp(order.id);
+                              if (context.mounted) Navigator.pop(context);
+                            }
+                          },
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('استلمت الطلب'),
+                        ),
+                      ),
+                    if (_headingToCustomer)
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final ok = await showConfirmDialog(context,
+                                title: 'تأكيد التوصيل',
+                                content: 'هل تم توصيل الطلب للعميل؟',
+                                confirmLabel: 'نعم');
+                            if (ok == true) {
+                              await service.markOrderDelivered(order.id, order.driverId ?? '');
+                              if (context.mounted) {
+                                showSuccess(context,
+                                    'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
+                                Navigator.pop(context);
+                              }
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.success,
+                            side: const BorderSide(color: AppColors.success),
+                          ),
+                          icon: const Icon(Icons.done_all_rounded),
+                          label: const Text('تم التوصيل'),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              // ✅ زر تحديث الحالة (يتغيّر حسب المرحلة) — لا يظهر إلا للسائق (readOnly = false)
-              if (!widget.readOnly && _headingToRestaurant)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await showConfirmDialog(context,
-                          title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
-                      if (ok == true) {
-                        await service.markOrderPickedUp(order.id);
-                        if (context.mounted) Navigator.pop(context);
-                      }
-                    },
-                    icon: const Icon(Icons.check_circle_outline),
-                    label: const Text('استلمت الطلب'),
-                  ),
-                ),
-              if (!widget.readOnly && _headingToCustomer)
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await showConfirmDialog(context,
-                          title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
-                      if (ok == true) {
-                        await service.markOrderDelivered(order.id, order.driverId ?? '');
-                        if (context.mounted) {
-                          showSuccess(context, 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
-                          Navigator.pop(context);
-                        }
-                      }
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                      side: const BorderSide(color: AppColors.success),
-                    ),
-                    icon: const Icon(Icons.done_all_rounded),
-                    label: const Text('تم التوصيل'),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
   String _appBarTitle() {
+    // ✅ العميل يرى دائماً "متابعة الطلب" بغض النظر عن مرحلة السائق الدقيقة
+    // (متوجه للمطعم أو للعميل) — فهو يتابع فقط، لا يحتاج تمييز اتجاه السائق.
+    if (widget.readOnly) return 'متابعة الطلب';
     if (_headingToRestaurant) return 'التوجه إلى المطعم';
     if (_headingToCustomer) return 'التوجه إلى العميل';
     return 'خريطة الطلب';
@@ -257,7 +266,9 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              isRestaurant ? 'توجّه إلى المطعم لاستلام الطلب' : 'توجّه إلى العميل لتسليم الطلب',
+              widget.readOnly
+                  ? (isRestaurant ? 'السائق في طريقه لاستلام طلبك' : 'السائق في طريقه إليك')
+                  : (isRestaurant ? 'توجّه إلى المطعم لاستلام الطلب' : 'توجّه إلى العميل لتسليم الطلب'),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
