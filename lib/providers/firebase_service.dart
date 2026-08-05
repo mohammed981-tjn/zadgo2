@@ -273,10 +273,28 @@ class FirebaseService {
     return models.Restaurant.fromMap(doc.data()!, doc.id);
   }
 
+  // ===========================================================================
+  // تعديل حاسم هنا: كانت هذه الدالة سابقاً تستخدم
+  //   .orderBy('sortOrder')
+  // مباشرة على مستوى Firestore. مشكلة orderBy في Firestore أنه يستبعد
+  // بصمت أي مستند لا يحتوي الحقل المُستخدَم في الترتيب — فأي فئة قديمة
+  // (من بداية المشروع، قبل أن تُنشأ شاشة إدارة المطعم لاحقاً) لم تُخزَّن
+  // بها sortOrder وقت الإنشاء تُستبعد بالكامل من نتائج الاستعلام، فتصل
+  // شاشة العميل بقائمة فئات فارغة أو ناقصة دون أي خطأ ظاهر إطلاقاً.
+  //
+  // الحل: نجلب كل الفئات بلا أي شرط ترتيب من Firestore، ثم نرتبها نحن
+  // داخل التطبيق بعد وصولها. بما أن MenuCategory.fromMap يعطي sortOrder
+  // قيمة افتراضية 0 عند غيابه، لن يُستبعد أي مستند بعد الآن مهما كانت
+  // حالة البيانات القديمة.
+  // ===========================================================================
   Stream<List<models.MenuCategory>> streamCategories(String rId) => _categories(rId)
-      .orderBy('sortOrder')
       .snapshots()
-      .map((s) => s.docs.map((d) => models.MenuCategory.fromMap(d.data(), d.id)).toList());
+      .map((s) {
+        final list =
+            s.docs.map((d) => models.MenuCategory.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        return list;
+      });
 
   Future<void> addCategory(models.MenuCategory cat) =>
       _categories(cat.restaurantId).doc(cat.id).set(cat.toMap());
