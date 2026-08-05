@@ -176,17 +176,6 @@ extension OrderStatusExt on OrderStatus {
 
   bool get isFinished => !isActive;
 
-  /// هل الطلب ما زال ضمن مسؤولية المطعم فعلياً؟
-  ///
-  /// دور المطعم ثلاث مراحل عملية فقط: تأكيد الاستلام ← جاري التحضير ←
-  /// جاهز للاستلام. بعدها لا يملك المطعم أي زر إطلاقاً — إخراج الطلب من
-  /// عنده يقرره السائق وحده بضغطته على "استلمت الطلب" (markPickedUpBySelf)،
-  /// لأن ضغطة المطعم غير موثوقة لتأكيد استلام قد لم يحدث بعد (قد يضغط قبل
-  /// أن يصل السائق فعلياً).
-  ///
-  /// تُستخدم في شاشة المطعم لتقسيم الطلبات لتبويبين: "نشطة" = ما زال ضمن
-  /// مسؤوليته، "منتهية" = خرج منها (بما فيها onTheWay فور ضغطة السائق،
-  /// رغم أن المطعم لم يضغط شيئاً بنفسه).
   bool get isRestaurantResponsibility =>
       this == OrderStatus.created ||
       this == OrderStatus.restaurantPending ||
@@ -658,13 +647,6 @@ class Order {
   final double? restaurantLat;
   final double? restaurantLng;
   final String? rejectionReason;
-
-  /// هل وافق السائق المُسند إليه هذا الطلب صراحةً؟
-  ///
-  /// عند الإسناد التلقائي (autoAssignNearestDriver) تكون true فوراً، لأنها
-  /// لا تختار إلا سائقاً متصلاً أصلاً فاتصاله موافقة ضمنية. عند الإسناد
-  /// اليدوي من المدير: true إن كان متصلاً وقتها، و false إن كان غير متصل —
-  /// فيرى قبول/رفض صريحاً عند فتح تطبيقه لاحقاً.
   final bool driverAcknowledged;
 
   const Order({
@@ -832,12 +814,24 @@ class Order {
       );
 }
 
+/// شكوى مُقدَّمة من أي طرف (عميل/سائق/مدير مطعم) ضد طرف آخر أو ضد الطلب
+/// نفسه بشكل عام. [submittedByRole]/[submittedByUid] يحددان من قدّمها،
+/// و[againstRole]/[againstUid] يحددان ضد من — قد تكون فارغة (null) في شكوى
+/// عامة عن الطلب لا تخص طرفاً واحداً بعينه (مثل "جودة الطعام" العامة).
 class Complaint {
   final String id;
   final String orderId;
   final String orderNumber;
-  final String customerId;
-  final String customerName;
+
+  /// من قدّم الشكوى.
+  final String submittedByUid;
+  final String submittedByName;
+  final UserRole submittedByRole;
+
+  /// ضد من (اختياري — null يعني شكوى عامة عن الطلب بلا طرف محدد).
+  final String? againstUid;
+  final UserRole? againstRole;
+
   final String restaurantId;
   final String restaurantName;
   final ComplaintType type;
@@ -850,8 +844,11 @@ class Complaint {
     required this.id,
     required this.orderId,
     required this.orderNumber,
-    required this.customerId,
-    required this.customerName,
+    required this.submittedByUid,
+    required this.submittedByName,
+    required this.submittedByRole,
+    this.againstUid,
+    this.againstRole,
     this.restaurantId = '',
     this.restaurantName = '',
     required this.type,
@@ -865,8 +862,23 @@ class Complaint {
         id: id,
         orderId: map['orderId'] as String? ?? '',
         orderNumber: map['orderNumber'] as String? ?? '',
-        customerId: map['customerId'] as String? ?? '',
-        customerName: map['customerName'] as String? ?? '',
+        // توافق مع الشكاوى القديمة قبل هذا التحديث: كانت جميعها من العميل،
+        // فتُقرأ customerId/customerName القديمة كـ submittedBy* عند غياب
+        // الحقول الجديدة.
+        submittedByUid: (map['submittedByUid'] as String?) ??
+            (map['customerId'] as String?) ??
+            '',
+        submittedByName: (map['submittedByName'] as String?) ??
+            (map['customerName'] as String?) ??
+            '',
+        submittedByRole: _userRoleFromString(
+          map['submittedByRole'] as String?,
+          fallback: UserRole.customer,
+        ),
+        againstUid: map['againstUid'] as String?,
+        againstRole: map['againstRole'] != null
+            ? _userRoleFromString(map['againstRole'] as String?)
+            : null,
         restaurantId: map['restaurantId'] as String? ?? '',
         restaurantName: map['restaurantName'] as String? ?? '',
         type: _complaintTypeFromString(map['type'] as String?),
@@ -879,8 +891,11 @@ class Complaint {
   Map<String, dynamic> toMap() => {
         'orderId': orderId,
         'orderNumber': orderNumber,
-        'customerId': customerId,
-        'customerName': customerName,
+        'submittedByUid': submittedByUid,
+        'submittedByName': submittedByName,
+        'submittedByRole': submittedByRole.name,
+        if (againstUid != null) 'againstUid': againstUid,
+        if (againstRole != null) 'againstRole': againstRole!.name,
         'restaurantId': restaurantId,
         'restaurantName': restaurantName,
         'type': type.name,
@@ -888,6 +903,10 @@ class Complaint {
         'status': status.name,
         'createdAt': Timestamp.fromDate(createdAt),
         'adminNote': adminNote,
+        // نُبقي الحقول القديمة مؤقتاً لتوافق أي كود لم يُحدَّث بعد يقرأها
+        // مباشرة (customerId/customerName)، فقط عندما يكون المُقدِّم عميلاً.
+        if (submittedByRole == UserRole.customer) 'customerId': submittedByUid,
+        if (submittedByRole == UserRole.customer) 'customerName': submittedByName,
       };
 }
 
