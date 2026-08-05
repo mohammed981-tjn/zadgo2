@@ -1,20 +1,3 @@
-// lib/screens/driver/driver_home.dart
-//
-// شاشة السائق — لا يملك حق رفض طلب مُسنَد إليه؛ الالتزام إلزامي حتى
-// التسليم، إلا في حالة عطل يعالجه المدير يدوياً (تحويل الطلب لسائق آخر).
-//
-// [إصلاح permission-denied]: كانت الشاشة تستدعي streamAllOrders() — استعلام
-// list بلا أي فلتر، ترفضه قواعد Firestore فوراً لأن السائق لا يملك حق
-// list على كل الطلبات (فقط على ما يخصه: driverId == currentUid()). استُبدلت
-// بـ streamDriverOrders(driverId)، المصدر الوحيد الآمن تحت القواعد الحالية.
-//
-// أثر جانبي مقصود: هذا يُلغي تبويب "طلبات متاحة للقبول" بالكامل — لم يعد
-// له داعٍ أصلاً، لأن التعيين صار تلقائياً بالكامل من طرف النظام (عند تأكيد
-// المطعم للاستلام، وشبكة أمان عند تعليمه جاهزاً)، لا باختيار السائق يدوياً.
-// السائق يرى فقط طلباته المُسنَدة، بدءاً من اللحظة التي يؤكد فيها المطعم
-// الاستلام (قد تكون الحالة عندها restaurantAccepted أو preparing، قبل أن
-// يصبح الطلب جاهزاً فعلياً) — فيرى شارة توضح أن الطلب قيد التحضير، بلا أي
-// زر إجراء، حتى تصل الحالة فعلياً لـ driverAssigned.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -135,10 +118,6 @@ class _DriverHomeState extends State<DriverHome> {
   }
 }
 
-/// طلبات السائق الخاصة به فقط — عبر streamDriverOrders الآمنة تحت القواعد.
-/// تعرض كل طلب مُسنَد له بصرف النظر عن حالته (حتى لو ما زال قيد التحضير
-/// عند المطعم، بسبب التعيين المبكر)، حتى المكتمل منها (delivered) — يستفيد
-/// السائق من رؤية سجل توصيلاته دون تبويب منفصل مخصص لذلك.
 class _MyOrdersTab extends StatelessWidget {
   final String driverId;
   final Driver? driver;
@@ -216,29 +195,27 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  /// إجراء السائق حسب الحالة — لا زر رفض أو قبول: التعيين تلقائي والالتزام
-  /// إلزامي، فلا حاجة لأي إجراء من السائق قبل driverAssigned.
+  /// إجراء السائق حسب الحالة. زر "استلمت الطلب" يظهر بمجرد أن يكون الطلب
+  /// جاهزاً عند المطعم — سواء كانت الحالة readyForPickup (المطعم علّمه
+  /// جاهزاً للتو) أو searchingDriver/driverAssigned (المدير أسند سائقاً
+  /// يدوياً). هذا الزر هو الفعل الوحيد الذي ينقل الحالة إلى onTheWay —
+  /// المطعم لا يملك أي زر يفعل هذا، فشاشته تعرض "تم التسليم" تلقائياً
+  /// بمجرد أن يضغط السائق هنا، دون أي إجراء إضافي من طرف المطعم.
   Widget _buildAction(BuildContext ctx, FirebaseService service) {
-    // الطلب مُسنَد له مبكراً لكن ما زال عند المطعم — لا إجراء ممكن بعد،
-    // فقط رسالة توضيحية بدل زر معطل قد يوحي بإمكانية غير متاحة فعلاً.
     if (order.status == OrderStatus.restaurantPending ||
         order.status == OrderStatus.restaurantAccepted ||
         order.status == OrderStatus.preparing) {
       return const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
           style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
     }
-    // جاهز عند المطعم لكن لم يُسلَّم للسائق فعلياً بعد (المطعم لم يضغط "تم
-    // التسليم" بعد رغم تعليمه جاهزاً).
-    if (order.status == OrderStatus.readyForPickup || order.status == OrderStatus.searchingDriver) {
-      return const Text('الطلب جاهز — بانتظار تسليمه إليك من المطعم',
-          style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
-    }
-    if (order.status == OrderStatus.driverAssigned) {
+    if (order.status == OrderStatus.readyForPickup ||
+        order.status == OrderStatus.searchingDriver ||
+        order.status == OrderStatus.driverAssigned) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
-          final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب من المطعم؟', confirmLabel: 'نعم');
+          final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب فعلياً من المطعم؟', confirmLabel: 'نعم');
           if (ok == true) {
-            await service.markOrderPickedUp(order.id);
+            await service.markPickedUpBySelf(order.id);
             final now = DateTime.now();
             navigatorKey.currentState?.push(
               MaterialPageRoute(
