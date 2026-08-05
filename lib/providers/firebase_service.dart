@@ -247,9 +247,7 @@ class FirebaseService {
     } catch (e) {
       try {
         await cred.user?.delete();
-      } catch (_) {
-        // تجاهل أي خطأ أثناء التنظيف، الأولوية لإعادة رمي الخطأ الأصلي.
-      }
+      } catch (_) {}
       rethrow;
     }
   }
