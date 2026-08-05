@@ -38,7 +38,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     super.dispose();
   }
 
-  List<(String label, String? uid, UserRole role)> get _againstOptions {
+  List<(String, String?, UserRole)> get _againstOptions {
     final order = widget.order;
     final options = <(String, String?, UserRole)>[];
 
@@ -109,3 +109,81 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.06),
               borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(children: [
+              const Icon(Icons.receipt_long_outlined, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Text('طلب #${widget.order.orderNumber}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          const Text('نوع الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ComplaintType.values.map((t) {
+              final selected = _type == t;
+              return ChoiceChip(
+                label: Text(t.label),
+                selected: selected,
+                onSelected: (_) => setState(() => _type = t),
+                selectedColor: AppColors.primary.withOpacity(0.15),
+                labelStyle: TextStyle(
+                  color: selected ? AppColors.primary : AppColors.textDark,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+          const Text('الشكوى ضد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const SizedBox(height: 8),
+          ...options.map((opt) {
+            final label = opt.$1;
+            final uid = opt.$2;
+            final role = opt.$3;
+            final selected = _selectedAgainstUid == uid && _selectedAgainstRole == role;
+            return RadioListTile<String>(
+              value: label,
+              groupValue: selected ? label : null,
+              onChanged: (_) => setState(() {
+                _selectedAgainstUid = uid;
+                _selectedAgainstRole = role;
+              }),
+              title: Text(label),
+              contentPadding: EdgeInsets.zero,
+              activeColor: AppColors.primary,
+            );
+          }),
+          const SizedBox(height: 12),
+          const Text('تفاصيل الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _descriptionCtrl,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              hintText: 'اشرح المشكلة بالتفصيل...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: _submitting ? null : _submit,
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('إرسال الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
