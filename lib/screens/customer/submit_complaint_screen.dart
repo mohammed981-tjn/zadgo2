@@ -5,14 +5,8 @@ import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
-import '../../widgets/common_widgets.dart';
+import '../../utils/helpers.dart';
 
-/// شاشة تقديم شكوى — متاحة لأي طرف (عميل/سائق/مدير مطعم) ضد أي طرف آخر
-/// من أطراف نفس الطلب، أو كشكوى عامة بلا طرف محدد (againstRole يبقى null).
-///
-/// خيارات "ضد من" تُبنى ديناميكياً حسب من يقدّم الشكوى ([submittedByRole])
-/// وحسب توفر معرّف كل طرف في الطلب فعلياً — فمثلاً خيار "السائق" لا يظهر
-/// إن كان order.driverId لا يزال null (لم يُسند سائق للطلب بعد).
 class SubmitComplaintScreen extends StatefulWidget {
   final Order order;
   final String submittedByUid;
@@ -44,9 +38,6 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     super.dispose();
   }
 
-  /// خيارات "ضد من" المتاحة، مبنية ديناميكياً حسب دور مقدّم الشكوى وتوفر
-  /// معرّف كل طرف في هذا الطلب تحديداً. كل طرف يقدر يشتكي ضد أي طرف آخر
-  /// عدا نفسه.
   List<(String label, String? uid, UserRole role)> get _againstOptions {
     final order = widget.order;
     final options = <(String, String?, UserRole)>[];
@@ -62,7 +53,6 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     if (widget.submittedByRole != UserRole.restaurantManager) {
       options.add(('المطعم (${order.restaurantName})', order.restaurantId, UserRole.restaurantManager));
     }
-    // خيار عام دائماً متاح: شكوى عن الطلب نفسه بلا طرف محدد يُلام تحديداً.
     options.add(('شكوى عامة عن الطلب', null, UserRole.admin));
 
     return options;
@@ -80,9 +70,6 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         id: const Uuid().v4(),
         orderId: widget.order.id,
         orderNumber: widget.order.orderNumber,
-        // الحقول القديمة (customerId/customerName) تبقى دائماً صاحب الطلب
-        // الفعلي، بصرف النظر عمّن قدّم الشكوى — للحفاظ على التوافق مع أي
-        // كود قديم يقرأ هذين الحقلين مباشرة.
         customerId: widget.order.customerId,
         customerName: widget.order.customerName,
         restaurantId: widget.order.restaurantId,
@@ -122,79 +109,3 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             decoration: BoxDecoration(
               color: AppColors.primary.withOpacity(0.06),
               borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(children: [
-              const Icon(Icons.receipt_long_outlined, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Text('طلب #${widget.order.orderNumber}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            ]),
-          ),
-          const SizedBox(height: 20),
-          const Text('نوع الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: ComplaintType.values.map((t) {
-              final selected = _type == t;
-              return ChoiceChip(
-                label: Text(t.label),
-                selected: selected,
-                onSelected: (_) => setState(() => _type = t),
-                selectedColor: AppColors.primary.withOpacity(0.15),
-                labelStyle: TextStyle(
-                  color: selected ? AppColors.primary : AppColors.textDark,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          const Text('الشكوى ضد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          const SizedBox(height: 8),
-          ...options.map((opt) {
-            final (label, uid, role) = opt;
-            final selected = _selectedAgainstUid == uid && _selectedAgainstRole == role;
-            return RadioListTile<String>(
-              value: label,
-              groupValue: selected ? label : null,
-              onChanged: (_) => setState(() {
-                _selectedAgainstUid = uid;
-                _selectedAgainstRole = role;
-              }),
-              title: Text(label),
-              contentPadding: EdgeInsets.zero,
-              activeColor: AppColors.primary,
-            );
-          }),
-          const SizedBox(height: 12),
-          const Text('تفاصيل الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _descriptionCtrl,
-            maxLines: 5,
-            decoration: const InputDecoration(
-              hintText: 'اشرح المشكلة بالتفصيل...',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: _submitting ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: _submitting
-                  ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('إرسال الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
