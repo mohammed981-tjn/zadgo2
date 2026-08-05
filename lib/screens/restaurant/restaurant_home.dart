@@ -21,6 +21,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../customer/submit_complaint_screen.dart';
 import 'restaurant_reports_tab.dart';
 import 'restaurant_menu_prices_tab.dart';
 
@@ -194,12 +195,6 @@ class _RestaurantHomeState extends State<RestaurantHome> {
   }
 }
 
-/// قائمة طلبات المطعم، مقسّمة لتبويبين: نشطة ومنتهية.
-///
-/// "نشطة" = الطلبات التي ما زالت ضمن مسؤولية المطعم فعلياً (المراحل الثلاث
-/// فقط، حسب [OrderStatusExt.isRestaurantResponsibility]). "منتهية" = كل ما
-/// خرج من مسؤولية المطعم — بما فيها onTheWay فور ضغطة السائق، رغم أن
-/// المطعم لم يضغط شيئاً بنفسه.
 class _RestaurantOrdersList extends StatefulWidget {
   final String restaurantId;
   final void Function(List<Order> allOrders) onOrdersChanged;
@@ -351,10 +346,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     super.dispose();
   }
 
-  /// نص ولون وأيقونة الشارة العلوية. الحالات بعد readyForPickup
-  /// (searchingDriver/driverAssigned/onTheWay/delivered) لا تخص المطعم
-  /// بإجراء، وتُعرض جميعها بنص "تم التسليم — جاري التوصيل" لأن انتقالها
-  /// كلها ناتج عن فعل السائق أو المدير لا المطعم.
   (String, Color, IconData) get _bannerInfo {
     switch (widget.order.status) {
       case OrderStatus.restaurantPending:
@@ -485,23 +476,44 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
   Widget build(BuildContext context) {
     final order = widget.order;
     final (bannerLabel, bannerColor, bannerIcon) = _bannerInfo;
+    final auth = context.read<app_auth.AuthProvider>();
 
     final cardContent = Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: bannerColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: bannerColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(bannerIcon, size: 16, color: bannerColor),
+              const SizedBox(width: 6),
+              Text(bannerLabel,
+                  style: TextStyle(color: bannerColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
+            ]),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(bannerIcon, size: 16, color: bannerColor),
-            const SizedBox(width: 6),
-            Text(bannerLabel,
-                style: TextStyle(color: bannerColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
-          ]),
-        ),
+          const Spacer(),
+          // ✅ زر الشكوى — المطعم يقدّم شكوى ضد السائق أو العميل من هنا.
+          IconButton(
+            icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning, size: 20),
+            tooltip: 'تقديم شكوى',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SubmitComplaintScreen(
+                  order: order,
+                  submittedByUid: auth.user?.uid ?? '',
+                  submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
+                  submittedByRole: UserRole.restaurantManager,
+                ),
+              ),
+            ),
+          ),
+        ]),
         const SizedBox(height: 10),
         Row(children: [
           Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
@@ -601,11 +613,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ]),
           ),
         ],
-        // ===================================================================
-        // المطعم يملك ثلاثة أزرار فقط. بعد "جاهز للاستلام" لا يوجد أي زر
-        // إضافي — الشارة العلوية وحدها تُعلم المطعم بما يجري لاحقاً، لأن
-        // إخراج الطلب من مسؤوليته يقرره السائق بضغطته هو، لا المطعم.
-        // ===================================================================
         if (order.status == OrderStatus.restaurantPending) ...[
           const SizedBox(height: 10),
           Row(children: [
