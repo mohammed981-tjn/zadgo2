@@ -77,9 +77,24 @@ class AppTheme {
         surface: Colors.white,
         brightness: Brightness.light,
       ),
-      fontFamily: 'Cairo',
+      // ═══════════════════════════════════════════════════════════════
+      // خط Cairo مُعطَّل مؤقتاً في كل الثيم (لا fontFamily هنا إطلاقاً).
+      //
+      // السبب: Cairo-Variable.ttf خط متغيّر (Variable Font)، وتسجيله في
+      // pubspec.yaml بثلاثة أوزان تشير كلها لنفس الملف تسبَّب بفشل صامت
+      // في رسم النص على Android — لا خطأ ولا استثناء، فقط نص غير مرئي
+      // بينما تُرسم الحاويات والألوان والحدود طبيعياً. هذا ظهر كبطاقات
+      // أصناف فارغة وأزرار بلا عناوين في كل شاشات التطبيق.
+      //
+      // بترك fontFamily غير محدَّد، يستخدم النظام خطه الافتراضي (يدعم
+      // العربية بالكامل على أي هاتف) وتظهر كل النصوص فوراً.
+      //
+      // الإصلاح الدائم لاحقاً: تنزيل ملفات Cairo ثابتة منفصلة من Google
+      // Fonts (Regular/SemiBold/Bold each in its own file, not one
+      // variable file repeated), تسجيلها في pubspec.yaml بأوزان مختلفة
+      // فعلياً لا نفس الملف مكرَّراً، ثم إعادة fontFamily: 'Cairo' هنا.
+      // ═══════════════════════════════════════════════════════════════
       textTheme: Typography.material2021().black.apply(
-        fontFamily: 'Cairo',
         bodyColor: AppColors.textDark,
         displayColor: AppColors.textDark,
       ),
@@ -89,7 +104,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: TextStyle(fontFamily: 'Cairo',
+        titleTextStyle: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: AppColors.textDark,
@@ -105,7 +120,7 @@ class AppTheme {
           minimumSize: const Size.fromHeight(48),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-          textStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 15.5, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -115,13 +130,13 @@ class AppTheme {
           minimumSize: const Size.fromHeight(44),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
-          textStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.dark,
-          textStyle: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -144,7 +159,7 @@ class AppTheme {
           borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        labelStyle: const TextStyle(fontFamily: 'Cairo', color: AppColors.textGray, fontSize: 14),
+        labelStyle: const TextStyle(color: AppColors.textGray, fontSize: 14),
       ),
       cardTheme: CardTheme(
         elevation: 0,
@@ -163,7 +178,7 @@ class AppTheme {
         backgroundColor: Colors.white,
         elevation: 0,
         indicatorColor: primary.withOpacity(0.2),
-        labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(fontFamily: 'Cairo',
+        labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
               fontSize: 11,
               fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
               color: states.contains(WidgetState.selected) ? AppColors.dark : AppColors.textGray,
@@ -176,20 +191,17 @@ class AppTheme {
       dialogTheme: DialogTheme(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titleTextStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
-        contentTextStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 14, color: AppColors.textGray),
+        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
+        contentTextStyle: const TextStyle(fontSize: 14, color: AppColors.textGray),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        labelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       scaffoldBackgroundColor: AppColors.surface,
       dividerTheme: const DividerThemeData(color: AppColors.divider, thickness: 1),
-      // اللونان الإضافيان (primaryDark/primaryLight) لا يُستخدمان مباشرة في
-      // ThemeData القياسي، لكنهما محفوظان في extensions ليستخدمهما أي widget
-      // يحتاج تدرجاً (كبطاقة "إجمالي قيمة الوجبات المباعة" في التقارير).
       extensions: [FlavorColorsExtension(primary: primary, primaryDark: primaryDark, primaryLight: primaryLight)],
     );
   }
