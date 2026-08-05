@@ -457,6 +457,15 @@ class FirebaseService {
       }
     }
 
+    // ✅ نتحقق من حالة اتصال السائق وقت الإسناد اليدوي من المدير: إن كان
+    // متصلاً الآن، نعتبره موافقاً ضمنياً فوراً (driverAcknowledged: true)
+    // بنفس منطق الإسناد التلقائي. إن كان غير متصل، يبقى الطلب معلَّقاً
+    // (false) حتى يقبله أو يرفضه صراحة لاحقاً عند فتح تطبيقه.
+    final driverDoc = await _drivers.doc(driverId).get();
+    final isDriverOnline = driverDoc.exists &&
+        driverDoc.data() != null &&
+        (models.Driver.fromMap(driverDoc.data()!, driverDoc.id).isOnline);
+
     final batch = _db.batch();
     batch.update(ref, {
       'driverId': driverId,
@@ -464,6 +473,7 @@ class FirebaseService {
       'status': models.OrderStatus.driverAssigned.name,
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
+      'driverAcknowledged': isDriverOnline,
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
     await batch.commit();
@@ -484,7 +494,6 @@ class FirebaseService {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
 
-    // كل سائق متصل ومتاح بموقع معروف، مع مسافته المحسوبة عن المطعم.
     final candidateDrivers = <models.Driver>[];
     final candidateDistances = <double>[];
     for (final doc in driversSnap.docs) {
@@ -498,14 +507,11 @@ class FirebaseService {
     }
     if (candidateDrivers.isEmpty) return false;
 
-    // فهرس السائقين مرتباً حسب المسافة تصاعدياً.
     final indices = List<int>.generate(candidateDrivers.length, (i) => i);
     indices.sort((a, b) => candidateDistances[a].compareTo(candidateDistances[b]));
 
-    // المرحلة ١: أقرب عدد محدود من السائقين جغرافياً.
     final nearestIndices = indices.take(_driverCandidatesCount).toList();
 
-    // المرحلة ٢: من بين هؤلاء فقط، الأعلى تقييماً.
     nearestIndices.sort(
         (a, b) => candidateDrivers[b].rating.compareTo(candidateDrivers[a].rating));
     final chosen = candidateDrivers[nearestIndices.first];
@@ -515,6 +521,9 @@ class FirebaseService {
       'driverId': chosen.id,
       'driverName': chosen.name,
       'updatedAt': FieldValue.serverTimestamp(),
+      // ✅ التعيين التلقائي لا يختار إلا سائقاً متصلاً أصلاً (isOnline
+      // مُتحقَّق منه أعلاه)، فاتصاله نفسه موافقة ضمنية فورية.
+      'driverAcknowledged': true,
     });
     batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
     await batch.commit();
@@ -526,6 +535,59 @@ class FirebaseService {
   Future<bool> retryAutoAssignIfNeeded(models.Order order) async {
     if (order.driverId != null && order.driverId!.isNotEmpty) return true;
     return autoAssignNearestDriver(order);
+  }
+
+  /// السائق يقبل صراحةً طلباً أُسند إليه يدوياً وهو كان غير متصل وقتها.
+  /// يحوّل الطلب من "معلَّق بانتظار موافقته" إلى ملتزم به فعلياً، فيدخل
+  /// مسار العمل العادي (استلام من المطعم ثم التوصيل) دون أي فرق آخر.
+  Future<void> acceptAssignedOrder(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!current.needsDriverAcknowledgement) {
+      return;
+    }
+    await ref.update({
+      'driverAcknowledged': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// السائق يرفض صراحةً طلباً أُسند إليه يدوياً وهو كان غير متصل وقتها.
+  /// يُلغى إسناده عنه فوراً (driverId يعود null)، ويُعاد السائق نفسه متاحاً
+  /// (isAvailable: true)، ثم يُستدعى autoAssignNearestDriver مباشرة ليجد
+  /// أقرب سائق متصل آخر بدلاً منه — دون انتظار تدخل يدوي من المدير.
+  Future<void> rejectAssignedOrder(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!current.needsDriverAcknowledgement) {
+      throw Exception('لا يمكن رفض هذا الطلب في حالته الحالية');
+    }
+
+    final batch = _db.batch();
+    batch.update(ref, {
+      'driverId': null,
+      'driverName': null,
+      'driverAcknowledged': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    if (current.driverId != null && current.driverId!.isNotEmpty) {
+      batch.update(_drivers.doc(current.driverId!), {'isAvailable': true});
+    }
+    await batch.commit();
+
+    final refreshedDoc = await ref.get();
+    if (refreshedDoc.exists && refreshedDoc.data() != null) {
+      final refreshedOrder = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
+      await autoAssignNearestDriver(refreshedOrder);
+    }
   }
 
   Future<void> reassignDriver({
