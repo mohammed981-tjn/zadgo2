@@ -665,7 +665,29 @@ class FirebaseService {
     await updateDriverRating(driverId, driverRating);
   }
 
+  // ===========================================================================
+  // نظام الشكاوى — الدالة الأصلية submitComplaint وstreamComplaints بلا أي
+  // تغيير، بالإضافة إلى دوال جديدة لدعم الفلترة حسب من قدّم الشكوى ومن ضده،
+  // لخدمة نظام الشكاوى متعدد الأطراف (عميل/سائق/مطعم) في لوحة المدير.
+  // ===========================================================================
+
   Stream<List<models.Complaint>> streamComplaints() => _complaints
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
+
+  /// الشكاوى التي قدّمها مستخدم معيّن (بغض النظر عن دوره) — تُستخدم في
+  /// شاشة "شكاواي" الشخصية لأي طرف.
+  Stream<List<models.Complaint>> streamComplaintsSubmittedBy(String uid) => _complaints
+      .where('submittedByUid', isEqualTo: uid)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
+
+  /// الشكاوى المرفوعة ضد مستخدم معيّن (سائق أو مدير مطعم مثلاً) — تُستخدم
+  /// في لوحة المدير لمتابعة الأنماط المتكررة ضد طرف بعينه.
+  Stream<List<models.Complaint>> streamComplaintsAgainst(String uid) => _complaints
+      .where('againstUid', isEqualTo: uid)
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
