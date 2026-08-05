@@ -101,6 +101,11 @@ class FirebaseService {
 
   Future<void> deleteUserDoc(String uid) => _users.doc(uid).delete();
 
+  /// يضيف مبلغاً لرصيد محفظة العميل الداخلي — تُستخدم مباشرة من
+  /// resolveComplaint عند تقرير استرداد جزئي، أو يمكن استدعاؤها منفرداً.
+  Future<void> addWalletCredit(String userId, double amount) =>
+      _users.doc(userId).update({'walletBalance': FieldValue.increment(amount)});
+
   Future<void> createManagedUser({
     required String name,
     required String email,
@@ -665,27 +670,17 @@ class FirebaseService {
     await updateDriverRating(driverId, driverRating);
   }
 
-  // ===========================================================================
-  // نظام الشكاوى — الدالة الأصلية submitComplaint وstreamComplaints بلا أي
-  // تغيير، بالإضافة إلى دوال جديدة لدعم الفلترة حسب من قدّم الشكوى ومن ضده،
-  // لخدمة نظام الشكاوى متعدد الأطراف (عميل/سائق/مطعم) في لوحة المدير.
-  // ===========================================================================
-
   Stream<List<models.Complaint>> streamComplaints() => _complaints
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
 
-  /// الشكاوى التي قدّمها مستخدم معيّن (بغض النظر عن دوره) — تُستخدم في
-  /// شاشة "شكاواي" الشخصية لأي طرف.
   Stream<List<models.Complaint>> streamComplaintsSubmittedBy(String uid) => _complaints
       .where('submittedByUid', isEqualTo: uid)
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
 
-  /// الشكاوى المرفوعة ضد مستخدم معيّن (سائق أو مدير مطعم مثلاً) — تُستخدم
-  /// في لوحة المدير لمتابعة الأنماط المتكررة ضد طرف بعينه.
   Stream<List<models.Complaint>> streamComplaintsAgainst(String uid) => _complaints
       .where('againstUid', isEqualTo: uid)
       .orderBy('createdAt', descending: true)
@@ -706,6 +701,87 @@ class FirebaseService {
         if (adminNote != null) 'adminNote': adminNote,
         if (resolution != null) 'resolution': resolution,
       });
+
+  /// عدد الإنذارات التي يُعلَّق عندها السائق تلقائياً — نفس منطق
+  /// "مخالفات العقد" (contract violations) المعتمد في تطبيقات التوصيل
+  /// الكبرى. ثابت بسيط يسهل تعديله لاحقاً.
+  static const int _driverWarningThreshold = 3;
+
+  /// حل شكوى بإجراء فعلي موحّد — يجمع ثلاثة إجراءات اختيارية في عملية
+  /// واحدة، ثم يُغلق الشكوى دائماً بحالة [ComplaintStatus.resolved]:
+  ///
+  /// • [refundPercentage] (اختياري): نسبة مئوية من قيمة الطلب (grandTotal)
+  ///   تُضاف كرصيد لمحفظة العميل الداخلي (walletBalance) عبر
+  ///   [addWalletCredit]. مثلاً 20 تعني استرداد 20% من قيمة الطلب.
+  ///
+  /// • [warnAgainstParty] (اختياري): إن كان true ويكون [Complaint.against
+  ///   Role] سائقاً، يزيد warningCount للسائق المتَّهم بمقدار 1. عند وصول
+  ///   العدّاد لـ [_driverWarningThreshold]، يُعلَّق السائق تلقائياً
+  ///   (isAvailable تصبح false بشكل دائم) حتى يتواصل معه المدير يدوياً.
+  ///
+  /// • [reassignToDriverId]/[reassignToDriverName] (اختياريان معاً): إن
+  ///   مُرِّرا، يُستدعى [reassignDriver] الموجود بالفعل لنقل الطلب لسائق
+  ///   آخر جبراً، بنفس منطق الطوارئ (تعطل/حادث) المتفق عليه سابقاً.
+  Future<void> resolveComplaint({
+    required models.Complaint complaint,
+    required models.Order order,
+    required String adminUid,
+    double? refundPercentage,
+    bool warnAgainstParty = false,
+    String? reassignToDriverId,
+    String? reassignToDriverName,
+    String? adminNote,
+  }) async {
+    // ١) الاسترداد الجزئي — نسبة من قيمة الطلب تُضاف لمحفظة العميل.
+    if (refundPercentage != null && refundPercentage > 0) {
+      final refundAmount = order.grandTotal * (refundPercentage / 100);
+      await addWalletCredit(order.customerId, refundAmount);
+    }
+
+    // ٢) الإنذار — فقط إن كان المتَّهم سائقاً، يزيد عدّاده بمقدار 1، وعند
+    // بلوغه الحد الأقصى يُعلَّق تلقائياً.
+    if (warnAgainstParty &&
+        complaint.againstRole == models.UserRole.driver &&
+        complaint.againstUid != null) {
+      final driverRef = _drivers.doc(complaint.againstUid!);
+      final driverDoc = await driverRef.get();
+      if (driverDoc.exists && driverDoc.data() != null) {
+        final driver = models.Driver.fromMap(driverDoc.data()!, driverDoc.id);
+        final newCount = driver.warningCount + 1;
+        final updates = <String, dynamic>{'warningCount': newCount};
+        if (newCount >= _driverWarningThreshold) {
+          updates['isAvailable'] = false;
+          updates['isOnline'] = false;
+        }
+        await driverRef.update(updates);
+      }
+    }
+
+    // ٣) نقل الطلب لسائق آخر — يستخدم reassignDriver الموجودة بالفعل.
+    if (reassignToDriverId != null && reassignToDriverName != null) {
+      await reassignDriver(
+        order: order,
+        newDriverId: reassignToDriverId,
+        newDriverName: reassignToDriverName,
+        reason: 'نقل بناءً على شكوى #${complaint.orderNumber}',
+        performedBy: adminUid,
+      );
+    }
+
+    // ٤) إغلاق الشكوى دائماً كخطوة أخيرة، مع تسجيل ملخص الإجراءات المتخذة.
+    final actionsSummary = <String>[
+      if (refundPercentage != null && refundPercentage > 0)
+        'استرداد ${refundPercentage.toStringAsFixed(0)}%',
+      if (warnAgainstParty) 'تسجيل إنذار',
+      if (reassignToDriverId != null) 'نقل الطلب لسائق آخر',
+    ].join(' + ');
+
+    await _complaints.doc(complaint.id).update({
+      'status': models.ComplaintStatus.resolved.name,
+      'adminNote': adminNote ??
+          (actionsSummary.isEmpty ? 'تم الحل بلا إجراء إضافي' : actionsSummary),
+    });
+  }
 
   Stream<List<models.ChatMessage>> streamChatMessages(String orderId) => _messages
       .where('orderId', isEqualTo: orderId)
