@@ -125,8 +125,6 @@ class Order {
         restaurantLat: (map['restaurantLat'] as num?)?.toDouble(),
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
         rejectionReason: map['rejectionReason'] as String?,
-        // الطلبات القديمة قبل إضافة هذا الحقل تُعامل كأنها مؤكَّدة بالفعل
-        // (true) لتفادي أي تأثير رجعي على طلبات جارية بالفعل.
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
       );
 
