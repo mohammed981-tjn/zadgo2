@@ -176,17 +176,6 @@ extension OrderStatusExt on OrderStatus {
 
   bool get isFinished => !isActive;
 
-  /// هل الطلب ما زال ضمن مسؤولية المطعم فعلياً؟
-  ///
-  /// دور المطعم ثلاث مراحل عملية فقط: تأكيد الاستلام ← جاري التحضير ←
-  /// جاهز للاستلام. بعدها لا يملك المطعم أي زر إطلاقاً — إخراج الطلب من
-  /// عنده يقرره السائق وحده بضغطته على "استلمت الطلب" (markPickedUpBySelf)،
-  /// لأن ضغطة المطعم غير موثوقة لتأكيد استلام قد لم يحدث بعد (قد يضغط قبل
-  /// أن يصل السائق فعلياً).
-  ///
-  /// تُستخدم في شاشة المطعم لتقسيم الطلبات لتبويبين: "نشطة" = ما زال ضمن
-  /// مسؤوليته، "منتهية" = خرج منها (بما فيها onTheWay فور ضغطة السائق،
-  /// رغم أن المطعم لم يضغط شيئاً بنفسه).
   bool get isRestaurantResponsibility =>
       this == OrderStatus.created ||
       this == OrderStatus.restaurantPending ||
@@ -263,6 +252,11 @@ class AppUser {
   final bool isActive;
   final String? nationalId;
 
+  /// رصيد محفظة العميل الداخلي — يُضاف إليه أي استرداد جزئي يقرره المدير
+  /// عند حل شكوى، ويُستخدَم تلقائياً كخصم في الطلب القادم. لا علاقة له
+  /// بأي بوابة دفع خارجية؛ هو رصيد داخلي بسيط ضمن Firestore فقط.
+  final double walletBalance;
+
   const AppUser({
     required this.uid,
     required this.name,
@@ -275,6 +269,7 @@ class AppUser {
     this.restaurantName,
     this.isActive = true,
     this.nationalId,
+    this.walletBalance = 0.0,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -289,6 +284,7 @@ class AppUser {
         restaurantName: map['restaurantName'] as String?,
         isActive: map['isActive'] as bool? ?? true,
         nationalId: map['nationalId'] as String?,
+        walletBalance: (map['walletBalance'] as num?)?.toDouble() ?? 0.0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -302,6 +298,7 @@ class AppUser {
         if (restaurantName != null) 'restaurantName': restaurantName,
         if (nationalId != null) 'nationalId': nationalId,
         'isActive': isActive,
+        'walletBalance': walletBalance,
       };
 
   AppUser copyWith({
@@ -312,6 +309,7 @@ class AppUser {
     String? restaurantName,
     bool? isActive,
     String? nationalId,
+    double? walletBalance,
   }) =>
       AppUser(
         uid: uid,
@@ -325,6 +323,7 @@ class AppUser {
         restaurantName: restaurantName ?? this.restaurantName,
         isActive: isActive ?? this.isActive,
         nationalId: nationalId ?? this.nationalId,
+        walletBalance: walletBalance ?? this.walletBalance,
       );
 }
 
@@ -534,6 +533,12 @@ class Driver {
   final double? lng;
   final DateTime? lastLocationUpdate;
 
+  /// عدد الإنذارات التراكمية الناتجة عن حل شكاوى ضد هذا السائق. عند
+  /// وصولها لحد معيّن (3 حالياً)، يُعلَّق السائق تلقائياً (isAvailable
+  /// تتحول false بشكل دائم) حتى يتواصل معه المدير — بنفس منطق "مخالفات
+  /// العقد" (contract violations) المعتمد في تطبيقات التوصيل الكبرى.
+  final int warningCount;
+
   const Driver({
     required this.id,
     required this.name,
@@ -550,6 +555,7 @@ class Driver {
     this.lat,
     this.lng,
     this.lastLocationUpdate,
+    this.warningCount = 0,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -568,6 +574,7 @@ class Driver {
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
+        warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -586,6 +593,7 @@ class Driver {
         'lng': lng,
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
+        'warningCount': warningCount,
       };
 }
 
@@ -825,14 +833,6 @@ class Order {
       );
 }
 
-/// شكوى مُقدَّمة من أي طرف (عميل/سائق/مدير مطعم) ضد طرف آخر أو ضد الطلب
-/// نفسه بشكل عام.
-///
-/// ملاحظة توافقية مهمة: [customerId]/[customerName] الأصليان أُبقيا كما
-/// هما تماماً بلا أي تغيير في معناهما أو مكانهما — لا يزالان يمثلان دائماً
-/// صاحب الطلب (العميل)، بصرف النظر عمّن قدّم الشكوى فعلياً. الحقول
-/// الجديدة (submittedBy*/against*) أُضيفت **بجانبها** فقط، فأي كود قديم
-/// يقرأ customerId/customerName يستمر يعمل دون أي تغيير.
 class Complaint {
   final String id;
   final String orderId;
@@ -847,16 +847,10 @@ class Complaint {
   final DateTime createdAt;
   final String? adminNote;
 
-  /// من قدّم الشكوى فعلياً (قد يكون العميل نفسه، أو السائق، أو مدير
-  /// المطعم). عند غياب هذه الحقول (شكاوى قديمة قبل هذا التحديث)، تُطابق
-  /// تلقائياً customerId/customerName بافتراض أن العميل هو من قدّمها،
-  /// لأن هذا كان الوضع الوحيد الممكن سابقاً.
   final String submittedByUid;
   final String submittedByName;
   final UserRole submittedByRole;
 
-  /// ضد من (اختياري) — null يعني شكوى عامة عن الطلب بلا طرف واحد يُلام
-  /// تحديداً (مثل "جودة الطعام" العامة).
   final String? againstUid;
   final UserRole? againstRole;
 
@@ -898,9 +892,6 @@ class Complaint {
       status: _complaintStatusFromString(map['status'] as String?),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       adminNote: map['adminNote'] as String?,
-      // شكاوى قديمة بلا هذه الحقول تُقرأ كأن العميل هو من قدّمها (نفس
-      // customerId/customerName)، لأن هذا كان الافتراض الوحيد الممكن قبل
-      // هذا التحديث.
       submittedByUid: (map['submittedByUid'] as String?) ?? customerId,
       submittedByName: (map['submittedByName'] as String?) ?? customerName,
       submittedByRole: map['submittedByRole'] != null
