@@ -219,97 +219,163 @@ class _ItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
     final qty = cart.quantityOf(item.id);
+    final isIncomplete = item.name.trim().isEmpty || item.price <= 0;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       elevation: 1,
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        leading: Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            item.name.trim().isEmpty ? '؟' : item.name.trim().substring(0, 1),
-            style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary),
-          ),
-        ),
-        title: Text(
-          item.name.trim().isEmpty ? '(بلا اسم)' : item.name,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-              fontSize: 15),
-        ),
-        subtitle: Text(
-          '${item.price.toStringAsFixed(2)} ر.س',
-          style: const TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w600,
-              fontSize: 14),
-        ),
-        trailing: qty == 0
-            ? SizedBox(
-                width: 64,
-                height: 36,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () => context.read<CartProvider>().add(
-                        item,
-                        restaurant.id,
-                        restaurant.name,
-                        restaurant.emoji,
-                        restaurant.driverShareFee,
-                        restaurant.appShareFee,
-                      ),
-                  child: const Text('أضف', style: TextStyle(fontSize: 13)),
-                ),
-              )
-            : SizedBox(
-                width: 110,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32),
-                    icon: const Icon(Icons.remove_circle_outline,
-                        color: AppColors.primary, size: 22),
-                    onPressed: () =>
-                        context.read<CartProvider>().remove(item.id),
-                  ),
-                  Text('$qty',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Colors.black87)),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32),
-                    icon: const Icon(Icons.add_circle_outline,
-                        color: AppColors.primary, size: 22),
-                    onPressed: () => context.read<CartProvider>().add(
-                          item,
-                          restaurant.id,
-                          restaurant.name,
-                          restaurant.emoji,
-                          restaurant.driverShareFee,
-                          restaurant.appShareFee,
-                        ),
-                  ),
-                ]),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: MenuItemVisual(
+                categoryName: category.name,
+                itemName: item.name,
+                imageUrl: item.imageUrl,
+                size: 60,
               ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.name.trim().isEmpty ? '(بلا اسم)' : item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: AppColors.textDark),
+                  ),
+                  if (item.description.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      item.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.textGray, fontSize: 12.5),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        formatCurrency(item.price),
+                        style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14),
+                      ),
+                      _AddOrCounter(item: item, restaurant: restaurant, qty: qty),
+                    ],
+                  ),
+                  if (isIncomplete) ...[
+                    const SizedBox(height: 4),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.info_outline,
+                          size: 13, color: AppColors.warning),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text('بيانات الصنف غير مكتملة',
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ]),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// زر "أضف" أو عداد الكمية — معزول في ودجت خاص بعرض ثابت لمنع أي مشكلة
+/// تمدد غير محدود داخل Row الأب.
+class _AddOrCounter extends StatelessWidget {
+  final MenuItem item;
+  final Restaurant restaurant;
+  final int qty;
+  const _AddOrCounter(
+      {required this.item, required this.restaurant, required this.qty});
+
+  @override
+  Widget build(BuildContext context) {
+    if (qty == 0) {
+      return SizedBox(
+        height: 32,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () => context.read<CartProvider>().add(
+                item,
+                restaurant.id,
+                restaurant.name,
+                restaurant.emoji,
+                restaurant.driverShareFee,
+                restaurant.appShareFee,
+              ),
+          child: const Text('أضف', style: TextStyle(fontSize: 13)),
+        ),
+      );
+    }
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          iconSize: 18,
+          icon: const Icon(Icons.remove, color: AppColors.primary),
+          onPressed: () => context.read<CartProvider>().remove(item.id),
+        ),
+        SizedBox(
+          width: 20,
+          child: Text('$qty',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: AppColors.textDark)),
+        ),
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          iconSize: 18,
+          icon: const Icon(Icons.add, color: AppColors.primary),
+          onPressed: () => context.read<CartProvider>().add(
+                item,
+                restaurant.id,
+                restaurant.name,
+                restaurant.emoji,
+                restaurant.driverShareFee,
+                restaurant.appShareFee,
+              ),
+        ),
+      ]),
     );
   }
 }
