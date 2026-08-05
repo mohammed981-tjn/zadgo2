@@ -1,19 +1,15 @@
 // lib/screens/restaurant/restaurant_home.dart
 //
-// شاشة "مدير المطعم" — دور المطعم أربع مراحل فقط لا خامس لها:
-//   ١) تأكيد الاستلام   (restaurantPending  → restaurantAccepted) — يحاول
-//      النظام هنا إيجاد سائق تلقائياً (tryAutoAssignOnAcceptance) لمنحه
-//      أطول وقت ممكن قبل أن يصبح الطلب جاهزاً فعلياً.
+// شاشة "مدير المطعم" — دور المطعم ثلاث مراحل فعلية فقط لا رابعة لها:
+//   ١) تأكيد الاستلام   (restaurantPending  → restaurantAccepted)
 //   ٢) جاري التحضير     (restaurantAccepted → preparing)
-//   ٣) جاهز للاستلام    (preparing          → readyForPickup) — شبكة أمان:
-//      إن فشلت المحاولة الأولى (لا سائق مُسنَد بعد)، يُعاد البحث الآن
-//      (retryAutoAssignIfNeeded).
-//   ٤) تم التسليم       (readyForPickup     → onTheWay)
+//   ٣) جاهز للاستلام    (preparing          → readyForPickup)
 //
-// المرحلة الرابعة هي آخر ضغطة للمطعم: "تم التسليم" عنده = "جاري التوصيل"
-// عند السائق والعميل والإدارة. بعدها يخرج الطلب من مسؤولية المطعم نهائياً.
-// السائق لا يملك حق رفض طلب مُسنَد إليه (فقط عطل استثنائي يعالجه المدير
-// يدوياً بتحويل الطلب لسائق آخر من "المتابعة الحية").
+// بعد "جاهز للاستلام"، لا يملك المطعم أي زر إضافي. الانتقال التالي
+// (readyForPickup → onTheWay) ينتج حصراً عن ضغطة السائق نفسه على "استلمت
+// الطلب" في تطبيقه — لأن ضغطة المطعم وحدها غير موثوقة لتأكيد استلام لم
+// يحدث فعلياً (قد يضغط المطعم قبل أن يصل السائق). بمجرد ضغطة السائق،
+// شاشة المطعم تعرض تلقائياً شارة "تم التسليم" دون أي إجراء من طرفها.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemSound, SystemSoundType;
 import 'package:provider/provider.dart';
@@ -198,6 +194,12 @@ class _RestaurantHomeState extends State<RestaurantHome> {
   }
 }
 
+/// قائمة طلبات المطعم، مقسّمة لتبويبين: نشطة ومنتهية.
+///
+/// "نشطة" = الطلبات التي ما زالت ضمن مسؤولية المطعم فعلياً (المراحل الثلاث
+/// فقط، حسب [OrderStatusExt.isRestaurantResponsibility]). "منتهية" = كل ما
+/// خرج من مسؤولية المطعم — بما فيها onTheWay فور ضغطة السائق، رغم أن
+/// المطعم لم يضغط شيئاً بنفسه.
 class _RestaurantOrdersList extends StatefulWidget {
   final String restaurantId;
   final void Function(List<Order> allOrders) onOrdersChanged;
@@ -349,6 +351,10 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     super.dispose();
   }
 
+  /// نص ولون وأيقونة الشارة العلوية. الحالات بعد readyForPickup
+  /// (searchingDriver/driverAssigned/onTheWay/delivered) لا تخص المطعم
+  /// بإجراء، وتُعرض جميعها بنص "تم التسليم — جاري التوصيل" لأن انتقالها
+  /// كلها ناتج عن فعل السائق أو المدير لا المطعم.
   (String, Color, IconData) get _bannerInfo {
     switch (widget.order.status) {
       case OrderStatus.restaurantPending:
@@ -358,9 +364,11 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       case OrderStatus.preparing:
         return ('جاري التحضير', AppColors.primary, Icons.restaurant_rounded);
       case OrderStatus.readyForPickup:
-        return ('جاهز للاستلام', Colors.teal, Icons.shopping_bag_rounded);
+        return ('جاهز — بانتظار استلام السائق', Colors.teal, Icons.shopping_bag_rounded);
       case OrderStatus.restaurantRejected:
         return ('تم رفض الطلب', AppColors.error, Icons.block_rounded);
+      case OrderStatus.searchingDriver:
+      case OrderStatus.driverAssigned:
       case OrderStatus.onTheWay:
         return ('تم التسليم — جاري التوصيل', AppColors.success, Icons.delivery_dining_rounded);
       case OrderStatus.delivered:
@@ -393,9 +401,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     }
   }
 
-  /// المرحلة الأولى: تأكيد الاستلام + محاولة إيجاد سائق تلقائياً فوراً.
-  /// فشل البحث عن سائق لا يمنع تأكيد الاستلام نفسه — العملية الأساسية
-  /// (تغيير الحالة) تنجح دوماً، والتعيين مجرد محاولة إضافية صامتة.
   Future<void> _confirmAcceptance(BuildContext context) async {
     setState(() => _actionLoading = true);
     try {
@@ -408,8 +413,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     }
   }
 
-  /// المرحلة الثالثة: تعليم الطلب جاهزاً + شبكة أمان لإعادة محاولة التعيين
-  /// إن لم يكن قد نجح مبكراً.
   Future<void> _confirmReady(BuildContext context) async {
     setState(() => _actionLoading = true);
     try {
@@ -476,27 +479,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
-  }
-
-  Future<void> _confirmHandOff(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('تأكيد تسليم الطلب'),
-        content: const Text(
-            'هل سلّمت الطلب فعلياً للسائق؟ سينتقل الطلب إلى "جاري التوصيل" ويخرج من طلباتك النشطة.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('تراجع')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('نعم، تم التسليم'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    await _runStatusChange(context, OrderStatus.onTheWay);
   }
 
   @override
@@ -619,6 +601,11 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ]),
           ),
         ],
+        // ===================================================================
+        // المطعم يملك ثلاثة أزرار فقط. بعد "جاهز للاستلام" لا يوجد أي زر
+        // إضافي — الشارة العلوية وحدها تُعلم المطعم بما يجري لاحقاً، لأن
+        // إخراج الطلب من مسؤوليته يقرره السائق بضغطته هو، لا المطعم.
+        // ===================================================================
         if (order.status == OrderStatus.restaurantPending) ...[
           const SizedBox(height: 10),
           Row(children: [
@@ -657,15 +644,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             color: AppColors.success,
             loading: _actionLoading,
             onPressed: () => _confirmReady(context),
-          ),
-        ],
-        if (order.status == OrderStatus.readyForPickup) ...[
-          const SizedBox(height: 10),
-          _ActionButton(
-            label: 'تم التسليم',
-            color: AppColors.success,
-            loading: _actionLoading,
-            onPressed: () => _confirmHandOff(context),
           ),
         ],
       ]),
