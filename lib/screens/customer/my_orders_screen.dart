@@ -53,9 +53,11 @@ class _OrderCard extends StatelessWidget {
               Text('#${order.orderNumber}',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              // ✅ المحادثة والخريطة تظهران فقط أثناء استمرار التوصيل، وتُخفيان
-              // تلقائياً بمجرد انتهاء الطلب (تم التوصيل/ملغى/مرفوض).
-              if (!order.status.isFinished) ...[
+              // ✅ الدردشة والخريطة تظهران للعميل فقط بعد استلام السائق فعلياً
+              // من المطعم (pickedUp/onTheWay) — وليس منذ إنشاء الطلب، لأن لا
+              // معنى لمتابعة سائق لم يُسند بعد أو ما زال متوجهاً للمطعم فقط.
+              if (order.status == OrderStatus.pickedUp ||
+                  order.status == OrderStatus.onTheWay) ...[
                 if (order.driverId != null)
                   IconButton(
                     icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
