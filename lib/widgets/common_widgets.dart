@@ -76,3 +76,4 @@ class PriceRow extends StatelessWidget {
           color: bold ? AppColors.primary : AppColors.textDark)),
     ]));
 }
+
