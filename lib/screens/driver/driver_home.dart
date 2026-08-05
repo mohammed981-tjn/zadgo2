@@ -25,6 +25,13 @@ class _DriverHomeState extends State<DriverHome> {
   double _simLng = 46.6753;
   int _driverStreamRetryToken = 0;
 
+  // ✅ تتبّع الطلبات التي عُرض إشعارها بالفعل، لمنع تكرار نفس الإشعار في
+  // كل rebuild. Set منفصل لكل نوع إشعار لأن الطلب قد يحتاج النوعين في
+  // أوقات مختلفة من دورة حياته.
+  final Set<String> _acknowledgedNotified = {};
+  final Set<String> _autoAssignedNotified = {};
+  OverlayEntry? _bannerEntry;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +41,7 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   void dispose() {
     _locationTimer?.cancel();
+    _bannerEntry?.remove();
     super.dispose();
   }
 
@@ -45,6 +53,161 @@ class _DriverHomeState extends State<DriverHome> {
     _simLat += (0.0003 * (DateTime.now().second.isEven ? 1 : -1));
     _simLng += (0.0003 * (DateTime.now().second.isOdd ? 1 : -1));
     service.updateDriverLocation(driverId, _simLat, _simLng);
+  }
+
+  /// يفحص القائمة الحالية للطلبات بحثاً عن طلبات تحتاج إشعاراً لم يُعرض
+  /// بعد — إما "قرار مطلوب" (بانتظار قبول/رفض صريح) أو "إعلامي فقط"
+  /// (تعيين تلقائي، السائق أونلاين، لا قرار ينتظره).
+  void _checkForNotifications(List<Order> orders) {
+    for (final o in orders) {
+      if (o.needsDriverAcknowledgement) {
+        if (!_acknowledgedNotified.contains(o.id)) {
+          _acknowledgedNotified.add(o.id);
+          _showDecisionBanner(o);
+        }
+      } else if (o.driverId != null &&
+          o.driverId!.isNotEmpty &&
+          o.status == OrderStatus.driverAssigned) {
+        // طلب مُسند وتلقائياً مؤكَّد (driverAcknowledged بالفعل true) —
+        // إشعار إعلامي بسيط فقط، بلا أي قرار مطلوب من السائق.
+        if (!_autoAssignedNotified.contains(o.id)) {
+          _autoAssignedNotified.add(o.id);
+          _showInfoBanner(o);
+        }
+      }
+    }
+  }
+
+  /// إشعار "قرار مطلوب" — بارز، لا يختفي تلقائياً، فيه زرا قبول ورفض
+  /// صريحين لهذا الطلب تحديداً.
+  void _showDecisionBanner(Order order) {
+    _bannerEntry?.remove();
+    final overlay = Overlay.of(context);
+    final service = context.read<FirebaseService>();
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (ctx) => Positioned(
+        top: MediaQuery.of(ctx).padding.top + 8,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.warning,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.local_shipping_rounded, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'طلب #${order.orderNumber} أُسند إليك — بانتظار قرارك',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 4),
+              Text(
+                '${order.restaurantName} ← ${order.deliveryAddress}',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white),
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () async {
+                      entry.remove();
+                      _bannerEntry = null;
+                      await service.rejectAssignedOrder(order.id);
+                    },
+                    child: const Text('رفض'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.warning,
+                    ),
+                    onPressed: () async {
+                      entry.remove();
+                      _bannerEntry = null;
+                      await service.acceptAssignedOrder(order.id);
+                    },
+                    child: const Text('قبول'),
+                  ),
+                ),
+              ]),
+            ]),
+          ),
+        ),
+      ),
+    );
+    _bannerEntry = entry;
+    overlay.insert(entry);
+  }
+
+  /// إشعار "إعلامي فقط" — طلب أُسند تلقائياً (السائق أونلاين، لا قرار
+  /// ينتظره)، يختفي من تلقاء نفسه بعد ثوانٍ قليلة.
+  void _showInfoBanner(Order order) {
+    // لا نُزيل بانر "قرار مطلوب" إن كان معروضاً حالياً لطلب آخر — الإشعار
+    // الإعلامي أقل أولوية ولا يجب أن يطغى عليه.
+    if (_bannerEntry != null) return;
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (ctx) => Positioned(
+        top: MediaQuery.of(ctx).padding.top + 8,
+        left: 16,
+        right: 16,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.success,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Row(children: [
+              const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'طلب جديد #${order.orderNumber} أُسند إليك',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+    _bannerEntry = entry;
+    overlay.insert(entry);
+    Future.delayed(const Duration(seconds: 4), () {
+      if (_bannerEntry == entry) {
+        entry.remove();
+        _bannerEntry = null;
+      }
+    });
   }
 
   @override
@@ -102,7 +265,11 @@ class _DriverHomeState extends State<DriverHome> {
             ),
             Expanded(
               child: IndexedStack(index: _tab, children: [
-                _MyOrdersTab(driverId: driverId, driver: driver),
+                _MyOrdersTab(
+                  driverId: driverId,
+                  driver: driver,
+                  onOrdersChanged: _checkForNotifications,
+                ),
                 _DriverEarningsTab(driver: driver),
               ]),
             ),
@@ -121,7 +288,8 @@ class _DriverHomeState extends State<DriverHome> {
 class _MyOrdersTab extends StatelessWidget {
   final String driverId;
   final Driver? driver;
-  const _MyOrdersTab({required this.driverId, this.driver});
+  final void Function(List<Order> orders) onOrdersChanged;
+  const _MyOrdersTab({required this.driverId, this.driver, required this.onOrdersChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +300,19 @@ class _MyOrdersTab extends StatelessWidget {
       builder: (ctx, all) {
         final active = all.where((o) => o.status.isActive).toList();
 
-        if (active.isEmpty) {
+        // ✅ نفحص كل الطلبات النشطة (بما فيها المعلَّقة بانتظار قرار) بعد
+        // كل إطار، لتفادي استدعاء setState أثناء بناء الشجرة نفسها.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          onOrdersChanged(active);
+        });
+
+        // الطلبات المعلَّقة بانتظار قرار السائق لا تُعرض في القائمة العادية
+        // — فقط عبر الإشعار المنبثق — حتى لا تظهر بطاقة عادية لطلب لم
+        // يلتزم به السائق بعد.
+        final confirmedActive =
+            active.where((o) => !o.needsDriverAcknowledgement).toList();
+
+        if (confirmedActive.isEmpty) {
           return AppEmpty(
             emoji: (driver?.isOnline ?? false) ? '📦' : '🔌',
             title: 'لا توجد طلبات نشطة حالياً',
@@ -142,7 +322,7 @@ class _MyOrdersTab extends StatelessWidget {
 
         return ListView(padding: const EdgeInsets.all(12), children: [
           const SectionHeader(title: 'طلباتي'),
-          ...active.map((o) => _OrderCard(order: o)),
+          ...confirmedActive.map((o) => _OrderCard(order: o)),
         ]);
       },
     );
@@ -195,12 +375,6 @@ class _OrderCard extends StatelessWidget {
     );
   }
 
-  /// إجراء السائق حسب الحالة. زر "استلمت الطلب" يظهر بمجرد أن يكون الطلب
-  /// جاهزاً عند المطعم — سواء كانت الحالة readyForPickup (المطعم علّمه
-  /// جاهزاً للتو) أو searchingDriver/driverAssigned (المدير أسند سائقاً
-  /// يدوياً). هذا الزر هو الفعل الوحيد الذي ينقل الحالة إلى onTheWay —
-  /// المطعم لا يملك أي زر يفعل هذا، فشاشته تعرض "تم التسليم" تلقائياً
-  /// بمجرد أن يضغط السائق هنا، دون أي إجراء إضافي من طرف المطعم.
   Widget _buildAction(BuildContext ctx, FirebaseService service) {
     if (order.status == OrderStatus.restaurantPending ||
         order.status == OrderStatus.restaurantAccepted ||
