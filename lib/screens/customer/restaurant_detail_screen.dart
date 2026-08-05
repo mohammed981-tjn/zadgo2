@@ -12,10 +12,15 @@ import 'cart_screen.dart';
 /// شاشة تفاصيل المطعم: تعرض أصنافه مقسّمة على فئاته، وتتيح الإضافة للسلة
 /// مباشرة دون تسجيل دخول.
 ///
-/// ملاحظة تقنية: تستخدم StreamBuilder الخام من Flutter مباشرة بدل
-/// AppStreamBuilder المخصص، بعد أن ثبتت تجربة سابقة أن StreamBuilder الخام
-/// يعرض المحتوى بنجاح بينما AppStreamBuilder لم يُظهر شيئاً في هذه الشاشة
-/// تحديداً لسبب غير محدد بعد. يبقى AppError متاحاً يدوياً لعرض أي خطأ فعلي.
+/// ============================================================================
+/// ملاحظة تشخيصية مؤقتة (تُحذف بعد حل المشكلة):
+/// _ItemTile في هذه النسخة تعرض مربعاً أصفر تشخيصياً بدل البطاقة الكاملة،
+/// لتحديد هل الودجت نفسها تُبنى إطلاقاً أم لا:
+///   • ظهور مربع أصفر فيه اسم الصنف → المشكلة في تصميم البطاقة الأصلية
+///     (شيء داخلها يأخذ مساحة ولا يُرسم)
+///   • عدم ظهور أي شيء (بياض كما كان) → المشكلة أعمق من _ItemTile، في
+///     القائمة (ListView) أو الشرط الذي يستدعيها
+/// ============================================================================
 class RestaurantDetailScreen extends StatelessWidget {
   final Restaurant restaurant;
   const RestaurantDetailScreen({super.key, required this.restaurant});
@@ -86,6 +91,11 @@ class RestaurantDetailScreen extends StatelessWidget {
                 }
 
                 final cats = catSnap.data ?? [];
+                // تشخيص مؤقت: اطبع عدد الفئات الواصلة فعلياً.
+                debugPrint('🔍 [تشخيص] عدد الفئات الواصلة: ${cats.length}');
+                for (final c in cats) {
+                  debugPrint('🔍 [تشخيص] فئة: id=${c.id} name=${c.name} sortOrder=${c.sortOrder}');
+                }
 
                 return StreamBuilder<List<MenuItem>>(
                   stream: service.streamMenuItems(restaurant.id),
@@ -107,7 +117,17 @@ class RestaurantDetailScreen extends StatelessWidget {
                     }
 
                     final items = itemSnap.data ?? [];
+                    // تشخيص مؤقت: اطبع عدد كل الأصناف الواصلة فعلياً من Firestore،
+                    // قبل أي فلترة بـ canOrder أو مطابقة فئة.
+                    debugPrint('🔍 [تشخيص] عدد كل الأصناف الواصلة (قبل الفلترة): ${items.length}');
+                    for (final i in items) {
+                      debugPrint(
+                          '🔍 [تشخيص] صنف: id=${i.id} name="${i.name}" categoryId="${i.categoryId}" '
+                          'price=${i.price} isAvailable=${i.isAvailable} canOrder=${i.canOrder}');
+                    }
+
                     final orderableItems = items.where((i) => i.canOrder).toList();
+                    debugPrint('🔍 [تشخيص] عدد الأصناف القابلة للطلب (canOrder=true): ${orderableItems.length}');
 
                     final unmatchedItems = orderableItems
                         .where((i) => !cats.any((cat) => _itemBelongsToCategory(i, cat)))
@@ -116,6 +136,8 @@ class RestaurantDetailScreen extends StatelessWidget {
                     final visibleCats = cats
                         .where((cat) => orderableItems.any((i) => _itemBelongsToCategory(i, cat)))
                         .toList();
+
+                    debugPrint('🔍 [تشخيص] فئات ظاهرة: ${visibleCats.length} | أصناف غير مطابقة: ${unmatchedItems.length}');
 
                     if (visibleCats.isEmpty && unmatchedItems.isEmpty) {
                       return const Center(
@@ -202,6 +224,19 @@ class _InfoChip extends StatelessWidget {
       );
 }
 
+/// ============================================================================
+/// نسخة تشخيصية مؤقتة من _ItemTile: مربع أصفر بسيط بدل البطاقة الكاملة.
+/// هذا يعزل السؤال الحاسم: هل هذه الودجت تُبنى إطلاقاً أم لا؟
+///
+///   • ظهور مربع أصفر فيه اسم الصنف والسعر → الودجت تُبنى بنجاح، والمشكلة
+///     كانت في تصميم البطاقة الأصلية (على الأرجح MenuItemVisual أو تخطيط
+///     الـ Row/Column الداخلي). في هذه الحالة أعد لي هذا واستمر بالبناء
+///     الأصلي مع تتبع أدق لعنصر الصورة.
+///   • عدم ظهور أي شيء (بياض كما كان تماماً) → المشكلة ليست في _ItemTile
+///     إطلاقاً، بل أعمق: في القائمة نفسها فوقها، أو في شرط لم نكتشفه بعد.
+///     في هذه الحالة، انسخ لي كل أسطر "🔍 [تشخيص]" التي تظهر في الطرفية
+///     (terminal) عند فتح هذا المطعم بالذات.
+/// ============================================================================
 class _ItemTile extends StatelessWidget {
   final MenuItem item;
   final MenuCategory category;
@@ -210,6 +245,25 @@ class _ItemTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('🔍 [تشخيص] _ItemTile.build() استُدعيت لـ: "${item.name}" (id: ${item.id})');
+
+    // === نسخة تشخيصية مؤقتة — استبدال كامل بمربع أصفر بسيط ===
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      height: 70,
+      width: double.infinity,
+      color: Colors.yellow,
+      alignment: Alignment.center,
+      child: Text(
+        'TEST: ${item.name.isEmpty ? "(بلا اسم)" : item.name} — ${item.price} ر.س',
+        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 14),
+        textAlign: TextAlign.center,
+      ),
+    );
+    // === نهاية النسخة التشخيصية ===
+
+    /* الكود الأصلي الكامل — مُعلَّق مؤقتاً، يُعاد بعد التشخيص:
+
     final cart = context.watch<CartProvider>();
     final qty = cart.quantityOf(item.id);
     final isIncomplete = item.name.trim().isEmpty || item.price <= 0;
@@ -297,5 +351,6 @@ class _ItemTile extends StatelessWidget {
           ]),
       ]),
     );
+    */
   }
 }
