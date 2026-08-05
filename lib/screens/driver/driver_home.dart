@@ -10,6 +10,7 @@ import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
+import '../customer/submit_complaint_screen.dart';
 import '../../navigator_key.dart';
 
 class DriverHome extends StatefulWidget {
@@ -317,6 +318,7 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
+    final auth = context.read<app_auth.AuthProvider>();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -337,6 +339,24 @@ class _OrderCard extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false))),
+            ),
+            // ✅ زر الشكوى — يفتح شاشة تقديم شكوى مشتركة، مع تحديد السائق
+            // كمُقدِّم الشكوى (submittedByRole: driver) لتظهر له خيارات
+            // "ضد العميل" أو "ضد المطعم" فقط (لا يمكنه الشكوى ضد نفسه).
+            IconButton(
+              icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning),
+              tooltip: 'تقديم شكوى',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SubmitComplaintScreen(
+                    order: order,
+                    submittedByUid: auth.user?.uid ?? '',
+                    submittedByName: auth.user?.name ?? '',
+                    submittedByRole: UserRole.driver,
+                  ),
+                ),
+              ),
             ),
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
           ]),
