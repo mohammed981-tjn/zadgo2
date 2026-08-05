@@ -1,296 +1,729 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../models/models.dart';
-import '../../providers/firebase_service.dart';
-import '../../providers/auth_provider.dart' as app_auth;
-import '../../utils/theme.dart';
-import '../../utils/helpers.dart';
-import '../../widgets/common_widgets.dart';
-import '../auth/login_screen.dart';
-import '../customer/order_map_screen.dart';
-import '../customer/order_chat_screen.dart';
-import '../../navigator_key.dart';
+// lib/providers/firebase_service.dart
+import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import '../models/models.dart' as models;
+import '../utils/helpers.dart' show haversineDistanceKm;
 
-class DriverHome extends StatefulWidget {
-  const DriverHome({super.key});
-  @override
-  State<DriverHome> createState() => _DriverHomeState();
-}
+class FirebaseService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-class _DriverHomeState extends State<DriverHome> {
-  int _tab = 0;
-  Timer? _locationTimer;
-  double _simLat = 24.7136;
-  double _simLng = 46.6753;
-  int _driverStreamRetryToken = 0;
+  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
+  CollectionReference<Map<String, dynamic>> get _restaurants => _db.collection('restaurants');
+  CollectionReference<Map<String, dynamic>> get _orders => _db.collection('orders');
+  CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
+  CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
+  CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
+  CollectionReference<Map<String, dynamic>> get _reassignments => _db.collection('reassignments');
+  CollectionReference<Map<String, dynamic>> get _broadcasts => _db.collection('broadcasts');
+  CollectionReference<Map<String, dynamic>> get _registrationCodes =>
+      _db.collection('registrationCodes');
+  CollectionReference<Map<String, dynamic>> get _deliverySettings =>
+      _db.collection('delivery_settings');
 
-  @override
-  void initState() {
-    super.initState();
-    _locationTimer = Timer.periodic(const Duration(seconds: 8), (_) => _pushLocation());
+  bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
+    if (from == to) return true;
+    if (to == models.OrderStatus.cancelled && from.isActive) return true;
+    if (from == models.OrderStatus.delivered && to == models.OrderStatus.refunded) {
+      return true;
+    }
+
+    switch (from) {
+      case models.OrderStatus.created:
+        return to == models.OrderStatus.restaurantPending;
+      case models.OrderStatus.restaurantPending:
+        return to == models.OrderStatus.restaurantAccepted ||
+            to == models.OrderStatus.restaurantRejected;
+      case models.OrderStatus.restaurantAccepted:
+        return to == models.OrderStatus.preparing;
+      case models.OrderStatus.preparing:
+        return to == models.OrderStatus.readyForPickup;
+      case models.OrderStatus.readyForPickup:
+        return to == models.OrderStatus.searchingDriver ||
+            to == models.OrderStatus.onTheWay;
+      case models.OrderStatus.searchingDriver:
+        return to == models.OrderStatus.driverAssigned ||
+            to == models.OrderStatus.noDriverFound;
+      case models.OrderStatus.driverAssigned:
+        return to == models.OrderStatus.onTheWay;
+      case models.OrderStatus.pickedUp:
+        return to == models.OrderStatus.onTheWay;
+      case models.OrderStatus.onTheWay:
+        return to == models.OrderStatus.delivered;
+      case models.OrderStatus.noDriverFound:
+        return to == models.OrderStatus.driverAssigned;
+      case models.OrderStatus.delivered:
+      case models.OrderStatus.restaurantRejected:
+      case models.OrderStatus.cancelled:
+      case models.OrderStatus.refunded:
+        return false;
+    }
   }
 
-  @override
-  void dispose() {
-    _locationTimer?.cancel();
-    super.dispose();
+  CollectionReference<Map<String, dynamic>> _categories(String rId) =>
+      _restaurants.doc(rId).collection('categories');
+  CollectionReference<Map<String, dynamic>> _items(String rId) =>
+      _restaurants.doc(rId).collection('items');
+
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  User? get currentUser => _auth.currentUser;
+
+  Future<UserCredential> signIn(String email, String password) =>
+      _auth.signInWithEmailAndPassword(email: email, password: password);
+
+  Future<UserCredential> register(String email, String password) =>
+      _auth.createUserWithEmailAndPassword(email: email, password: password);
+
+  Future<void> signOut() => _auth.signOut();
+
+  Future<void> createUser(models.AppUser user) => _users.doc(user.uid).set(user.toMap());
+
+  Future<models.AppUser?> getUser(String uid) async {
+    final doc = await _users.doc(uid).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return models.AppUser.fromMap(doc.data()!, doc.id);
   }
 
-  void _pushLocation() {
-    final auth = context.read<app_auth.AuthProvider>();
-    final service = context.read<FirebaseService>();
-    final driverId = auth.user?.uid;
-    if (driverId == null) return;
-    _simLat += (0.0003 * (DateTime.now().second.isEven ? 1 : -1));
-    _simLng += (0.0003 * (DateTime.now().second.isOdd ? 1 : -1));
-    service.updateDriverLocation(driverId, _simLat, _simLng);
+  Future<void> updateFcmToken(String uid, String token) =>
+      _users.doc(uid).update({'fcmToken': token});
+
+  Stream<List<models.AppUser>> streamUsers() => _users
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.AppUser.fromMap(d.data(), d.id)).toList());
+
+  Future<void> updateUser(models.AppUser user) => _users.doc(user.uid).update(user.toMap());
+
+  Future<void> setUserActive(String uid, bool isActive) =>
+      _users.doc(uid).update({'isActive': isActive});
+
+  Future<void> deleteUserDoc(String uid) => _users.doc(uid).delete();
+
+  Future<void> createManagedUser({
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    required models.UserRole role,
+    String? restaurantId,
+    String? restaurantName,
+  }) async {
+    FirebaseApp secondaryApp;
+    try {
+      secondaryApp = Firebase.app('SecondaryZadGoApp');
+    } catch (_) {
+      secondaryApp = await Firebase.initializeApp(
+        name: 'SecondaryZadGoApp',
+        options: Firebase.app().options,
+      );
+    }
+    final secondaryAuth = FirebaseAuth.instanceFor(app: secondaryApp);
+    final cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: email.trim(), password: password.trim());
+    final uid = cred.user!.uid;
+    await secondaryAuth.signOut();
+    final newUser = models.AppUser(
+      uid: uid,
+      name: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      role: role,
+      createdAt: DateTime.now(),
+      restaurantId: restaurantId,
+      restaurantName: restaurantName,
+    );
+    await createUser(newUser);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<app_auth.AuthProvider>();
-    final service = context.read<FirebaseService>();
-    final driverId = auth.user?.uid ?? '';
+  Future<void> sendPasswordReset(String email) =>
+      _auth.sendPasswordResetEmail(email: email.trim());
 
-    return StreamBuilder<Driver?>(
-      key: ValueKey(_driverStreamRetryToken),
-      stream: service.streamDriver(driverId),
-      builder: (ctx, snap) {
-        if (snap.hasError) {
-          return Scaffold(
-            body: AppError(
-              error: snap.error,
-              onRetry: () => setState(() => _driverStreamRetryToken++),
-            ),
-          );
+  static const String _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  String _randomCode() {
+    final rnd = Random.secure();
+    return List.generate(6, (_) => _codeChars[rnd.nextInt(_codeChars.length)]).join();
+  }
+
+  Future<models.RegistrationCode> generateRegistrationCode({
+    required models.UserRole role,
+    String restaurantId = '',
+    String restaurantName = '',
+  }) async {
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final code = _randomCode();
+      final ref = _registrationCodes.doc(code);
+      final existing = await ref.get();
+      if (existing.exists) continue;
+      final entry = models.RegistrationCode(
+        code: code,
+        role: role,
+        restaurantId: restaurantId,
+        restaurantName: restaurantName,
+        createdAt: DateTime.now(),
+      );
+      await ref.set(entry.toMap());
+      return entry;
+    }
+    throw Exception('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى');
+  }
+
+  Stream<List<models.RegistrationCode>> streamRegistrationCodes(
+          String restaurantId) =>
+      _registrationCodes
+          .where('restaurantId', isEqualTo: restaurantId)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
+              .toList());
+
+  Future<void> revokeRegistrationCode(String code) =>
+      _registrationCodes.doc(code.trim().toUpperCase()).delete();
+
+  Future<models.AppUser> registerWithCode({
+    required String code,
+    required String name,
+    required String email,
+    required String password,
+    required String phone,
+    String? nationalId,
+    models.UserRole? expectedRole,
+  }) async {
+    final ref = _registrationCodes.doc(code.trim().toUpperCase());
+
+    final initialSnap = await ref.get();
+    if (!initialSnap.exists || initialSnap.data() == null) {
+      throw Exception('كود التسجيل غير صحيح');
+    }
+    final initial = models.RegistrationCode.fromMap(initialSnap.data()!, initialSnap.id);
+    if (initial.isUsed) {
+      throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+    }
+    if (expectedRole != null && initial.role != expectedRole) {
+      throw Exception('هذا الكود غير مخصص لهذا التطبيق');
+    }
+
+    final cred = await register(email.trim(), password.trim());
+    final uid = cred.user!.uid;
+
+    try {
+      final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
+        final snap = await tx.get(ref);
+        if (!snap.exists || snap.data() == null) {
+          throw Exception('كود التسجيل غير صحيح');
         }
-        final driver = snap.data;
-        return Scaffold(
-          appBar: AppBar(
-            title: Text('مرحباً ${auth.user?.name ?? ""}'),
-            actions: [
-              if (driver != null)
-                Row(children: [
-                  Text(driver.isOnline ? 'متصل' : 'غير متصل',
-                      style: TextStyle(color: driver.isOnline ? Colors.greenAccent : Colors.white54, fontSize: 12)),
-                  Switch(value: driver.isOnline, onChanged: (v) => service.setDriverOnline(driverId, v),
-                      activeColor: Colors.greenAccent),
-                ]),
-              IconButton(icon: const Icon(Icons.logout), onPressed: () async {
-                if (driver != null) await service.setDriverOnline(driverId, false);
-                await auth.logout();
-                if (mounted) {
-                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
-                }
-              }),
-            ],
-          ),
-          body: Column(children: [
-            StreamBuilder<List<BroadcastMessage>>(
-              stream: service.streamBroadcasts(BroadcastAudience.drivers),
-              builder: (ctx, snap) {
-                if (snap.hasError) {
-                  debugPrint('BroadcastBanner error: ${snap.error}');
-                  return const SizedBox.shrink();
-                }
-                final list = snap.data;
-                if (list == null || list.isEmpty) return const SizedBox.shrink();
-                final latest = list.first;
-                return BroadcastBanner(title: latest.title, body: latest.body);
-              },
-            ),
-            Expanded(
-              child: IndexedStack(index: _tab, children: [
-                _MyOrdersTab(driverId: driverId, driver: driver),
-                _DriverEarningsTab(driver: driver),
-              ]),
-            ),
-          ]),
-          bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
-            destinations: const [
-              NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), selectedIcon: Icon(Icons.delivery_dining), label: 'الطلبات'),
-              NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), selectedIcon: Icon(Icons.account_balance_wallet), label: 'أرباحي'),
-            ]),
-        );
-      },
-    );
-  }
-}
-
-class _MyOrdersTab extends StatelessWidget {
-  final String driverId;
-  final Driver? driver;
-  const _MyOrdersTab({required this.driverId, this.driver});
-
-  @override
-  Widget build(BuildContext context) {
-    final service = context.read<FirebaseService>();
-
-    return AppStreamBuilder<List<Order>>(
-      stream: () => service.streamDriverOrders(driverId),
-      builder: (ctx, all) {
-        final active = all.where((o) => o.status.isActive).toList();
-
-        if (active.isEmpty) {
-          return AppEmpty(
-            emoji: (driver?.isOnline ?? false) ? '📦' : '🔌',
-            title: 'لا توجد طلبات نشطة حالياً',
-            subtitle: 'سيُسند إليك أي طلب جديد تلقائياً فور توفره',
-          );
+        final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
+        if (current.isUsed) {
+          throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
         }
+        if (expectedRole != null && current.role != expectedRole) {
+          throw Exception('هذا الكود غير مخصص لهذا التطبيق');
+        }
+        tx.update(ref, {'isUsed': true, 'usedAt': FieldValue.serverTimestamp()});
+        return current;
+      });
 
-        return ListView(padding: const EdgeInsets.all(12), children: [
-          const SectionHeader(title: 'طلباتي'),
-          ...active.map((o) => _OrderCard(order: o)),
-        ]);
-      },
+      final newUser = models.AppUser(
+        uid: uid,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        role: claimed.role,
+        createdAt: DateTime.now(),
+        restaurantId: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantId : null,
+        restaurantName: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantName : null,
+        nationalId: nationalId?.trim().isEmpty ?? true ? null : nationalId!.trim(),
+      );
+      await createUser(newUser);
+      if (claimed.role == models.UserRole.driver) {
+        await addDriver(models.Driver(
+            id: uid, name: name.trim(), phone: phone.trim(), vehicleType: 'دراجة نارية'));
+      }
+      await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
+      return newUser;
+    } catch (e) {
+      try {
+        await cred.user?.delete();
+      } catch (_) {
+        // تجاهل أي خطأ أثناء التنظيف، الأولوية لإعادة رمي الخطأ الأصلي.
+      }
+      rethrow;
+    }
+  }
+
+  Stream<List<models.Restaurant>> streamRestaurants() =>
+      _restaurants.orderBy('name').snapshots().map(
+          (s) => s.docs.map((d) => models.Restaurant.fromMap(d.data(), d.id)).toList());
+
+  Future<void> addRestaurant(models.Restaurant r) => _restaurants.doc(r.id).set(r.toMap());
+  Future<void> updateRestaurant(models.Restaurant r) => _restaurants.doc(r.id).update(r.toMap());
+  Future<void> toggleRestaurant(String id, bool isOpen) =>
+      _restaurants.doc(id).update({'isOpen': isOpen});
+
+  Future<models.Restaurant?> getRestaurantOnce(String id) async {
+    final doc = await _restaurants.doc(id).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return models.Restaurant.fromMap(doc.data()!, doc.id);
+  }
+
+  Stream<List<models.MenuCategory>> streamCategories(String rId) => _categories(rId)
+      .snapshots()
+      .map((s) {
+        final list =
+            s.docs.map((d) => models.MenuCategory.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        return list;
+      });
+
+  Future<void> addCategory(models.MenuCategory cat) =>
+      _categories(cat.restaurantId).doc(cat.id).set(cat.toMap());
+
+  Stream<List<models.MenuItem>> streamMenuItems(String rId) => _items(rId)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.MenuItem.fromMap(d.data(), d.id)).toList());
+
+  Future<void> addMenuItem(models.MenuItem item) =>
+      _items(item.restaurantId).doc(item.id).set(item.toMap());
+  Future<void> updateMenuItem(models.MenuItem item) =>
+      _items(item.restaurantId).doc(item.id).update(item.toMap());
+  Future<void> toggleItemAvailability(String rId, String itemId, bool isAvailable) =>
+      _items(rId).doc(itemId).update({'isAvailable': isAvailable});
+  Future<void> deleteMenuItem(String rId, String itemId) =>
+      _items(rId).doc(itemId).delete();
+
+  Stream<List<models.Driver>> streamDrivers() => _drivers
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Driver.fromMap(d.data(), d.id)).toList());
+
+  Stream<models.Driver?> streamDriver(String driverId) => _drivers.doc(driverId).snapshots().map(
+      (doc) => doc.exists && doc.data() != null ? models.Driver.fromMap(doc.data()!, doc.id) : null);
+
+  Future<void> addDriver(models.Driver d) => _drivers.doc(d.id).set(d.toMap());
+  Future<void> updateDriver(models.Driver d) => _drivers.doc(d.id).update(d.toMap());
+  Future<void> setDriverOnline(String id, bool isOnline) =>
+      _drivers.doc(id).update({'isOnline': isOnline});
+
+  Future<void> updateDriverLocation(String driverId, double lat, double lng) =>
+      _drivers.doc(driverId).update({
+        'lat': lat,
+        'lng': lng,
+        'lastLocationUpdate': FieldValue.serverTimestamp(),
+      });
+
+  Future<void> markPayoutDone(String driverId, double amount) =>
+      _drivers.doc(driverId).update({
+        'totalEarnings': FieldValue.increment(amount),
+        'pendingPayout': 0,
+      });
+
+  Future<void> updateDriverRating(String driverId, double newRating) async {
+    final doc = await _drivers.doc(driverId).get();
+    if (!doc.exists || doc.data() == null) return;
+    final driver = models.Driver.fromMap(doc.data()!, doc.id);
+    final newCount = driver.ratingCount + 1;
+    final newAvg = ((driver.rating * driver.ratingCount) + newRating) / newCount;
+    await _drivers.doc(driverId).update({
+      'rating': double.parse(newAvg.toStringAsFixed(1)),
+      'ratingCount': newCount,
+    });
+  }
+
+  Future<String> placeOrder(models.Order order) async {
+    await _orders.doc(order.id).set({
+      ...order.toMap(),
+      if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+    return order.id;
+  }
+
+  Stream<List<models.Order>> streamAllOrders() => _orders
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
+  Stream<List<models.Order>> streamActiveOrders() => _orders
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.Order.fromMap(d.data(), d.id))
+          .where((o) => o.status.isActive || o.status == models.OrderStatus.noDriverFound)
+          .toList());
+
+  Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
+      .where('restaurantId', isEqualTo: restaurantId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
+  Stream<List<models.Order>> streamCustomerOrders(String customerId) => _orders
+      .where('customerId', isEqualTo: customerId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
+  Stream<List<models.Order>> streamDriverOrders(String driverId) => _orders
+      .where('driverId', isEqualTo: driverId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
+  Stream<models.Order?> streamOrder(String orderId) => _orders.doc(orderId).snapshots().map(
+      (doc) => doc.exists && doc.data() != null ? models.Order.fromMap(doc.data()!, doc.id) : null);
+
+  Future<void> updateOrderStatus(String orderId, models.OrderStatus status) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      await ref.set({
+        'status': status.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'statusChangedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return;
+    }
+
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!_isValidStatusTransition(current.status, status)) {
+      throw Exception('انتقال حالة غير صالح: من ${current.status.name} إلى ${status.name}');
+    }
+
+    await ref.update({
+      'status': status.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> rejectOrderByRestaurant(String orderId, String reason) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (current.status != models.OrderStatus.restaurantPending) {
+      throw Exception('لا يمكن رفض الطلب بعد قبوله — حالته الحالية: ${current.status.label}');
+    }
+
+    await ref.update({
+      'status': models.OrderStatus.restaurantRejected.name,
+      'rejectionReason': reason.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> markPickedUpBySelf(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (current.status != models.OrderStatus.readyForPickup &&
+        current.status != models.OrderStatus.searchingDriver &&
+        current.status != models.OrderStatus.driverAssigned) {
+      throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
+    }
+
+    await ref.update({
+      'status': models.OrderStatus.onTheWay.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> assignDriver(String orderId, String driverId, String driverName) async {
+    final ref = _orders.doc(orderId);
+    final orderDoc = await ref.get();
+    if (orderDoc.exists && orderDoc.data() != null) {
+      final current = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+      if (current.status == models.OrderStatus.readyForPickup) {
+        await updateOrderStatus(orderId, models.OrderStatus.searchingDriver);
+      }
+    }
+
+    final refreshedDoc = await ref.get();
+    if (refreshedDoc.exists && refreshedDoc.data() != null) {
+      final current = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
+      if (!_isValidStatusTransition(current.status, models.OrderStatus.driverAssigned)) {
+        throw Exception(
+            'انتقال حالة غير صالح: من ${current.status.name} إلى ${models.OrderStatus.driverAssigned.name}');
+      }
+    }
+
+    // ✅ نتحقق من حالة اتصال السائق وقت الإسناد اليدوي من المدير: إن كان
+    // متصلاً الآن، نعتبره موافقاً ضمنياً فوراً (driverAcknowledged: true)
+    // بنفس منطق الإسناد التلقائي. إن كان غير متصل، يبقى الطلب معلَّقاً
+    // (false) حتى يقبله أو يرفضه صراحة لاحقاً عند فتح تطبيقه.
+    final driverDoc = await _drivers.doc(driverId).get();
+    final isDriverOnline = driverDoc.exists &&
+        driverDoc.data() != null &&
+        (models.Driver.fromMap(driverDoc.data()!, driverDoc.id).isOnline);
+
+    final batch = _db.batch();
+    batch.update(ref, {
+      'driverId': driverId,
+      'driverName': driverName,
+      'status': models.OrderStatus.driverAssigned.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+      'driverAcknowledged': isDriverOnline,
+    });
+    batch.update(_drivers.doc(driverId), {'isAvailable': false});
+    await batch.commit();
+  }
+
+  /// عدد السائقين المرشحين للمقارنة بالتقييم — نأخذ أقرب هذا العدد جغرافياً
+  /// ثم نختار الأعلى تقييماً من بينهم فقط. ثابت بسيط يسهل تعديله لاحقاً.
+  static const int _driverCandidatesCount = 3;
+
+  /// خوارزمية تعيين السائق التلقائي على مرحلتين:
+  /// ١) نحصر أقرب [_driverCandidatesCount] سائقين متصلين ومتاحين لموقع
+  ///    المطعم (معادلة Haversine).
+  /// ٢) من بين هؤلاء المرشحين فقط، نختار الأعلى تقييماً — وليس الأقرب
+  ///    المطلق — لأن فارق مسافة بسيط بين مرشحين لا يستحق التضحية بسائق
+  ///    أعلى تقييماً بشكل واضح.
+  /// تُعيد true إذا تم إيجاد سائق مناسب وتعيينه، أو false إن لم يوجد.
+  Future<bool> autoAssignNearestDriver(models.Order order) async {
+    if (order.restaurantLat == null || order.restaurantLng == null) return false;
+    final driversSnap = await _drivers.get();
+
+    final candidateDrivers = <models.Driver>[];
+    final candidateDistances = <double>[];
+    for (final doc in driversSnap.docs) {
+      final d = models.Driver.fromMap(doc.data(), doc.id);
+      if (!d.isOnline || !d.isAvailable) continue;
+      if (d.lat == null || d.lng == null) continue;
+      final distance =
+          haversineDistanceKm(order.restaurantLat!, order.restaurantLng!, d.lat!, d.lng!);
+      candidateDrivers.add(d);
+      candidateDistances.add(distance);
+    }
+    if (candidateDrivers.isEmpty) return false;
+
+    final indices = List<int>.generate(candidateDrivers.length, (i) => i);
+    indices.sort((a, b) => candidateDistances[a].compareTo(candidateDistances[b]));
+
+    final nearestIndices = indices.take(_driverCandidatesCount).toList();
+
+    nearestIndices.sort(
+        (a, b) => candidateDrivers[b].rating.compareTo(candidateDrivers[a].rating));
+    final chosen = candidateDrivers[nearestIndices.first];
+
+    final batch = _db.batch();
+    batch.update(_orders.doc(order.id), {
+      'driverId': chosen.id,
+      'driverName': chosen.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      // ✅ التعيين التلقائي لا يختار إلا سائقاً متصلاً أصلاً (isOnline
+      // مُتحقَّق منه أعلاه)، فاتصاله نفسه موافقة ضمنية فورية.
+      'driverAcknowledged': true,
+    });
+    batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
+    await batch.commit();
+    return true;
+  }
+
+  Future<bool> tryAutoAssignOnAcceptance(models.Order order) => autoAssignNearestDriver(order);
+
+  Future<bool> retryAutoAssignIfNeeded(models.Order order) async {
+    if (order.driverId != null && order.driverId!.isNotEmpty) return true;
+    return autoAssignNearestDriver(order);
+  }
+
+  /// السائق يقبل صراحةً طلباً أُسند إليه يدوياً وهو كان غير متصل وقتها.
+  /// يحوّل الطلب من "معلَّق بانتظار موافقته" إلى ملتزم به فعلياً، فيدخل
+  /// مسار العمل العادي (استلام من المطعم ثم التوصيل) دون أي فرق آخر.
+  Future<void> acceptAssignedOrder(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!current.needsDriverAcknowledgement) {
+      return;
+    }
+    await ref.update({
+      'driverAcknowledged': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// السائق يرفض صراحةً طلباً أُسند إليه يدوياً وهو كان غير متصل وقتها.
+  /// يُلغى إسناده عنه فوراً (driverId يعود null)، ويُعاد السائق نفسه متاحاً
+  /// (isAvailable: true)، ثم يُستدعى autoAssignNearestDriver مباشرة ليجد
+  /// أقرب سائق متصل آخر بدلاً منه — دون انتظار تدخل يدوي من المدير.
+  Future<void> rejectAssignedOrder(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!current.needsDriverAcknowledgement) {
+      throw Exception('لا يمكن رفض هذا الطلب في حالته الحالية');
+    }
+
+    final batch = _db.batch();
+    batch.update(ref, {
+      'driverId': null,
+      'driverName': null,
+      'driverAcknowledged': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    if (current.driverId != null && current.driverId!.isNotEmpty) {
+      batch.update(_drivers.doc(current.driverId!), {'isAvailable': true});
+    }
+    await batch.commit();
+
+    final refreshedDoc = await ref.get();
+    if (refreshedDoc.exists && refreshedDoc.data() != null) {
+      final refreshedOrder = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
+      await autoAssignNearestDriver(refreshedOrder);
+    }
+  }
+
+  Future<void> reassignDriver({
+    required models.Order order,
+    required String newDriverId,
+    required String newDriverName,
+    required String reason,
+    required String performedBy,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_orders.doc(order.id), {
+      'driverId': newDriverId,
+      'driverName': newDriverName,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.update(_drivers.doc(newDriverId), {'isAvailable': false});
+    if (order.driverId != null && order.driverId!.isNotEmpty) {
+      batch.update(_drivers.doc(order.driverId!), {'isAvailable': true});
+    }
+    final logRef = _reassignments.doc();
+    batch.set(
+      logRef,
+      models.DriverReassignment(
+        id: logRef.id,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        oldDriverId: order.driverId,
+        oldDriverName: order.driverName,
+        newDriverId: newDriverId,
+        newDriverName: newDriverName,
+        reason: reason,
+        performedBy: performedBy,
+        createdAt: DateTime.now(),
+      ).toMap(),
     );
-  }
-}
-
-class _OrderCard extends StatelessWidget {
-  final Order order;
-  const _OrderCard({required this.order});
-
-  @override
-  Widget build(BuildContext context) {
-    final service = context.read<FirebaseService>();
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-              child: Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-            ),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
-            ),
-            IconButton(
-              icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false))),
-            ),
-            StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
-          ]),
-          const SizedBox(height: 10),
-          InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
-          InfoRow(icon: Icons.person_outline, text: '${order.customerName} — ${order.customerPhone}'),
-          InfoRow(icon: Icons.location_on_outlined, text: order.deliveryAddress),
-          const Divider(height: 16),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(formatCurrency(order.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            Text(order.paymentMethod.label, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
-          ]),
-          const SizedBox(height: 12),
-          _buildAction(context, service),
-        ]),
-      ),
-    );
+    await batch.commit();
   }
 
-  /// إجراء السائق حسب الحالة. زر "استلمت الطلب" يظهر بمجرد أن يكون الطلب
-  /// جاهزاً عند المطعم — سواء كانت الحالة readyForPickup (المطعم علّمه
-  /// جاهزاً للتو) أو searchingDriver/driverAssigned (المدير أسند سائقاً
-  /// يدوياً). هذا الزر هو الفعل الوحيد الذي ينقل الحالة إلى onTheWay —
-  /// المطعم لا يملك أي زر يفعل هذا، فشاشته تعرض "تم التسليم" تلقائياً
-  /// بمجرد أن يضغط السائق هنا، دون أي إجراء إضافي من طرف المطعم.
-  Widget _buildAction(BuildContext ctx, FirebaseService service) {
-    if (order.status == OrderStatus.restaurantPending ||
-        order.status == OrderStatus.restaurantAccepted ||
-        order.status == OrderStatus.preparing) {
-      return const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
-          style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
+  Stream<List<models.DriverReassignment>> streamReassignments() => _reassignments
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.DriverReassignment.fromMap(d.data(), d.id)).toList());
+
+  Future<void> markOrderPickedUp(String orderId) async {
+    await updateOrderStatus(orderId, models.OrderStatus.pickedUp);
+    await updateOrderStatus(orderId, models.OrderStatus.onTheWay);
+  }
+
+  Future<void> markOrderDelivered(String orderId, String driverId) async {
+    final orderDoc = await _orders.doc(orderId).get();
+    double commission = 0;
+    double driverPayout = 10;
+    if (orderDoc.exists && orderDoc.data() != null) {
+      final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+      if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
+        throw Exception(
+            'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
+      }
+      commission = order.calculatedCommission;
+      driverPayout = order.driverShare;
     }
-    if (order.status == OrderStatus.readyForPickup ||
-        order.status == OrderStatus.searchingDriver ||
-        order.status == OrderStatus.driverAssigned) {
-      return SizedBox(width: double.infinity, child: ElevatedButton.icon(
-        onPressed: () async {
-          final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب فعلياً من المطعم؟', confirmLabel: 'نعم');
-          if (ok == true) {
-            await service.markPickedUpBySelf(order.id);
-            final now = DateTime.now();
-            navigatorKey.currentState?.push(
-              MaterialPageRoute(
-                builder: (_) => OrderMapScreen(
-                  order: order.copyWith(
-                    status: OrderStatus.onTheWay,
-                    updatedAt: now,
-                    statusChangedAt: now,
-                  ),
-                  readOnly: false,
-                ),
-              ),
-            );
-          }
-        },
-        icon: const Icon(Icons.delivery_dining),
-        label: const Text('استلمت الطلب — في الطريق'),
-      ));
-    }
-    if (order.status == OrderStatus.onTheWay) {
-      return SizedBox(width: double.infinity, child: ElevatedButton.icon(
-        onPressed: () async {
-          final ok = await showConfirmDialog(ctx, title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
-          if (ok == true) {
-            await service.markOrderDelivered(order.id, order.driverId ?? '');
-            if (ctx.mounted) showSuccess(ctx, 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
-          }
-        },
-        style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-        icon: const Icon(Icons.done_all_rounded),
-        label: const Text('تأكيد التوصيل'),
-      ));
-    }
-    return const SizedBox.shrink();
-  }
-}
-
-class _DriverEarningsTab extends StatelessWidget {
-  final Driver? driver;
-  const _DriverEarningsTab({this.driver});
-
-  @override
-  Widget build(BuildContext context) {
-    if (driver == null) return const AppLoading();
-    final d = driver!;
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('إجمالي أرباحك', style: TextStyle(color: Colors.white70, fontSize: 14)),
-          const SizedBox(height: 6),
-          Text(formatCurrency(d.totalEarnings), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
-        ]),
-      ),
-      const SizedBox(height: 20),
-      GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
-        _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, AppColors.primary),
-        _stat('المستحقات', formatCurrency(d.pendingPayout), Icons.account_balance_wallet_outlined, AppColors.warning),
-        _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
-        _stat('الحالة', d.isOnline ? 'متصل' : 'غير متصل', d.isOnline ? Icons.wifi : Icons.wifi_off,
-            d.isOnline ? AppColors.success : AppColors.textGray),
-      ]),
-    ]);
+    final batch = _db.batch();
+    batch.update(_orders.doc(orderId), {
+      'status': models.OrderStatus.delivered.name,
+      'isPaid': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+      'platformCommission': commission,
+    });
+    batch.update(_drivers.doc(driverId), {
+      'totalDeliveries': FieldValue.increment(1),
+      'pendingPayout': FieldValue.increment(driverPayout),
+      'isAvailable': true,
+    });
+    await batch.commit();
   }
 
-  Widget _stat(String label, String value, IconData icon, Color color) => Card(child: Padding(
-    padding: const EdgeInsets.all(16),
-    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(icon, color: color, size: 28),
-      Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-      Text(label, style: const TextStyle(fontSize: 12)),
-    ])));
+  Future<void> cancelOrder(String orderId) =>
+      updateOrderStatus(orderId, models.OrderStatus.cancelled);
+
+  Future<Map<String, dynamic>> getDeliverySettings() async {
+    final doc = await _deliverySettings.doc('config').get();
+    return doc.data() ?? {};
+  }
+
+  Future<void> rateOrder({
+    required String orderId,
+    required String driverId,
+    required double orderRating,
+    required double driverRating,
+    String? review,
+  }) async {
+    await _orders.doc(orderId).update({
+      'customerRating': orderRating,
+      'driverRating': driverRating,
+      'isRated': true,
+      if (review != null) 'review': review,
+    });
+    await updateDriverRating(driverId, driverRating);
+  }
+
+  Stream<List<models.Complaint>> streamComplaints() => _complaints
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
+
+  Future<void> submitComplaint(models.Complaint complaint) =>
+      _complaints.doc(complaint.id).set(complaint.toMap());
+
+  Future<void> updateComplaintStatus(
+    String complaintId,
+    models.ComplaintStatus status, {
+    String? adminNote,
+    String? resolution,
+  }) =>
+      _complaints.doc(complaintId).update({
+        'status': status.name,
+        if (adminNote != null) 'adminNote': adminNote,
+        if (resolution != null) 'resolution': resolution,
+      });
+
+  Stream<List<models.ChatMessage>> streamChatMessages(String orderId) => _messages
+      .where('orderId', isEqualTo: orderId)
+      .orderBy('createdAt')
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.ChatMessage.fromMap(d.data(), d.id)).toList());
+
+  Future<void> sendChatMessage(models.ChatMessage message) =>
+      _messages.doc(message.id).set(message.toMap());
+
+  Stream<List<models.BroadcastMessage>> streamBroadcasts(models.BroadcastAudience audience) => _broadcasts
+      .where('audience', isEqualTo: audience.name)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.BroadcastMessage.fromMap(d.data(), d.id)).toList());
+
+  Future<void> sendBroadcast(models.BroadcastMessage message) =>
+      _broadcasts.doc(message.id).set(message.toMap());
 }
