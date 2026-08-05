@@ -175,6 +175,24 @@ extension OrderStatusExt on OrderStatus {
       this != OrderStatus.refunded;
 
   bool get isFinished => !isActive;
+
+  /// هل الطلب ما زال ضمن مسؤولية المطعم فعلياً؟
+  ///
+  /// دور المطعم ثلاث مراحل عملية فقط: تأكيد الاستلام ← جاري التحضير ←
+  /// جاهز للاستلام. بعدها لا يملك المطعم أي زر إطلاقاً — إخراج الطلب من
+  /// عنده يقرره السائق وحده بضغطته على "استلمت الطلب" (markPickedUpBySelf)،
+  /// لأن ضغطة المطعم غير موثوقة لتأكيد استلام قد لم يحدث بعد (قد يضغط قبل
+  /// أن يصل السائق فعلياً).
+  ///
+  /// تُستخدم في شاشة المطعم لتقسيم الطلبات لتبويبين: "نشطة" = ما زال ضمن
+  /// مسؤوليته، "منتهية" = خرج منها (بما فيها onTheWay فور ضغطة السائق،
+  /// رغم أن المطعم لم يضغط شيئاً بنفسه).
+  bool get isRestaurantResponsibility =>
+      this == OrderStatus.created ||
+      this == OrderStatus.restaurantPending ||
+      this == OrderStatus.restaurantAccepted ||
+      this == OrderStatus.preparing ||
+      this == OrderStatus.readyForPickup;
 }
 
 extension PaymentMethodExt on PaymentMethod {
@@ -641,8 +659,12 @@ class Order {
   final double? restaurantLng;
   final String? rejectionReason;
 
-  /// هل وافق السائق المُسند إليه هذا الطلب صراحةً؟ انظر التعليق الكامل في
-  /// نسخة سابقة من هذا الملف لتفاصيل السيناريوهات.
+  /// هل وافق السائق المُسند إليه هذا الطلب صراحةً؟
+  ///
+  /// عند الإسناد التلقائي (autoAssignNearestDriver) تكون true فوراً، لأنها
+  /// لا تختار إلا سائقاً متصلاً أصلاً فاتصاله موافقة ضمنية. عند الإسناد
+  /// اليدوي من المدير: true إن كان متصلاً وقتها، و false إن كان غير متصل —
+  /// فيرى قبول/رفض صريحاً عند فتح تطبيقه لاحقاً.
   final bool driverAcknowledged;
 
   const Order({
