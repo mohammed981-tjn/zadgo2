@@ -41,13 +41,17 @@ class FirebaseService {
       case models.OrderStatus.preparing:
         return to == models.OrderStatus.readyForPickup;
       case models.OrderStatus.readyForPickup:
+        // الانتقال الوحيد المسموح من هنا الآن هو onTheWay، وينتج حصراً عن
+        // ضغطة السائق (markPickedUpBySelf) — لا يملك المطعم أي زر ينقل
+        // الحالة من هنا؛ searchingDriver يبقى للمسار الإداري (بحث المدير
+        // عن سائق يدوياً قبل الاستلام الفعلي).
         return to == models.OrderStatus.searchingDriver ||
             to == models.OrderStatus.onTheWay;
       case models.OrderStatus.searchingDriver:
         return to == models.OrderStatus.driverAssigned ||
             to == models.OrderStatus.noDriverFound;
       case models.OrderStatus.driverAssigned:
-        return to == models.OrderStatus.pickedUp;
+        return to == models.OrderStatus.onTheWay;
       case models.OrderStatus.pickedUp:
         return to == models.OrderStatus.onTheWay;
       case models.OrderStatus.onTheWay:
@@ -360,10 +364,6 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
-  /// طلبات سائق محدد — المصدر الوحيد الآمن لشاشة السائق تحت قواعد Firestore
-  /// الحالية (allow list تشترط driverId == currentUid() في الاستعلام نفسه).
-  /// يشمل كل حالات الطلب طالما driverId يساوي هذا السائق: بدءاً من
-  /// restaurantAccepted (بعد التعيين المبكر) وحتى delivered.
   Stream<List<models.Order>> streamDriverOrders(String driverId) => _orders
       .where('driverId', isEqualTo: driverId)
       .orderBy('createdAt', descending: true)
@@ -417,6 +417,33 @@ class FirebaseService {
     });
   }
 
+  /// السائق يؤكد استلامه الفعلي للطلب من المطعم — هذا هو الفعل الوحيد الذي
+  /// ينقل الطلب من readyForPickup إلى onTheWay مباشرة. لا يوجد أي زر عند
+  /// المطعم ينفّذ هذا الانتقال؛ ضغطة المطعم غير موثوقة لتأكيد استلام لم
+  /// يحدث فعلياً (قد يضغط قبل أن يصل السائق). بمجرد هذا الاستدعاء، شاشة
+  /// المطعم تعرض تلقائياً "تم التسليم" لأنها تعتمد على نفس الحالة onTheWay
+  /// دون أي إجراء إضافي من طرفها.
+  Future<void> markPickedUpBySelf(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (current.status != models.OrderStatus.readyForPickup &&
+        current.status != models.OrderStatus.searchingDriver &&
+        current.status != models.OrderStatus.driverAssigned) {
+      throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
+    }
+
+    await ref.update({
+      'status': models.OrderStatus.onTheWay.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> assignDriver(String orderId, String driverId, String driverName) async {
     final ref = _orders.doc(orderId);
     final orderDoc = await ref.get();
@@ -448,10 +475,6 @@ class FirebaseService {
     await batch.commit();
   }
 
-  /// البحث عن أقرب سائق متصل ومتاح وإسناده للطلب فوراً — دون تغيير حالة
-  /// الطلب (تبقى كما هي: restaurantAccepted عادة). تُستخدم داخلياً من
-  /// [tryAutoAssignOnAcceptance] و[retryAutoAssignIfNeeded]، ومن الزر
-  /// اليدوي في لوحة المدير كما كانت.
   Future<bool> autoAssignNearestDriver(models.Order order) async {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
@@ -468,9 +491,6 @@ class FirebaseService {
       }
     }
     if (nearest == null) return false;
-    // إسناد مباشر بدون المرور بـ assignDriver (التي تفرض searchingDriver
-    // أولاً)، لأن التعيين هنا مبكر جداً — الطلب ما زال في مرحلة التحضير
-    // ولا داعي لتغيير حالته إطلاقاً، فقط ربط السائق به.
     final batch = _db.batch();
     batch.update(_orders.doc(order.id), {
       'driverId': nearest.id,
@@ -482,17 +502,8 @@ class FirebaseService {
     return true;
   }
 
-  /// [مرحلة التعيين المبكر — الدالة الأولى] تُستدعى فور ضغط المطعم "تأكيد
-  /// الاستلام" (لحظة restaurantPending → restaurantAccepted). تمنح النظام
-  /// أطول وقت ممكن (التحضير كاملاً) للعثور على سائق قبل أن يصبح الطلب
-  /// جاهزاً فعلياً. لا تفشل بصمت ولا ترمي استثناءً إن لم تجد سائقاً — فقط
-  /// تُعيد false، على أن تُعالج الحالة لاحقاً بواسطة [retryAutoAssignIfNeeded].
   Future<bool> tryAutoAssignOnAcceptance(models.Order order) => autoAssignNearestDriver(order);
 
-  /// [شبكة الأمان — الدالة الثانية] تُستدعى فور ضغط المطعم "جاهز للاستلام"
-  /// *فقط* إن فشلت المحاولة الأولى (driverId ما زال فارغاً) — الوقت مرّ منذ
-  /// محاولة القبول، وربما صار سائق آخر متاحاً الآن. لا تفعل شيئاً إن كان
-  /// الطلب مُسنَداً بالفعل، فلا تكرار ولا تعارض مع تعيين سابق.
   Future<bool> retryAutoAssignIfNeeded(models.Order order) async {
     if (order.driverId != null && order.driverId!.isNotEmpty) return true;
     return autoAssignNearestDriver(order);
