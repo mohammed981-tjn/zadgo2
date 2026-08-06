@@ -1,17 +1,10 @@
-// lib/screens/admin/pick_location_screen.dart
+// lib/screens/customer/pick_location_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../utils/theme.dart';
-import '../../widgets/common_widgets.dart';
 
-/// شاشة اختيار موقع على الخريطة — تُستخدم من العميل (عنوان التوصيل) ومن
-/// المطعم (موقعه عند الإضافة). عند الفتح، تحاول تعبئة الموقع تلقائياً من
-/// GPS الجهاز الفعلي فوراً دون أي ضغطة من المستخدم؛ إن رفض الإذن أو تعذّر
-/// تحديد الموقع (داخل مبنى مثلاً)، تعرض [initialLocation] إن وُجدت أو
-/// مركز افتراضي (الرياض)، ويبقى بإمكان المستخدم التعديل يدوياً بالسحب أو
-/// الضغط على الخريطة، أو بزر "تحديد موقعي" لإعادة المحاولة يدوياً.
 class PickLocationScreen extends StatefulWidget {
   final LatLng? initialLocation;
   const PickLocationScreen({super.key, this.initialLocation});
@@ -32,8 +25,6 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
   void initState() {
     super.initState();
     _selected = widget.initialLocation ?? _fallbackCenter;
-    // لا ننتظر initState نفسه — نبدأ جلب GPS فوراً بعد أول إطار، بلا أي
-    // تفاعل مطلوب من المستخدم، تماماً كما طُلب.
     WidgetsBinding.instance.addPostFrameCallback((_) => _fetchCurrentLocation());
   }
 
@@ -66,10 +57,8 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10),
       );
 
       if (!mounted) return;
