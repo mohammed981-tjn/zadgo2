@@ -28,12 +28,15 @@ dependencies:
   latlong2: ^0.9.1
   url_launcher: ^6.3.1
   shared_preferences: ^2.3.3
-  geolocator: ^9.0.2
+  geolocator: ^13.0.1
 
   pdf: ^3.11.1
   printing: ^5.13.4
   excel: ^4.0.6
   share_plus: ^10.1.2
+
+dependency_overrides:
+  geolocator_android: 4.6.0
 
 dev_dependencies:
   flutter_test:
