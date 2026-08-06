@@ -1,3 +1,4 @@
+// lib/screens/admin/admin_home.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -11,7 +12,16 @@ import 'admin_restaurants_tab.dart';
 import 'admin_users_tab.dart';
 import 'order_tracking_tab.dart';
 import 'broadcast_tab.dart';
+import 'admin_complaints_screen.dart';
 
+/// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
+/// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
+///
+/// الشريط السفلي يحتوي الآن 5 مهام يومية متكررة فقط: الرئيسية، المتابعة
+/// الحية، الشكاوى، السائقون، المطاعم. أما المهام الأقل تكراراً (إدارة
+/// المستخدمين، البث الجماعي) فانتقلت لقائمة جانبية (Drawer) تُفتح من
+/// أيقونة القائمة أعلى الشاشة — نفس نمط Gmail (بريد أساسي في الأسفل،
+/// تبديل حسابات ومجلدات في الدرج الجانبي).
 class AdminHome extends StatefulWidget {
   const AdminHome({super.key});
   @override
@@ -20,37 +30,101 @@ class AdminHome extends StatefulWidget {
 
 class _AdminHomeState extends State<AdminHome> {
   int _tab = 0;
+
+  static const _tabTitles = ['الرئيسية', 'المتابعة الحية', 'الشكاوى', 'السائقون', 'المطاعم'];
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
-      appBar: AppBar(title: Text('لوحة التحكم — ${auth.user?.name ?? ""}'), actions: [
-        IconButton(icon: const Icon(Icons.logout), onPressed: () async {
-          await auth.logout();
-          if (mounted) Navigator.pushAndRemoveUntil(context,
-              MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
-        }),
-      ]),
-      // تبويب "الطلبات" (_OrdersTab) حُذف نهائياً من هنا — كان مكرَّراً مع
-      // "المتابعة الحية" (OrderTrackingTab) الأكثر اكتمالاً (تنبيهات مُهل،
-      // تحويل سائق، إسناد يدوي)، بالإضافة إلى احتوائه أزرار "بدأ التحضير"
-      // و"جاهز للاستلام" التي هي من اختصاص المطعم حصراً (موجودة فعلياً في
-      // restaurant_home.dart)، لا المدير العام.
+      appBar: AppBar(
+        title: Text('${_tabTitles[_tab]} — ${auth.user?.name ?? ""}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await auth.logout();
+              if (mounted) {
+                Navigator.pushAndRemoveUntil(context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+              }
+            },
+          ),
+        ],
+      ),
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(color: AppColors.primary),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 36),
+                  const SizedBox(height: 8),
+                  Text(auth.user?.name ?? '',
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text('إدارة إضافية', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.people_outline),
+              title: const Text('المستخدمون'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'المستخدمون', child: AdminUsersTab())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.campaign_outlined),
+              title: const Text('بث جماعي'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'بث جماعي', child: BroadcastTab())));
+              },
+            ),
+          ],
+        ),
+      ),
       body: IndexedStack(index: _tab, children: const [
-        _StatsTab(), AdminRestaurantsTab(), OrderTrackingTab(), _DriversTab(), _ComplaintsTab(), BroadcastTab(), AdminUsersTab(),
+        _StatsTab(),
+        OrderTrackingTab(),
+        AdminComplaintsScreen(),
+        _DriversTab(),
+        AdminRestaurantsTab(),
       ]),
-      bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'الرئيسية'),
-          NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
           NavigationDestination(icon: Icon(Icons.gps_fixed_outlined), label: 'المتابعة الحية'),
-          NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
           NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
-          NavigationDestination(icon: Icon(Icons.campaign_outlined), label: 'بث جماعي'),
-          NavigationDestination(icon: Icon(Icons.people_outline), label: 'المستخدمون'),
-        ]),
+          NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
+          NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
+        ],
+      ),
     );
   }
+}
+
+/// غلاف بسيط لعرض تبويب من الدرج كشاشة مستقلة بشريط عنوان خاص بها، بدل
+/// افتراض وجودها ضمن IndexedStack الرئيسي.
+class _DrawerScreen extends StatelessWidget {
+  final String title;
+  final Widget child;
+  const _DrawerScreen({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: child,
+      );
 }
 
 class _StatsTab extends StatelessWidget {
@@ -100,33 +174,10 @@ class _DriversTab extends StatelessWidget {
         return Card(child: ListTile(
           leading: CircleAvatar(backgroundColor: d.isOnline ? AppColors.success.withOpacity(0.2) : Colors.grey.shade200,
               child: Text(d.name.isNotEmpty ? d.name[0] : '?')),
-          title: Text(d.name), subtitle: Text('${d.totalDeliveries} توصيلة  •  ${d.rating.toStringAsFixed(1)} ⭐'),
+          title: Text(d.name),
+          subtitle: Text('${d.totalDeliveries} توصيلة  •  ${d.rating.toStringAsFixed(1)} ⭐'
+              '${d.warningCount > 0 ? '  •  ⚠️ ${d.warningCount} إنذار' : ''}'),
           trailing: StatusBadge(label: d.isOnline ? 'متصل' : 'غير متصل', color: d.isOnline ? AppColors.success : Colors.grey),
-        ));
-      });
-    });
-  }
-}
-
-class _ComplaintsTab extends StatelessWidget {
-  const _ComplaintsTab();
-  @override
-  Widget build(BuildContext context) {
-    final service = context.read<FirebaseService>();
-    return AppStreamBuilder<List<Complaint>>(stream: service.streamComplaints, builder: (ctx, list) {
-      if (list.isEmpty) return const AppEmpty(emoji: '✅', title: 'لا يوجد شكاوى');
-      return ListView.builder(padding: const EdgeInsets.all(12), itemCount: list.length, itemBuilder: (_, i) {
-        final c = list[i];
-        return Card(child: ListTile(
-          title: Text('${c.type.label} — #${c.orderNumber}'),
-          subtitle: Text(c.description, maxLines: 2),
-          trailing: StatusBadge(label: c.status.label, color: c.status.color),
-          onTap: () => showDialog(context: context, builder: (_) => AlertDialog(
-            title: const Text('تحديث حالة الشكوى'),
-            content: Wrap(spacing: 8, children: ComplaintStatus.values.map((s) => ActionChip(
-                label: Text(s.label), onPressed: () { service.updateComplaintStatus(c.id, s); Navigator.pop(context); },
-              )).toList()),
-          )),
         ));
       });
     });
