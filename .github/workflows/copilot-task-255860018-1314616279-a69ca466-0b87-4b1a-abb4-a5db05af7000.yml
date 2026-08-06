@@ -60,7 +60,7 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-          cache: true
+          cache: false
 
       - name: Verify Flutter installation
         run: flutter doctor -v
@@ -77,6 +77,8 @@ jobs:
           rm -rf .dart_tool
           rm -rf android/.gradle
           rm -rf build
+          rm -rf ~/.pub-cache
+          rm -rf ~/.gradle
 
       - name: Install dependencies
         run: flutter pub get
@@ -103,4 +105,3 @@ jobs:
             android/app/build/outputs/apk/${{ matrix.flavor }}/release/app-${{ matrix.flavor }}-release.apk
           if-no-files-found: warn
           retention-days: 7
-
