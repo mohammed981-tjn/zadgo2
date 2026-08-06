@@ -16,6 +16,8 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
+  CollectionReference<Map<String, dynamic>> get _complaintMessages =>
+      _db.collection('complaint_messages');
   CollectionReference<Map<String, dynamic>> get _reassignments => _db.collection('reassignments');
   CollectionReference<Map<String, dynamic>> get _broadcasts => _db.collection('broadcasts');
   CollectionReference<Map<String, dynamic>> get _registrationCodes =>
@@ -101,8 +103,6 @@ class FirebaseService {
 
   Future<void> deleteUserDoc(String uid) => _users.doc(uid).delete();
 
-  /// يضيف مبلغاً لرصيد محفظة العميل الداخلي — تُستخدم مباشرة من
-  /// resolveComplaint عند تقرير استرداد جزئي، أو يمكن استدعاؤها منفرداً.
   Future<void> addWalletCredit(String userId, double amount) =>
       _users.doc(userId).update({'walletBalance': FieldValue.increment(amount)});
 
@@ -702,26 +702,8 @@ class FirebaseService {
         if (resolution != null) 'resolution': resolution,
       });
 
-  /// عدد الإنذارات التي يُعلَّق عندها السائق تلقائياً — نفس منطق
-  /// "مخالفات العقد" (contract violations) المعتمد في تطبيقات التوصيل
-  /// الكبرى. ثابت بسيط يسهل تعديله لاحقاً.
   static const int _driverWarningThreshold = 3;
 
-  /// حل شكوى بإجراء فعلي موحّد — يجمع ثلاثة إجراءات اختيارية في عملية
-  /// واحدة، ثم يُغلق الشكوى دائماً بحالة [ComplaintStatus.resolved]:
-  ///
-  /// • [refundPercentage] (اختياري): نسبة مئوية من قيمة الطلب (grandTotal)
-  ///   تُضاف كرصيد لمحفظة العميل الداخلي (walletBalance) عبر
-  ///   [addWalletCredit]. مثلاً 20 تعني استرداد 20% من قيمة الطلب.
-  ///
-  /// • [warnAgainstParty] (اختياري): إن كان true ويكون [Complaint.against
-  ///   Role] سائقاً، يزيد warningCount للسائق المتَّهم بمقدار 1. عند وصول
-  ///   العدّاد لـ [_driverWarningThreshold]، يُعلَّق السائق تلقائياً
-  ///   (isAvailable تصبح false بشكل دائم) حتى يتواصل معه المدير يدوياً.
-  ///
-  /// • [reassignToDriverId]/[reassignToDriverName] (اختياريان معاً): إن
-  ///   مُرِّرا، يُستدعى [reassignDriver] الموجود بالفعل لنقل الطلب لسائق
-  ///   آخر جبراً، بنفس منطق الطوارئ (تعطل/حادث) المتفق عليه سابقاً.
   Future<void> resolveComplaint({
     required models.Complaint complaint,
     required models.Order order,
@@ -732,14 +714,11 @@ class FirebaseService {
     String? reassignToDriverName,
     String? adminNote,
   }) async {
-    // ١) الاسترداد الجزئي — نسبة من قيمة الطلب تُضاف لمحفظة العميل.
     if (refundPercentage != null && refundPercentage > 0) {
       final refundAmount = order.grandTotal * (refundPercentage / 100);
       await addWalletCredit(order.customerId, refundAmount);
     }
 
-    // ٢) الإنذار — فقط إن كان المتَّهم سائقاً، يزيد عدّاده بمقدار 1، وعند
-    // بلوغه الحد الأقصى يُعلَّق تلقائياً.
     if (warnAgainstParty &&
         complaint.againstRole == models.UserRole.driver &&
         complaint.againstUid != null) {
@@ -757,7 +736,6 @@ class FirebaseService {
       }
     }
 
-    // ٣) نقل الطلب لسائق آخر — يستخدم reassignDriver الموجودة بالفعل.
     if (reassignToDriverId != null && reassignToDriverName != null) {
       await reassignDriver(
         order: order,
@@ -768,7 +746,6 @@ class FirebaseService {
       );
     }
 
-    // ٤) إغلاق الشكوى دائماً كخطوة أخيرة، مع تسجيل ملخص الإجراءات المتخذة.
     final actionsSummary = <String>[
       if (refundPercentage != null && refundPercentage > 0)
         'استرداد ${refundPercentage.toStringAsFixed(0)}%',
@@ -782,6 +759,20 @@ class FirebaseService {
           (actionsSummary.isEmpty ? 'تم الحل بلا إجراء إضافي' : actionsSummary),
     });
   }
+
+  /// دردشة داخلية بين المدير ومقدّم الشكوى — نفس بنية ChatMessage تماماً
+  /// المستخدَمة في order_chat_screen.dart، لكن مربوطة بمعرّف الشكوى
+  /// (complaintId) بدل معرّف الطلب (orderId)، ومخزَّنة في مجموعة منفصلة
+  /// (complaint_messages) حتى لا تختلط بدردشة الطلب بين العميل والسائق.
+  Stream<List<models.ChatMessage>> streamComplaintChat(String complaintId) =>
+      _complaintMessages
+          .where('orderId', isEqualTo: complaintId)
+          .orderBy('createdAt')
+          .snapshots()
+          .map((s) => s.docs.map((d) => models.ChatMessage.fromMap(d.data(), d.id)).toList());
+
+  Future<void> sendComplaintChatMessage(models.ChatMessage message) =>
+      _complaintMessages.doc(message.id).set(message.toMap());
 
   Stream<List<models.ChatMessage>> streamChatMessages(String orderId) => _messages
       .where('orderId', isEqualTo: orderId)
