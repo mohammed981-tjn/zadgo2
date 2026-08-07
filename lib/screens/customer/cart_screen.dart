@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geocoding/geocoding.dart';   // ← إضافة مهمة
 
 import '../../models/models.dart';
 import '../../providers/cart_provider.dart';
@@ -13,7 +14,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 
 import '../auth/login_screen.dart';
-import 'pick_location_screen.dart';   // ← ← ← المسار الصحيح هنا
+import 'pick_location_screen.dart';
 import 'my_orders_screen.dart';
 
 class CartScreen extends StatelessWidget {
@@ -130,6 +131,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   double? _lat, _lng;
 
+  // ← دالة تحويل الإحداثيات إلى عنوان
+  Future<String> _getAddressFromLatLng(double lat, double lng) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(lat, lng);
+      final p = placemarks.first;
+
+      return "${p.street}, ${p.locality}, ${p.administrativeArea}";
+    } catch (e) {
+      return "تعذر جلب العنوان";
+    }
+  }
+
   Future<void> _pickLocation() async {
     final result = await Navigator.push<LatLng>(
       context,
@@ -146,6 +159,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       setState(() {
         _lat = result.latitude;
         _lng = result.longitude;
+      });
+
+      // ← جلب العنوان تلقائيًا ووضعه في خانة الإدخال
+      final address = await _getAddressFromLatLng(_lat!, _lng!);
+      setState(() {
+        _addrCtrl.text = address;
       });
     }
   }
