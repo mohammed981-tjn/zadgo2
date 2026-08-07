@@ -2,141 +2,202 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e3a2c">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛵</text></svg>">
 <title>لوحة تحكم ZadGo</title>
 <style>
   :root {
-    --green: #1a5c46; --green-dark: #0e3a2c; --gold: #ffc93c;
-    --bg: #f4f6f5; --card: #ffffff; --text: #1c2b26; --muted: #6b7c76;
-    --red: #c0392b; --blue: #2471a3; --orange: #ca6f1e;
+    --green: #1a5c46; --green-dark: #0e3a2c; --green-light: #e8f3ef; --gold: #ffc93c;
+    --bg: #f2f5f4; --card: #ffffff; --text: #172420; --muted: #64756f; --line: #e3eae7;
+    --red: #c0392b; --blue: #2471a3; --orange: #ca6f1e; --purple: #8e44ad; --ok: #1e8449;
+    --side-w: 232px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
   body { background: var(--bg); color: var(--text); min-height: 100vh; }
   .hidden { display: none !important; }
+  button { font-family: inherit; }
 
-  /* ---- شاشة الدخول ---- */
+  /* ================= شاشة الدخول ================= */
   #loginView { min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: linear-gradient(160deg, var(--green) 0%, var(--green-dark) 100%); padding: 20px; }
-  .login-card { background: var(--card); border-radius: 16px; padding: 32px 24px; width: 100%; max-width: 380px;
-    box-shadow: 0 10px 40px rgba(0,0,0,.25); }
-  .login-card h1 { text-align: center; color: var(--green); margin-bottom: 4px; }
+  .login-card { background: var(--card); border-radius: 18px; padding: 34px 26px; width: 100%; max-width: 390px;
+    box-shadow: 0 12px 44px rgba(0,0,0,.28); }
+  .login-card h1 { text-align: center; color: var(--green); margin-bottom: 4px; font-size: 2.2rem; }
   .login-card h1 span { color: #d4a017; }
   .login-card p.sub { text-align: center; color: var(--muted); margin-bottom: 24px; font-size: .95rem; }
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
-  .field input { width: 100%; padding: 12px; border: 1px solid #d5ddda; border-radius: 10px; font-size: 1rem; }
-  .field input:focus { outline: 2px solid var(--green); border-color: transparent; }
-  .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 10px; font-size: 1.05rem;
+  .field input, .field select, .field textarea { width: 100%; padding: 12px; border: 1px solid #d5ddda;
+    border-radius: 10px; font-size: 1rem; background: #fff; color: var(--text); }
+  .field textarea { min-height: 90px; resize: vertical; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--green); border-color: transparent; }
+  .btn { display: inline-block; padding: 12px 20px; border: 0; border-radius: 10px; font-size: 1rem;
     font-weight: 700; cursor: pointer; background: var(--green); color: #fff; }
+  .btn.block { display: block; width: 100%; }
+  .btn.ghost { background: #eef2f0; color: var(--text); }
+  .btn.danger { background: var(--red); }
   .btn:disabled { opacity: .6; cursor: wait; }
   .error-box { background: #fdecea; color: var(--red); border-radius: 8px; padding: 10px 12px;
     font-size: .9rem; margin-bottom: 14px; }
 
-  /* ---- الهيكل العام ---- */
-  header.topbar { background: var(--green); color: #fff; padding: 12px 16px; display: flex;
-    align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 20; }
-  header.topbar h2 { font-size: 1.15rem; }
-  header.topbar h2 span { color: var(--gold); }
-  #adminName { font-size: .8rem; opacity: .85; display: block; }
-  .logout { background: rgba(255,255,255,.15); color: #fff; border: 0; border-radius: 8px;
-    padding: 8px 14px; cursor: pointer; font-size: .9rem; }
-  nav.tabs { display: flex; background: var(--card); border-bottom: 1px solid #e2e8e5; overflow-x: auto;
-    position: sticky; top: 52px; z-index: 19; }
-  nav.tabs button { flex: 1; min-width: 92px; padding: 12px 8px; border: 0; background: none; font-size: .95rem;
-    color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
-  nav.tabs button.active { color: var(--green); border-bottom-color: var(--gold); font-weight: 700; }
-  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+  /* ================= الهيكل ================= */
+  #appView { display: flex; min-height: 100vh; }
+  aside.side { width: var(--side-w); background: var(--green-dark); color: #fff; padding: 18px 0;
+    position: fixed; inset-block: 0; inset-inline-start: 0; overflow-y: auto; z-index: 30; }
+  aside.side .brand { padding: 0 20px 16px; font-size: 1.35rem; font-weight: 800; }
+  aside.side .brand span { color: var(--gold); }
+  aside.side .brand small { display: block; font-weight: 400; font-size: .72rem; opacity: .65; margin-top: 2px; }
+  .nav-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 20px; border: 0;
+    background: none; color: rgba(255,255,255,.75); font-size: .95rem; cursor: pointer; text-align: start;
+    border-inline-start: 3px solid transparent; }
+  .nav-btn:hover { background: rgba(255,255,255,.06); }
+  .nav-btn.active { background: rgba(255,255,255,.1); color: #fff; border-inline-start-color: var(--gold); font-weight: 700; }
+  .nav-btn .ico { font-size: 1.1rem; width: 24px; text-align: center; }
+  .nav-btn .cnt { margin-inline-start: auto; background: var(--red); color: #fff; border-radius: 999px;
+    font-size: .7rem; padding: 2px 8px; font-weight: 700; }
+  .side-foot { padding: 16px 20px 4px; font-size: .75rem; color: rgba(255,255,255,.45); }
 
-  /* ---- بطاقات الإحصائيات ---- */
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .stat { background: var(--card); border-radius: 12px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-  .stat .num { font-size: 1.7rem; font-weight: 800; color: var(--green); }
-  .stat .lbl { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+  .content { flex: 1; margin-inline-start: var(--side-w); display: flex; flex-direction: column; min-width: 0; }
+  header.topbar { background: var(--card); border-bottom: 1px solid var(--line); padding: 12px 22px;
+    display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 25; }
+  header.topbar h2 { font-size: 1.15rem; flex: 1; }
+  #liveDot { width: 9px; height: 9px; border-radius: 50%; background: #2ecc71; display: inline-block;
+    margin-inline-end: 5px; animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  #adminChip { font-size: .82rem; color: var(--muted); text-align: end; line-height: 1.3; }
+  .logout { background: #eef2f0; color: var(--text); border: 0; border-radius: 8px; padding: 8px 14px;
+    cursor: pointer; font-size: .85rem; }
+  main { padding: 20px 22px 90px; max-width: 1280px; width: 100%; }
 
-  /* ---- القوائم والبطاقات ---- */
-  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  /* الشريط السفلي (جوال) */
+  nav.bottom { display: none; position: fixed; bottom: 0; inset-inline: 0; background: var(--green-dark);
+    z-index: 40; overflow-x: auto; padding-bottom: env(safe-area-inset-bottom); }
+  nav.bottom .row { display: flex; min-width: max-content; }
+  nav.bottom button { flex: 1; min-width: 68px; padding: 8px 6px 9px; border: 0; background: none;
+    color: rgba(255,255,255,.7); font-size: .66rem; cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; gap: 3px; position: relative; }
+  nav.bottom button .ico { font-size: 1.25rem; }
+  nav.bottom button.active { color: var(--gold); font-weight: 700; }
+  nav.bottom button .cnt { position: absolute; top: 2px; inset-inline-end: 12px; background: var(--red);
+    color: #fff; border-radius: 999px; font-size: .6rem; padding: 1px 5px; }
+  @media (max-width: 860px) {
+    aside.side { display: none; }
+    .content { margin-inline-start: 0; }
+    nav.bottom { display: block; }
+    main { padding: 14px 14px 84px; }
+  }
+
+  /* ================= مكوّنات ================= */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .kpi { background: var(--card); border-radius: 14px; padding: 15px; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    border-inline-start: 4px solid var(--green); }
+  .kpi .num { font-size: 1.65rem; font-weight: 800; color: var(--green-dark); }
+  .kpi .lbl { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+  .panel { background: var(--card); border-radius: 14px; padding: 16px; margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+  .panel h3 { font-size: 1rem; margin-bottom: 12px; color: var(--green-dark); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
   .chip { border: 1px solid #cfd9d5; background: var(--card); border-radius: 999px; padding: 7px 14px;
-    font-size: .85rem; cursor: pointer; color: var(--muted); }
+    font-size: .85rem; cursor: pointer; color: var(--muted); white-space: nowrap; }
   .chip.active { background: var(--green); border-color: var(--green); color: #fff; }
+  input.search { flex: 1; min-width: 160px; padding: 9px 14px; border: 1px solid #cfd9d5; border-radius: 999px;
+    font-size: .9rem; background: var(--card); }
   .card { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 10px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    box-shadow: 0 1px 4px rgba(0,0,0,.05); cursor: default; }
+  .card.click { cursor: pointer; }
+  .card.click:hover { outline: 2px solid var(--green-light); }
   .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
   .title { font-weight: 700; }
-  .meta { color: var(--muted); font-size: .85rem; margin-top: 4px; line-height: 1.7; }
-  .badge { display: inline-block; border-radius: 999px; padding: 3px 12px; font-size: .78rem; font-weight: 700; }
+  .meta { color: var(--muted); font-size: .84rem; margin-top: 4px; line-height: 1.75; }
+  .badge { display: inline-block; border-radius: 999px; padding: 3px 12px; font-size: .76rem; font-weight: 700; }
   .money { font-weight: 800; color: var(--green); white-space: nowrap; }
   .toggle-btn { border: 1px solid #cfd9d5; background: #fff; border-radius: 8px; padding: 7px 14px;
-    cursor: pointer; font-size: .85rem; }
-  .toggle-btn.on { background: #e8f6ef; border-color: #27ae60; color: #1e8449; }
+    cursor: pointer; font-size: .84rem; }
+  .toggle-btn.on { background: #e8f6ef; border-color: #27ae60; color: var(--ok); }
   .toggle-btn.off { background: #fdecea; border-color: var(--red); color: var(--red); }
-  select.status-sel { padding: 7px 10px; border-radius: 8px; border: 1px solid #cfd9d5; font-size: .85rem; }
+  select.inline-sel { padding: 7px 10px; border-radius: 8px; border: 1px solid #cfd9d5; font-size: .84rem; background: #fff; }
   .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
   .loading { text-align: center; color: var(--muted); padding: 30px; }
-  footer.note { text-align: center; color: var(--muted); font-size: .78rem; padding: 20px 10px; }
+  table.rep { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  table.rep th, table.rep td { padding: 9px 8px; text-align: start; border-bottom: 1px solid var(--line); }
+  table.rep th { color: var(--muted); font-weight: 700; font-size: .78rem; }
+  .table-wrap { overflow-x: auto; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 130px; padding-top: 8px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .bar { width: 100%; max-width: 42px; background: var(--green); border-radius: 6px 6px 0 0; min-height: 3px;
+    transition: height .4s; }
+  .bar.gold { background: var(--gold); }
+  .bar-lbl { font-size: .66rem; color: var(--muted); white-space: nowrap; }
+  .bar-val { font-size: .68rem; font-weight: 700; color: var(--green-dark); }
+
+  /* نافذة منبثقة */
+  #modalBack { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60; display: flex;
+    align-items: flex-end; justify-content: center; }
+  @media (min-width: 640px) { #modalBack { align-items: center; } }
+  #modalBox { background: var(--card); width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
+    border-radius: 18px 18px 0 0; padding: 20px; }
+  @media (min-width: 640px) { #modalBox { border-radius: 18px; } }
+  #modalBox h3 { color: var(--green-dark); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+  .x-btn { border: 0; background: #eef2f0; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 1rem; }
+  .kv { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed var(--line);
+    font-size: .9rem; gap: 10px; }
+  .kv b { white-space: nowrap; }
+  .kv:last-child { border-bottom: 0; }
+  .items-list { background: var(--green-light); border-radius: 10px; padding: 10px 14px; margin: 10px 0; font-size: .9rem; }
+  .items-list div { display: flex; justify-content: space-between; padding: 3px 0; }
+  .toast { position: fixed; bottom: 90px; inset-inline: 0; margin: auto; width: fit-content; max-width: 90%;
+    background: var(--green-dark); color: #fff; border-radius: 999px; padding: 11px 22px; font-size: .9rem;
+    z-index: 70; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
 </style>
 </head>
 <body>
 
-<!-- شاشة تسجيل الدخول -->
+<!-- ================= الدخول ================= -->
 <div id="loginView">
   <form class="login-card" id="loginForm">
     <h1>Zad<span>Go</span></h1>
     <p class="sub">لوحة التحكم — دخول المدير العام فقط</p>
     <div id="loginError" class="error-box hidden"></div>
-    <div class="field">
-      <label>البريد الإلكتروني</label>
-      <input type="email" id="email" autocomplete="username" required>
-    </div>
-    <div class="field">
-      <label>كلمة المرور</label>
-      <input type="password" id="password" autocomplete="current-password" required>
-    </div>
-    <button class="btn" id="loginBtn" type="submit">دخول</button>
+    <div class="field"><label>البريد الإلكتروني</label>
+      <input type="email" id="email" autocomplete="username" required></div>
+    <div class="field"><label>كلمة المرور</label>
+      <input type="password" id="password" autocomplete="current-password" required></div>
+    <button class="btn block" id="loginBtn" type="submit">دخول</button>
   </form>
 </div>
 
-<!-- اللوحة -->
+<!-- ================= اللوحة ================= -->
 <div id="appView" class="hidden">
-  <header class="topbar">
-    <h2>لوحة تحكم Zad<span>Go</span><span id="adminName"></span></h2>
-    <button class="logout" id="logoutBtn">خروج</button>
-  </header>
-  <nav class="tabs" id="tabs">
-    <button data-tab="overview" class="active">نظرة عامة</button>
-    <button data-tab="orders">الطلبات</button>
-    <button data-tab="restaurants">المطاعم</button>
-    <button data-tab="users">المستخدمون</button>
-    <button data-tab="complaints">الشكاوى</button>
-  </nav>
-  <main>
-    <section id="tab-overview">
-      <div class="stats-grid" id="statsGrid"><div class="loading">جارٍ التحميل…</div></div>
-      <div class="card"><div class="title">آخر الطلبات</div><div id="recentOrders"><div class="loading">جارٍ التحميل…</div></div></div>
-    </section>
-    <section id="tab-orders" class="hidden">
-      <div class="toolbar" id="orderFilters"></div>
-      <div id="ordersList"><div class="loading">جارٍ التحميل…</div></div>
-    </section>
-    <section id="tab-restaurants" class="hidden">
-      <div id="restaurantsList"><div class="loading">جارٍ التحميل…</div></div>
-    </section>
-    <section id="tab-users" class="hidden">
-      <div class="toolbar" id="userFilters"></div>
-      <div id="usersList"><div class="loading">جارٍ التحميل…</div></div>
-    </section>
-    <section id="tab-complaints" class="hidden">
-      <div id="complaintsList"><div class="loading">جارٍ التحميل…</div></div>
-    </section>
-    <footer class="note">تقرأ اللوحة البيانات مباشرة من Firestore — نفس بيانات التطبيق لحظة بلحظة.</footer>
-  </main>
+  <aside class="side">
+    <div class="brand">Zad<span>Go</span><small>لوحة التحكم الإدارية</small></div>
+    <div id="sideNav"></div>
+    <div class="side-foot">zadgo.co © 2026</div>
+  </aside>
+  <div class="content">
+    <header class="topbar">
+      <h2 id="pageTitle"><span id="liveDot"></span>نظرة عامة</h2>
+      <div id="adminChip"></div>
+      <button class="logout" id="logoutBtn">خروج</button>
+    </header>
+    <main id="main"></main>
+  </div>
+  <nav class="bottom"><div class="row" id="bottomNav"></div></nav>
 </div>
+
+<div id="modalBack" class="hidden"><div id="modalBox"></div></div>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, updateDoc, collection, query, orderBy, where, limit, onSnapshot, Timestamp }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, orderBy, where,
+  limit, onSnapshot, getDocs, Timestamp, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const app = initializeApp({
@@ -150,35 +211,45 @@ const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
 const SAR = 'ر.س';
 
+/* ---------------- ثوابت وترجمات ---------------- */
 const STATUS_AR = {
-  created: ['جديد', '#7f8c8d'],
-  restaurantPending: ['بانتظار المطعم', '#ca6f1e'],
-  restaurantAccepted: ['قبله المطعم', '#2471a3'],
-  preparing: ['قيد التحضير', '#2471a3'],
-  readyForPickup: ['جاهز للاستلام', '#8e44ad'],
-  searchingDriver: ['البحث عن سائق', '#ca6f1e'],
-  driverAssigned: ['أُسند لسائق', '#2471a3'],
-  pickedUp: ['استلمه السائق', '#2471a3'],
-  onTheWay: ['في الطريق', '#117a65'],
-  delivered: ['تم التوصيل', '#1e8449'],
-  restaurantRejected: ['رفضه المطعم', '#c0392b'],
-  noDriverFound: ['لا يوجد سائق', '#c0392b'],
-  cancelled: ['ملغي', '#c0392b'],
-  refunded: ['مسترد', '#7f8c8d'],
-  pending: ['بانتظار المطعم', '#ca6f1e'],
-  confirmed: ['قبله المطعم', '#2471a3'],
+  created: ['جديد', '#7f8c8d'], restaurantPending: ['بانتظار المطعم', '#ca6f1e'],
+  restaurantAccepted: ['قبله المطعم', '#2471a3'], preparing: ['قيد التحضير', '#2471a3'],
+  readyForPickup: ['جاهز للاستلام', '#8e44ad'], searchingDriver: ['البحث عن سائق', '#ca6f1e'],
+  driverAssigned: ['أُسند لسائق', '#2471a3'], pickedUp: ['استلمه السائق', '#2471a3'],
+  onTheWay: ['في الطريق', '#117a65'], delivered: ['تم التوصيل', '#1e8449'],
+  restaurantRejected: ['رفضه المطعم', '#c0392b'], noDriverFound: ['لا يوجد سائق', '#c0392b'],
+  cancelled: ['ملغي', '#c0392b'], refunded: ['مسترد', '#7f8c8d'],
+  pending: ['بانتظار المطعم', '#ca6f1e'], confirmed: ['قبله المطعم', '#2471a3'],
   outForDelivery: ['في الطريق', '#117a65'],
 };
 const ACTIVE_STATUSES = ['created','restaurantPending','restaurantAccepted','preparing','readyForPickup',
   'searchingDriver','driverAssigned','pickedUp','onTheWay','pending','confirmed','outForDelivery'];
+const CANCELLED_STATUSES = ['cancelled','restaurantRejected','noDriverFound','refunded'];
 const ROLE_AR = { admin: 'مدير عام', customer: 'عميل', driver: 'سائق', restaurantManager: 'مدير مطعم' };
+const PAY_AR = { cash: 'كاش عند الاستلام', card: 'بطاقة', wallet: 'محفظة' };
 const COMPLAINT_STATUS_AR = { open: 'مفتوحة', inProgress: 'قيد المعالجة', resolved: 'محلولة', closed: 'مغلقة' };
 const COMPLAINT_TYPE_AR = { lateDelivery: 'تأخر التوصيل', wrongOrder: 'طلب خاطئ', badQuality: 'جودة سيئة',
   driverBehavior: 'سلوك السائق', other: 'أخرى' };
 
-function badge(text, color) {
-  return `<span class="badge" style="background:${color}1a;color:${color}">${text}</span>`;
+const PAGES = [
+  ['dashboard', '📊', 'نظرة عامة'],
+  ['orders', '🧾', 'الطلبات'],
+  ['restaurants', '🍽️', 'المطاعم'],
+  ['drivers', '🛵', 'السائقون'],
+  ['users', '👥', 'المستخدمون'],
+  ['complaints', '📮', 'الشكاوى'],
+  ['broadcast', '📢', 'رسالة جماعية'],
+  ['reports', '📈', 'التقارير'],
+  ['settings', '⚙️', 'الإعدادات'],
+];
+
+/* ---------------- أدوات ---------------- */
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+function badge(text, color) { return `<span class="badge" style="background:${color}1a;color:${color}">${esc(text)}</span>`; }
 function toDate(v) {
   if (!v) return null;
   if (v.toDate) return v.toDate();
@@ -189,19 +260,33 @@ function fmtTime(v) {
   const d = toDate(v);
   return d ? d.toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 }
-function orderTotal(o) {
-  const items = (o.items || []).reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
-  return items + (Number(o.driverShare) || 0) + (Number(o.appShare) || 0);
+function fmtMoney(n) { return (Number(n) || 0).toFixed(2); }
+function itemsTotal(o) {
+  return (o.items || []).reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
 }
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (c) =>
-    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+function orderTotal(o) { return itemsTotal(o) + (Number(o.driverShare) || 0) + (Number(o.appShare) || 0); }
+function commission(o) { return itemsTotal(o) * 0.15; }
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
 }
+function openModal(html) { $('modalBox').innerHTML = html; $('modalBack').classList.remove('hidden'); }
+function closeModal() { $('modalBack').classList.add('hidden'); $('modalBox').innerHTML = ''; }
+$('modalBack').addEventListener('click', (e) => { if (e.target.id === 'modalBack') closeModal(); });
+window.closeModal = closeModal;
 
-// ---------------- الدخول والتحقق من الدور ----------------
+/* ---------------- الحالة ---------------- */
 let unsubs = [];
+let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [], settings: null };
+let page = 'dashboard';
+let orderFilter = 'active', orderSearch = '';
+let userFilter = 'all', userSearch = '';
+let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
+/* ---------------- الدخول ---------------- */
 $('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('loginBtn').disabled = true;
@@ -222,7 +307,6 @@ $('loginForm').addEventListener('submit', async (e) => {
   }
   $('loginBtn').disabled = false;
 });
-
 $('logoutBtn').addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, async (user) => {
@@ -240,10 +324,12 @@ onAuthStateChanged(auth, async (user) => {
       $('loginError').classList.remove('hidden');
       return;
     }
-    $('adminName').textContent = snap.data().name || user.email;
+    adminUser = { name: snap.data().name || '', email: user.email || '' };
+    $('adminChip').innerHTML = `<b>${esc(adminUser.name || 'المدير العام')}</b><br>${esc(adminUser.email)}`;
     $('loginView').classList.add('hidden');
     $('appView').classList.remove('hidden');
-    startDashboard();
+    startListeners();
+    go('dashboard');
   } catch (err) {
     await signOut(auth);
     $('loginError').textContent = 'تعذر التحقق من الصلاحية: ' + (err.code || err.message);
@@ -251,181 +337,388 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// ---------------- التبويبات ----------------
-$('tabs').addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-tab]');
-  if (!btn) return;
-  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b === btn));
-  document.querySelectorAll('main > section').forEach((s) =>
-    s.classList.toggle('hidden', s.id !== 'tab-' + btn.dataset.tab));
+/* ---------------- الاستماع الحي ---------------- */
+function startListeners() {
+  const bind = (q2, key, after) => unsubs.push(onSnapshot(q2, (qs) => {
+    S[key] = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (after) after();
+    rerender();
+  }, (err) => { console.error(key, err); }));
+
+  bind(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(400)), 'orders');
+  bind(collection(db, 'restaurants'), 'restaurants');
+  bind(query(collection(db, 'users'), limit(400)), 'users');
+  bind(collection(db, 'drivers'), 'drivers');
+  bind(query(collection(db, 'complaints'), orderBy('createdAt', 'desc'), limit(150)), 'complaints');
+  bind(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(40)), 'broadcasts');
+  unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'config'),
+    (d) => { S.settings = d.exists() ? d.data() : {}; if (page === 'settings') rerender(); },
+    () => {}));
+}
+
+/* ---------------- التنقل ---------------- */
+function navHtml(withText) {
+  const openC = S.complaints.filter((c) => c.status === 'open').length;
+  return PAGES.map(([k, ico, lbl]) => `
+    <button class="nav-btn ${k === page ? 'active' : ''}" data-page="${k}">
+      <span class="ico">${ico}</span>${withText ? `<span>${lbl}</span>` : `<span>${lbl}</span>`}
+      ${k === 'complaints' && openC ? `<span class="cnt">${openC}</span>` : ''}
+    </button>`).join('');
+}
+function renderNav() {
+  $('sideNav').innerHTML = navHtml(true);
+  const openC = S.complaints.filter((c) => c.status === 'open').length;
+  $('bottomNav').innerHTML = PAGES.map(([k, ico, lbl]) => `
+    <button class="${k === page ? 'active' : ''}" data-page="${k}">
+      <span class="ico">${ico}</span>${lbl}
+      ${k === 'complaints' && openC ? `<span class="cnt">${openC}</span>` : ''}
+    </button>`).join('');
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-page]');
+  if (b) go(b.dataset.page);
 });
-
-// ---------------- تشغيل اللوحة ----------------
-let allOrders = [], orderFilter = 'active';
-let allUsers = [], userFilter = 'all';
-
-function startDashboard() {
-  // الطلبات (آخر ١٥٠) — تغذّي النظرة العامة وتبويب الطلبات معاً
-  unsubs.push(onSnapshot(
-    query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(150)),
-    (qs) => {
-      allOrders = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
-      renderStats(); renderRecent(); renderOrders();
-    },
-    (err) => showListError('ordersList', err)));
-
-  // المطاعم
-  unsubs.push(onSnapshot(collection(db, 'restaurants'),
-    (qs) => renderRestaurants(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
-    (err) => showListError('restaurantsList', err)));
-
-  // المستخدمون
-  unsubs.push(onSnapshot(query(collection(db, 'users'), limit(300)),
-    (qs) => { allUsers = qs.docs.map((d) => ({ id: d.id, ...d.data() })); renderUsers(); },
-    (err) => showListError('usersList', err)));
-
-  // الشكاوى
-  unsubs.push(onSnapshot(query(collection(db, 'complaints'), orderBy('createdAt', 'desc'), limit(100)),
-    (qs) => renderComplaints(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
-    (err) => showListError('complaintsList', err)));
-
-  buildOrderFilters(); buildUserFilters();
+function go(p) {
+  page = p;
+  const meta = PAGES.find((x) => x[0] === p);
+  $('pageTitle').innerHTML = `<span id="liveDot"></span>${meta ? meta[2] : ''}`;
+  window.scrollTo(0, 0);
+  rerender();
+}
+function rerender() {
+  renderNav();
+  const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
+    drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
+    broadcast: renderBroadcastPage, reports: renderReportsPage, settings: renderSettingsPage };
+  (R[page] || renderDashboard)();
 }
 
-function showListError(id, err) {
-  $(id).innerHTML = `<div class="empty">تعذر التحميل: ${esc(err.code || err.message)}</div>`;
-}
-
-// ---------------- نظرة عامة ----------------
-function renderStats() {
+/* ================= نظرة عامة ================= */
+function renderDashboard() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const todays = allOrders.filter((o) => { const d = toDate(o.createdAt); return d && d >= today; });
-  const delivered = todays.filter((o) => o.status === 'delivered');
-  const active = allOrders.filter((o) => ACTIVE_STATUSES.includes(o.status));
-  const revenue = delivered.reduce((s, o) => s + orderTotal(o), 0);
-  $('statsGrid').innerHTML = `
-    <div class="stat"><div class="num">${todays.length}</div><div class="lbl">طلبات اليوم</div></div>
-    <div class="stat"><div class="num">${delivered.length}</div><div class="lbl">مُوصَّلة اليوم</div></div>
-    <div class="stat"><div class="num">${active.length}</div><div class="lbl">طلبات نشطة الآن</div></div>
-    <div class="stat"><div class="num">${revenue.toFixed(2)}</div><div class="lbl">مبيعات اليوم (${SAR})</div></div>`;
+  const todays = S.orders.filter((o) => { const d = toDate(o.createdAt); return d && d >= today; });
+  const deliveredToday = todays.filter((o) => o.status === 'delivered');
+  const active = S.orders.filter((o) => ACTIVE_STATUSES.includes(o.status));
+  const revenueToday = deliveredToday.reduce((s, o) => s + orderTotal(o), 0);
+  const commToday = deliveredToday.reduce((s, o) => s + commission(o) + (Number(o.appShare) || 0), 0);
+  const onlineDrivers = S.drivers.filter((d) => d.isOnline).length;
+  const openRest = S.restaurants.filter((r) => r.isOpen).length;
+  const openComp = S.complaints.filter((c) => c.status === 'open').length;
+
+  // آخر ٧ أيام
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0); d0.setDate(d0.getDate() - i);
+    const d1 = new Date(d0); d1.setDate(d1.getDate() + 1);
+    const list = S.orders.filter((o) => { const d = toDate(o.createdAt); return d && d >= d0 && d < d1; });
+    days.push({
+      lbl: d0.toLocaleDateString('ar-SA', { weekday: 'short' }),
+      count: list.length,
+      rev: list.filter((o) => o.status === 'delivered').reduce((s, o) => s + orderTotal(o), 0),
+    });
+  }
+  const maxC = Math.max(1, ...days.map((d) => d.count));
+  const maxR = Math.max(1, ...days.map((d) => d.rev));
+
+  // أكثر المطاعم طلبات (آخر ٧ أيام)
+  const week = new Date(); week.setDate(week.getDate() - 7);
+  const perRest = {};
+  S.orders.forEach((o) => {
+    const d = toDate(o.createdAt); if (!d || d < week) return;
+    perRest[o.restaurantName] = (perRest[o.restaurantName] || 0) + 1;
+  });
+  const topRest = Object.entries(perRest).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  $('main').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="num">${todays.length}</div><div class="lbl">طلبات اليوم</div></div>
+      <div class="kpi"><div class="num">${deliveredToday.length}</div><div class="lbl">مُوصَّلة اليوم</div></div>
+      <div class="kpi" style="border-color:${active.length ? '#ca6f1e' : 'var(--green)'}">
+        <div class="num">${active.length}</div><div class="lbl">طلبات نشطة الآن</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(revenueToday)}</div><div class="lbl">مبيعات اليوم (${SAR})</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(commToday)}</div><div class="lbl">أرباح المنصة اليوم (${SAR})</div></div>
+      <div class="kpi"><div class="num">${onlineDrivers}<small style="font-size:.9rem;color:var(--muted)">/${S.drivers.length}</small></div>
+        <div class="lbl">سائقون متصلون</div></div>
+      <div class="kpi"><div class="num">${openRest}<small style="font-size:.9rem;color:var(--muted)">/${S.restaurants.length}</small></div>
+        <div class="lbl">مطاعم مفتوحة</div></div>
+      <div class="kpi" style="border-color:${openComp ? 'var(--red)' : 'var(--green)'}">
+        <div class="num">${openComp}</div><div class="lbl">شكاوى مفتوحة</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h3>الطلبات — آخر ٧ أيام</h3>
+        <div class="bars">${days.map((d) => `
+          <div class="bar-col"><span class="bar-val">${d.count}</span>
+            <div class="bar" style="height:${Math.round((d.count / maxC) * 95)}px"></div>
+            <span class="bar-lbl">${d.lbl}</span></div>`).join('')}
+        </div>
+      </div>
+      <div class="panel"><h3>المبيعات (${SAR}) — آخر ٧ أيام</h3>
+        <div class="bars">${days.map((d) => `
+          <div class="bar-col"><span class="bar-val">${Math.round(d.rev)}</span>
+            <div class="bar gold" style="height:${Math.round((d.rev / maxR) * 95)}px"></div>
+            <span class="bar-lbl">${d.lbl}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="panel"><h3>أنشط المطاعم (٧ أيام)</h3>
+        ${topRest.length ? topRest.map(([n, c]) => `
+          <div class="kv"><span>${esc(n || '—')}</span><b>${c} طلب</b></div>`).join('')
+          : '<div class="empty">لا بيانات بعد</div>'}
+      </div>
+      <div class="panel"><h3>أحدث الطلبات</h3>
+        ${S.orders.slice(0, 4).map(orderCard).join('') || '<div class="empty">لا توجد طلبات بعد</div>'}
+      </div>
+    </div>`;
 }
 
+/* ================= الطلبات ================= */
 function orderCard(o) {
   const [lbl, color] = STATUS_AR[o.status] || [o.status, '#7f8c8d'];
-  const itemsTxt = (o.items || []).map((i) => `${i.name} ×${i.quantity}`).join('، ');
-  return `<div class="card">
+  return `<div class="card click" data-order="${o.id}">
     <div class="row1">
       <span class="title">#${esc(o.orderNumber || o.id.slice(0, 6))} — ${esc(o.restaurantName || '')}</span>
       ${badge(lbl, color)}
     </div>
-    <div class="meta">
-      العميل: ${esc(o.customerName || '—')} (${esc(o.customerPhone || '')})<br>
-      ${o.driverName ? 'السائق: ' + esc(o.driverName) + '<br>' : ''}
-      ${itemsTxt ? 'الأصناف: ' + esc(itemsTxt) + '<br>' : ''}
-      ${esc(fmtTime(o.createdAt))}
-    </div>
-    <div class="row1" style="margin-top:8px">
-      <span class="money">${orderTotal(o).toFixed(2)} ${SAR}</span>
-    </div>
+    <div class="meta">${esc(o.customerName || '—')} — ${esc(fmtTime(o.createdAt))}
+      ${o.driverName ? '— 🛵 ' + esc(o.driverName) : ''}</div>
+    <div class="row1" style="margin-top:6px"><span class="money">${fmtMoney(orderTotal(o))} ${SAR}</span></div>
   </div>`;
 }
 
-function renderRecent() {
-  $('recentOrders').innerHTML = allOrders.slice(0, 5).map(orderCard).join('') ||
-    '<div class="empty">لا توجد طلبات بعد</div>';
-}
-
-// ---------------- الطلبات ----------------
-function buildOrderFilters() {
-  const filters = [['active', 'النشطة'], ['all', 'الكل'], ['delivered', 'المُوصَّلة'],
-    ['cancelled', 'الملغاة/المرفوضة']];
-  $('orderFilters').innerHTML = filters.map(([k, l]) =>
-    `<button class="chip ${k === orderFilter ? 'active' : ''}" data-f="${k}">${l}</button>`).join('');
-  $('orderFilters').onclick = (e) => {
-    const b = e.target.closest('[data-f]'); if (!b) return;
-    orderFilter = b.dataset.f; buildOrderFilters(); renderOrders();
-  };
-}
-
-function renderOrders() {
-  let list = allOrders;
+function renderOrdersPage() {
+  const filters = [['active', 'النشطة'], ['all', 'الكل'], ['delivered', 'المُوصَّلة'], ['cancelled', 'الملغاة/المرفوضة']];
+  let list = S.orders;
   if (orderFilter === 'active') list = list.filter((o) => ACTIVE_STATUSES.includes(o.status));
   if (orderFilter === 'delivered') list = list.filter((o) => o.status === 'delivered');
-  if (orderFilter === 'cancelled') list = list.filter((o) =>
-    ['cancelled', 'restaurantRejected', 'noDriverFound', 'refunded'].includes(o.status));
-  $('ordersList').innerHTML = list.map(orderCard).join('') || '<div class="empty">لا توجد طلبات</div>';
+  if (orderFilter === 'cancelled') list = list.filter((o) => CANCELLED_STATUSES.includes(o.status));
+  if (orderSearch) {
+    const q2 = orderSearch.toLowerCase();
+    list = list.filter((o) => [o.orderNumber, o.customerName, o.customerPhone, o.restaurantName, o.driverName]
+      .some((v) => String(v || '').toLowerCase().includes(q2)));
+  }
+  $('main').innerHTML = `
+    <div class="toolbar">
+      ${filters.map(([k, l]) => `<button class="chip ${k === orderFilter ? 'active' : ''}" data-of="${k}">${l}</button>`).join('')}
+      <input class="search" id="orderSearch" placeholder="🔍 بحث برقم الطلب، العميل، الجوال…" value="${esc(orderSearch)}">
+    </div>
+    <div id="ordersList">${list.map(orderCard).join('') || '<div class="empty">لا توجد طلبات مطابقة</div>'}</div>`;
+  $('main').querySelectorAll('[data-of]').forEach((b) =>
+    b.addEventListener('click', () => { orderFilter = b.dataset.of; renderOrdersPage(); }));
+  const si = $('orderSearch');
+  si.addEventListener('input', () => {
+    orderSearch = si.value;
+    const l2 = document.getElementById('ordersList');
+    renderOrdersPage();
+    const ni = $('orderSearch'); ni.focus(); ni.setSelectionRange(ni.value.length, ni.value.length);
+  });
 }
 
-// ---------------- المطاعم ----------------
-function renderRestaurants(list) {
-  list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
-  $('restaurantsList').innerHTML = list.map((r) => `
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('[data-order]');
+  if (c) showOrderModal(c.dataset.order);
+});
+
+function showOrderModal(id) {
+  const o = S.orders.find((x) => x.id === id);
+  if (!o) return;
+  const [lbl, color] = STATUS_AR[o.status] || [o.status, '#7f8c8d'];
+  const it = itemsTotal(o);
+  openModal(`
+    <h3>طلب #${esc(o.orderNumber || '')} <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    <div class="row1">${badge(lbl, color)} ${badge(PAY_AR[o.paymentMethod] || o.paymentMethod || '—', '#2471a3')}
+      ${o.isPaid ? badge('مدفوع', '#1e8449') : badge('غير مدفوع', '#ca6f1e')}</div>
+    <div class="items-list">
+      ${(o.items || []).map((i) => `<div><span>${esc(i.emoji || '')} ${esc(i.name)} ×${i.quantity}
+        ${i.extras ? `<small style="color:var(--muted)">(${esc(i.extras)})</small>` : ''}</span>
+        <b>${fmtMoney((Number(i.price) || 0) * (Number(i.quantity) || 1))}</b></div>`).join('')}
+    </div>
+    <div class="kv"><span>قيمة الوجبات</span><b>${fmtMoney(it)} ${SAR}</b></div>
+    <div class="kv"><span>أجرة التوصيل (سائق + منصة)</span><b>${fmtMoney(o.driverShare)} + ${fmtMoney(o.appShare)} ${SAR}</b></div>
+    <div class="kv"><span>عمولة المنصة من المطعم (١٥٪)</span><b>${fmtMoney(commission(o))} ${SAR}</b></div>
+    <div class="kv"><span>الإجمالي</span><b class="money">${fmtMoney(orderTotal(o))} ${SAR}</b></div>
+    <div class="kv"><span>المطعم</span><b>${esc(o.restaurantName || '—')}</b></div>
+    <div class="kv"><span>العميل</span><b>${esc(o.customerName || '—')} — ${esc(o.customerPhone || '')}</b></div>
+    <div class="kv"><span>العنوان</span><b style="font-weight:400">${esc(o.deliveryAddress || '—')}</b></div>
+    <div class="kv"><span>السائق</span><b>${esc(o.driverName || 'لم يُسنَد بعد')}</b></div>
+    <div class="kv"><span>أُنشئ</span><b>${esc(fmtTime(o.createdAt))}</b></div>
+    <div class="kv"><span>آخر تغيير حالة</span><b>${esc(fmtTime(o.statusChangedAt || o.updatedAt))}</b></div>
+    ${o.notes ? `<div class="kv"><span>ملاحظات العميل</span><b style="font-weight:400">${esc(o.notes)}</b></div>` : ''}
+    ${o.rejectionReason ? `<div class="kv"><span>سبب الرفض</span><b style="font-weight:400;color:var(--red)">${esc(o.rejectionReason)}</b></div>` : ''}
+    ${o.customerRating ? `<div class="kv"><span>تقييم العميل</span><b>${o.customerRating} ⭐ ${esc(o.customerReview || '')}</b></div>` : ''}
+    ${ACTIVE_STATUSES.includes(o.status) ? `
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn danger" id="cancelOrderBtn">إلغاء الطلب</button>
+      </div>` : ''}
+  `);
+  const cb = document.getElementById('cancelOrderBtn');
+  if (cb) cb.addEventListener('click', async () => {
+    if (!confirm('إلغاء هذا الطلب نهائياً؟ لا يمكن التراجع.')) return;
+    try {
+      await updateDoc(doc(db, 'orders', o.id), { status: 'cancelled', statusChangedAt: serverTimestamp() });
+      toast('تم إلغاء الطلب'); closeModal();
+    } catch (err) { alert('تعذر الإلغاء: ' + (err.code || err.message)); }
+  });
+}
+
+/* ================= المطاعم ================= */
+function renderRestaurantsPage() {
+  const list = [...S.restaurants].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+  $('main').innerHTML = list.map((r) => `
     <div class="card">
       <div class="row1">
         <span class="title">${esc(r.emoji || '🍽️')} ${esc(r.name || '')}</span>
-        <button class="toggle-btn ${r.isOpen ? 'on' : 'off'}" data-rid="${r.id}" data-open="${r.isOpen ? 1 : 0}">
-          ${r.isOpen ? 'مفتوح ✓' : 'مغلق ✕'}
-        </button>
+        <span>
+          <button class="toggle-btn ${r.isOpen ? 'on' : 'off'}" data-rtoggle="${r.id}" data-open="${r.isOpen ? 1 : 0}">
+            ${r.isOpen ? 'مفتوح ✓' : 'مغلق ✕'}</button>
+          <button class="toggle-btn" data-redit="${r.id}">تعديل ✎</button>
+        </span>
       </div>
       <div class="meta">
-        ${esc(r.address || '')}${r.phone ? ' — ' + esc(r.phone) : ''}<br>
-        الحد الأدنى: ${Number(r.minOrder) || 0} ${SAR} — التقييم: ${(Number(r.rating) || 0).toFixed(1)} ⭐
-        — الطلبات: ${Number(r.totalOrders) || 0}
+        ${esc(r.address || '')}${r.phone ? ' — 📞 ' + esc(r.phone) : ''}<br>
+        الحد الأدنى: ${Number(r.minOrder) || 0} ${SAR} — التوصيل: سائق ${Number(r.driverShareFee) || 0} + منصة ${Number(r.appShareFee) || 0} ${SAR}
+        — كم إضافي: ${Number(r.perKmFee) || 0} ${SAR} (مجاني حتى ${Number(r.freeKm) || 0} كم)<br>
+        ⭐ ${(Number(r.rating) || 0).toFixed(1)} — الطلبات الكلية: ${Number(r.totalOrders) || 0}
+        — التحضير: ~${Number(r.estimatedTimeMin) || 0} د
       </div>
-    </div>`).join('') || '<div class="empty">لا توجد مطاعم</div>';
+    </div>`).join('') || '<div class="empty">لا توجد مطاعم بعد</div>';
 
-  $('restaurantsList').onclick = async (e) => {
-    const b = e.target.closest('[data-rid]'); if (!b) return;
+  $('main').querySelectorAll('[data-rtoggle]').forEach((b) => b.addEventListener('click', async () => {
     const opening = b.dataset.open !== '1';
     if (!confirm(opening ? 'فتح المطعم لاستقبال الطلبات؟' : 'إغلاق المطعم وإيقاف استقبال الطلبات؟')) return;
-    try { await updateDoc(doc(db, 'restaurants', b.dataset.rid), { isOpen: opening }); }
+    try { await updateDoc(doc(db, 'restaurants', b.dataset.rtoggle), { isOpen: opening }); toast('تم التحديث'); }
     catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
-  };
+  }));
+  $('main').querySelectorAll('[data-redit]').forEach((b) => b.addEventListener('click', () => showRestEdit(b.dataset.redit)));
 }
 
-// ---------------- المستخدمون ----------------
-function buildUserFilters() {
+function showRestEdit(id) {
+  const r = S.restaurants.find((x) => x.id === id);
+  if (!r) return;
+  const F = (k, lbl, val, type = 'number') => `
+    <div class="field"><label>${lbl}</label>
+      <input id="rf_${k}" type="${type}" step="any" value="${esc(val ?? '')}"></div>`;
+  openModal(`
+    <h3>تعديل: ${esc(r.name)} <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    ${F('name', 'اسم المطعم', r.name, 'text')}
+    ${F('phone', 'الجوال', r.phone, 'text')}
+    ${F('address', 'العنوان', r.address, 'text')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+      ${F('minOrder', 'الحد الأدنى للطلب (' + SAR + ')', r.minOrder)}
+      ${F('estimatedTimeMin', 'زمن التحضير (دقيقة)', r.estimatedTimeMin)}
+      ${F('driverShareFee', 'أجرة التوصيل — نصيب السائق', r.driverShareFee)}
+      ${F('appShareFee', 'أجرة التوصيل — نصيب المنصة', r.appShareFee)}
+      ${F('perKmFee', 'رسوم الكيلومتر الإضافي', r.perKmFee)}
+      ${F('freeKm', 'كيلومترات مجانية', r.freeKm)}
+    </div>
+    <button class="btn block" id="saveRest">حفظ التعديلات</button>`);
+  document.getElementById('saveRest').addEventListener('click', async () => {
+    const v = (k) => document.getElementById('rf_' + k).value;
+    const num = (k) => Number(v(k)) || 0;
+    if (!confirm('حفظ التعديلات على «' + r.name + '»؟')) return;
+    try {
+      await updateDoc(doc(db, 'restaurants', id), {
+        name: v('name').trim() || r.name, phone: v('phone').trim(), address: v('address').trim(),
+        minOrder: num('minOrder'), estimatedTimeMin: Math.round(num('estimatedTimeMin')),
+        driverShareFee: num('driverShareFee'), appShareFee: num('appShareFee'),
+        perKmFee: num('perKmFee'), freeKm: num('freeKm'),
+      });
+      toast('تم حفظ التعديلات'); closeModal();
+    } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
+  });
+}
+
+/* ================= السائقون ================= */
+function renderDriversPage() {
+  const list = [...S.drivers].sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
+  $('main').innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="num">${list.filter((d) => d.isOnline).length}</div><div class="lbl">متصل الآن</div></div>
+      <div class="kpi"><div class="num">${list.filter((d) => d.isOnline && d.isAvailable).length}</div><div class="lbl">متاح لطلب جديد</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(list.reduce((s, d) => s + (Number(d.pendingPayout) || 0), 0))}</div>
+        <div class="lbl">مستحقات غير مسددة (${SAR})</div></div>
+    </div>
+    ${list.map((d) => `
+      <div class="card">
+        <div class="row1">
+          <span class="title">🛵 ${esc(d.name || '—')}</span>
+          <span>${d.isOnline ? badge('متصل', '#1e8449') : badge('غير متصل', '#7f8c8d')}
+            ${d.isOnline ? (d.isAvailable ? badge('متاح', '#2471a3') : badge('مشغول بطلب', '#ca6f1e')) : ''}</span>
+        </div>
+        <div class="meta">
+          📞 ${esc(d.phone || '—')} — ${esc(d.vehicleType || '')} ${esc(d.vehiclePlate || '')}<br>
+          التوصيلات: ${Number(d.totalDeliveries) || 0} — ⭐ ${(Number(d.rating) || 0).toFixed(1)}
+          (${Number(d.ratingCount) || 0} تقييم)<br>
+          الأرباح الكلية: <b>${fmtMoney(d.totalEarnings)} ${SAR}</b> —
+          مستحقات معلّقة: <b style="color:${(Number(d.pendingPayout) || 0) > 0 ? 'var(--orange)' : 'var(--ok)'}">
+          ${fmtMoney(d.pendingPayout)} ${SAR}</b>
+          ${d.lastLocationUpdate ? '<br>آخر تحديث موقع: ' + esc(fmtTime(d.lastLocationUpdate)) : ''}
+        </div>
+        ${(Number(d.pendingPayout) || 0) > 0 ? `
+          <div class="row1" style="margin-top:8px">
+            <button class="toggle-btn on" data-payout="${d.id}" data-amount="${Number(d.pendingPayout) || 0}">
+              تسوية المستحقات (${fmtMoney(d.pendingPayout)} ${SAR}) ✓</button>
+          </div>` : ''}
+      </div>`).join('') || '<div class="empty">لا يوجد سائقون بعد</div>'}`;
+
+  $('main').querySelectorAll('[data-payout]').forEach((b) => b.addEventListener('click', async () => {
+    const amt = fmtMoney(b.dataset.amount);
+    if (!confirm(`تأكيد أنك سدّدت ${amt} ${SAR} لهذا السائق؟ سيُصفَّر رصيد مستحقاته.`)) return;
+    try { await updateDoc(doc(db, 'drivers', b.dataset.payout), { pendingPayout: 0 }); toast('تمت التسوية'); }
+    catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
+  }));
+}
+
+/* ================= المستخدمون ================= */
+function renderUsersPage() {
   const filters = [['all', 'الكل'], ['customer', 'العملاء'], ['driver', 'السائقون'],
     ['restaurantManager', 'مديرو المطاعم'], ['admin', 'المديرون']];
-  $('userFilters').innerHTML = filters.map(([k, l]) =>
-    `<button class="chip ${k === userFilter ? 'active' : ''}" data-f="${k}">${l}</button>`).join('');
-  $('userFilters').onclick = (e) => {
-    const b = e.target.closest('[data-f]'); if (!b) return;
-    userFilter = b.dataset.f; buildUserFilters(); renderUsers();
-  };
-}
-
-function renderUsers() {
-  let list = allUsers;
+  let list = S.users;
   if (userFilter !== 'all') list = list.filter((u) => u.role === userFilter);
-  $('usersList').innerHTML = list.map((u) => `
-    <div class="card">
-      <div class="row1">
-        <span class="title">${esc(u.name || '—')}</span>
-        <span>${badge(ROLE_AR[u.role] || u.role || '؟', '#2471a3')}
-        ${u.isActive === false ? badge('موقوف', '#c0392b') : ''}</span>
-      </div>
-      <div class="meta">${esc(u.email || '')}${u.phone ? ' — ' + esc(u.phone) : ''}
-        ${u.restaurantName ? '<br>مطعم: ' + esc(u.restaurantName) : ''}</div>
-      ${u.role !== 'admin' ? `<div class="row1" style="margin-top:8px">
-        <button class="toggle-btn ${u.isActive === false ? 'off' : 'on'}" data-uid="${u.id}"
-          data-active="${u.isActive === false ? 0 : 1}">
-          ${u.isActive === false ? 'تفعيل الحساب' : 'إيقاف الحساب'}
-        </button></div>` : ''}
-    </div>`).join('') || '<div class="empty">لا يوجد مستخدمون</div>';
+  if (userSearch) {
+    const q2 = userSearch.toLowerCase();
+    list = list.filter((u) => [u.name, u.email, u.phone].some((v) => String(v || '').toLowerCase().includes(q2)));
+  }
+  $('main').innerHTML = `
+    <div class="toolbar">
+      ${filters.map(([k, l]) => `<button class="chip ${k === userFilter ? 'active' : ''}" data-uf="${k}">${l}</button>`).join('')}
+      <input class="search" id="userSearch" placeholder="🔍 بحث بالاسم أو البريد أو الجوال…" value="${esc(userSearch)}">
+    </div>
+    ${list.map((u) => `
+      <div class="card">
+        <div class="row1">
+          <span class="title">${esc(u.name || '—')}</span>
+          <span>${badge(ROLE_AR[u.role] || u.role || '؟', '#2471a3')}
+          ${u.isActive === false ? badge('موقوف', '#c0392b') : ''}</span>
+        </div>
+        <div class="meta">${esc(u.email || '')}${u.phone ? ' — 📞 ' + esc(u.phone) : ''}
+          ${u.restaurantName ? '<br>🍽️ ' + esc(u.restaurantName) : ''}
+          ${u.createdAt ? '<br>انضم: ' + esc(fmtTime(u.createdAt)) : ''}</div>
+        ${u.role !== 'admin' ? `<div class="row1" style="margin-top:8px">
+          <button class="toggle-btn ${u.isActive === false ? 'off' : 'on'}" data-utoggle="${u.id}"
+            data-active="${u.isActive === false ? 0 : 1}">
+            ${u.isActive === false ? 'تفعيل الحساب' : 'إيقاف الحساب'}</button>
+        </div>` : ''}
+      </div>`).join('') || '<div class="empty">لا يوجد مستخدمون مطابقون</div>'}`;
 
-  $('usersList').onclick = async (e) => {
-    const b = e.target.closest('[data-uid]'); if (!b) return;
+  $('main').querySelectorAll('[data-uf]').forEach((b) =>
+    b.addEventListener('click', () => { userFilter = b.dataset.uf; renderUsersPage(); }));
+  const si = $('userSearch');
+  si.addEventListener('input', () => {
+    userSearch = si.value; renderUsersPage();
+    const ni = $('userSearch'); ni.focus(); ni.setSelectionRange(ni.value.length, ni.value.length);
+  });
+  $('main').querySelectorAll('[data-utoggle]').forEach((b) => b.addEventListener('click', async () => {
     const activating = b.dataset.active !== '1';
     if (!confirm(activating ? 'تفعيل هذا الحساب؟' : 'إيقاف هذا الحساب عن استخدام التطبيق؟')) return;
-    try { await updateDoc(doc(db, 'users', b.dataset.uid), { isActive: activating }); }
+    try { await updateDoc(doc(db, 'users', b.dataset.utoggle), { isActive: activating }); toast('تم التحديث'); }
     catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
-  };
+  }));
 }
 
-// ---------------- الشكاوى ----------------
-function renderComplaints(list) {
-  $('complaintsList').innerHTML = list.map((c) => {
+/* ================= الشكاوى ================= */
+function renderComplaintsPage() {
+  $('main').innerHTML = S.complaints.map((c) => {
     const st = COMPLAINT_STATUS_AR[c.status] || c.status;
     const color = { open: '#c0392b', inProgress: '#ca6f1e', resolved: '#1e8449', closed: '#7f8c8d' }[c.status] || '#7f8c8d';
     return `<div class="card">
@@ -435,24 +728,217 @@ function renderComplaints(list) {
       </div>
       <div class="meta">
         العميل: ${esc(c.customerName || '—')} — المطعم: ${esc(c.restaurantName || '—')}<br>
-        ${esc(c.description || '')}<br>${esc(fmtTime(c.createdAt))}
+        «${esc(c.description || '')}»<br>${esc(fmtTime(c.createdAt))}
+        ${c.adminNote ? '<br>📝 ملاحظة الإدارة: ' + esc(c.adminNote) : ''}
       </div>
       <div class="row1" style="margin-top:8px">
-        <select class="status-sel" data-cid="${c.id}">
+        <select class="inline-sel" data-cstatus="${c.id}">
           ${Object.entries(COMPLAINT_STATUS_AR).map(([k, v]) =>
             `<option value="${k}" ${k === c.status ? 'selected' : ''}>${v}</option>`).join('')}
         </select>
+        <button class="toggle-btn" data-cnote="${c.id}">📝 ملاحظة</button>
       </div>
     </div>`;
   }).join('') || '<div class="empty">لا توجد شكاوى 🎉</div>';
 
-  $('complaintsList').onchange = async (e) => {
-    const s = e.target.closest('[data-cid]'); if (!s) return;
-    if (!confirm('تغيير حالة الشكوى إلى «' + COMPLAINT_STATUS_AR[s.value] + '»؟')) { renderComplaints(list); return; }
-    try { await updateDoc(doc(db, 'complaints', s.dataset.cid), { status: s.value }); }
+  $('main').querySelectorAll('[data-cstatus]').forEach((s) => s.addEventListener('change', async () => {
+    if (!confirm('تغيير حالة الشكوى إلى «' + COMPLAINT_STATUS_AR[s.value] + '»؟')) { renderComplaintsPage(); return; }
+    try { await updateDoc(doc(db, 'complaints', s.dataset.cstatus), { status: s.value }); toast('تم التحديث'); }
     catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
-  };
+  }));
+  $('main').querySelectorAll('[data-cnote]').forEach((b) => b.addEventListener('click', async () => {
+    const c = S.complaints.find((x) => x.id === b.dataset.cnote);
+    const note = prompt('ملاحظة الإدارة على الشكوى:', c?.adminNote || '');
+    if (note === null) return;
+    try { await updateDoc(doc(db, 'complaints', b.dataset.cnote), { adminNote: note.trim() }); toast('حُفظت الملاحظة'); }
+    catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
+  }));
 }
+
+/* ================= رسالة جماعية ================= */
+function renderBroadcastPage() {
+  $('main').innerHTML = `
+    <div class="panel">
+      <h3>إرسال رسالة جماعية</h3>
+      <div class="field"><label>الفئة المستهدفة</label>
+        <select id="bAudience"><option value="customers">العملاء</option><option value="drivers">السائقون</option></select></div>
+      <div class="field"><label>عنوان الرسالة</label><input id="bTitle" maxlength="80" placeholder="مثال: عرض نهاية الأسبوع"></div>
+      <div class="field"><label>نص الرسالة</label><textarea id="bBody" maxlength="500" placeholder="اكتب نص الرسالة هنا…"></textarea></div>
+      <button class="btn" id="bSend">إرسال 📢</button>
+    </div>
+    <div class="panel"><h3>الرسائل السابقة</h3>
+      ${S.broadcasts.map((b) => `
+        <div class="card">
+          <div class="row1"><span class="title">${esc(b.title)}</span>
+            ${badge(b.audience === 'drivers' ? 'للسائقين' : 'للعملاء', b.audience === 'drivers' ? '#8e44ad' : '#2471a3')}</div>
+          <div class="meta">${esc(b.body)}<br>${esc(fmtTime(b.createdAt))} — ${esc(b.sentBy || '')}</div>
+        </div>`).join('') || '<div class="empty">لم تُرسل رسائل بعد</div>'}
+    </div>`;
+  document.getElementById('bSend').addEventListener('click', async () => {
+    const title = document.getElementById('bTitle').value.trim();
+    const body = document.getElementById('bBody').value.trim();
+    const audience = document.getElementById('bAudience').value;
+    if (!title || !body) { alert('اكتب العنوان والنص أولاً'); return; }
+    const target = audience === 'drivers' ? 'جميع السائقين' : 'جميع العملاء';
+    if (!confirm(`إرسال الرسالة إلى ${target}؟`)) return;
+    try {
+      await addDoc(collection(db, 'broadcasts'), {
+        audience, title, body,
+        sentBy: adminUser.name || adminUser.email,
+        createdAt: serverTimestamp(),
+      });
+      toast('أُرسلت الرسالة'); renderBroadcastPage();
+    } catch (err) { alert('تعذر الإرسال: ' + (err.code || err.message)); }
+  });
+}
+
+/* ================= التقارير ================= */
+let reportDays = 7, reportData = null, reportBusy = false;
+function renderReportsPage() {
+  $('main').innerHTML = `
+    <div class="toolbar">
+      ${[[1, 'اليوم'], [7, 'آخر ٧ أيام'], [30, 'آخر ٣٠ يوم'], [90, 'آخر ٩٠ يوم']].map(([d, l]) =>
+        `<button class="chip ${d === reportDays ? 'active' : ''}" data-rep="${d}">${l}</button>`).join('')}
+      <button class="chip" id="csvBtn">⬇️ تصدير Excel (CSV)</button>
+    </div>
+    <div id="repBody">${reportBusy ? '<div class="loading">جارٍ حساب التقرير…</div>' : ''}</div>`;
+  $('main').querySelectorAll('[data-rep]').forEach((b) =>
+    b.addEventListener('click', () => { reportDays = Number(b.dataset.rep); loadReport(); }));
+  document.getElementById('csvBtn').addEventListener('click', exportCsv);
+  if (reportBusy) return;
+  if (!reportData || reportData.days !== reportDays) loadReport(); else drawReport();
+}
+
+async function loadReport() {
+  reportBusy = true; renderReportsPage();
+  try {
+    const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - (reportDays - 1));
+    const qs = await getDocs(query(collection(db, 'orders'),
+      where('createdAt', '>=', Timestamp.fromDate(start)), orderBy('createdAt', 'desc'), limit(3000)));
+    const orders = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const delivered = orders.filter((o) => o.status === 'delivered');
+    const perRest = {}, perDriver = {};
+    delivered.forEach((o) => {
+      const rk = o.restaurantName || '—';
+      perRest[rk] = perRest[rk] || { count: 0, items: 0, comm: 0, appShare: 0 };
+      perRest[rk].count++; perRest[rk].items += itemsTotal(o);
+      perRest[rk].comm += commission(o); perRest[rk].appShare += Number(o.appShare) || 0;
+      if (o.driverName) {
+        const dk = o.driverName;
+        perDriver[dk] = perDriver[dk] || { count: 0, share: 0 };
+        perDriver[dk].count++; perDriver[dk].share += Number(o.driverShare) || 0;
+      }
+    });
+    reportData = {
+      days: reportDays, total: orders.length, delivered: delivered.length,
+      cancelled: orders.filter((o) => CANCELLED_STATUSES.includes(o.status)).length,
+      revenue: delivered.reduce((s, o) => s + orderTotal(o), 0),
+      itemsRev: delivered.reduce((s, o) => s + itemsTotal(o), 0),
+      commTotal: delivered.reduce((s, o) => s + commission(o), 0),
+      appShareTotal: delivered.reduce((s, o) => s + (Number(o.appShare) || 0), 0),
+      driverShareTotal: delivered.reduce((s, o) => s + (Number(o.driverShare) || 0), 0),
+      perRest, perDriver,
+    };
+  } catch (err) {
+    reportData = { error: err.code || err.message, days: reportDays };
+  }
+  reportBusy = false;
+  if (page === 'reports') { renderReportsPage(); }
+}
+
+function drawReport() {
+  const r = reportData;
+  const el = document.getElementById('repBody');
+  if (!el) return;
+  if (r.error) { el.innerHTML = `<div class="empty">تعذر التحميل: ${esc(r.error)}</div>`; return; }
+  const platformProfit = r.commTotal + r.appShareTotal;
+  el.innerHTML = `
+    <div class="kpi-grid">
+      <div class="kpi"><div class="num">${r.total}</div><div class="lbl">إجمالي الطلبات</div></div>
+      <div class="kpi"><div class="num">${r.delivered}</div><div class="lbl">مُوصَّلة</div></div>
+      <div class="kpi"><div class="num">${r.cancelled}</div><div class="lbl">ملغاة/مرفوضة</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(r.revenue)}</div><div class="lbl">إجمالي المبيعات (${SAR})</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(r.commTotal)}</div><div class="lbl">عمولات المطاعم ١٥٪ (${SAR})</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(r.appShareTotal)}</div><div class="lbl">نصيب المنصة من التوصيل (${SAR})</div></div>
+      <div class="kpi" style="border-color:var(--gold)"><div class="num">${fmtMoney(platformProfit)}</div>
+        <div class="lbl">أرباح المنصة الإجمالية (${SAR})</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(r.driverShareTotal)}</div><div class="lbl">أجور السائقين (${SAR})</div></div>
+    </div>
+    <div class="panel"><h3>حسب المطعم (الطلبات المُوصَّلة)</h3><div class="table-wrap">
+      <table class="rep"><tr><th>المطعم</th><th>طلبات</th><th>مبيعات الوجبات</th><th>عمولة ١٥٪</th><th>صافي للمطعم</th></tr>
+        ${Object.entries(r.perRest).sort((a, b) => b[1].items - a[1].items).map(([n, v]) => `
+          <tr><td>${esc(n)}</td><td>${v.count}</td><td>${fmtMoney(v.items)}</td>
+            <td>${fmtMoney(v.comm)}</td><td><b>${fmtMoney(v.items - v.comm)}</b></td></tr>`).join('') ||
+          '<tr><td colspan="5" class="empty">لا بيانات</td></tr>'}
+      </table></div></div>
+    <div class="panel"><h3>حسب السائق (الطلبات المُوصَّلة)</h3><div class="table-wrap">
+      <table class="rep"><tr><th>السائق</th><th>توصيلات</th><th>أجور التوصيل</th></tr>
+        ${Object.entries(r.perDriver).sort((a, b) => b[1].count - a[1].count).map(([n, v]) => `
+          <tr><td>${esc(n)}</td><td>${v.count}</td><td>${fmtMoney(v.share)}</td></tr>`).join('') ||
+          '<tr><td colspan="3" class="empty">لا بيانات</td></tr>'}
+      </table></div></div>`;
+}
+
+function exportCsv() {
+  const r = reportData;
+  if (!r || r.error) { alert('لا يوجد تقرير محمّل بعد'); return; }
+  const rows = [
+    ['تقرير ZadGo', `آخر ${r.days} يوم`],
+    [],
+    ['إجمالي الطلبات', r.total], ['مُوصَّلة', r.delivered], ['ملغاة', r.cancelled],
+    ['إجمالي المبيعات', fmtMoney(r.revenue)], ['عمولات المطاعم 15%', fmtMoney(r.commTotal)],
+    ['نصيب المنصة من التوصيل', fmtMoney(r.appShareTotal)],
+    ['أرباح المنصة', fmtMoney(r.commTotal + r.appShareTotal)],
+    ['أجور السائقين', fmtMoney(r.driverShareTotal)],
+    [],
+    ['المطعم', 'طلبات', 'مبيعات الوجبات', 'عمولة 15%', 'صافي للمطعم'],
+    ...Object.entries(r.perRest).map(([n, v]) => [n, v.count, fmtMoney(v.items), fmtMoney(v.comm), fmtMoney(v.items - v.comm)]),
+    [],
+    ['السائق', 'توصيلات', 'أجور التوصيل'],
+    ...Object.entries(r.perDriver).map(([n, v]) => [n, v.count, fmtMoney(v.share)]),
+  ];
+  const csv = '﻿' + rows.map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `zadgo-report-${r.days}d.csv`;
+  a.click();
+}
+
+/* ================= الإعدادات ================= */
+function renderSettingsPage() {
+  const s = S.settings || {};
+  $('main').innerHTML = `
+    <div class="panel">
+      <h3>مُهل معالجة الطلبات العالقة (بالدقائق)</h3>
+      <p class="meta" style="margin-bottom:12px">نفس الإعدادات التي يقرؤها التطبيق من delivery_settings/config —
+        تُطبَّق فوراً بدون تحديث للتطبيق.</p>
+      <div class="field"><label>مهلة استجابة المطعم قبل اعتباره متأخراً</label>
+        <input type="number" id="s_rest" min="1" value="${Number(s.restaurantResponseTimeoutMinutes) || 5}"></div>
+      <div class="field"><label>مهلة البحث عن سائق قبل اعتبار الطلب عالقاً</label>
+        <input type="number" id="s_driver" min="1" value="${Number(s.driverSearchTimeoutMinutes) || 10}"></div>
+      <div class="field"><label>السماحية فوق وقت التوصيل المتوقع قبل اعتبار الطلب متأخراً</label>
+        <input type="number" id="s_late" min="1" value="${Number(s.lateDeliveryThresholdMinutes) || 15}"></div>
+      <button class="btn" id="saveSettings">حفظ الإعدادات</button>
+    </div>
+    <div class="panel">
+      <h3>عن اللوحة</h3>
+      <div class="kv"><span>الرابط</span><b>zadgo.co/admin</b></div>
+      <div class="kv"><span>مصدر البيانات</span><b>Firestore — لحظي</b></div>
+      <div class="kv"><span>الدخول</span><b>حسابات المدير العام فقط</b></div>
+    </div>`;
+  document.getElementById('saveSettings').addEventListener('click', async () => {
+    if (!confirm('حفظ إعدادات المُهل الجديدة؟')) return;
+    try {
+      await setDoc(doc(db, 'delivery_settings', 'config'), {
+        restaurantResponseTimeoutMinutes: Math.max(1, Number(document.getElementById('s_rest').value) || 5),
+        driverSearchTimeoutMinutes: Math.max(1, Number(document.getElementById('s_driver').value) || 10),
+        lateDeliveryThresholdMinutes: Math.max(1, Number(document.getElementById('s_late').value) || 15),
+      }, { merge: true });
+      toast('حُفظت الإعدادات');
+    } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
+  });
+}
+
 </script>
 </body>
 </html>
