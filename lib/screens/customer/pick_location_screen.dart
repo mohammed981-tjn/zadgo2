@@ -1,4 +1,3 @@
-// lib/screens/customer/pick_location_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -15,9 +14,10 @@ class PickLocationScreen extends StatefulWidget {
 
 class _PickLocationScreenState extends State<PickLocationScreen> {
   final MapController _mapController = MapController();
-  static const LatLng _fallbackCenter = LatLng(24.7136, 46.6753); // الرياض
 
+  static const LatLng _fallbackCenter = LatLng(24.7136, 46.6753); // الرياض
   late LatLng _selected;
+
   bool _loadingGps = true;
   String? _gpsError;
 
@@ -25,6 +25,8 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
   void initState() {
     super.initState();
     _selected = widget.initialLocation ?? _fallbackCenter;
+
+    // تحديد الموقع تلقائيًا بعد بناء الواجهة
     WidgetsBinding.instance.addPostFrameCallback((_) => _fetchCurrentLocation());
   }
 
@@ -33,9 +35,11 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
       _loadingGps = true;
       _gpsError = null;
     });
+
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
+      // التأكد من تفعيل خدمة الموقع
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
         setState(() {
           _loadingGps = false;
           _gpsError = 'خدمة الموقع غير مفعّلة على الجهاز';
@@ -43,12 +47,13 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
         return;
       }
 
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+      // طلب الإذن
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
         setState(() {
           _loadingGps = false;
           _gpsError = 'تم رفض إذن الوصول للموقع';
@@ -56,17 +61,22 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
         return;
       }
 
-      final position = await Geolocator.getCurrentPosition(
+      // الحصول على الموقع
+      final pos = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 10),
       );
 
       if (!mounted) return;
-      final point = LatLng(position.latitude, position.longitude);
+
+      final point = LatLng(pos.latitude, pos.longitude);
+
       setState(() {
         _selected = point;
         _loadingGps = false;
       });
+
+      // تحريك الكاميرا
       _mapController.move(point, 16);
     } catch (_) {
       if (!mounted) return;
@@ -79,6 +89,7 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
 
   void _onMapTap(TapPosition tapPosition, LatLng point) {
     setState(() => _selected = point);
+    _mapController.move(point, 16);
   }
 
   @override
@@ -91,77 +102,101 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
             tooltip: 'تحديد موقعي الحالي',
             icon: _loadingGps
                 ? const SizedBox(
-                    width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.my_location),
             onPressed: _loadingGps ? null : _fetchCurrentLocation,
           ),
         ],
       ),
-      body: Stack(children: [
-        FlutterMap(
-          mapController: _mapController,
-          options: MapOptions(
-            initialCenter: _selected,
-            initialZoom: 15,
-            onTap: _onMapTap,
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.zadam.delivery',
+
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _selected,
+              initialZoom: 15,
+              onTap: _onMapTap,
             ),
-            MarkerLayer(markers: [
-              Marker(
-                point: _selected,
-                width: 50,
-                height: 50,
-                child: const Icon(Icons.location_on, color: AppColors.primary, size: 44),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.zadam.delivery',
               ),
-            ]),
-          ],
-        ),
-        if (_gpsError != null)
-          Positioned(
-            top: 12,
-            left: 12,
-            right: 12,
-            child: Material(
-              color: Colors.transparent,
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _selected,
+                    width: 50,
+                    height: 50,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: AppColors.primary,
+                      size: 44,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // رسالة الخطأ
+          if (_gpsError != null)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: AppColors.warning,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Row(children: [
-                  const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(_gpsError!,
-                        style: const TextStyle(color: Colors.white, fontSize: 12.5)),
-                  ),
-                ]),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _gpsError!,
+                        style: const TextStyle(color: Colors.white, fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // نص إرشادي
+          Positioned(
+            bottom: 90,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'اضغط على الخريطة لتعديل الموقع',
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                ),
               ),
             ),
           ),
-        Positioned(
-          bottom: 90,
-          left: 0,
-          right: 0,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text('اضغط على الخريطة لتعديل الموقع',
-                  style: TextStyle(color: Colors.white, fontSize: 12)),
-            ),
-          ),
-        ),
-      ]),
+        ],
+      ),
+
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -170,8 +205,13 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
             height: 50,
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context, _selected),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('تأكيد هذا الموقع', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              child: const Text(
+                'تأكيد هذا الموقع',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ),
