@@ -1,0 +1,18 @@
+# ملف إعدادات مجلد الصور — يُرفع إلى public_html/images/ على استضافة Bluehost
+# الغرض: فتح الوصول للصور من تطبيق ZadGo (CORS) وتحسين سرعة التحميل
+
+# السماح لأي تطبيق/موقع بعرض الصور مباشرة (مطلوب لنسخة الويب من Flutter)
+<IfModule mod_headers.c>
+  Header set Access-Control-Allow-Origin "*"
+</IfModule>
+
+# منع عرض قائمة محتويات المجلد في المتصفح
+Options -Indexes
+
+# تخزين مؤقت للصور لمدة أسبوع لتسريع فتح المنيو في التطبيق
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/jpeg "access plus 7 days"
+  ExpiresByType image/png  "access plus 7 days"
+  ExpiresByType image/webp "access plus 7 days"
+</IfModule>
