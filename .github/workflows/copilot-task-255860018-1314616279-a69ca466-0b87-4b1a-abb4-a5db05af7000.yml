@@ -2,7 +2,7 @@ name: Build Flutter APK
 
 on:
   push:
-    branches: [ copilot/split-customer-app ]
+    branches: [ copilot/copilotsplit-customer-app ]
   workflow_dispatch:
 
 permissions:
