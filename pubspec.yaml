@@ -1,58 +1,45 @@
-name: zadam_delivery
-description: ZadGo - نظام إدارة توصيل طلبات
-publish_to: 'none'
-version: 4.0.0+1
-
-environment:
-  sdk: '>=3.3.0 <4.0.0'
-
 dependencies:
   flutter:
     sdk: flutter
 
-  firebase_core: 3.8.0
-  firebase_auth: 5.3.3
-  cloud_firestore: 5.5.0
-  firebase_messaging: 15.1.5
+  # Firebase
+  firebase_core: ^3.0.0
+  cloud_firestore: ^5.0.0
+  firebase_auth: ^5.0.0
+  firebase_messaging: ^15.0.0
 
-  provider: ^6.1.2
+  # الموقع
+  geolocator: ^10.1.0
+  geocoding: ^2.1.0
 
-  flutter_rating_bar: ^4.0.1
+  # الخرائط
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+
+  # التخزين المحلي
+  shared_preferences: ^2.2.2
+
+  # فتح الروابط
+  url_launcher: ^6.2.5
+
+  # واجهة المستخدم
   badges: ^3.1.2
-  fl_chart: ^0.69.0
+  flutter_rating_bar: ^4.0.1
 
-  uuid: ^4.5.1
-  intl: ^0.19.0
+  # التصدير
+  excel: ^2.1.0
+  pdf: ^3.10.7
+  printing: ^5.12.0
+  share_plus: ^7.2.0
 
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
-  url_launcher: ^6.3.1
-  shared_preferences: ^2.3.3
-  geolocator: ^13.0.1
-
-  pdf: ^3.11.1
-  printing: ^5.13.4
-  excel: ^4.0.6
-  share_plus: ^10.1.2
-
-dependency_overrides:
-  geolocator_android: 4.6.0
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^4.0.0
+  # أدوات
+  uuid: ^4.2.1
+  provider: ^6.0.5
 
 flutter:
   uses-material-design: true
+
   assets:
-    - assets/images/logo_square.png
-  fonts:
-    - family: Cairo
-      fonts:
-        - asset: assets/fonts/Cairo-Variable.ttf
-          weight: 400
-        - asset: assets/fonts/Cairo-Variable.ttf
-          weight: 600
-        - asset: assets/fonts/Cairo-Variable.ttf
-          weight: 700
+    - assets/
+    - assets/images/
+    - assets/icons/
