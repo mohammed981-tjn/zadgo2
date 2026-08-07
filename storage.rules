@@ -1,0 +1,39 @@
+rules_version = '2';
+
+// قواعد أمان Firebase Storage لتطبيق ZadGo — تحكم رفع وقراءة صور المطاعم
+// والأصناف.
+//
+// القراءة عامة عمداً: نكهة العميل تسمح بتصفّح المطاعم كضيف قبل تسجيل الدخول
+// (allowGuestBrowsing)، فلو اشترطنا المصادقة لظهرت الصور مكسورة لكل زائر.
+// الصور نفسها ليست بيانات حسّاسة — هي مادة تسويقية معروضة أصلاً في المنيو.
+//
+// الكتابة للمدير العام وحده: رفع الصور وإدارتها من لوحة التحكم فقط، تماشياً
+// مع تقسيم المسؤوليات (المطعم يعدّل الأسعار فقط، والإدارة ترفع الصور).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null &&
+          firestore.get(/databases/(default)/documents/users/$(request.auth.uid))
+              .data.role == 'admin';
+    }
+
+    // حدّ حجم معقول ونوع صورة فقط — يمنع رفع ملفات ضخمة أو غير صور بالخطأ
+    // أو عمداً عبر استدعاء مباشر خارج التطبيق.
+    function isValidImage() {
+      return request.resource.size < 5 * 1024 * 1024 &&
+          request.resource.contentType.matches('image/.*');
+    }
+
+    match /restaurants/{restaurantId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidImage();
+      allow delete: if isAdmin();
+    }
+
+    // كل ما عداه مغلق افتراضياً.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
