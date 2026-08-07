@@ -343,21 +343,23 @@ class _OrderCard extends StatelessWidget {
             // ✅ زر الشكوى — يفتح شاشة تقديم شكوى مشتركة، مع تحديد السائق
             // كمُقدِّم الشكوى (submittedByRole: driver) لتظهر له خيارات
             // "ضد العميل" أو "ضد المطعم" فقط (لا يمكنه الشكوى ضد نفسه).
-            IconButton(
-              icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning),
-              tooltip: 'تقديم شكوى',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SubmitComplaintScreen(
-                    order: order,
-                    submittedByUid: auth.user?.uid ?? '',
-                    submittedByName: auth.user?.name ?? '',
-                    submittedByRole: UserRole.driver,
+            // يختفي بعد انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
+            if (order.canSubmitComplaint)
+              IconButton(
+                icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning),
+                tooltip: 'تقديم شكوى',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SubmitComplaintScreen(
+                      order: order,
+                      submittedByUid: auth.user?.uid ?? '',
+                      submittedByName: auth.user?.name ?? '',
+                      submittedByRole: UserRole.driver,
+                    ),
                   ),
                 ),
               ),
-            ),
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
           ]),
           const SizedBox(height: 10),

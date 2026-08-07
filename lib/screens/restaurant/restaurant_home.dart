@@ -496,23 +496,25 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ]),
           ),
           const Spacer(),
-          // ✅ زر الشكوى — المطعم يقدّم شكوى ضد السائق أو العميل من هنا.
-          IconButton(
-            icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning, size: 20),
-            tooltip: 'تقديم شكوى',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => SubmitComplaintScreen(
-                  order: order,
-                  submittedByUid: auth.user?.uid ?? '',
-                  submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
-                  submittedByRole: UserRole.restaurantManager,
+          // ✅ زر الشكوى — المطعم يقدّم شكوى ضد السائق أو العميل من هنا،
+          // ويختفي بعد انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
+          if (order.canSubmitComplaint)
+            IconButton(
+              icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning, size: 20),
+              tooltip: 'تقديم شكوى',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SubmitComplaintScreen(
+                    order: order,
+                    submittedByUid: auth.user?.uid ?? '',
+                    submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
+                    submittedByRole: UserRole.restaurantManager,
+                  ),
                 ),
               ),
             ),
-          ),
         ]),
         const SizedBox(height: 10),
         Row(children: [

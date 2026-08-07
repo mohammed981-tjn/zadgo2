@@ -822,6 +822,36 @@ class Order {
   /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.
   double get restaurantNet => itemsTotal - platformCommission;
 
+  /// مهلة تقديم الشكوى بعد انتهاء الطلب — 24 ساعة، وهي النافذة المعتمدة في
+  /// تطبيقات التوصيل الكبرى: تكفي لاكتشاف النقص/الخطأ/الجودة بعد فتح الطلب،
+  /// ثم يُغلق الملف تلقائياً فلا تبقى الطلبات القديمة مفتوحة للشكاوى للأبد.
+  static const Duration complaintWindow = Duration(hours: 24);
+
+  /// اللحظة التي انتهى فيها الطلب (تسليم/إلغاء/رفض)؛ [statusChangedAt] يُحدَّث
+  /// عند كل تغيير حالة، فهو وقت الانتهاء للطلبات المنتهية.
+  DateTime get _finishedAt => statusChangedAt ?? updatedAt ?? createdAt;
+
+  /// ما تبقّى من مهلة الشكوى؛ `null` للطلبات الجارية (بلا مهلة بعد).
+  Duration? get complaintTimeLeft {
+    if (status.isActive) return null;
+    final left = _finishedAt.add(complaintWindow).difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  /// هل يمكن تقديم شكوى على هذا الطلب الآن؟ الطلبات الجارية دائماً مفتوحة،
+  /// والمنتهية مفتوحة خلال [complaintWindow] من لحظة انتهائها فقط.
+  bool get canSubmitComplaint =>
+      status.isActive || (complaintTimeLeft ?? Duration.zero) > Duration.zero;
+
+  /// هل يحقّ للعميل إلغاء الطلب بنفسه؟ مسموح فقط قبل أن يبدأ المطعم التحضير
+  /// فعلياً — أي قبل الإرسال، وأثناء انتظار موافقة المطعم، وبعد قبوله مباشرةً.
+  /// بمجرّد الانتقال إلى [OrderStatus.preparing] يكون المطعم قد بدأ يتكبّد
+  /// تكلفة الطعام، فيصبح الإلغاء قراراً إدارياً فقط (من لوحة التحكم).
+  bool get canCustomerCancel =>
+      status == OrderStatus.created ||
+      status == OrderStatus.restaurantPending ||
+      status == OrderStatus.restaurantAccepted;
+
   bool get needsDriverAcknowledgement =>
       driverId != null && driverId!.isNotEmpty && !driverAcknowledged;
 

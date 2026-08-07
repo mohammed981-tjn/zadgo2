@@ -646,8 +646,26 @@ class FirebaseService {
     await batch.commit();
   }
 
+  /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
   Future<void> cancelOrder(String orderId) =>
       updateOrderStatus(orderId, models.OrderStatus.cancelled);
+
+  /// إلغاء العميل لطلبه — مسموح فقط قبل أن يبدأ المطعم التحضير
+  /// ([models.Order.canCustomerCancel]). التحقق هنا وليس في الواجهة فقط، حتى
+  /// لا يمرّ إلغاء متأخر لو استُدعيت الدالة من مسار آخر أو تغيّرت الحالة بين
+  /// عرض الزر والضغط عليه.
+  Future<void> cancelOrderByCustomer(String orderId) async {
+    final doc = await _orders.doc(orderId).get();
+    final data = doc.data();
+    if (!doc.exists || data == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final order = models.Order.fromMap(data, doc.id);
+    if (!order.canCustomerCancel) {
+      throw Exception('لا يمكن إلغاء الطلب بعد بدء التحضير، تواصل مع الإدارة');
+    }
+    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
+  }
 
   Future<Map<String, dynamic>> getDeliverySettings() async {
     final doc = await _deliverySettings.doc('config').get();
