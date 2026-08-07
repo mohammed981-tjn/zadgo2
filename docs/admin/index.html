@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>لوحة تحكم ZadGo</title>
+<style>
+  :root {
+    --green: #1a5c46; --green-dark: #0e3a2c; --gold: #ffc93c;
+    --bg: #f4f6f5; --card: #ffffff; --text: #1c2b26; --muted: #6b7c76;
+    --red: #c0392b; --blue: #2471a3; --orange: #ca6f1e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; }
+  .hidden { display: none !important; }
+
+  /* ---- شاشة الدخول ---- */
+  #loginView { min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, var(--green) 0%, var(--green-dark) 100%); padding: 20px; }
+  .login-card { background: var(--card); border-radius: 16px; padding: 32px 24px; width: 100%; max-width: 380px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  .login-card h1 { text-align: center; color: var(--green); margin-bottom: 4px; }
+  .login-card h1 span { color: #d4a017; }
+  .login-card p.sub { text-align: center; color: var(--muted); margin-bottom: 24px; font-size: .95rem; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+  .field input { width: 100%; padding: 12px; border: 1px solid #d5ddda; border-radius: 10px; font-size: 1rem; }
+  .field input:focus { outline: 2px solid var(--green); border-color: transparent; }
+  .btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 10px; font-size: 1.05rem;
+    font-weight: 700; cursor: pointer; background: var(--green); color: #fff; }
+  .btn:disabled { opacity: .6; cursor: wait; }
+  .error-box { background: #fdecea; color: var(--red); border-radius: 8px; padding: 10px 12px;
+    font-size: .9rem; margin-bottom: 14px; }
+
+  /* ---- الهيكل العام ---- */
+  header.topbar { background: var(--green); color: #fff; padding: 12px 16px; display: flex;
+    align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 20; }
+  header.topbar h2 { font-size: 1.15rem; }
+  header.topbar h2 span { color: var(--gold); }
+  #adminName { font-size: .8rem; opacity: .85; display: block; }
+  .logout { background: rgba(255,255,255,.15); color: #fff; border: 0; border-radius: 8px;
+    padding: 8px 14px; cursor: pointer; font-size: .9rem; }
+  nav.tabs { display: flex; background: var(--card); border-bottom: 1px solid #e2e8e5; overflow-x: auto;
+    position: sticky; top: 52px; z-index: 19; }
+  nav.tabs button { flex: 1; min-width: 92px; padding: 12px 8px; border: 0; background: none; font-size: .95rem;
+    color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; }
+  nav.tabs button.active { color: var(--green); border-bottom-color: var(--gold); font-weight: 700; }
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+
+  /* ---- بطاقات الإحصائيات ---- */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { background: var(--card); border-radius: 12px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .stat .num { font-size: 1.7rem; font-weight: 800; color: var(--green); }
+  .stat .lbl { font-size: .82rem; color: var(--muted); margin-top: 2px; }
+
+  /* ---- القوائم والبطاقات ---- */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .chip { border: 1px solid #cfd9d5; background: var(--card); border-radius: 999px; padding: 7px 14px;
+    font-size: .85rem; cursor: pointer; color: var(--muted); }
+  .chip.active { background: var(--green); border-color: var(--green); color: #fff; }
+  .card { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .title { font-weight: 700; }
+  .meta { color: var(--muted); font-size: .85rem; margin-top: 4px; line-height: 1.7; }
+  .badge { display: inline-block; border-radius: 999px; padding: 3px 12px; font-size: .78rem; font-weight: 700; }
+  .money { font-weight: 800; color: var(--green); white-space: nowrap; }
+  .toggle-btn { border: 1px solid #cfd9d5; background: #fff; border-radius: 8px; padding: 7px 14px;
+    cursor: pointer; font-size: .85rem; }
+  .toggle-btn.on { background: #e8f6ef; border-color: #27ae60; color: #1e8449; }
+  .toggle-btn.off { background: #fdecea; border-color: var(--red); color: var(--red); }
+  select.status-sel { padding: 7px 10px; border-radius: 8px; border: 1px solid #cfd9d5; font-size: .85rem; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+  .loading { text-align: center; color: var(--muted); padding: 30px; }
+  footer.note { text-align: center; color: var(--muted); font-size: .78rem; padding: 20px 10px; }
+</style>
+</head>
+<body>
+
+<!-- شاشة تسجيل الدخول -->
+<div id="loginView">
+  <form class="login-card" id="loginForm">
+    <h1>Zad<span>Go</span></h1>
+    <p class="sub">لوحة التحكم — دخول المدير العام فقط</p>
+    <div id="loginError" class="error-box hidden"></div>
+    <div class="field">
+      <label>البريد الإلكتروني</label>
+      <input type="email" id="email" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label>كلمة المرور</label>
+      <input type="password" id="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn" id="loginBtn" type="submit">دخول</button>
+  </form>
+</div>
+
+<!-- اللوحة -->
+<div id="appView" class="hidden">
+  <header class="topbar">
+    <h2>لوحة تحكم Zad<span>Go</span><span id="adminName"></span></h2>
+    <button class="logout" id="logoutBtn">خروج</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button data-tab="overview" class="active">نظرة عامة</button>
+    <button data-tab="orders">الطلبات</button>
+    <button data-tab="restaurants">المطاعم</button>
+    <button data-tab="users">المستخدمون</button>
+    <button data-tab="complaints">الشكاوى</button>
+  </nav>
+  <main>
+    <section id="tab-overview">
+      <div class="stats-grid" id="statsGrid"><div class="loading">جارٍ التحميل…</div></div>
+      <div class="card"><div class="title">آخر الطلبات</div><div id="recentOrders"><div class="loading">جارٍ التحميل…</div></div></div>
+    </section>
+    <section id="tab-orders" class="hidden">
+      <div class="toolbar" id="orderFilters"></div>
+      <div id="ordersList"><div class="loading">جارٍ التحميل…</div></div>
+    </section>
+    <section id="tab-restaurants" class="hidden">
+      <div id="restaurantsList"><div class="loading">جارٍ التحميل…</div></div>
+    </section>
+    <section id="tab-users" class="hidden">
+      <div class="toolbar" id="userFilters"></div>
+      <div id="usersList"><div class="loading">جارٍ التحميل…</div></div>
+    </section>
+    <section id="tab-complaints" class="hidden">
+      <div id="complaintsList"><div class="loading">جارٍ التحميل…</div></div>
+    </section>
+    <footer class="note">تقرأ اللوحة البيانات مباشرة من Firestore — نفس بيانات التطبيق لحظة بلحظة.</footer>
+  </main>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, updateDoc, collection, query, orderBy, where, limit, onSnapshot, Timestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const app = initializeApp({
+  apiKey: 'AIzaSyBuU7g3vG5enxaebwxGdGgavG5U8cftwd4',
+  authDomain: 'restaurant-app-ed699.firebaseapp.com',
+  projectId: 'restaurant-app-ed699',
+});
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const $ = (id) => document.getElementById(id);
+const SAR = 'ر.س';
+
+const STATUS_AR = {
+  created: ['جديد', '#7f8c8d'],
+  restaurantPending: ['بانتظار المطعم', '#ca6f1e'],
+  restaurantAccepted: ['قبله المطعم', '#2471a3'],
+  preparing: ['قيد التحضير', '#2471a3'],
+  readyForPickup: ['جاهز للاستلام', '#8e44ad'],
+  searchingDriver: ['البحث عن سائق', '#ca6f1e'],
+  driverAssigned: ['أُسند لسائق', '#2471a3'],
+  pickedUp: ['استلمه السائق', '#2471a3'],
+  onTheWay: ['في الطريق', '#117a65'],
+  delivered: ['تم التوصيل', '#1e8449'],
+  restaurantRejected: ['رفضه المطعم', '#c0392b'],
+  noDriverFound: ['لا يوجد سائق', '#c0392b'],
+  cancelled: ['ملغي', '#c0392b'],
+  refunded: ['مسترد', '#7f8c8d'],
+  pending: ['بانتظار المطعم', '#ca6f1e'],
+  confirmed: ['قبله المطعم', '#2471a3'],
+  outForDelivery: ['في الطريق', '#117a65'],
+};
+const ACTIVE_STATUSES = ['created','restaurantPending','restaurantAccepted','preparing','readyForPickup',
+  'searchingDriver','driverAssigned','pickedUp','onTheWay','pending','confirmed','outForDelivery'];
+const ROLE_AR = { admin: 'مدير عام', customer: 'عميل', driver: 'سائق', restaurantManager: 'مدير مطعم' };
+const COMPLAINT_STATUS_AR = { open: 'مفتوحة', inProgress: 'قيد المعالجة', resolved: 'محلولة', closed: 'مغلقة' };
+const COMPLAINT_TYPE_AR = { lateDelivery: 'تأخر التوصيل', wrongOrder: 'طلب خاطئ', badQuality: 'جودة سيئة',
+  driverBehavior: 'سلوك السائق', other: 'أخرى' };
+
+function badge(text, color) {
+  return `<span class="badge" style="background:${color}1a;color:${color}">${text}</span>`;
+}
+function toDate(v) {
+  if (!v) return null;
+  if (v.toDate) return v.toDate();
+  if (typeof v === 'number') return new Date(v);
+  const d = new Date(v); return isNaN(d) ? null : d;
+}
+function fmtTime(v) {
+  const d = toDate(v);
+  return d ? d.toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+}
+function orderTotal(o) {
+  const items = (o.items || []).reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
+  return items + (Number(o.driverShare) || 0) + (Number(o.appShare) || 0);
+}
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ---------------- الدخول والتحقق من الدور ----------------
+let unsubs = [];
+function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
+
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('loginBtn').disabled = true;
+  $('loginError').classList.add('hidden');
+  try {
+    await signInWithEmailAndPassword(auth, $('email').value.trim(), $('password').value);
+  } catch (err) {
+    const msg = {
+      'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة',
+      'auth/invalid-login-credentials': 'البريد أو كلمة المرور غير صحيحة',
+      'auth/user-not-found': 'لا يوجد حساب بهذا البريد',
+      'auth/wrong-password': 'كلمة المرور غير صحيحة',
+      'auth/too-many-requests': 'محاولات كثيرة — انتظر قليلاً ثم أعد المحاولة',
+      'auth/network-request-failed': 'مشكلة اتصال بالإنترنت',
+    }[err.code] || ('خطأ: ' + (err.code || err.message));
+    $('loginError').textContent = msg;
+    $('loginError').classList.remove('hidden');
+  }
+  $('loginBtn').disabled = false;
+});
+
+$('logoutBtn').addEventListener('click', () => signOut(auth));
+
+onAuthStateChanged(auth, async (user) => {
+  clearListeners();
+  if (!user) {
+    $('appView').classList.add('hidden');
+    $('loginView').classList.remove('hidden');
+    return;
+  }
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (!snap.exists() || snap.data().role !== 'admin') {
+      await signOut(auth);
+      $('loginError').textContent = 'هذا الحساب ليس حساب مدير عام — الدخول مرفوض';
+      $('loginError').classList.remove('hidden');
+      return;
+    }
+    $('adminName').textContent = snap.data().name || user.email;
+    $('loginView').classList.add('hidden');
+    $('appView').classList.remove('hidden');
+    startDashboard();
+  } catch (err) {
+    await signOut(auth);
+    $('loginError').textContent = 'تعذر التحقق من الصلاحية: ' + (err.code || err.message);
+    $('loginError').classList.remove('hidden');
+  }
+});
+
+// ---------------- التبويبات ----------------
+$('tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-tab]');
+  if (!btn) return;
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('main > section').forEach((s) =>
+    s.classList.toggle('hidden', s.id !== 'tab-' + btn.dataset.tab));
+});
+
+// ---------------- تشغيل اللوحة ----------------
+let allOrders = [], orderFilter = 'active';
+let allUsers = [], userFilter = 'all';
+
+function startDashboard() {
+  // الطلبات (آخر ١٥٠) — تغذّي النظرة العامة وتبويب الطلبات معاً
+  unsubs.push(onSnapshot(
+    query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(150)),
+    (qs) => {
+      allOrders = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderStats(); renderRecent(); renderOrders();
+    },
+    (err) => showListError('ordersList', err)));
+
+  // المطاعم
+  unsubs.push(onSnapshot(collection(db, 'restaurants'),
+    (qs) => renderRestaurants(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    (err) => showListError('restaurantsList', err)));
+
+  // المستخدمون
+  unsubs.push(onSnapshot(query(collection(db, 'users'), limit(300)),
+    (qs) => { allUsers = qs.docs.map((d) => ({ id: d.id, ...d.data() })); renderUsers(); },
+    (err) => showListError('usersList', err)));
+
+  // الشكاوى
+  unsubs.push(onSnapshot(query(collection(db, 'complaints'), orderBy('createdAt', 'desc'), limit(100)),
+    (qs) => renderComplaints(qs.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    (err) => showListError('complaintsList', err)));
+
+  buildOrderFilters(); buildUserFilters();
+}
+
+function showListError(id, err) {
+  $(id).innerHTML = `<div class="empty">تعذر التحميل: ${esc(err.code || err.message)}</div>`;
+}
+
+// ---------------- نظرة عامة ----------------
+function renderStats() {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todays = allOrders.filter((o) => { const d = toDate(o.createdAt); return d && d >= today; });
+  const delivered = todays.filter((o) => o.status === 'delivered');
+  const active = allOrders.filter((o) => ACTIVE_STATUSES.includes(o.status));
+  const revenue = delivered.reduce((s, o) => s + orderTotal(o), 0);
+  $('statsGrid').innerHTML = `
+    <div class="stat"><div class="num">${todays.length}</div><div class="lbl">طلبات اليوم</div></div>
+    <div class="stat"><div class="num">${delivered.length}</div><div class="lbl">مُوصَّلة اليوم</div></div>
+    <div class="stat"><div class="num">${active.length}</div><div class="lbl">طلبات نشطة الآن</div></div>
+    <div class="stat"><div class="num">${revenue.toFixed(2)}</div><div class="lbl">مبيعات اليوم (${SAR})</div></div>`;
+}
+
+function orderCard(o) {
+  const [lbl, color] = STATUS_AR[o.status] || [o.status, '#7f8c8d'];
+  const itemsTxt = (o.items || []).map((i) => `${i.name} ×${i.quantity}`).join('، ');
+  return `<div class="card">
+    <div class="row1">
+      <span class="title">#${esc(o.orderNumber || o.id.slice(0, 6))} — ${esc(o.restaurantName || '')}</span>
+      ${badge(lbl, color)}
+    </div>
+    <div class="meta">
+      العميل: ${esc(o.customerName || '—')} (${esc(o.customerPhone || '')})<br>
+      ${o.driverName ? 'السائق: ' + esc(o.driverName) + '<br>' : ''}
+      ${itemsTxt ? 'الأصناف: ' + esc(itemsTxt) + '<br>' : ''}
+      ${esc(fmtTime(o.createdAt))}
+    </div>
+    <div class="row1" style="margin-top:8px">
+      <span class="money">${orderTotal(o).toFixed(2)} ${SAR}</span>
+    </div>
+  </div>`;
+}
+
+function renderRecent() {
+  $('recentOrders').innerHTML = allOrders.slice(0, 5).map(orderCard).join('') ||
+    '<div class="empty">لا توجد طلبات بعد</div>';
+}
+
+// ---------------- الطلبات ----------------
+function buildOrderFilters() {
+  const filters = [['active', 'النشطة'], ['all', 'الكل'], ['delivered', 'المُوصَّلة'],
+    ['cancelled', 'الملغاة/المرفوضة']];
+  $('orderFilters').innerHTML = filters.map(([k, l]) =>
+    `<button class="chip ${k === orderFilter ? 'active' : ''}" data-f="${k}">${l}</button>`).join('');
+  $('orderFilters').onclick = (e) => {
+    const b = e.target.closest('[data-f]'); if (!b) return;
+    orderFilter = b.dataset.f; buildOrderFilters(); renderOrders();
+  };
+}
+
+function renderOrders() {
+  let list = allOrders;
+  if (orderFilter === 'active') list = list.filter((o) => ACTIVE_STATUSES.includes(o.status));
+  if (orderFilter === 'delivered') list = list.filter((o) => o.status === 'delivered');
+  if (orderFilter === 'cancelled') list = list.filter((o) =>
+    ['cancelled', 'restaurantRejected', 'noDriverFound', 'refunded'].includes(o.status));
+  $('ordersList').innerHTML = list.map(orderCard).join('') || '<div class="empty">لا توجد طلبات</div>';
+}
+
+// ---------------- المطاعم ----------------
+function renderRestaurants(list) {
+  list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+  $('restaurantsList').innerHTML = list.map((r) => `
+    <div class="card">
+      <div class="row1">
+        <span class="title">${esc(r.emoji || '🍽️')} ${esc(r.name || '')}</span>
+        <button class="toggle-btn ${r.isOpen ? 'on' : 'off'}" data-rid="${r.id}" data-open="${r.isOpen ? 1 : 0}">
+          ${r.isOpen ? 'مفتوح ✓' : 'مغلق ✕'}
+        </button>
+      </div>
+      <div class="meta">
+        ${esc(r.address || '')}${r.phone ? ' — ' + esc(r.phone) : ''}<br>
+        الحد الأدنى: ${Number(r.minOrder) || 0} ${SAR} — التقييم: ${(Number(r.rating) || 0).toFixed(1)} ⭐
+        — الطلبات: ${Number(r.totalOrders) || 0}
+      </div>
+    </div>`).join('') || '<div class="empty">لا توجد مطاعم</div>';
+
+  $('restaurantsList').onclick = async (e) => {
+    const b = e.target.closest('[data-rid]'); if (!b) return;
+    const opening = b.dataset.open !== '1';
+    if (!confirm(opening ? 'فتح المطعم لاستقبال الطلبات؟' : 'إغلاق المطعم وإيقاف استقبال الطلبات؟')) return;
+    try { await updateDoc(doc(db, 'restaurants', b.dataset.rid), { isOpen: opening }); }
+    catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
+  };
+}
+
+// ---------------- المستخدمون ----------------
+function buildUserFilters() {
+  const filters = [['all', 'الكل'], ['customer', 'العملاء'], ['driver', 'السائقون'],
+    ['restaurantManager', 'مديرو المطاعم'], ['admin', 'المديرون']];
+  $('userFilters').innerHTML = filters.map(([k, l]) =>
+    `<button class="chip ${k === userFilter ? 'active' : ''}" data-f="${k}">${l}</button>`).join('');
+  $('userFilters').onclick = (e) => {
+    const b = e.target.closest('[data-f]'); if (!b) return;
+    userFilter = b.dataset.f; buildUserFilters(); renderUsers();
+  };
+}
+
+function renderUsers() {
+  let list = allUsers;
+  if (userFilter !== 'all') list = list.filter((u) => u.role === userFilter);
+  $('usersList').innerHTML = list.map((u) => `
+    <div class="card">
+      <div class="row1">
+        <span class="title">${esc(u.name || '—')}</span>
+        <span>${badge(ROLE_AR[u.role] || u.role || '؟', '#2471a3')}
+        ${u.isActive === false ? badge('موقوف', '#c0392b') : ''}</span>
+      </div>
+      <div class="meta">${esc(u.email || '')}${u.phone ? ' — ' + esc(u.phone) : ''}
+        ${u.restaurantName ? '<br>مطعم: ' + esc(u.restaurantName) : ''}</div>
+      ${u.role !== 'admin' ? `<div class="row1" style="margin-top:8px">
+        <button class="toggle-btn ${u.isActive === false ? 'off' : 'on'}" data-uid="${u.id}"
+          data-active="${u.isActive === false ? 0 : 1}">
+          ${u.isActive === false ? 'تفعيل الحساب' : 'إيقاف الحساب'}
+        </button></div>` : ''}
+    </div>`).join('') || '<div class="empty">لا يوجد مستخدمون</div>';
+
+  $('usersList').onclick = async (e) => {
+    const b = e.target.closest('[data-uid]'); if (!b) return;
+    const activating = b.dataset.active !== '1';
+    if (!confirm(activating ? 'تفعيل هذا الحساب؟' : 'إيقاف هذا الحساب عن استخدام التطبيق؟')) return;
+    try { await updateDoc(doc(db, 'users', b.dataset.uid), { isActive: activating }); }
+    catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
+  };
+}
+
+// ---------------- الشكاوى ----------------
+function renderComplaints(list) {
+  $('complaintsList').innerHTML = list.map((c) => {
+    const st = COMPLAINT_STATUS_AR[c.status] || c.status;
+    const color = { open: '#c0392b', inProgress: '#ca6f1e', resolved: '#1e8449', closed: '#7f8c8d' }[c.status] || '#7f8c8d';
+    return `<div class="card">
+      <div class="row1">
+        <span class="title">${esc(COMPLAINT_TYPE_AR[c.type] || c.type || 'شكوى')} — طلب #${esc(c.orderNumber || '')}</span>
+        ${badge(st, color)}
+      </div>
+      <div class="meta">
+        العميل: ${esc(c.customerName || '—')} — المطعم: ${esc(c.restaurantName || '—')}<br>
+        ${esc(c.description || '')}<br>${esc(fmtTime(c.createdAt))}
+      </div>
+      <div class="row1" style="margin-top:8px">
+        <select class="status-sel" data-cid="${c.id}">
+          ${Object.entries(COMPLAINT_STATUS_AR).map(([k, v]) =>
+            `<option value="${k}" ${k === c.status ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty">لا توجد شكاوى 🎉</div>';
+
+  $('complaintsList').onchange = async (e) => {
+    const s = e.target.closest('[data-cid]'); if (!s) return;
+    if (!confirm('تغيير حالة الشكوى إلى «' + COMPLAINT_STATUS_AR[s.value] + '»؟')) { renderComplaints(list); return; }
+    try { await updateDoc(doc(db, 'complaints', s.dataset.cid), { status: s.value }); }
+    catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
+  };
+}
+</script>
+</body>
+</html>
