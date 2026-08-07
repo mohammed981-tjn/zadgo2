@@ -103,6 +103,18 @@ class FirebaseService {
 
   Future<void> deleteUserDoc(String uid) => _users.doc(uid).delete();
 
+  /// يتابع مستند المستخدم لحظياً — تحتاجه شاشة «حسابي» ليظهر رصيد المحفظة
+  /// محدَّثاً فور إضافة استرداد من الإدارة، بدل قيمة قديمة من وقت الدخول.
+  Stream<models.AppUser?> streamUser(String uid) => _users.doc(uid).snapshots().map(
+      (d) => d.exists && d.data() != null ? models.AppUser.fromMap(d.data()!, d.id) : null);
+
+  /// يحفظ عناوين العميل. الحقل جزء من مستند المستخدم، فيحدّثه صاحبه بنفسه
+  /// دون صلاحيات إضافية (قواعد الأمان تمنع تعديل الدور والرصيد فقط).
+  Future<void> updateSavedAddresses(String uid, List<models.SavedAddress> addresses) =>
+      _users.doc(uid).update({
+        'savedAddresses': addresses.map((a) => a.toMap()).toList(),
+      });
+
   Future<void> addWalletCredit(String userId, double amount) =>
       _users.doc(userId).update({'walletBalance': FieldValue.increment(amount)});
 

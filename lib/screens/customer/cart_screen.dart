@@ -297,6 +297,48 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // العناوين المحفوظة: أكثر خطوة متكرّرة إزعاجاً كانت تحديد الموقع على
+          // الخريطة في كل طلب. اختيار عنوان محفوظ يملأ العنوان والإحداثيات
+          // معاً بنقرة واحدة.
+          Builder(builder: (context) {
+            final saved = context
+                    .watch<app_auth.AuthProvider>()
+                    .user
+                    ?.savedAddresses
+                    .where((a) => a.hasLocation)
+                    .toList() ??
+                const <SavedAddress>[];
+            if (saved.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('عناويني',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: saved.map((a) {
+                      final selected = _lat == a.lat && _lng == a.lng;
+                      return ChoiceChip(
+                        label: Text(a.label),
+                        selected: selected,
+                        avatar: const Icon(Icons.place_outlined, size: 16),
+                        onSelected: (_) => setState(() {
+                          _addrCtrl.text = a.address;
+                          _lat = a.lat;
+                          _lng = a.lng;
+                          _recomputeDistance();
+                        }),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            );
+          }),
           TextField(
             controller: _addrCtrl,
             maxLines: 2,

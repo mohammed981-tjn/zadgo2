@@ -13,6 +13,7 @@ import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
+import 'account_screen.dart';
 
 /// عتبة عدد الطلبات المُنجزة التي تُظهر شارة "الأكثر طلباً" على بطاقة
 /// المطعم — لا تتطلب حقلاً إضافياً في البيانات، تُحسب من [Restaurant.totalOrders].
@@ -74,6 +75,7 @@ class _CustomerHomeState extends State<CustomerHome> {
           child: IndexedStack(index: _tab, children: [
             const _RestaurantsPage(),
             isGuest ? const _GuestOrdersPrompt() : const MyOrdersScreen(),
+            isGuest ? const _GuestOrdersPrompt() : const AccountScreen(),
           ]),
         ),
       ]),
@@ -81,6 +83,7 @@ class _CustomerHomeState extends State<CustomerHome> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'طلباتي'),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: 'حسابي'),
         ]),
     );
   }

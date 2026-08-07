@@ -350,6 +350,40 @@ extension ComplaintStatusExt on ComplaintStatus {
   }
 }
 
+/// عنوان محفوظ للعميل (منزل/عمل/مخصّص) — يُخزَّن ضمن مستند المستخدم نفسه لا
+/// في مجموعة فرعية، فيُقرأ مع بيانات الحساب في نفس الطلب بلا استعلام إضافي،
+/// ولا يحتاج قاعدة أمان جديدة (تحديثه جزء من تحديث المستخدم لبياناته).
+class SavedAddress {
+  final String label;
+  final String address;
+  final double? lat;
+  final double? lng;
+
+  const SavedAddress({
+    required this.label,
+    required this.address,
+    this.lat,
+    this.lng,
+  });
+
+  factory SavedAddress.fromMap(Map<String, dynamic> map) => SavedAddress(
+        label: map['label'] as String? ?? '',
+        address: map['address'] as String? ?? '',
+        lat: (map['lat'] as num?)?.toDouble(),
+        lng: (map['lng'] as num?)?.toDouble(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'label': label,
+        'address': address,
+        'lat': lat,
+        'lng': lng,
+      };
+
+  /// عنوان بلا إحداثيات لا يصلح للطلب، لأن أجرة التوصيل تُحسب من المسافة.
+  bool get hasLocation => lat != null && lng != null;
+}
+
 class AppUser {
   final String uid;
   final String name;
@@ -367,6 +401,7 @@ class AppUser {
   /// عند حل شكوى، ويُستخدَم تلقائياً كخصم في الطلب القادم. لا علاقة له
   /// بأي بوابة دفع خارجية؛ هو رصيد داخلي بسيط ضمن Firestore فقط.
   final double walletBalance;
+  final List<SavedAddress> savedAddresses;
 
   const AppUser({
     required this.uid,
@@ -381,6 +416,7 @@ class AppUser {
     this.isActive = true,
     this.nationalId,
     this.walletBalance = 0.0,
+    this.savedAddresses = const [],
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -396,6 +432,9 @@ class AppUser {
         isActive: map['isActive'] as bool? ?? true,
         nationalId: map['nationalId'] as String?,
         walletBalance: (map['walletBalance'] as num?)?.toDouble() ?? 0.0,
+        savedAddresses: ((map['savedAddresses'] as List?) ?? [])
+            .map((e) => SavedAddress.fromMap((e as Map).cast<String, dynamic>()))
+            .toList(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -410,6 +449,7 @@ class AppUser {
         if (nationalId != null) 'nationalId': nationalId,
         'isActive': isActive,
         'walletBalance': walletBalance,
+        'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
       };
 
   AppUser copyWith({
@@ -421,6 +461,7 @@ class AppUser {
     bool? isActive,
     String? nationalId,
     double? walletBalance,
+    List<SavedAddress>? savedAddresses,
   }) =>
       AppUser(
         uid: uid,
@@ -435,6 +476,7 @@ class AppUser {
         isActive: isActive ?? this.isActive,
         nationalId: nationalId ?? this.nationalId,
         walletBalance: walletBalance ?? this.walletBalance,
+        savedAddresses: savedAddresses ?? this.savedAddresses,
       );
 }
 
