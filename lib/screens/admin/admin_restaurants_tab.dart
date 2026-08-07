@@ -11,6 +11,7 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/image_upload_field.dart';
 import '../../providers/storage_service.dart';
 import 'pick_location_screen.dart';
+import 'admin_menu_import_screen.dart';
 
 class AdminRestaurantsTab extends StatelessWidget {
   const AdminRestaurantsTab({super.key});
@@ -363,7 +364,24 @@ class MenuManagerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return Scaffold(
-      appBar: AppBar(title: Text('قائمة ${restaurant.name}')),
+      appBar: AppBar(
+        title: Text('قائمة ${restaurant.displayName}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file_outlined),
+            tooltip: 'استيراد منيو',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdminMenuImportScreen(
+                  restaurantId: restaurant.id,
+                  restaurantName: restaurant.displayName,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: AppStreamBuilder<List<MenuCategory>>(
         stream: () => service.streamCategories(restaurant.id),
         builder: (ctx, cats) {

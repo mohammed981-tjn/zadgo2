@@ -290,6 +290,39 @@ class FirebaseService {
 
   Future<void> addMenuItem(models.MenuItem item) =>
       _items(item.restaurantId).doc(item.id).set(item.toMap());
+
+  /// استيراد منيو كامل دفعة واحدة (تصنيفات وأصنافها) — بديل عن إدخال عشرات
+  /// الأصناف يدوياً نموذجاً نموذجاً.
+  ///
+  /// يُكتب كل شيء في دفعة واحدة (batch) لا كتابات متفرّقة: إمّا أن ينجح
+  /// المنيو كاملاً أو لا يُكتب منه شيء، فلا يبقى المطعم بمنيو نصفه مفقود لو
+  /// انقطعت الشبكة في المنتصف.
+  ///
+  /// حدّ Firestore للدفعة الواحدة 500 عملية، لذا تُقسَّم تلقائياً عند تجاوزه.
+  Future<void> importMenu({
+    required String restaurantId,
+    required List<models.MenuCategory> categories,
+    required List<models.MenuItem> items,
+  }) async {
+    const maxOps = 450; // هامش أمان تحت حدّ 500
+    final ops = <void Function(WriteBatch)>[];
+
+    for (final c in categories) {
+      ops.add((b) => b.set(_categories(restaurantId).doc(c.id), c.toMap()));
+    }
+    for (final i in items) {
+      ops.add((b) => b.set(_items(restaurantId).doc(i.id), i.toMap()));
+    }
+
+    for (var start = 0; start < ops.length; start += maxOps) {
+      final end = (start + maxOps).clamp(0, ops.length);
+      final batch = _db.batch();
+      for (var k = start; k < end; k++) {
+        ops[k](batch);
+      }
+      await batch.commit();
+    }
+  }
   Future<void> updateMenuItem(models.MenuItem item) =>
       _items(item.restaurantId).doc(item.id).update(item.toMap());
   Future<void> toggleItemAvailability(String rId, String itemId, bool isAvailable) =>
