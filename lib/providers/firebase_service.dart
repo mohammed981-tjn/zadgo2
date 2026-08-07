@@ -682,12 +682,33 @@ class FirebaseService {
     return doc.data() ?? {};
   }
 
+  /// يحدّث متوسط تقييم المطعم تراكمياً بنفس أسلوب تقييم السائق. كان تقييم
+  /// المطاعم لا يُحدَّث إطلاقاً، فتبقى كلها على القيمة الافتراضية 5.0 مهما
+  /// بلغ عدد الطلبات — وهو ما يُفقد التقييمات معناها أمام العميل.
+  Future<void> updateRestaurantRating(String restaurantId, double newRating) async {
+    if (restaurantId.isEmpty) return;
+    final doc = await _restaurants.doc(restaurantId).get();
+    if (!doc.exists || doc.data() == null) return;
+    final restaurant = models.Restaurant.fromMap(doc.data()!, doc.id);
+    final newCount = restaurant.ratingCount + 1;
+    // المطاعم بلا تقييمات سابقة تبدأ من التقييم الأول نفسه، لا من متوسط مع
+    // القيمة الافتراضية 5.0 التي لم يمنحها أحد.
+    final newAvg = restaurant.ratingCount <= 0
+        ? newRating
+        : ((restaurant.rating * restaurant.ratingCount) + newRating) / newCount;
+    await _restaurants.doc(restaurantId).update({
+      'rating': double.parse(newAvg.toStringAsFixed(1)),
+      'ratingCount': newCount,
+    });
+  }
+
   Future<void> rateOrder({
     required String orderId,
     required String driverId,
     required double orderRating,
     required double driverRating,
     String? review,
+    String? restaurantId,
   }) async {
     await _orders.doc(orderId).update({
       'customerRating': orderRating,
@@ -696,6 +717,9 @@ class FirebaseService {
       if (review != null) 'review': review,
     });
     await updateDriverRating(driverId, driverRating);
+    if (restaurantId != null) {
+      await updateRestaurantRating(restaurantId, orderRating);
+    }
   }
 
   Stream<List<models.Complaint>> streamComplaints() => _complaints

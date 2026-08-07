@@ -311,6 +311,7 @@ class _OrderCard extends StatelessWidget {
                   orderRating: orderRating,
                   driverRating: driverRating,
                   review: reviewCtrl.text.trim().isEmpty ? null : reviewCtrl.text.trim(),
+                  restaurantId: o.restaurantId,
                 );
                 if (context.mounted) Navigator.pop(ctx);
               },

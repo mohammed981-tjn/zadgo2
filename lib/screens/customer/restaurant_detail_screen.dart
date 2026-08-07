@@ -19,7 +19,7 @@ class RestaurantDetailScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(restaurant.name),
+        title: Text(restaurant.displayName),
         bottom: restaurant.address.trim().isEmpty
             ? null
             : PreferredSize(
@@ -40,10 +40,16 @@ class RestaurantDetailScreen extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Wrap(spacing: 12, runSpacing: 4, children: [
-                _InfoChip(
-                    icon: Icons.star_rounded,
-                    label: restaurant.rating.toStringAsFixed(1),
-                    color: AppColors.warning),
+                if (restaurant.isNewlyListed)
+                  const _InfoChip(
+                      icon: Icons.fiber_new_rounded,
+                      label: 'جديد',
+                      color: AppColors.secondary)
+                else
+                  _InfoChip(
+                      icon: Icons.star_rounded,
+                      label: '${restaurant.rating.toStringAsFixed(1)} (${restaurant.ratingCount})',
+                      color: AppColors.warning),
                 _InfoChip(
                     icon: Icons.timer_outlined,
                     label: '${restaurant.estimatedTimeMin} دقيقة',

@@ -453,7 +453,13 @@ class Restaurant {
   final String address;
   final int estimatedTimeMin;
   final double rating;
+  /// عدد التقييمات التي بُني عليها [rating]؛ صفر يعني مطعماً جديداً بلا
+  /// تقييمات بعد، فيُعرض «جديد» بدل رقم موهم.
+  final int ratingCount;
   final int totalOrders;
+  /// اسم الفرع (مثل «العزيزية»)؛ يميّز فرعين لنفس العلامة التجارية بوضوح
+  /// بدل الاعتماد على العنوان الصغير وحده.
+  final String branchName;
   final double? lat;
   final double? lng;
   final String? imageUrl;
@@ -473,13 +479,24 @@ class Restaurant {
     required this.address,
     this.estimatedTimeMin = 30,
     this.rating = 5.0,
+    this.ratingCount = 0,
     this.totalOrders = 0,
+    this.branchName = '',
     this.lat,
     this.lng,
     this.imageUrl,
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
+
+  /// الاسم المعروض للعميل — يضمّ اسم الفرع إن وُجد، فيميّز فرعين لنفس
+  /// العلامة التجارية بوضوح: «فطير ستيشن — العزيزية».
+  String get displayName =>
+      branchName.trim().isEmpty ? name : '$name — ${branchName.trim()}';
+
+  /// هل المطعم بلا تقييمات بعد؟ عندها يُعرض «جديد» بدل 5.0 الافتراضية،
+  /// لأن تقييماً كاملاً بلا مقيّمين يفقد ثقة المستخدم.
+  bool get isNewlyListed => ratingCount <= 0;
 
   factory Restaurant.fromMap(Map<String, dynamic> map, String id) =>
       Restaurant(
@@ -499,7 +516,9 @@ class Restaurant {
         address: map['address'] as String? ?? '',
         estimatedTimeMin: (map['estimatedTimeMin'] as num?)?.toInt() ?? 30,
         rating: (map['rating'] as num?)?.toDouble() ?? 5.0,
+        ratingCount: (map['ratingCount'] as num?)?.toInt() ?? 0,
         totalOrders: (map['totalOrders'] as num?)?.toInt() ?? 0,
+        branchName: map['branchName'] as String? ?? '',
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         imageUrl: map['imageUrl'] as String?,
@@ -520,6 +539,8 @@ class Restaurant {
         'address': address,
         'estimatedTimeMin': estimatedTimeMin,
         'rating': rating,
+        'ratingCount': ratingCount,
+        'branchName': branchName,
         'totalOrders': totalOrders,
         'lat': lat,
         'lng': lng,

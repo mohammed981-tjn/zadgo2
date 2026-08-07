@@ -66,7 +66,7 @@ class _RestaurantCard extends StatelessWidget {
             child: Text(restaurant.emoji, style: const TextStyle(fontSize: 24)),
           ),
         ),
-        title: Text(restaurant.name,
+        title: Text(restaurant.displayName,
             style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(restaurant.description,
             maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -156,7 +156,7 @@ class _RestaurantForm extends StatefulWidget {
 
 class _RestaurantFormState extends State<_RestaurantForm> {
   final _form = GlobalKey<FormState>();
-  late final TextEditingController _name, _desc, _phone, _addr,
+  late final TextEditingController _name, _branch, _desc, _phone, _addr,
       _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji;
   bool _loading = false;
   double? _lat, _lng;
@@ -166,6 +166,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     super.initState();
     final r = widget.existing;
     _name  = TextEditingController(text: r?.name ?? '');
+    _branch = TextEditingController(text: r?.branchName ?? '');
     _desc  = TextEditingController(text: r?.description ?? '');
     _phone = TextEditingController(text: r?.phone ?? '');
     _addr  = TextEditingController(text: r?.address ?? '');
@@ -182,7 +183,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _desc, _phone, _addr, _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji]) {
+    for (final c in [_name, _branch, _desc, _phone, _addr, _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji]) {
       c.dispose();
     }
     super.dispose();
@@ -212,6 +213,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     final r = Restaurant(
       id: widget.existing?.id ?? const Uuid().v4(),
       name: _name.text.trim(),
+      branchName: _branch.text.trim(),
       description: _desc.text.trim(),
       emoji: _emoji.text.trim(),
       phone: _phone.text.trim(),
@@ -224,6 +226,9 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
       rating: widget.existing?.rating ?? 5.0,
+      ratingCount: widget.existing?.ratingCount ?? 0,
+      totalOrders: widget.existing?.totalOrders ?? 0,
+      imageUrl: widget.existing?.imageUrl,
       lat: _lat,
       lng: _lng,
     );
@@ -265,6 +270,9 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 const SizedBox(height: 16),
                 _f(_emoji, 'رمز المطعم (Emoji)', isReq: false),
                 _f(_name, 'اسم المطعم'),
+                // اسم الفرع اختياري — يُملأ فقط للعلامات ذات الفروع المتعددة
+                // ليظهر للعميل «فطير ستيشن — العزيزية» بدل اسمين متطابقين.
+                _f(_branch, 'اسم الفرع (اختياري) — مثل: العزيزية', isReq: false),
                 _f(_desc, 'وصف المطعم'),
                 _f(_phone, 'رقم الهاتف', type: TextInputType.phone),
                 _f(_addr, 'العنوان'),
