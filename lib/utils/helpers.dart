@@ -126,6 +126,15 @@ class Pricing {
   static double restaurantNet(double itemsTotal) =>
       itemsTotal - appCommission(itemsTotal);
 
+  /// نسبة ضريبة القيمة المضافة في السعودية.
+  static const double vatRate = 0.15;
+
+  /// قيمة الضريبة **المتضمَّنة** في مبلغ شامل لها. الأسعار المعروضة للعميل
+  /// شاملة الضريبة (كما يقتضي النظام)، فتُستخرج منها بالمعادلة
+  /// المبلغ × 15 ÷ 115 — لا بضربها في 15% (ذاك يُضاعف الاحتساب).
+  static double vatIncludedIn(double grossAmount) =>
+      grossAmount * vatRate / (1 + vatRate);
+
   /// إجمالي ما يدفعه العميل = الوجبات + التوصيل + الرسم الثابت (بلا عمولة
   /// الوجبة — فهي تُخصم من المطعم لا تُضاف على العميل).
   static double customerTotal(double itemsTotal, double distanceKm) =>

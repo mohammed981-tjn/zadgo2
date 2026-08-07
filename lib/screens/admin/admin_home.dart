@@ -13,6 +13,7 @@ import 'admin_users_tab.dart';
 import 'order_tracking_tab.dart';
 import 'broadcast_tab.dart';
 import 'admin_complaints_screen.dart';
+import 'admin_reports_tab.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
 /// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
@@ -69,6 +70,15 @@ class _AdminHomeState extends State<AdminHome> {
                   const Text('إدارة إضافية', style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.insights_outlined),
+              title: const Text('التقارير المالية'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'التقارير المالية', child: AdminReportsTab())));
+              },
             ),
             ListTile(
               leading: const Icon(Icons.people_outline),
