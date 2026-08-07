@@ -26,7 +26,11 @@ class SubmitComplaintScreen extends StatefulWidget {
 }
 
 class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
-  ComplaintType _type = ComplaintType.other;
+  /// أنواع الشكاوى المتاحة لدور مُقدِّم الشكوى تحديداً — مصدرها الوحيد جدول
+  /// الربط في النموذج، فلا يرى العميل أنواع السائق/المطعم أو العكس.
+  late final List<ComplaintType> _availableTypes =
+      ComplaintTypeScope.typesForRole(widget.submittedByRole);
+  late ComplaintType _type = _availableTypes.first;
   String? _selectedAgainstUid;
   UserRole? _selectedAgainstRole;
   final _descriptionCtrl = TextEditingController();
@@ -123,7 +127,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: ComplaintType.values.map((t) {
+            children: _availableTypes.map((t) {
               final selected = _type == t;
               return ChoiceChip(
                 label: Text(t.label),

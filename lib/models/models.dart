@@ -25,7 +25,34 @@ enum PaymentMethod { cash, card, wallet }
 
 enum ComplaintStatus { open, inProgress, resolved, closed }
 
-enum ComplaintType { lateDelivery, wrongOrder, badQuality, driverBehavior, other }
+/// أنواع الشكاوى — موسَّعة لتغطي الأطراف الثلاثة (عميل/سائق/مطعم) معاً. القيم
+/// القديمة (lateDelivery, wrongOrder, badQuality, driverBehavior, other) أُبقيت
+/// كما هي بلا حذف، فأي شكوى قديمة محفوظة بها في Firestore تبقى صالحة تماماً؛
+/// الأنواع الجديدة أُضيفت فقط بجانبها. أي دور يرى الأنواع الخاصة به عبر
+/// [ComplaintTypeScope.typesForRole] لا القائمة كاملة.
+enum ComplaintType {
+  // أنواع العميل (ضد السائق أو المطعم)
+  lateDelivery,
+  wrongOrder,
+  badQuality,
+  driverBehavior,
+  unclearFees,
+
+  // أنواع السائق (ضد العميل أو المطعم)
+  customerNotResponding,
+  wrongAddress,
+  restaurantDelay,
+  customerBehavior,
+  orderMismatch,
+
+  // أنواع المطعم (ضد السائق أو العميل)
+  driverNotPickedUp,
+  driverLateForPickup,
+  customerCancelledAfterPrep,
+  driverBehaviorAtRestaurant,
+
+  other,
+}
 
 T _enumValueFromString<T extends Enum>(
   String? raw,
@@ -207,13 +234,64 @@ extension PaymentMethodExt on PaymentMethod {
 extension ComplaintTypeExt on ComplaintType {
   String get label {
     const map = {
+      // أنواع العميل
       ComplaintType.lateDelivery: 'تأخر التوصيل',
-      ComplaintType.wrongOrder: 'طلب خاطئ',
-      ComplaintType.badQuality: 'جودة رديئة',
+      ComplaintType.wrongOrder: 'طلب ناقص أو خاطئ',
+      ComplaintType.badQuality: 'جودة الطعام',
       ComplaintType.driverBehavior: 'سلوك السائق',
+      ComplaintType.unclearFees: 'رسوم/سعر غير واضح',
+      // أنواع السائق
+      ComplaintType.customerNotResponding: 'عميل لا يرد على الاتصال',
+      ComplaintType.wrongAddress: 'عنوان خاطئ أو غير واضح',
+      ComplaintType.restaurantDelay: 'تأخر المطعم في التحضير',
+      ComplaintType.customerBehavior: 'سلوك العميل عند الاستلام',
+      ComplaintType.orderMismatch: 'طلب غير مطابق لما استُلم',
+      // أنواع المطعم
+      ComplaintType.driverNotPickedUp: 'سائق لم يستلم الطلب في الوقت',
+      ComplaintType.driverLateForPickup: 'سائق تأخر عن الاستلام رغم الجاهزية',
+      ComplaintType.customerCancelledAfterPrep: 'عميل ألغى بعد التحضير',
+      ComplaintType.driverBehaviorAtRestaurant: 'سلوك السائق داخل المطعم',
       ComplaintType.other: 'أخرى',
     };
     return map[this] ?? '';
+  }
+}
+
+/// يربط كل دور بأنواع الشكاوى التي يحق له رفعها، ومصدرٌ واحدٌ للحقيقة تعتمده
+/// شاشة تقديم الشكوى لبناء قائمة الأنواع ديناميكياً حسب دور المُقدِّم — بدل
+/// تكرار القوائم في عدة شاشات. النوع [ComplaintType.other] متاح لكل الأدوار.
+extension ComplaintTypeScope on ComplaintType {
+  static const Map<UserRole, List<ComplaintType>> _byRole = {
+    UserRole.customer: [
+      ComplaintType.lateDelivery,
+      ComplaintType.wrongOrder,
+      ComplaintType.badQuality,
+      ComplaintType.driverBehavior,
+      ComplaintType.unclearFees,
+      ComplaintType.other,
+    ],
+    UserRole.driver: [
+      ComplaintType.customerNotResponding,
+      ComplaintType.wrongAddress,
+      ComplaintType.restaurantDelay,
+      ComplaintType.customerBehavior,
+      ComplaintType.orderMismatch,
+      ComplaintType.other,
+    ],
+    UserRole.restaurantManager: [
+      ComplaintType.driverNotPickedUp,
+      ComplaintType.driverLateForPickup,
+      ComplaintType.customerCancelledAfterPrep,
+      ComplaintType.driverBehaviorAtRestaurant,
+      ComplaintType.other,
+    ],
+  };
+
+  /// أنواع الشكاوى المتاحة لدورٍ معيّن؛ المدير العام يرى كل الأنواع (لأنه قد
+  /// يسجّل شكوى نيابةً عن أي طرف)، وأي دور غير مُعرَّف يسقط إلى [other] فقط.
+  static List<ComplaintType> typesForRole(UserRole role) {
+    if (role == UserRole.admin) return ComplaintType.values;
+    return _byRole[role] ?? const [ComplaintType.other];
   }
 }
 
