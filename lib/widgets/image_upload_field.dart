@@ -1,8 +1,15 @@
 // lib/widgets/image_upload_field.dart
 //
-// حقل اختيار صورة ورفعها — يُستخدم في نماذج لوحة الإدارة (صورة المطعم وصورة
-// الصنف). يعرض معاينة الصورة الحالية، ويسمح باستبدالها أو إزالتها، ويتكفّل
-// برفعها إلى Firebase Storage وإرجاع الرابط عبر [onChanged].
+// حقل صورة المطعم/الصنف في لوحة الإدارة — يعرض معاينة الصورة الحالية ويتيح
+// تعيينها بطريقتين:
+//
+// 1) رفع من الجهاز إلى Firebase Storage (يتطلّب خطة Blaze؛ منذ فبراير 2026
+//    لم يعد Storage متاحاً على الخطة المجانية إطلاقاً).
+// 2) لصق رابط صورة مستضافة خارجياً (استضافة المشروع على zadgo.co مثلاً) —
+//    يعمل دون أي ترقية، لأن عرض الصور في التطبيق يعتمد على الرابط فقط.
+//
+// وجود الطريقتين معاً مقصود: الرابط يُغني عن الترقية الآن، والرفع المباشر
+// يصبح جاهزاً فور تفعيل Storage دون تغيير في الشيفرة.
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/storage_service.dart';
@@ -60,7 +67,12 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
       widget.onChanged(url);
       if (mounted) showSuccess(context, 'تم رفع الصورة');
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر رفع الصورة، حاول مرة أخرى');
+      // السبب الأغلب حالياً أن Storage غير مفعّل على المشروع، فنوجّه المدير
+      // إلى البديل الجاهز (لصق رابط) بدل رسالة خطأ عامة لا تدلّه على شيء.
+      if (mounted) {
+        showError(context,
+            'تعذّر الرفع — فعّل Firebase Storage أو استخدم «لصق رابط»');
+      }
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -70,6 +82,46 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
     final dot = fileName.lastIndexOf('.');
     if (dot < 0 || dot == fileName.length - 1) return 'jpg';
     return fileName.substring(dot + 1).toLowerCase();
+  }
+
+  /// إدخال رابط صورة مستضافة خارجياً — البديل العملي عن الرفع المباشر ما دام
+  /// Storage غير مفعّل، ويبقى مفيداً بعده لصور تُستضاف في مكان آخر.
+  Future<void> _enterUrl() async {
+    final ctrl = TextEditingController(text: widget.imageUrl ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('رابط الصورة'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: ctrl,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(
+                hintText: 'https://zadgo.co/images/item.jpg',
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'الصق رابطاً مباشراً لصورة (ينتهي بـ jpg أو png عادةً).',
+              style: TextStyle(fontSize: 11, color: AppColors.textGray),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('حفظ')),
+        ],
+      ),
+    );
+    if (result == null) return;
+    // رابط فارغ يعني إزالة الصورة، لا حفظ نصّ فارغ في المستند.
+    widget.onChanged(result.isEmpty ? null : result);
   }
 
   String _contentTypeOf(String ext) {
@@ -127,11 +179,18 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.upload_outlined, size: 18),
-                    label: Text(hasImage ? 'استبدال الصورة' : 'اختيار صورة'),
-                    onPressed: _uploading ? null : _pick,
-                  ),
+                  Wrap(spacing: 8, children: [
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.link, size: 18),
+                      label: const Text('لصق رابط'),
+                      onPressed: _uploading ? null : _enterUrl,
+                    ),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.upload_outlined, size: 18),
+                      label: const Text('رفع من الجهاز'),
+                      onPressed: _uploading ? null : _pick,
+                    ),
+                  ]),
                   if (hasImage && !_uploading)
                     TextButton.icon(
                       icon: const Icon(Icons.delete_outline, size: 18),
