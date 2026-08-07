@@ -72,3 +72,43 @@ int ceilExtraKm(double distanceKm, double freeKm) {
 /// أجرة الكيلومترات الإضافية بعد إجبار التقريب للأعلى — بدون كسور.
 double calculateExtraKmFee(double distanceKm, double freeKm, double perKmFee) =>
     ceilExtraKm(distanceKm, freeKm) * perKmFee;
+
+/// إعدادات التسعير الموحّدة لكل التطبيق — مصدر واحد للحقيقة. القيم هنا ثوابت
+/// عمل عامة (لا لكل مطعم)؛ يمكن لاحقاً نقلها إلى إعدادات عامة في Firestore
+/// (delivery_settings) دون تغيير بقية الكود لأن الجميع يمرّ عبر هذه الدوال.
+class Pricing {
+  Pricing._();
+
+  /// عمولة التطبيق على قيمة الوجبة (يدفعها العميل فوق سعر الوجبة).
+  static const double appCommissionRate = 0.15;
+
+  /// أجرة توصيل أول [baseDeliveryKm] كم (ثابتة).
+  static const double baseDeliveryFee = 9.0;
+  static const double baseDeliveryKm = 7.0;
+
+  /// أجرة كل كيلومتر إضافي فوق المدى الأساسي.
+  static const double perExtraKmFee = 1.0;
+
+  /// رسم توصيل ثابت للتطبيق يتحمّله العميل في كل طلب.
+  static const double fixedDeliveryCommission = 3.0;
+
+  /// أجرة التوصيل حسب المسافة: أساس ثابت لأول 7 كم + 1 ر.س لكل كم إضافي،
+  /// مع إجبار كسور الكيلومتر للأعلى (9.8 كم → 10).
+  static double deliveryFee(double distanceKm) {
+    final extraKm = ceilExtraKm(distanceKm, baseDeliveryKm);
+    return baseDeliveryFee + extraKm * perExtraKmFee;
+  }
+
+  /// عمولة التطبيق على الوجبة (15%) — تُخصم من مستحقّات المطعم ولا يدفعها
+  /// العميل؛ تُستخدم في تقارير المدير فقط (قيمة الطلب للعميل = قيمتها للمطعم).
+  static double appCommission(double itemsTotal) => itemsTotal * appCommissionRate;
+
+  /// صافي مستحقّات المطعم من قيمة وجباته بعد خصم عمولة التطبيق.
+  static double restaurantNet(double itemsTotal) =>
+      itemsTotal - appCommission(itemsTotal);
+
+  /// إجمالي ما يدفعه العميل = الوجبات + التوصيل + الرسم الثابت (بلا عمولة
+  /// الوجبة — فهي تُخصم من المطعم لا تُضاف على العميل).
+  static double customerTotal(double itemsTotal, double distanceKm) =>
+      itemsTotal + deliveryFee(distanceKm) + fixedDeliveryCommission;
+}

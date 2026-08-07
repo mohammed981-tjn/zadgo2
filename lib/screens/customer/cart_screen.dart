@@ -84,15 +84,12 @@ class CartScreen extends StatelessWidget {
                         ),
                       ),
                       const Divider(),
-                      PriceRow(label: 'المجموع', value: formatCurrency(cart.itemsTotal)),
-                      PriceRow(label: 'التوصيل', value: formatCurrency(cart.deliveryFee)),
-                      PriceRow(label: 'الضريبة 15%', value: formatCurrency(cart.vat)),
-                      const Divider(),
                       PriceRow(
-                        label: 'الإجمالي',
-                        value: formatCurrency(cart.grandTotalWithVat),
+                        label: 'الوجبات',
+                        value: formatCurrency(cart.itemsTotal),
                         bold: true,
                       ),
+                      PriceRow(label: 'التوصيل', value: 'يُحسب عند تحديد الموقع'),
                     ],
                   ),
                 ),
@@ -104,9 +101,7 @@ class CartScreen extends StatelessWidget {
                       height: 52,
                       child: ElevatedButton(
                         onPressed: () => _proceedToCheckout(context),
-                        child: Text(
-                          'المتابعة للدفع — ${formatCurrency(cart.grandTotalWithVat)}',
-                        ),
+                        child: const Text('المتابعة للدفع'),
                       ),
                     ),
                   ),
@@ -130,6 +125,50 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool _loading = false;
 
   double? _lat, _lng;
+
+  // المطعم يُجلب مرة واحدة عند الفتح لنعرف موقعه ونحسب المسافة (ومنها أجرة
+  // التوصيل) فور تحديد العميل لموقعه، فيظهر الإجمالي الحقيقي قبل التأكيد.
+  Restaurant? _restaurant;
+  double? _distanceKm;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRestaurant();
+  }
+
+  Future<void> _loadRestaurant() async {
+    final cart = context.read<CartProvider>();
+    final service = context.read<FirebaseService>();
+    if (cart.restaurantId == null) return;
+    final r = await service.getRestaurantOnce(cart.restaurantId!);
+    if (!mounted) return;
+    setState(() {
+      _restaurant = r;
+      _recomputeDistance();
+    });
+  }
+
+  void _recomputeDistance() {
+    if (_restaurant?.lat != null &&
+        _restaurant?.lng != null &&
+        _lat != null &&
+        _lng != null) {
+      _distanceKm = haversineDistanceKm(
+        _restaurant!.lat!,
+        _restaurant!.lng!,
+        _lat!,
+        _lng!,
+      );
+    } else {
+      _distanceKm = null;
+    }
+  }
+
+  /// أجرة التوصيل حسب المسافة المحسوبة؛ وإن تعذّر حساب المسافة (لا موقع للمطعم
+  /// مثلاً) نكتفي بأجرة الأساس (أول 7 كم) بدل ترك التوصيل مجهولاً.
+  double get _deliveryFee =>
+      Pricing.deliveryFee(_distanceKm ?? 0);
 
   // ← دالة تحويل الإحداثيات إلى عنوان
   Future<String> _getAddressFromLatLng(double lat, double lng) async {
@@ -159,6 +198,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       setState(() {
         _lat = result.latitude;
         _lng = result.longitude;
+        _recomputeDistance();
       });
 
       // ← جلب العنوان تلقائيًا ووضعه في خانة الإدخال
@@ -189,22 +229,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     const uuid = Uuid();
     final orderId = uuid.v4();
 
-    final restaurant = await service.getRestaurantOnce(cart.restaurantId!);
+    final restaurant = _restaurant ?? await service.getRestaurantOnce(cart.restaurantId!);
 
-    double extraKmFee = 0;
-    if (restaurant != null && restaurant.lat != null && restaurant.lng != null) {
-      final distanceKm = haversineDistanceKm(
-        restaurant.lat!,
-        restaurant.lng!,
-        _lat!,
-        _lng!,
-      );
-      extraKmFee = calculateExtraKmFee(
-        distanceKm,
-        restaurant.freeKm,
-        restaurant.perKmFee,
-      );
+    // تسعير موحّد: التوصيل حسب المسافة (أجرة السائق)، ورسم ثابت للتطبيق (3 ر.س)
+    // كحصّة التطبيق من التوصيل، وعمولة 15% على قيمة الوجبات.
+    double? distanceKm;
+    if (restaurant?.lat != null && restaurant?.lng != null) {
+      distanceKm = haversineDistanceKm(restaurant!.lat!, restaurant.lng!, _lat!, _lng!);
     }
+    final driverDeliveryFee = Pricing.deliveryFee(distanceKm ?? 0);
 
     final order = Order(
       id: orderId,
@@ -219,10 +252,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       isPaid: _payment != PaymentMethod.cash,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
-      driverShare: cart.driverShare + extraKmFee,
-      appShare: cart.appShare,
+      driverShare: driverDeliveryFee,
+      appShare: Pricing.fixedDeliveryCommission,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
-      platformCommission: cart.platformCommission,
+      platformCommission: Pricing.appCommission(cart.itemsTotal),
       deliveryLat: _lat,
       deliveryLng: _lng,
       restaurantLat: restaurant?.lat,
@@ -250,6 +283,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cart = context.watch<CartProvider>();
+    final itemsTotal = cart.itemsTotal;
+    final locationSet = _lat != null && _lng != null;
+    final delivery = _deliveryFee;
+    const fixedFee = Pricing.fixedDeliveryCommission;
+    // العميل يدفع الوجبات + التوصيل + الرسم الثابت فقط (عمولة 15% تُخصم من
+    // المطعم ولا تظهر للعميل).
+    final total = itemsTotal + delivery + fixedFee;
+
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
       body: ListView(
@@ -287,14 +329,44 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
           const SizedBox(height: 20),
+          // ملخّص المبلغ — يطمئن العميل لما سيدفعه قبل التأكيد. التوصيل يظهر
+          // فعلياً بعد تحديد الموقع (لأنه يعتمد على المسافة).
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                PriceRow(label: 'الوجبات', value: formatCurrency(itemsTotal)),
+                PriceRow(
+                  label: 'التوصيل',
+                  value: locationSet
+                      ? formatCurrency(delivery)
+                      : 'يُحسب بعد تحديد الموقع',
+                ),
+                PriceRow(label: 'رسوم توصيل ثابتة', value: formatCurrency(fixedFee)),
+                const Divider(),
+                PriceRow(
+                  label: 'الإجمالي',
+                  value: locationSet ? formatCurrency(total) : '—',
+                  bold: true,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: _loading ? null : _placeOrder,
+              onPressed: (_loading || !locationSet) ? null : _placeOrder,
               child: _loading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('تأكيد الطلب'),
+                  : Text(locationSet
+                      ? 'تأكيد الطلب • ${formatCurrency(total)}'
+                      : 'حدّد موقعك أولاً'),
             ),
           ),
         ],

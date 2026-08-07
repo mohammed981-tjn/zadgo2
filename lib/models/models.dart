@@ -818,6 +818,10 @@ class Order {
   double get grandTotal => itemsTotal + deliveryFee;
   double get calculatedCommission => itemsTotal * 0.15;
 
+  /// صافي مستحقّات المطعم = قيمة الوجبات بعد خصم عمولة التطبيق (15%). قيمة
+  /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.
+  double get restaurantNet => itemsTotal - platformCommission;
+
   bool get needsDriverAcknowledgement =>
       driverId != null && driverId!.isNotEmpty && !driverAcknowledged;
 
