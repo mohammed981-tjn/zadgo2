@@ -37,10 +37,40 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
   bool _submitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    // اختيار «الشكوى ضد» المناسب لنوع الشكوى الابتدائي، وتحديث زر الإرسال
+    // كلما تغيّر نص التفاصيل.
+    _applySuggestedAgainst(_type);
+    _descriptionCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _descriptionCtrl.dispose();
     super.dispose();
   }
+
+  /// يضبط «الشكوى ضد» على الطرف المنطقي لنوع الشكوى، إن كان متاحاً في هذا
+  /// الطلب (مثلاً السائق لا يظهر إن لم يُعيَّن بعد)؛ وإلا يسقط إلى «شكوى عامة».
+  void _applySuggestedAgainst(ComplaintType type) {
+    final suggested = type.suggestedAgainstRole;
+    (String, String?, UserRole)? match;
+    if (suggested != null) {
+      for (final o in _againstOptions) {
+        if (o.$3 == suggested && o.$2 != null) {
+          match = o;
+          break;
+        }
+      }
+    }
+    _selectedAgainstUid = match?.$2;
+    _selectedAgainstRole = match?.$3 ?? UserRole.admin; // admin = شكوى عامة
+  }
+
+  /// زر الإرسال مُفعَّل فقط عند اكتمال الحقول المطلوبة: التفاصيل + طرف محدد.
+  bool get _canSubmit =>
+      _descriptionCtrl.text.trim().isNotEmpty && _selectedAgainstRole != null;
 
   List<(String, String?, UserRole)> get _againstOptions {
     final order = widget.order;
@@ -132,7 +162,10 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
               return ChoiceChip(
                 label: Text(t.label),
                 selected: selected,
-                onSelected: (_) => setState(() => _type = t),
+                onSelected: (_) => setState(() {
+                  _type = t;
+                  _applySuggestedAgainst(t);
+                }),
                 selectedColor: AppColors.primary.withOpacity(0.15),
                 labelStyle: TextStyle(
                   color: selected ? AppColors.primary : AppColors.textDark,
@@ -177,7 +210,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: _submitting ? null : _submit,
+              onPressed: (_submitting || !_canSubmit) ? null : _submit,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
               child: _submitting
                   ? const SizedBox(

@@ -293,6 +293,39 @@ extension ComplaintTypeScope on ComplaintType {
     if (role == UserRole.admin) return ComplaintType.values;
     return _byRole[role] ?? const [ComplaintType.other];
   }
+
+  /// الطرف المنطقي الذي تُوجَّه ضده الشكوى افتراضياً حسب نوعها — تستخدمه شاشة
+  /// تقديم الشكوى لاختيار «الشكوى ضد» تلقائياً بدل ترك المستخدم يخمّن. `null`
+  /// يعني شكوى عامة عن الطلب (لا طرف محدد)، كما في [ComplaintType.other].
+  UserRole? get suggestedAgainstRole {
+    switch (this) {
+      // شكاوى العميل
+      case ComplaintType.driverBehavior:
+      case ComplaintType.lateDelivery:
+        return UserRole.driver;
+      case ComplaintType.wrongOrder:
+      case ComplaintType.badQuality:
+      case ComplaintType.unclearFees:
+        return UserRole.restaurantManager;
+      // شكاوى السائق
+      case ComplaintType.customerNotResponding:
+      case ComplaintType.wrongAddress:
+      case ComplaintType.customerBehavior:
+        return UserRole.customer;
+      case ComplaintType.restaurantDelay:
+      case ComplaintType.orderMismatch:
+        return UserRole.restaurantManager;
+      // شكاوى المطعم
+      case ComplaintType.driverNotPickedUp:
+      case ComplaintType.driverLateForPickup:
+      case ComplaintType.driverBehaviorAtRestaurant:
+        return UserRole.driver;
+      case ComplaintType.customerCancelledAfterPrep:
+        return UserRole.customer;
+      case ComplaintType.other:
+        return null;
+    }
+  }
 }
 
 extension ComplaintStatusExt on ComplaintStatus {
