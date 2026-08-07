@@ -461,14 +461,16 @@ class FirebaseService {
     }
 
     final driverDoc = await _drivers.doc(driverId).get();
-    final isDriverOnline = driverDoc.exists &&
-        driverDoc.data() != null &&
-        (models.Driver.fromMap(driverDoc.data()!, driverDoc.id).isOnline);
+    final driverData = driverDoc.exists && driverDoc.data() != null
+        ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id)
+        : null;
+    final isDriverOnline = driverData?.isOnline ?? false;
 
     final batch = _db.batch();
     batch.update(ref, {
       'driverId': driverId,
       'driverName': driverName,
+      'driverPhone': driverData?.phone,
       'status': models.OrderStatus.driverAssigned.name,
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
@@ -510,6 +512,7 @@ class FirebaseService {
     batch.update(_orders.doc(order.id), {
       'driverId': chosen.id,
       'driverName': chosen.name,
+      'driverPhone': chosen.phone,
       'updatedAt': FieldValue.serverTimestamp(),
       'driverAcknowledged': true,
     });
@@ -556,6 +559,7 @@ class FirebaseService {
     batch.update(ref, {
       'driverId': null,
       'driverName': null,
+      'driverPhone': null,
       'driverAcknowledged': true,
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -578,10 +582,16 @@ class FirebaseService {
     required String reason,
     required String performedBy,
   }) async {
+    final newDriverDoc = await _drivers.doc(newDriverId).get();
+    final newDriverPhone = newDriverDoc.exists && newDriverDoc.data() != null
+        ? models.Driver.fromMap(newDriverDoc.data()!, newDriverDoc.id).phone
+        : null;
+
     final batch = _db.batch();
     batch.update(_orders.doc(order.id), {
       'driverId': newDriverId,
       'driverName': newDriverName,
+      'driverPhone': newDriverPhone,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.update(_drivers.doc(newDriverId), {'isAvailable': false});

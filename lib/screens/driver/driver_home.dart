@@ -332,6 +332,16 @@ class _OrderCard extends StatelessWidget {
               child: Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
             ),
             const Spacer(),
+            // الاتصال بالعميل — بعد استلام الطلب من المطعم، حيث يبدأ السائق
+            // التوجّه للعميل وقد يحتاج تأكيد العنوان أو الوصول.
+            if ((order.status == OrderStatus.pickedUp ||
+                    order.status == OrderStatus.onTheWay) &&
+                order.customerPhone.trim().isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.phone, color: AppColors.success),
+                onPressed: () => callPhone(context, order.customerPhone),
+                tooltip: 'الاتصال بالعميل',
+              ),
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),

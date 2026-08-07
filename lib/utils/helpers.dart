@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/theme.dart';
 
 String formatCurrency(double amount) => '${amount.toStringAsFixed(2)} ر.س';
@@ -23,6 +24,24 @@ Future<bool?> showConfirmDialog(BuildContext context, {required String title, re
         child: Text(confirmLabel)),
   ]),
 );
+
+/// يفتح تطبيق الاتصال على الرقم المُعطى — تُستخدم للاتصال بين العميل والسائق
+/// أثناء التوصيل. تعرض رسالة واضحة بدل الفشل الصامت إن تعذّر فتح المتصل أو
+/// كان الرقم غير متوفّر.
+Future<void> callPhone(BuildContext context, String? phone) async {
+  final number = phone?.trim() ?? '';
+  if (number.isEmpty) {
+    showError(context, 'رقم الهاتف غير متوفّر');
+    return;
+  }
+  final uri = Uri(scheme: 'tel', path: number);
+  try {
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+  } catch (_) {
+    if (context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+  }
+}
 
 String? validateRequired(String? v, [String label = 'هذا الحقل']) =>
     (v == null || v.trim().isEmpty) ? '$label مطلوب' : null;

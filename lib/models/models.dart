@@ -763,6 +763,9 @@ class Order {
   final DateTime? statusChangedAt;
   final String? driverId;
   final String? driverName;
+  /// هاتف السائق المُسنَد — يُنسخ في الطلب عند الإسناد ليتمكّن العميل من
+  /// الاتصال به مباشرةً دون قراءة مستند السائق (لا يملك صلاحية ذلك).
+  final String? driverPhone;
   final String? notes;
   final double driverShare;
   final double appShare;
@@ -796,6 +799,7 @@ class Order {
     this.statusChangedAt,
     this.driverId,
     this.driverName,
+    this.driverPhone,
     this.notes,
     this.driverShare = 5.0,
     this.appShare = 0.0,
@@ -874,6 +878,7 @@ class Order {
         statusChangedAt: (map['statusChangedAt'] as Timestamp?)?.toDate(),
         driverId: map['driverId'] as String?,
         driverName: map['driverName'] as String?,
+        driverPhone: map['driverPhone'] as String?,
         notes: map['notes'] as String?,
         driverShare: (map['driverShare'] as num?)?.toDouble() ??
             (map['deliveryFee'] as num?)?.toDouble() ??
@@ -910,6 +915,7 @@ class Order {
             statusChangedAt != null ? Timestamp.fromDate(statusChangedAt!) : null,
         'driverId': driverId,
         'driverName': driverName,
+        'driverPhone': driverPhone,
         'notes': notes,
         'driverShare': driverShare,
         'appShare': appShare,
@@ -934,6 +940,7 @@ class Order {
     DateTime? statusChangedAt,
     String? driverId,
     String? driverName,
+    String? driverPhone,
     bool? isPaid,
     double? platformCommission,
     double? customerRating,
@@ -960,6 +967,7 @@ class Order {
         statusChangedAt: statusChangedAt ?? this.statusChangedAt,
         driverId: driverId ?? this.driverId,
         driverName: driverName ?? this.driverName,
+        driverPhone: driverPhone ?? this.driverPhone,
         notes: notes,
         driverShare: driverShare,
         appShare: appShare,

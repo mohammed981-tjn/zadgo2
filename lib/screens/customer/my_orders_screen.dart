@@ -105,6 +105,14 @@ class _OrderCard extends StatelessWidget {
               const Spacer(),
               if (order.status == OrderStatus.pickedUp ||
                   order.status == OrderStatus.onTheWay) ...[
+                // الاتصال بالسائق — متاح بعد استلامه الطلب من المطعم فقط،
+                // وهي الفترة التي قد يحتاج فيها الطرفان التواصل المباشر.
+                if (order.driverPhone != null && order.driverPhone!.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.phone, color: AppColors.success),
+                    onPressed: () => callPhone(context, order.driverPhone),
+                    tooltip: 'الاتصال بالسائق',
+                  ),
                 if (order.driverId != null)
                   IconButton(
                     icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
