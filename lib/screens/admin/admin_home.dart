@@ -14,6 +14,7 @@ import 'order_tracking_tab.dart';
 import 'broadcast_tab.dart';
 import 'admin_complaints_screen.dart';
 import 'admin_reports_tab.dart';
+import 'admin_driver_ledger_screen.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
 /// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
@@ -181,13 +182,24 @@ class _DriversTab extends StatelessWidget {
       if (list.isEmpty) return const AppEmpty(emoji: '🛵', title: 'لا يوجد سائقون');
       return ListView.builder(padding: const EdgeInsets.all(12), itemCount: list.length, itemBuilder: (_, i) {
         final d = list[i];
+        // الرصيد بإشارة يظهر في القائمة مباشرةً ليعرف المدير بنظرة مَن عليه
+        // مال نقدي لم يُسلَّم بعد، والنقر يفتح دفتر حسابه الكامل.
+        final owes = d.balance < 0;
         return Card(child: ListTile(
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => AdminDriverLedgerScreen(driver: d))),
           leading: CircleAvatar(backgroundColor: d.isOnline ? AppColors.success.withOpacity(0.2) : Colors.grey.shade200,
               child: Text(d.name.isNotEmpty ? d.name[0] : '?')),
           title: Text(d.name),
           subtitle: Text('${d.totalDeliveries} توصيلة  •  ${d.rating.toStringAsFixed(1)} ⭐'
               '${d.warningCount > 0 ? '  •  ⚠️ ${d.warningCount} إنذار' : ''}'),
-          trailing: StatusBadge(label: d.isOnline ? 'متصل' : 'غير متصل', color: d.isOnline ? AppColors.success : Colors.grey),
+          trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+            if (d.balance != 0)
+              Text('${owes ? 'عليه ' : 'له '}${formatCurrency(d.balance.abs())}',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                      color: owes ? AppColors.error : AppColors.success)),
+            StatusBadge(label: d.isOnline ? 'متصل' : 'غير متصل', color: d.isOnline ? AppColors.success : Colors.grey),
+          ]),
         ));
       });
     });

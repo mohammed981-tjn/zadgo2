@@ -448,28 +448,82 @@ class _DriverEarningsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (driver == null) return const AppLoading();
     final d = driver!;
+    // الرصيد بإشارة: سالب يعني أن بيد السائق مالاً ليس له (حصيلة الطلبات
+    // النقدية)، وموجب يعني أن للتطبيق مستحقّات عليه للسائق. عرضه برقم مجرّد
+    // كان سيوهم السائق بأن الدَّين ربح.
+    final owesPlatform = d.balance < 0;
+    final amount = d.balance.abs();
     return ListView(padding: const EdgeInsets.all(16), children: [
       Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
+          gradient: LinearGradient(
+            colors: owesPlatform
+                ? [AppColors.error, const Color(0xFFB71C1C)]
+                : [AppColors.primary, AppColors.primaryDark],
+          ),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('إجمالي أرباحك', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          Text(owesPlatform ? 'مبلغ عليك تسليمه' : 'رصيدك لدى التطبيق',
+              style: const TextStyle(color: Colors.white70, fontSize: 14)),
           const SizedBox(height: 6),
-          Text(formatCurrency(d.totalEarnings), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+          Text(formatCurrency(amount),
+              style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text(
+            owesPlatform
+                ? 'حصيلة طلبات نقدية بيدك — تُسلَّم للإدارة'
+                : 'مستحقّاتك من الطلبات المدفوعة إلكترونياً',
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+          ),
         ]),
       ),
+      if (Pricing.isDriverDebtWarning(d.balance))
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(children: [
+              const Icon(Icons.info_outline, size: 18, color: AppColors.warning),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('يُفضّل تسليم المبلغ للإدارة قريباً',
+                    style: TextStyle(fontSize: 12, color: AppColors.warning)),
+              ),
+            ]),
+          ),
+        ),
       const SizedBox(height: 20),
       GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
         _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, AppColors.primary),
-        _stat('المستحقات', formatCurrency(d.pendingPayout), Icons.account_balance_wallet_outlined, AppColors.warning),
+        _stat('استلمته فعلياً', formatCurrency(d.totalEarnings), Icons.savings_outlined, AppColors.success),
         _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
         _stat('الحالة', d.isOnline ? 'متصل' : 'غير متصل', d.isOnline ? Icons.wifi : Icons.wifi_off,
             d.isOnline ? AppColors.success : AppColors.textGray),
       ]),
+      const SizedBox(height: 16),
+      const SectionHeader(title: 'سجلّ الحركات'),
+      SizedBox(
+        height: 320,
+        child: AppStreamBuilder<List<DriverTransaction>>(
+          stream: () => context.read<FirebaseService>().streamDriverTransactions(d.id),
+          builder: (ctx, txs) {
+            if (txs.isEmpty) {
+              return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات بعد');
+            }
+            return ListView.builder(
+              itemCount: txs.length,
+              itemBuilder: (_, i) => _TransactionTile(tx: txs[i]),
+            );
+          },
+        ),
+      ),
     ]);
   }
 
@@ -480,4 +534,37 @@ class _DriverEarningsTab extends StatelessWidget {
       Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
       Text(label, style: const TextStyle(fontSize: 12)),
     ])));
+}
+
+/// سطر حركة واحدة في سجلّ دفتر السائق — اللون والإشارة يوضّحان الاتجاه فوراً.
+class _TransactionTile extends StatelessWidget {
+  final DriverTransaction tx;
+  const _TransactionTile({required this.tx});
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = tx.amount >= 0;
+    final color = positive ? AppColors.success : AppColors.error;
+    return ListTile(
+      dense: true,
+      leading: CircleAvatar(
+        radius: 16,
+        backgroundColor: color.withOpacity(0.12),
+        child: Icon(tx.type.icon, size: 16, color: color),
+      ),
+      title: Text(tx.type.label, style: const TextStyle(fontSize: 13)),
+      subtitle: Text(
+        [
+          if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
+          if (tx.note != null && tx.note!.isNotEmpty) tx.note!,
+          '${tx.createdAt.day}/${tx.createdAt.month}',
+        ].join(' • '),
+        style: const TextStyle(fontSize: 11, color: AppColors.textGray),
+      ),
+      trailing: Text(
+        '${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
+        style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
+      ),
+    );
+  }
 }

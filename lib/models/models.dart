@@ -700,6 +700,15 @@ class Driver {
   final bool isOnline;
   final double totalEarnings;
   final double pendingPayout;
+
+  /// رصيد السائق **بإشارة** — أساس دفتر الحساب:
+  ///   • موجب (+) = التطبيق مدين للسائق (من الطلبات المدفوعة إلكترونياً).
+  ///   • سالب (−) = السائق مدين للتطبيق (من الطلبات النقدية، إذ يقبض كامل
+  ///     المبلغ من العميل فيبقى بيده مالُ المطعم ورسمُ التطبيق).
+  ///
+  /// يحلّ محلّ [pendingPayout] الذي كان يفترض دائماً أن التطبيق هو المدين،
+  /// وهو افتراض صحيح للدفع الإلكتروني ومقلوب تماماً للدفع النقدي.
+  final double balance;
   final int totalDeliveries;
   final double rating;
   final int ratingCount;
@@ -723,6 +732,7 @@ class Driver {
     this.isOnline = false,
     this.totalEarnings = 0,
     this.pendingPayout = 0,
+    this.balance = 0,
     this.totalDeliveries = 0,
     this.rating = 5.0,
     this.ratingCount = 0,
@@ -742,6 +752,7 @@ class Driver {
         isOnline: map['isOnline'] as bool? ?? false,
         totalEarnings: (map['totalEarnings'] as num?)?.toDouble() ?? 0,
         pendingPayout: (map['pendingPayout'] as num?)?.toDouble() ?? 0,
+        balance: (map['balance'] as num?)?.toDouble() ?? 0,
         totalDeliveries: (map['totalDeliveries'] as num?)?.toInt() ?? 0,
         rating: (map['rating'] as num?)?.toDouble() ?? 5.0,
         ratingCount: (map['ratingCount'] as num?)?.toInt() ?? 0,
@@ -760,6 +771,7 @@ class Driver {
         'isOnline': isOnline,
         'totalEarnings': totalEarnings,
         'pendingPayout': pendingPayout,
+        'balance': balance,
         'totalDeliveries': totalDeliveries,
         'rating': rating,
         'ratingCount': ratingCount,
@@ -768,6 +780,120 @@ class Driver {
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
         'warningCount': warningCount,
+      };
+}
+
+/// نوع حركة دفتر السائق — يحدّد اتجاه أثرها على الرصيد ومصدرها.
+enum DriverTransactionType {
+  /// توصيل طلب نقدي: السائق قبض كامل المبلغ، فيُقيَّد عليه ما ليس له.
+  deliveryCash,
+
+  /// توصيل طلب مدفوع إلكترونياً: التطبيق قبض المبلغ، فتُقيَّد أجرة السائق له.
+  deliveryOnline,
+
+  /// إيداع: السائق سلّم نقداً للإدارة.
+  deposit,
+
+  /// صرف: الإدارة دفعت للسائق مستحقّاته.
+  payout,
+
+  /// تسوية يدوية من الإدارة (تصحيح خطأ، مكافأة، خصم...).
+  adjustment,
+}
+
+DriverTransactionType _driverTxTypeFromString(String? raw) =>
+    _enumValueFromString<DriverTransactionType>(
+      raw,
+      DriverTransactionType.values,
+      DriverTransactionType.adjustment,
+      'DriverTransactionType',
+    );
+
+extension DriverTransactionTypeExt on DriverTransactionType {
+  String get label {
+    const map = {
+      DriverTransactionType.deliveryCash: 'توصيل نقدي',
+      DriverTransactionType.deliveryOnline: 'توصيل إلكتروني',
+      DriverTransactionType.deposit: 'إيداع نقدي',
+      DriverTransactionType.payout: 'صرف مستحقّات',
+      DriverTransactionType.adjustment: 'تسوية يدوية',
+    };
+    return map[this] ?? '';
+  }
+
+  IconData get icon {
+    const map = {
+      DriverTransactionType.deliveryCash: Icons.payments_outlined,
+      DriverTransactionType.deliveryOnline: Icons.credit_card,
+      DriverTransactionType.deposit: Icons.south_west_rounded,
+      DriverTransactionType.payout: Icons.north_east_rounded,
+      DriverTransactionType.adjustment: Icons.tune_rounded,
+    };
+    return map[this] ?? Icons.receipt_long_outlined;
+  }
+}
+
+/// حركة واحدة في دفتر حساب السائق. تُكتب مع كل تغيير على الرصيد في نفس
+/// الدفعة (batch)، فلا يتغيّر رصيد دون حركة تفسّره — وهو ما يجعل أي نزاع
+/// قابلاً للمراجعة بدل الاعتماد على رقم مجرّد.
+class DriverTransaction {
+  final String id;
+  final String driverId;
+  final DriverTransactionType type;
+
+  /// المبلغ **بإشارة**: موجب يزيد الرصيد، سالب ينقصه.
+  final double amount;
+
+  /// الرصيد بعد تطبيق هذه الحركة — يُحفظ وقت الكتابة ليبقى السجلّ مقروءاً
+  /// دون إعادة حساب التسلسل كاملاً.
+  final double balanceAfter;
+
+  final String? orderId;
+  final String? orderNumber;
+  final String? note;
+
+  /// مَن نفّذ الحركة (uid) — السائق نفسه عند التوصيل، أو المدير عند الإيداع
+  /// والصرف والتسوية.
+  final String performedBy;
+  final DateTime createdAt;
+
+  const DriverTransaction({
+    required this.id,
+    required this.driverId,
+    required this.type,
+    required this.amount,
+    required this.balanceAfter,
+    this.orderId,
+    this.orderNumber,
+    this.note,
+    required this.performedBy,
+    required this.createdAt,
+  });
+
+  factory DriverTransaction.fromMap(Map<String, dynamic> map, String id) =>
+      DriverTransaction(
+        id: id,
+        driverId: map['driverId'] as String? ?? '',
+        type: _driverTxTypeFromString(map['type'] as String?),
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        balanceAfter: (map['balanceAfter'] as num?)?.toDouble() ?? 0,
+        orderId: map['orderId'] as String?,
+        orderNumber: map['orderNumber'] as String?,
+        note: map['note'] as String?,
+        performedBy: map['performedBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'driverId': driverId,
+        'type': type.name,
+        'amount': amount,
+        'balanceAfter': balanceAfter,
+        if (orderId != null) 'orderId': orderId,
+        if (orderNumber != null) 'orderNumber': orderNumber,
+        if (note != null) 'note': note,
+        'performedBy': performedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
       };
 }
 

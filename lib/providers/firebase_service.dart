@@ -24,6 +24,8 @@ class FirebaseService {
       _db.collection('registrationCodes');
   CollectionReference<Map<String, dynamic>> get _deliverySettings =>
       _db.collection('delivery_settings');
+  CollectionReference<Map<String, dynamic>> get _driverTransactions =>
+      _db.collection('driver_transactions');
 
   bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
     if (from == to) return true;
@@ -361,11 +363,11 @@ class FirebaseService {
         'lastLocationUpdate': FieldValue.serverTimestamp(),
       });
 
-  Future<void> markPayoutDone(String driverId, double amount) =>
-      _drivers.doc(driverId).update({
-        'totalEarnings': FieldValue.increment(amount),
-        'pendingPayout': 0,
-      });
+  // أُزيلت markPayoutDone: كانت تصفّر pendingPayout وفق النموذج القديم الذي
+  // يفترض أن التطبيق هو المدين دائماً، وهو افتراض مقلوب للطلبات النقدية.
+  // بديلها [recordDriverPayout] الذي يقيّد الصرف في دفتر الحساب مع حركة
+  // موثّقة. لم تكن مستدعاة من أي شاشة، فإزالتها لا تكسر شيئاً وتمنع استخدامها
+  // بالخطأ فتفسد الرصيد الجديد.
 
   Future<void> updateDriverRating(String driverId, double newRating) async {
     final doc = await _drivers.doc(driverId).get();
@@ -674,17 +676,39 @@ class FirebaseService {
 
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();
-    double commission = 0;
-    double driverPayout = 10;
-    if (orderDoc.exists && orderDoc.data() != null) {
-      final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
-      if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
-        throw Exception(
-            'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
-      }
-      commission = order.calculatedCommission;
-      driverPayout = order.driverShare;
+    if (!orderDoc.exists || orderDoc.data() == null) {
+      throw Exception('الطلب غير موجود');
     }
+    final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+    if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
+      throw Exception(
+          'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
+    }
+    final commission = order.calculatedCommission;
+    final driverPayout = order.driverShare;
+    final itemsTotal = order.itemsTotal;
+    final appShare = order.appShare;
+    final paymentMethod = order.paymentMethod;
+    final orderNumber = order.orderNumber;
+    // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
+    //
+    // • نقدي: السائق قبض من العميل كامل المبلغ (وجبات + توصيل + رسم ثابت)،
+    //   وما ليس له منه هو قيمة الوجبات (للمطعم) والرسم الثابت (للتطبيق) —
+    //   فيُقيَّد عليه ديناً. أجرته تبقى بيده فلا تُقيَّد له.
+    // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
+    //
+    // كان الكود سابقاً يزيد pendingPayout بأجرة السائق في الحالتين، وهو
+    // افتراض مقلوب في الدفع النقدي (الغالب حالياً) لأنه يجعل التطبيق مديناً
+    // لسائق يحمل أصلاً مال المطعم في جيبه.
+    final isCash = paymentMethod == models.PaymentMethod.cash;
+    final delta = isCash ? -(itemsTotal + appShare) : driverPayout;
+
+    final driverDoc = await _drivers.doc(driverId).get();
+    final currentBalance = driverDoc.exists && driverDoc.data() != null
+        ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
+        : 0.0;
+
+    final txRef = _driverTransactions.doc();
     final batch = _db.batch();
     batch.update(_orders.doc(orderId), {
       'status': models.OrderStatus.delivered.name,
@@ -695,11 +719,115 @@ class FirebaseService {
     });
     batch.update(_drivers.doc(driverId), {
       'totalDeliveries': FieldValue.increment(1),
-      'pendingPayout': FieldValue.increment(driverPayout),
+      'balance': FieldValue.increment(delta),
       'isAvailable': true,
     });
+    // الحركة تُكتب في نفس الدفعة، فلا يتغيّر رصيد دون سجلّ يفسّره.
+    batch.set(
+      txRef,
+      models.DriverTransaction(
+        id: txRef.id,
+        driverId: driverId,
+        type: isCash
+            ? models.DriverTransactionType.deliveryCash
+            : models.DriverTransactionType.deliveryOnline,
+        amount: delta,
+        balanceAfter: currentBalance + delta,
+        orderId: orderId,
+        orderNumber: orderNumber,
+        performedBy: _auth.currentUser?.uid ?? driverId,
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
     await batch.commit();
   }
+
+  /// تسجيل إيداع نقدي: السائق سلّم مبلغاً للإدارة، فيرتفع رصيده بقدره.
+  Future<void> recordDriverDeposit({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: amount.abs(),
+        type: models.DriverTransactionType.deposit,
+        note: note,
+      );
+
+  /// تسجيل صرف مستحقّات: الإدارة دفعت للسائق، فينخفض رصيده بقدره.
+  Future<void> recordDriverPayout({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: -amount.abs(),
+        type: models.DriverTransactionType.payout,
+        note: note,
+      );
+
+  /// تسوية يدوية بإشارة موجبة أو سالبة (تصحيح خطأ، مكافأة، خصم).
+  Future<void> recordDriverAdjustment({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: amount,
+        type: models.DriverTransactionType.adjustment,
+        note: note,
+      );
+
+  /// يكتب حركة دفتر ويحدّث الرصيد معاً في دفعة واحدة — إمّا أن يتغيّر الرصيد
+  /// ومعه سجلّه أو لا يتغيّر شيء، فلا يبقى رصيد بلا تفسير.
+  Future<void> _recordDriverLedgerEntry({
+    required String driverId,
+    required double amount,
+    required models.DriverTransactionType type,
+    String? note,
+  }) async {
+    if (amount == 0) return;
+    final doc = await _drivers.doc(driverId).get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('السائق غير موجود');
+    }
+    final current = models.Driver.fromMap(doc.data()!, doc.id).balance;
+    final txRef = _driverTransactions.doc();
+    final batch = _db.batch();
+    batch.update(_drivers.doc(driverId), {
+      'balance': FieldValue.increment(amount),
+      // الصرف يُراكم في إجمالي ما استلمه السائق فعلياً.
+      if (type == models.DriverTransactionType.payout)
+        'totalEarnings': FieldValue.increment(amount.abs()),
+    });
+    batch.set(
+      txRef,
+      models.DriverTransaction(
+        id: txRef.id,
+        driverId: driverId,
+        type: type,
+        amount: amount,
+        balanceAfter: current + amount,
+        note: note,
+        performedBy: _auth.currentUser?.uid ?? '',
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    await batch.commit();
+  }
+
+  /// سجلّ حركات سائق، الأحدث أولاً.
+  Stream<List<models.DriverTransaction>> streamDriverTransactions(String driverId) =>
+      _driverTransactions
+          .where('driverId', isEqualTo: driverId)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.DriverTransaction.fromMap(d.data(), d.id))
+              .toList());
 
   /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
   Future<void> cancelOrder(String orderId) =>
