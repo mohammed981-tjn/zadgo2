@@ -225,14 +225,20 @@ class FirebaseService {
   }
 
   /// سجلّ حركات محفظة عميل، الأحدث أولاً.
+  ///
+  /// الترتيب داخل التطبيق لا في الاستعلام عمداً: جمعُ where مع orderBy في
+  /// Firestore يستلزم فهرساً مركّباً يُنشأ يدوياً من وحدة التحكم، ونسيانه
+  /// يُسقط الشاشة بخطأ failed-precondition (حدث فعلاً). حركات المستخدم
+  /// الواحد قليلة، فالترتيب المحلي بلا كلفة ويُسقط الاعتماد على خطوة
+  /// نشر خارجية بالكامل.
   Stream<List<models.WalletTransaction>> streamWalletTransactions(String userId) =>
       _walletTransactions
           .where('userId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
           .snapshots()
           .map((s) => s.docs
               .map((d) => models.WalletTransaction.fromMap(d.data(), d.id))
-              .toList());
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
   Future<void> createManagedUser({
     required String name,
@@ -307,11 +313,11 @@ class FirebaseService {
           String restaurantId) =>
       _registrationCodes
           .where('restaurantId', isEqualTo: restaurantId)
-          .orderBy('createdAt', descending: true)
           .snapshots()
           .map((s) => s.docs
               .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
-              .toList());
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
   Future<void> revokeRegistrationCode(String code) =>
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
@@ -950,15 +956,16 @@ class FirebaseService {
     await batch.commit();
   }
 
-  /// سجلّ حركات سائق، الأحدث أولاً.
+  /// سجلّ حركات سائق، الأحدث أولاً. (ترتيب محلي — انظر تعليق
+  /// [streamWalletTransactions] عن الفهارس المركّبة.)
   Stream<List<models.DriverTransaction>> streamDriverTransactions(String driverId) =>
       _driverTransactions
           .where('driverId', isEqualTo: driverId)
-          .orderBy('createdAt', descending: true)
           .snapshots()
           .map((s) => s.docs
               .map((d) => models.DriverTransaction.fromMap(d.data(), d.id))
-              .toList());
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
   /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
   Future<void> cancelOrder(String orderId) async {
@@ -1058,17 +1065,19 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
 
+  // شكاوى المستخدم الواحد: ترتيب محلي بدل orderBy — انظر تعليق
+  // [streamWalletTransactions] عن الفهارس المركّبة.
   Stream<List<models.Complaint>> streamComplaintsSubmittedBy(String uid) => _complaints
       .where('submittedByUid', isEqualTo: uid)
-      .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
+      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
   Stream<List<models.Complaint>> streamComplaintsAgainst(String uid) => _complaints
       .where('againstUid', isEqualTo: uid)
-      .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
+      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
   Future<void> submitComplaint(models.Complaint complaint) =>
       _complaints.doc(complaint.id).set(complaint.toMap());
@@ -1174,9 +1183,9 @@ class FirebaseService {
   Stream<List<models.ChatMessage>> streamComplaintChat(String complaintId) =>
       _complaintMessages
           .where('orderId', isEqualTo: complaintId)
-          .orderBy('createdAt')
           .snapshots()
-          .map((s) => s.docs.map((d) => models.ChatMessage.fromMap(d.data(), d.id)).toList());
+          .map((s) => s.docs.map((d) => models.ChatMessage.fromMap(d.data(), d.id)).toList()
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt)));
 
   Future<void> sendComplaintChatMessage(models.ChatMessage message) =>
       _complaintMessages.doc(message.id).set(message.toMap());
