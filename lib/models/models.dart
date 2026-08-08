@@ -783,6 +783,103 @@ class Driver {
       };
 }
 
+/// نوع حركة محفظة العميل.
+enum WalletTransactionType {
+  /// استرداد من الإدارة عند حلّ شكوى.
+  refund,
+
+  /// خصم عند استخدام الرصيد في دفع طلب.
+  orderPayment,
+
+  /// إعادة الرصيد المستخدَم عند إلغاء الطلب.
+  orderReversal,
+
+  /// تسوية يدوية من الإدارة.
+  adjustment,
+}
+
+WalletTransactionType _walletTxTypeFromString(String? raw) =>
+    _enumValueFromString<WalletTransactionType>(
+      raw,
+      WalletTransactionType.values,
+      WalletTransactionType.adjustment,
+      'WalletTransactionType',
+    );
+
+extension WalletTransactionTypeExt on WalletTransactionType {
+  String get label {
+    const map = {
+      WalletTransactionType.refund: 'استرداد',
+      WalletTransactionType.orderPayment: 'دفع طلب',
+      WalletTransactionType.orderReversal: 'إعادة رصيد طلب ملغى',
+      WalletTransactionType.adjustment: 'تسوية',
+    };
+    return map[this] ?? '';
+  }
+
+  IconData get icon {
+    const map = {
+      WalletTransactionType.refund: Icons.replay_circle_filled_rounded,
+      WalletTransactionType.orderPayment: Icons.shopping_bag_outlined,
+      WalletTransactionType.orderReversal: Icons.undo_rounded,
+      WalletTransactionType.adjustment: Icons.tune_rounded,
+    };
+    return map[this] ?? Icons.account_balance_wallet_outlined;
+  }
+}
+
+/// حركة واحدة في محفظة العميل — بنفس فلسفة دفتر السائق: تُكتب مع تغيّر
+/// الرصيد في دفعة واحدة، فيعرف العميل سبب كل تغيّر بدل رقم يتبدّل بلا تفسير.
+class WalletTransaction {
+  final String id;
+  final String userId;
+  final WalletTransactionType type;
+
+  /// المبلغ بإشارة: موجب يزيد الرصيد، سالب ينقصه.
+  final double amount;
+  final double balanceAfter;
+  final String? orderId;
+  final String? orderNumber;
+  final String? note;
+  final DateTime createdAt;
+
+  const WalletTransaction({
+    required this.id,
+    required this.userId,
+    required this.type,
+    required this.amount,
+    required this.balanceAfter,
+    this.orderId,
+    this.orderNumber,
+    this.note,
+    required this.createdAt,
+  });
+
+  factory WalletTransaction.fromMap(Map<String, dynamic> map, String id) =>
+      WalletTransaction(
+        id: id,
+        userId: map['userId'] as String? ?? '',
+        type: _walletTxTypeFromString(map['type'] as String?),
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        balanceAfter: (map['balanceAfter'] as num?)?.toDouble() ?? 0,
+        orderId: map['orderId'] as String?,
+        orderNumber: map['orderNumber'] as String?,
+        note: map['note'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'userId': userId,
+        'type': type.name,
+        'amount': amount,
+        'balanceAfter': balanceAfter,
+        if (orderId != null) 'orderId': orderId,
+        if (orderNumber != null) 'orderNumber': orderNumber,
+        if (note != null) 'note': note,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
 /// نوع حركة دفتر السائق — يحدّد اتجاه أثرها على الرصيد ومصدرها.
 enum DriverTransactionType {
   /// توصيل طلب نقدي: السائق قبض كامل المبلغ، فيُقيَّد عليه ما ليس له.
@@ -972,6 +1069,9 @@ class Order {
   /// معرّف عملية الدفع لدى بوابة الدفع (Moyasar) — يُملأ فقط عند نجاح شحن
   /// البطاقة فعلياً، ووجوده هو الدليل الوحيد على أن الطلب مدفوع مسبقاً.
   final String? paymentId;
+  /// المبلغ المخصوم من رصيد محفظة العميل لهذا الطلب. الباقي يُدفع بالوسيلة
+  /// المختارة، فالمحفظة تُطبَّق كخصم على الإجمالي لا كوسيلة دفع منفصلة.
+  final double walletUsed;
   final bool driverAcknowledged;
 
   const Order({
@@ -1007,6 +1107,7 @@ class Order {
     this.restaurantLng,
     this.rejectionReason,
     this.paymentId,
+    this.walletUsed = 0,
     this.driverAcknowledged = true,
   });
 
@@ -1089,6 +1190,7 @@ class Order {
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
         rejectionReason: map['rejectionReason'] as String?,
         paymentId: map['paymentId'] as String?,
+        walletUsed: (map['walletUsed'] as num?)?.toDouble() ?? 0,
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
       );
 
@@ -1126,6 +1228,7 @@ class Order {
         'restaurantLng': restaurantLng,
         'rejectionReason': rejectionReason,
         if (paymentId != null) 'paymentId': paymentId,
+        'walletUsed': walletUsed,
         'driverAcknowledged': driverAcknowledged,
       };
 
@@ -1178,6 +1281,7 @@ class Order {
         restaurantLng: restaurantLng,
         rejectionReason: rejectionReason ?? this.rejectionReason,
         paymentId: paymentId,
+        walletUsed: walletUsed,
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
       );
 }

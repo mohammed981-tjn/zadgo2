@@ -59,6 +59,23 @@ class AccountScreen extends StatelessWidget {
             _WalletCard(balance: user.walletBalance),
             const SizedBox(height: 16),
             _AddressesSection(user: user),
+            const SizedBox(height: 16),
+            const SectionHeader(title: 'حركات المحفظة'),
+            AppStreamBuilder<List<WalletTransaction>>(
+              stream: () => service.streamWalletTransactions(uid),
+              builder: (c, txs) {
+                if (txs.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('لا توجد حركات على محفظتك بعد',
+                        style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+                  );
+                }
+                return Column(
+                  children: txs.map((t) => _WalletTile(tx: t)).toList(),
+                );
+              },
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -318,6 +335,44 @@ class _AddressesSection extends StatelessWidget {
                 ),
               )),
       ],
+    );
+  }
+}
+
+
+/// سطر حركة في سجلّ محفظة العميل — يوضّح سبب كل تغيّر في الرصيد بدل رقم
+/// يتبدّل بلا تفسير.
+class _WalletTile extends StatelessWidget {
+  final WalletTransaction tx;
+  const _WalletTile({required this.tx});
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = tx.amount >= 0;
+    final color = positive ? AppColors.success : AppColors.error;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: ListTile(
+        dense: true,
+        leading: CircleAvatar(
+          radius: 16,
+          backgroundColor: color.withOpacity(0.12),
+          child: Icon(tx.type.icon, size: 16, color: color),
+        ),
+        title: Text(tx.type.label, style: const TextStyle(fontSize: 13)),
+        subtitle: Text(
+          [
+            if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
+            if (tx.note != null && tx.note!.isNotEmpty) tx.note!,
+            '${tx.createdAt.day}/${tx.createdAt.month}',
+          ].join(' • '),
+          style: const TextStyle(fontSize: 11, color: AppColors.textGray),
+        ),
+        trailing: Text(
+          '${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
+          style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
+        ),
+      ),
     );
   }
 }

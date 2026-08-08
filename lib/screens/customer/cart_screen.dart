@@ -125,6 +125,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addrCtrl = TextEditingController();
   PaymentMethod _payment = PaymentMethod.cash;
   bool _loading = false;
+  /// هل يطبّق العميل رصيد محفظته على هذا الطلب؟
+  bool _useWallet = true;
 
   double? _lat, _lng;
 
@@ -179,6 +181,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return itemsTotal + _deliveryFee + Pricing.fixedDeliveryCommission;
   }
 
+  /// رصيد محفظة العميل المتاح.
+  double get _walletBalance =>
+      context.read<app_auth.AuthProvider>().user?.walletBalance ?? 0;
+
+  /// المبلغ الذي سيُخصم من المحفظة: كامل الرصيد أو قيمة الطلب أيّهما أقل،
+  /// فالرصيد يُطبَّق كخصم على الإجمالي لا كوسيلة دفع منفصلة — وهكذا يعمل
+  /// الدفع الجزئي (رصيد 20 على طلب 54) بلا منطق إضافي.
+  double _walletApplied() {
+    if (!_useWallet) return 0;
+    final balance = _walletBalance;
+    if (balance <= 0) return 0;
+    final total = _orderTotal();
+    return balance >= total ? total : balance;
+  }
+
+  /// ما يتبقّى على العميل دفعه بعد خصم الرصيد.
+  double _amountDue() => _orderTotal() - _walletApplied();
+
   // ← دالة تحويل الإحداثيات إلى عنوان
   Future<String> _getAddressFromLatLng(double lat, double lng) async {
     try {
@@ -232,9 +252,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // الدفع بالبطاقة يسبق إنشاء الطلب: لا يُسجَّل طلب إلا بعد أن تؤكّد البوابة
     // شحن المبلغ فعلياً. العكس (إنشاء الطلب ثم محاولة الدفع) يُنتج طلبات
     // معلّقة بلا سداد يصعب تنظيفها لاحقاً.
+    final walletApplied = _walletApplied();
+    final amountDue = _amountDue();
+
     String? paymentId;
-    if (_payment == PaymentMethod.card) {
-      final totalToCharge = _orderTotal();
+    // البطاقة تُشحن بالمتبقّي بعد خصم الرصيد فقط. وإن غطّى الرصيد كامل المبلغ
+    // فلا حاجة لبوابة الدفع إطلاقاً.
+    if (_payment == PaymentMethod.card && amountDue > 0) {
+      final totalToCharge = amountDue;
       final result = await Navigator.push<MoyasarPaymentResult>(
         context,
         MaterialPageRoute(
@@ -275,6 +300,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
     final driverDeliveryFee = Pricing.deliveryFee(distanceKm ?? 0);
 
+    // خصم الرصيد قبل إنشاء الطلب: لو فشل الخصم (رصيد غير كافٍ لتغيّره من جهاز
+    // آخر) لا يُنشأ طلب يفترض خصماً لم يحدث.
+    if (walletApplied > 0) {
+      try {
+        await service.spendFromWallet(
+          userId: user.uid,
+          amount: walletApplied,
+          orderId: orderId,
+          orderNumber: orderId.substring(0, 6).toUpperCase(),
+        );
+      } catch (_) {
+        if (mounted) {
+          setState(() => _loading = false);
+          showError(context, 'تعذّر خصم رصيد المحفظة، حدّث الصفحة وحاول مجدداً');
+        }
+        return;
+      }
+    }
+
     final order = Order(
       id: orderId,
       restaurantId: cart.restaurantId!,
@@ -287,8 +331,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       paymentMethod: _payment,
       // السداد المسبق يثبت بمعرّف عملية حقيقي من البوابة فقط، لا بمجرّد اختيار
       // العميل «بطاقة» في القائمة.
-      isPaid: paymentId != null,
+      // الطلب مدفوع مسبقاً إن شُحنت البطاقة أو غطّى الرصيد كامل المبلغ.
+      isPaid: paymentId != null || amountDue <= 0,
       paymentId: paymentId,
+      walletUsed: walletApplied,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,
@@ -327,9 +373,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final locationSet = _lat != null && _lng != null;
     final delivery = _deliveryFee;
     const fixedFee = Pricing.fixedDeliveryCommission;
-    // العميل يدفع الوجبات + التوصيل + الرسم الثابت فقط (عمولة 15% تُخصم من
-    // المطعم ولا تظهر للعميل).
-    final total = _orderTotal();
+    // العميل يدفع الوجبات + التوصيل + الرسم الثابت، ناقصاً ما يُخصم من رصيد
+    // محفظته (عمولة 15% تُخصم من المطعم ولا تظهر للعميل).
+    final walletBalance = _walletBalance;
+    final walletApplied = _walletApplied();
+    final amountDue = _amountDue();
 
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
@@ -400,10 +448,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text('طريقة الدفع', style: TextStyle(fontWeight: FontWeight.bold)),
+          // رصيد المحفظة يُطبَّق كخصم على الإجمالي. يظهر فقط عند وجود رصيد،
+          // فلا يزحم الشاشة لمن لا رصيد له.
+          if (walletBalance > 0) ...[
+            Card(
+              color: AppColors.success.withOpacity(0.06),
+              child: SwitchListTile(
+                value: _useWallet,
+                onChanged: (v) => setState(() => _useWallet = v),
+                secondary: const Icon(Icons.account_balance_wallet_rounded,
+                    color: AppColors.success),
+                title: Text('استخدام رصيد المحفظة (${formatCurrency(walletBalance)})',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                  _useWallet && walletApplied > 0
+                      ? 'سيُخصم ${formatCurrency(walletApplied)} من رصيدك'
+                      : 'الرصيد لن يُستخدم في هذا الطلب',
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          // إن غطّى الرصيد كامل المبلغ فلا حاجة لاختيار وسيلة دفع أصلاً.
+          if (amountDue > 0)
+            const Text('طريقة الدفع', style: TextStyle(fontWeight: FontWeight.bold)),
           // خيار البطاقة يظهر فقط عند تهيئة بوابة الدفع، فلا يصطدم العميل بخيار
           // لا يعمل. المحفظة مخفيّة حتى تُنفَّذ فعلياً.
-          ...PaymentMethod.values
+          if (amountDue > 0)
+            ...PaymentMethod.values
               .where((p) =>
                   p == PaymentMethod.cash ||
                   (p == PaymentMethod.card && PaymentConfig_.isConfigured))
@@ -438,10 +511,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       : 'يُحسب بعد تحديد الموقع',
                 ),
                 PriceRow(label: 'رسوم توصيل ثابتة', value: formatCurrency(fixedFee)),
+                if (walletApplied > 0)
+                  PriceRow(
+                      label: 'خصم من المحفظة',
+                      value: '- ${formatCurrency(walletApplied)}'),
                 const Divider(),
                 PriceRow(
-                  label: 'الإجمالي',
-                  value: locationSet ? formatCurrency(total) : '—',
+                  label: walletApplied > 0 ? 'المتبقّي للدفع' : 'الإجمالي',
+                  value: locationSet ? formatCurrency(amountDue) : '—',
                   bold: true,
                 ),
               ],
@@ -456,7 +533,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: _loading
                   ? const CircularProgressIndicator(color: Colors.white)
                   : Text(locationSet
-                      ? 'تأكيد الطلب • ${formatCurrency(total)}'
+                      ? (amountDue <= 0
+                          ? 'تأكيد الطلب • مدفوع من المحفظة'
+                          : 'تأكيد الطلب • ${formatCurrency(amountDue)}')
                       : 'حدّد موقعك أولاً'),
             ),
           ),

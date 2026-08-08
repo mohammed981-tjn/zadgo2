@@ -90,7 +90,14 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
             isAdmin() ||
             (currentUid() == userId &&
-                !changedKeys().hasAny(['role', 'isActive', 'walletBalance']))
+                !changedKeys().hasAny(['role', 'isActive']) &&
+                // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
+                // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
+                // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
+                // سيُرفض تماماً، أو كان فتحُه سيسمح بشحن الرصيد ذاتياً.
+                (!changedKeys().hasAny(['walletBalance']) ||
+                    request.resource.data.walletBalance <
+                        resource.data.walletBalance))
           );
       allow delete: if isAdmin();
     }
@@ -208,6 +215,29 @@ service cloud.firestore {
       allow create: if isSignedIn() && (
             isAdmin() ||
             (isDriver() && request.resource.data.driverId == currentUid())
+          );
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // wallet_transactions — دفتر محفظة العميل: حركة لكل تغيّر في رصيده
+    // (استرداد/دفع طلب/تسوية).
+    //   • القراءة: صاحب المحفظة والمدير العام.
+    //   • الإنشاء: المدير (استرداد/تسوية)، أو العميل على حركاته هو وحدها
+    //     (تُكتب لحظة استخدام رصيده في دفع طلب).
+    //   • التعديل والحذف ممنوعان حتى على المدير — سجلّ محاسبي لا يُعدَّل
+    //     بأثر رجعي، والتصحيح بحركة تسوية جديدة تبقى ظاهرة.
+    //
+    // ملاحظة: حماية الرصيد نفسه في قاعدة users (walletBalance لا يعدّله إلا
+    // المدير) لا تكفي وحدها لأن العميل يحتاج خصم رصيده عند الدفع؛ الخصم يتم
+    // ضمن معاملة تتحقّق من كفاية الرصيد، ويبقى مقيّداً في هذا الدفتر.
+    // ---------------------------------------------------------------------
+    match /wallet_transactions/{transactionId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.userId == currentUid()
+          );
+      allow create: if isSignedIn() && (
+            isAdmin() || request.resource.data.userId == currentUid()
           );
       allow update, delete: if false;
     }

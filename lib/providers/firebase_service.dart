@@ -26,6 +26,8 @@ class FirebaseService {
       _db.collection('delivery_settings');
   CollectionReference<Map<String, dynamic>> get _driverTransactions =>
       _db.collection('driver_transactions');
+  CollectionReference<Map<String, dynamic>> get _walletTransactions =>
+      _db.collection('wallet_transactions');
 
   bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
     if (from == to) return true;
@@ -117,8 +119,109 @@ class FirebaseService {
         'savedAddresses': addresses.map((a) => a.toMap()).toList(),
       });
 
-  Future<void> addWalletCredit(String userId, double amount) =>
-      _users.doc(userId).update({'walletBalance': FieldValue.increment(amount)});
+  /// إضافة رصيد لمحفظة العميل مع حركة توثّق السبب. كانت تزيد الرصيد بلا سجلّ،
+  /// فيرى العميل رقماً يتبدّل دون تفسير ولا تستطيع الإدارة تدقيقه.
+  Future<void> addWalletCredit(
+    String userId,
+    double amount, {
+    models.WalletTransactionType type = models.WalletTransactionType.refund,
+    String? orderId,
+    String? orderNumber,
+    String? note,
+  }) =>
+      _recordWalletEntry(
+        userId: userId,
+        amount: amount.abs(),
+        type: type,
+        orderId: orderId,
+        orderNumber: orderNumber,
+        note: note,
+      );
+
+  /// خصم من رصيد المحفظة عند استخدامه في دفع طلب. يتحقّق من كفاية الرصيد
+  /// داخل معاملة (transaction) لا بقراءة ثم كتابة، فطلبان متزامنان لا
+  /// يستطيعان إنفاق الرصيد نفسه مرّتين.
+  Future<void> spendFromWallet({
+    required String userId,
+    required double amount,
+    required String orderId,
+    required String orderNumber,
+  }) async {
+    if (amount <= 0) return;
+    final userRef = _users.doc(userId);
+    final txRef = _walletTransactions.doc();
+
+    await _db.runTransaction((transaction) async {
+      final snap = await transaction.get(userRef);
+      final data = snap.data();
+      if (!snap.exists || data == null) {
+        throw Exception('حساب العميل غير موجود');
+      }
+      final current = (data['walletBalance'] as num?)?.toDouble() ?? 0;
+      if (current + 0.001 < amount) {
+        throw Exception('رصيد المحفظة غير كافٍ');
+      }
+      transaction.update(userRef, {'walletBalance': current - amount});
+      transaction.set(
+        txRef,
+        models.WalletTransaction(
+          id: txRef.id,
+          userId: userId,
+          type: models.WalletTransactionType.orderPayment,
+          amount: -amount,
+          balanceAfter: current - amount,
+          orderId: orderId,
+          orderNumber: orderNumber,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+    });
+  }
+
+  /// يكتب حركة محفظة ويحدّث الرصيد في دفعة واحدة.
+  Future<void> _recordWalletEntry({
+    required String userId,
+    required double amount,
+    required models.WalletTransactionType type,
+    String? orderId,
+    String? orderNumber,
+    String? note,
+  }) async {
+    if (amount == 0) return;
+    final doc = await _users.doc(userId).get();
+    final current = (doc.data()?['walletBalance'] as num?)?.toDouble() ?? 0;
+    final signed = type == models.WalletTransactionType.orderPayment ? -amount : amount;
+    final txRef = _walletTransactions.doc();
+    final batch = _db.batch();
+    batch.update(_users.doc(userId), {
+      'walletBalance': FieldValue.increment(signed),
+    });
+    batch.set(
+      txRef,
+      models.WalletTransaction(
+        id: txRef.id,
+        userId: userId,
+        type: type,
+        amount: signed,
+        balanceAfter: current + signed,
+        orderId: orderId,
+        orderNumber: orderNumber,
+        note: note,
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    await batch.commit();
+  }
+
+  /// سجلّ حركات محفظة عميل، الأحدث أولاً.
+  Stream<List<models.WalletTransaction>> streamWalletTransactions(String userId) =>
+      _walletTransactions
+          .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.WalletTransaction.fromMap(d.data(), d.id))
+              .toList());
 
   Future<void> createManagedUser({
     required String name,
@@ -940,8 +1043,32 @@ class FirebaseService {
     String? adminNote,
   }) async {
     if (refundPercentage != null && refundPercentage > 0) {
-      final refundAmount = order.grandTotal * (refundPercentage / 100);
-      await addWalletCredit(order.customerId, refundAmount);
+      // الاسترداد يُحسب على **قيمة الوجبات** لا على إجمالي الطلب: أجرة
+      // التوصيل خدمة أُدّيت فعلاً ووصلت للسائق، فإعادتها للعميل تعني خصمها
+      // من المنصّة بلا سبب. الاسترداد الكامل (100%) وحده يشمل الإجمالي لأن
+      // الطلب حينها يُعدّ كأن لم يكن.
+      final isFullRefund = refundPercentage >= 100;
+      final refundAmount = isFullRefund
+          ? order.grandTotal
+          : order.itemsTotal * (refundPercentage / 100);
+
+      await addWalletCredit(
+        order.customerId,
+        refundAmount,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        note: 'استرداد ${refundPercentage.toStringAsFixed(0)}% — شكوى',
+      );
+
+      // الاسترداد الكامل يُنهي الطلب مالياً، فتُضبط حالته على «تم الاسترداد»
+      // بدل بقائه «تم التوصيل» فيظهر في التقارير كإيراد محقّق.
+      if (isFullRefund) {
+        await _orders.doc(order.id).update({
+          'status': models.OrderStatus.refunded.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'statusChangedAt': FieldValue.serverTimestamp(),
+        });
+      }
     }
 
     if (warnAgainstParty &&
