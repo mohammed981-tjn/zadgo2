@@ -922,7 +922,18 @@ class WalletTransaction {
 
 /// نوع حركة دفتر السائق — يحدّد اتجاه أثرها على الرصيد ومصدرها.
 enum DriverTransactionType {
+  /// عُهدة استلام طلب نقدي: قيمة الطلب تُقيَّد على السائق لحظة استلامه من
+  /// المطعم — البضاعة صارت بيده، وذمّته مشغولة بقيمتها حتى يحصّلها من
+  /// العميل (نموذج كيتا/مرسول).
+  orderCustody,
+
+  /// عكس عُهدة: أُلغي الطلب أو أُعيد إسناده بعد الاستلام، فتُردّ قيمته
+  /// لرصيد السائق.
+  custodyReversal,
+
   /// توصيل طلب نقدي: السائق قبض كامل المبلغ، فيُقيَّد عليه ما ليس له.
+  /// (النمط القديم — القيد عند التسليم؛ أبقي لقراءة الحركات المحفوظة به،
+  /// وللطلبات التي استُلمت بنسخة سابقة لا تعرف قيد العهدة.)
   deliveryCash,
 
   /// توصيل طلب مدفوع إلكترونياً: التطبيق قبض المبلغ، فتُقيَّد أجرة السائق له.
@@ -949,9 +960,11 @@ DriverTransactionType _driverTxTypeFromString(String? raw) =>
 extension DriverTransactionTypeExt on DriverTransactionType {
   String get label {
     const map = {
+      DriverTransactionType.orderCustody: 'عُهدة استلام طلب',
+      DriverTransactionType.custodyReversal: 'ردّ عُهدة (إلغاء)',
       DriverTransactionType.deliveryCash: 'توصيل نقدي',
       DriverTransactionType.deliveryOnline: 'توصيل إلكتروني',
-      DriverTransactionType.deposit: 'إيداع نقدي',
+      DriverTransactionType.deposit: 'شحن / إيداع',
       DriverTransactionType.payout: 'صرف مستحقّات',
       DriverTransactionType.adjustment: 'تسوية يدوية',
     };
@@ -960,6 +973,8 @@ extension DriverTransactionTypeExt on DriverTransactionType {
 
   IconData get icon {
     const map = {
+      DriverTransactionType.orderCustody: Icons.shopping_bag_outlined,
+      DriverTransactionType.custodyReversal: Icons.replay_rounded,
       DriverTransactionType.deliveryCash: Icons.payments_outlined,
       DriverTransactionType.deliveryOnline: Icons.credit_card,
       DriverTransactionType.deposit: Icons.south_west_rounded,
@@ -1114,6 +1129,12 @@ class Order {
   final double walletUsed;
   final bool driverAcknowledged;
 
+  /// هل قُيّدت عُهدة هذا الطلب النقدي على محفظة السائق لحظة استلامه من
+  /// المطعم؟ (نموذج كيتا/مرسول: البضاعة بيد السائق = قيمتها عليه فوراً،
+  /// لا عند التسليم.) تمنع القيد المزدوج بين الاستلام والتسليم، وتحدّد
+  /// وجوب العكس عند الإلغاء أو إعادة الإسناد بعد الاستلام.
+  final bool custodyDebited;
+
   const Order({
     required this.id,
     required this.restaurantId,
@@ -1149,7 +1170,13 @@ class Order {
     this.paymentId,
     this.walletUsed = 0,
     this.driverAcknowledged = true,
+    this.custodyDebited = false,
   });
+
+  /// عُهدة الطلب النقدي على السائق لحظة استلامه: قيمة الوجبات (للمطعم)
+  /// + الرسم الثابت (للمنصّة). أجرة توصيله ليست ضمنها — يستوفيها من
+  /// النقد الذي يحصّله من العميل.
+  double get custodyAmount => itemsTotal + appShare;
 
   double get deliveryFee => driverShare + appShare;
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
@@ -1232,6 +1259,7 @@ class Order {
         paymentId: map['paymentId'] as String?,
         walletUsed: (map['walletUsed'] as num?)?.toDouble() ?? 0,
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
+        custodyDebited: map['custodyDebited'] as bool? ?? false,
       );
 
   Map<String, dynamic> toMap() => {
@@ -1270,6 +1298,7 @@ class Order {
         if (paymentId != null) 'paymentId': paymentId,
         'walletUsed': walletUsed,
         'driverAcknowledged': driverAcknowledged,
+        'custodyDebited': custodyDebited,
       };
 
   Order copyWith({
@@ -1323,6 +1352,7 @@ class Order {
         paymentId: paymentId,
         walletUsed: walletUsed,
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
+        custodyDebited: custodyDebited,
       );
 }
 

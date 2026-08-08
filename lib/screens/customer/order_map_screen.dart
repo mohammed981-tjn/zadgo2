@@ -198,9 +198,15 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
+                            final isCash =
+                                order.paymentMethod == PaymentMethod.cash;
                             final ok = await showConfirmDialog(context,
                                 title: 'استلام الطلب',
-                                content: 'هل استلمت الطلب من المطعم؟',
+                                content: isCash
+                                    ? 'هل استلمت الطلب من المطعم؟\n\n'
+                                        'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
+                                        '(قيمة الطلب) حتى تحصيلها من العميل.'
+                                    : 'هل استلمت الطلب من المطعم؟',
                                 confirmLabel: 'نعم');
                             if (ok == true) {
                               await service.markOrderPickedUp(order.id);
@@ -222,8 +228,11 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                             if (ok == true) {
                               await service.markOrderDelivered(order.id, order.driverId ?? '');
                               if (context.mounted) {
-                                showSuccess(context,
-                                    'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
+                                showSuccess(
+                                    context,
+                                    order.paymentMethod == PaymentMethod.cash
+                                        ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
+                                        : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
                                 Navigator.pop(context);
                               }
                             }

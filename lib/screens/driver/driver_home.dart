@@ -426,7 +426,17 @@ class _OrderCard extends StatelessWidget {
         order.status == OrderStatus.driverAssigned) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
-          final ok = await showConfirmDialog(ctx, title: 'استلام الطلب', content: 'هل استلمت الطلب فعلياً من المطعم؟', confirmLabel: 'نعم');
+          // للطلب النقدي يُصارَح السائق بقيمة العُهدة قبل التأكيد — القيد
+          // بلا إخبار مسبق يبدو خصماً غامضاً ويفقد الدفتر ثقته.
+          final isCash = order.paymentMethod == PaymentMethod.cash;
+          final ok = await showConfirmDialog(ctx,
+              title: 'استلام الطلب',
+              content: isCash
+                  ? 'هل استلمت الطلب فعلياً من المطعم؟\n\n'
+                      'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
+                      '(قيمة الطلب) حتى تحصيلها من العميل عند التسليم.'
+                  : 'هل استلمت الطلب فعلياً من المطعم؟',
+              confirmLabel: 'نعم');
           if (ok == true) {
             await service.markPickedUpBySelf(order.id);
             final now = DateTime.now();
@@ -454,7 +464,15 @@ class _OrderCard extends StatelessWidget {
           final ok = await showConfirmDialog(ctx, title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
           if (ok == true) {
             await service.markOrderDelivered(order.id, order.driverId ?? '');
-            if (ctx.mounted) showSuccess(ctx, 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أرباح');
+            if (ctx.mounted) {
+              // النقدي: أجرته ضمن النقد الذي بيده لا قيداً في المحفظة —
+              // رسالة «+أرباح» كانت ستوهمه بإضافة لن يجدها في سجلّه.
+              showSuccess(
+                  ctx,
+                  order.paymentMethod == PaymentMethod.cash
+                      ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
+                      : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
+            }
           }
         },
         style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
@@ -491,18 +509,45 @@ class _DriverEarningsTab extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(owesPlatform ? 'مبلغ عليك تسليمه' : 'رصيدك لدى التطبيق',
-              style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          Row(children: [
+            const Icon(Icons.account_balance_wallet_rounded,
+                color: Colors.white70, size: 18),
+            const SizedBox(width: 6),
+            Text(owesPlatform ? 'محفظتك — مبلغ عليك' : 'محفظتك — رصيدك',
+                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          ]),
           const SizedBox(height: 6),
           Text(formatCurrency(amount),
               style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
           const SizedBox(height: 6),
           Text(
             owesPlatform
-                ? 'حصيلة طلبات نقدية بيدك — تُسلَّم للإدارة'
+                ? 'عُهدة طلبات نقدية بيدك — تُسدَّد بالشحن أو التسليم للإدارة'
                 : 'مستحقّاتك من الطلبات المدفوعة إلكترونياً',
             style: const TextStyle(color: Colors.white70, fontSize: 11),
           ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () => _showTopUpSheet(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor:
+                      owesPlatform ? AppColors.error : AppColors.primaryDark,
+                ),
+                icon: const Icon(Icons.add_card_rounded, size: 18),
+                label: const Text('شحن المحفظة',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'كيف تعمل المحفظة؟',
+              onPressed: () => _showHowItWorksSheet(context),
+              icon: const Icon(Icons.help_outline_rounded, color: Colors.white),
+            ),
+          ]),
         ]),
       ),
       if (Pricing.isDriverDebtWarning(d.balance))
@@ -560,6 +605,89 @@ class _DriverEarningsTab extends StatelessWidget {
       Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
       Text(label, style: const TextStyle(fontSize: 12)),
     ])));
+
+  /// قنوات شحن المحفظة في المرحلة الحالية: تسليم نقدي أو تحويل بنكي تقيّده
+  /// الإدارة. الشحن الذاتي بالبطاقة يُبنى لاحقاً على الخادم الموثوق —
+  /// قيده من التطبيق مباشرةً كان سيسمح لنسخة معدَّلة بشحن بلا دفع.
+  void _showTopUpSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('شحن المحفظة',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 14),
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.payments_outlined, color: AppColors.primary),
+              title: Text('تسليم نقدي للإدارة', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              subtitle: Text('سلّم المبلغ وتقيّده الإدارة فوراً — يظهر في سجلّك «شحن / إيداع»',
+                  style: TextStyle(fontSize: 12.5)),
+            ),
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.account_balance_outlined, color: AppColors.primary),
+              title: Text('تحويل بنكي', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              subtitle: Text('حوّل لحساب الإدارة ثم أرسل الإيصال لها ليُقيَّد الرصيد',
+                  style: TextStyle(fontSize: 12.5)),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                'الشحن المباشر بالبطاقة من داخل التطبيق قادم قريباً.',
+                style: TextStyle(fontSize: 12, color: AppColors.textGray),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  void _showHowItWorksSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: const [
+            Text('كيف تعمل محفظتك؟',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            SizedBox(height: 12),
+            Text('📦  عند استلامك طلباً نقدياً من المطعم تُقيَّد قيمته على محفظتك '
+                '(عُهدة) — لأن الطلب صار بيدك حتى تسليمه.',
+                style: TextStyle(fontSize: 13, height: 1.7)),
+            SizedBox(height: 8),
+            Text('💵  عند تسليمه تقبض من العميل كامل المبلغ نقداً: قيمة الطلب '
+                'تسدّ العُهدة، وأجرة التوصيل ربحك تبقى بيدك.',
+                style: TextStyle(fontSize: 13, height: 1.7)),
+            SizedBox(height: 8),
+            Text('💳  الطلبات المدفوعة إلكترونياً: لا عُهدة عليك، وتُضاف أجرتك '
+                'لرصيدك وتُصرف لك من الإدارة.',
+                style: TextStyle(fontSize: 13, height: 1.7)),
+            SizedBox(height: 8),
+            Text('🚫  أُلغي الطلب بعد استلامك له؟ تُردّ العُهدة لمحفظتك تلقائياً.',
+                style: TextStyle(fontSize: 13, height: 1.7)),
+            SizedBox(height: 8),
+            Text('🧾  كل حركة مسجّلة في «سجلّ الحركات» برصيدك بعدها — '
+                'لا خصم ولا إضافة بلا سطر يفسّرها.',
+                style: TextStyle(fontSize: 13, height: 1.7)),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 /// سطر حركة واحدة في سجلّ دفتر السائق — اللون والإشارة يوضّحان الاتجاه فوراً.
