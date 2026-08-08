@@ -243,19 +243,62 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // complaints — العميل ينشئ شكوى على طلبه الخاص فقط. يراها العميل صاحبها،
-    // مدير المطعم المعني، أو المدير العام. حلّها/تحديث حالتها للمدير العام.
+    // complaints — الشكوى يقدّمها أي طرف في الطلب (عميل/سائق/مدير مطعم)
+    // بصفته submittedByUid. يقرؤها: مقدّمها، والمشكوّ في حقه، وعميل الطلب،
+    // ومدير المطعم المعني، والمدير العام. حلّها وتحديث حالتها للمدير وحده.
+    //
+    // كانت القاعدة القديمة تفترض أن العميل وحده يشتكي (isCustomer +
+    // customerId)، بينما التطبيق يتيح الشكوى للسائق والمطعم أيضاً — فكان
+    // إرسالهما سيُرفض. كما كان السرد (list) للمدير وحده، فشاشة «شكاواي»
+    // (استعلام المستخدم عن شكاواه هو) كانت سترفض حتى لصاحبها.
     // ---------------------------------------------------------------------
     match /complaints/{complaintId} {
       allow get: if isSignedIn() && (
             isAdmin() ||
             resource.data.customerId == currentUid() ||
+            resource.data.submittedByUid == currentUid() ||
+            resource.data.againstUid == currentUid() ||
             isRestaurantManagerOf(resource.data.restaurantId)
           );
-      allow list: if isAdmin();
-      allow create: if isCustomer() && request.resource.data.customerId == currentUid();
+      // السرد مسموح فقط باستعلامات تضمن أن كل النتائج تخص المستخدم نفسه
+      // (شكاواه المقدَّمة أو المقدَّمة عليه، أو شكاوى مطعمه لمديره) — محرّك
+      // القواعد يرفض أي استعلام قد يُرجع شكوى غيره.
+      allow list: if isSignedIn() && (
+            isAdmin() ||
+            resource.data.submittedByUid == currentUid() ||
+            resource.data.againstUid == currentUid() ||
+            isRestaurantManagerOf(resource.data.restaurantId)
+          );
+      allow create: if isSignedIn() &&
+          request.resource.data.submittedByUid == currentUid();
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // complaint_messages — دردشة الشكوى بين مقدّمها والإدارة. البنية نفسها
+    // بنية chat_messages لكن حقل orderId يحمل معرّف الشكوى.
+    //
+    // لم يكن لهذه المجموعة أي قواعد إطلاقاً، فكانت مرفوضة بالكامل (الرفض
+    // الافتراضي) — حتى دردشة المدير نفسها من شاشة تفاصيل الشكوى.
+    // ---------------------------------------------------------------------
+    match /complaint_messages/{messageId} {
+      function relatedComplaint() {
+        return get(/databases/$(database)/documents/complaints/$(resource.data.orderId)).data;
+      }
+      function relatedComplaintFromRequest() {
+        return get(/databases/$(database)/documents/complaints/$(request.resource.data.orderId)).data;
+      }
+
+      allow get, list: if isSignedIn() && (
+            isAdmin() ||
+            relatedComplaint().submittedByUid == currentUid()
+          );
+      allow create: if isSignedIn() &&
+          request.resource.data.senderId == currentUid() && (
+            isAdmin() ||
+            relatedComplaintFromRequest().submittedByUid == currentUid()
+          );
     }
 
     // ---------------------------------------------------------------------

@@ -17,6 +17,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
 
 class AccountScreen extends StatelessWidget {
@@ -59,6 +60,27 @@ class AccountScreen extends StatelessWidget {
             _WalletCard(balance: user.walletBalance),
             const SizedBox(height: 16),
             _AddressesSection(user: user),
+            const SizedBox(height: 16),
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.support_agent_rounded,
+                    color: AppColors.primary),
+                title: const Text('شكاواي',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                subtitle: const Text('متابعة شكاواك والتواصل مع الإدارة',
+                    style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MyComplaintsScreen(
+                        uid: uid, role: UserRole.customer),
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             const SectionHeader(title: 'حركات المحفظة'),
             AppStreamBuilder<List<WalletTransaction>>(

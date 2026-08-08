@@ -1340,12 +1340,34 @@ class Complaint {
   final DateTime createdAt;
   final String? adminNote;
 
+  /// نص القرار الذي يكتبه المدير عند حلّ الشكوى. كان يُكتب في المستند ولا
+  /// يقرؤه النموذج، فلا يراه مقدّم الشكوى أبداً — مع أنه جواب شكواه.
+  final String? resolution;
+
   final String submittedByUid;
   final String submittedByName;
   final UserRole submittedByRole;
 
   final String? againstUid;
   final UserRole? againstRole;
+
+  /// مهلة الرد المعلنة لمقدّم الشكوى — تُعرض «نردّ خلال 24 ساعة» ويُحسب
+  /// منها الموعد المتوقع. التزام خدمة لا قيد تقني.
+  static const Duration responseSla = Duration(hours: 24);
+
+  /// الموعد الذي وعدنا بالرد قبله.
+  DateTime get expectedResponseBy => createdAt.add(responseSla);
+
+  /// رقم الشكوى المعروض للمستخدم وللإدارة في التواصل — مشتق ثابت من
+  /// المعرّف، قصير يُقرأ ويُملى هاتفياً بسهولة.
+  String get displayNumber {
+    final clean = id.replaceAll('-', '').toUpperCase();
+    return clean.length <= 6 ? clean : clean.substring(0, 6);
+  }
+
+  /// هل الشكوى ما تزال بانتظار معالجة الإدارة؟
+  bool get isAwaitingAction =>
+      status == ComplaintStatus.open || status == ComplaintStatus.inProgress;
 
   const Complaint({
     required this.id,
@@ -1360,6 +1382,7 @@ class Complaint {
     this.status = ComplaintStatus.open,
     required this.createdAt,
     this.adminNote,
+    this.resolution,
     String? submittedByUid,
     String? submittedByName,
     UserRole? submittedByRole,
@@ -1385,6 +1408,7 @@ class Complaint {
       status: _complaintStatusFromString(map['status'] as String?),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       adminNote: map['adminNote'] as String?,
+      resolution: map['resolution'] as String?,
       submittedByUid: (map['submittedByUid'] as String?) ?? customerId,
       submittedByName: (map['submittedByName'] as String?) ?? customerName,
       submittedByRole: map['submittedByRole'] != null
@@ -1409,6 +1433,7 @@ class Complaint {
         'status': status.name,
         'createdAt': Timestamp.fromDate(createdAt),
         'adminNote': adminNote,
+        if (resolution != null) 'resolution': resolution,
         'submittedByUid': submittedByUid,
         'submittedByName': submittedByName,
         'submittedByRole': submittedByRole.name,

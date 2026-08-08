@@ -25,6 +25,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../customer/submit_complaint_screen.dart';
+import '../customer/my_complaints_screen.dart';
 import 'restaurant_reports_tab.dart';
 import 'restaurant_menu_prices_tab.dart';
 
@@ -188,6 +189,24 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           _ => 'أسعار القائمة',
         }),
         actions: [
+          IconButton(
+            tooltip: 'الشكاوى',
+            icon: const Icon(Icons.support_agent_rounded),
+            onPressed: () {
+              final uid = auth.user?.uid;
+              if (uid == null) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MyComplaintsScreen(
+                    uid: uid,
+                    role: UserRole.restaurantManager,
+                    restaurantId: auth.user?.restaurantId,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {

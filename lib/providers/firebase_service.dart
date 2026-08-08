@@ -1079,6 +1079,26 @@ class FirebaseService {
       .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
+  /// شكاوى مطعم بعينه — تبويب «مقدَّمة عليّ» عند مدير المطعم. الشكوى ضد
+  /// المطعم تُسجَّل بمعرّف المطعم في againstUid لا بمعرّف مديره، فالاستعلام
+  /// هنا بمعرّف المطعم (وقاعدة الأمان تسمح لمديره بذلك تحديداً).
+  Stream<List<models.Complaint>> streamComplaintsForRestaurant(String restaurantId) =>
+      _complaints
+          .where('restaurantId', isEqualTo: restaurantId)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.Complaint.fromMap(d.data(), d.id))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// متابعة حيّة لشكوى واحدة — تحتاجها شاشة التفاصيل ليرى مقدّمها تغيّر
+  /// الحالة وصدور القرار لحظياً. `null` إن حُذفت.
+  Stream<models.Complaint?> streamComplaint(String complaintId) =>
+      _complaints.doc(complaintId).snapshots().map((d) =>
+          d.exists && d.data() != null
+              ? models.Complaint.fromMap(d.data()!, d.id)
+              : null);
+
   Future<void> submitComplaint(models.Complaint complaint) =>
       _complaints.doc(complaint.id).set(complaint.toMap());
 

@@ -13,6 +13,7 @@ import '../auth/login_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
 import '../customer/submit_complaint_screen.dart';
+import '../customer/my_complaints_screen.dart';
 import '../../navigator_key.dart';
 
 class DriverHome extends StatefulWidget {
@@ -241,6 +242,17 @@ class _DriverHomeState extends State<DriverHome> {
                   Switch(value: driver.isOnline, onChanged: (v) => service.setDriverOnline(driverId, v),
                       activeColor: Colors.greenAccent),
                 ]),
+              IconButton(
+                tooltip: 'الشكاوى',
+                icon: const Icon(Icons.support_agent_rounded),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MyComplaintsScreen(
+                        uid: driverId, role: UserRole.driver),
+                  ),
+                ),
+              ),
               IconButton(icon: const Icon(Icons.logout), onPressed: () async {
                 if (driver != null) await service.setDriverOnline(driverId, false);
                 await auth.logout();
