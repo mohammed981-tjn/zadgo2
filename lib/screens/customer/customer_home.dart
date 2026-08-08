@@ -10,6 +10,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
 import '../../widgets/promo_banner_carousel.dart';
+import '../../widgets/app_skeletons.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';
@@ -221,7 +222,10 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         // ملاحظة مهمة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس Stream
         // جاهزاً، لذلك يُمرَّر اسم الدالة بلا أقواس (tear-off). إضافة أقواس
         // هنا تكسر التوقيع.
-        child: AppStreamBuilder<List<Restaurant>>(stream: service.streamRestaurants, builder: (ctx, list) {
+        child: AppStreamBuilder<List<Restaurant>>(
+            stream: service.streamRestaurants,
+            loading: const RestaurantListSkeleton(),
+            builder: (ctx, list) {
           final filtered = _filter(list);
           if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
           if (filtered.isEmpty) return const AppEmpty(emoji: '🔍', title: 'لا توجد نتائج مطابقة');

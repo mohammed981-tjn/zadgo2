@@ -8,6 +8,8 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/app_skeletons.dart';
+import 'order_receipt_screen.dart';
 import 'order_map_screen.dart';
 import 'order_chat_screen.dart';
 import 'submit_complaint_screen.dart';
@@ -25,6 +27,7 @@ class MyOrdersScreen extends StatelessWidget {
 
     return AppStreamBuilder<List<Order>>(
       stream: () => service.streamCustomerOrders(uid),
+      loading: const ListCardsSkeleton(),
       builder: (ctx, orders) {
         if (orders.isEmpty) {
           return const AppEmpty(emoji: '📋', title: 'لا يوجد طلبات');
@@ -100,8 +103,20 @@ class _OrderCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Text('#${order.orderNumber}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              // رقم الطلب يفتح الفاتورة التفصيلية — أوضح مدخل يبحث عنه
+              // العميل («وين أشوف فاتورتي؟»).
+              InkWell(
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => OrderReceiptScreen(order: order))),
+                borderRadius: BorderRadius.circular(6),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('#${order.orderNumber}',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.receipt_long_outlined,
+                      size: 16, color: AppColors.textGray),
+                ]),
+              ),
               const Spacer(),
               if (order.status == OrderStatus.pickedUp ||
                   order.status == OrderStatus.onTheWay) ...[

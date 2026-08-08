@@ -4,6 +4,8 @@ import '../providers/auth_provider.dart' as app_auth;
 import '../models/models.dart';
 import '../utils/theme.dart';
 import '../app_flavor.dart';
+import '../navigator_key.dart';
+import 'customer/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -41,7 +43,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  void _navigate() {
+  Future<void> _navigate() async {
     if (_navigated || !mounted) return;
     _navigated = true;
     final auth = context.read<app_auth.AuthProvider>();
@@ -51,6 +53,20 @@ class _SplashScreenState extends State<SplashScreen>
       // يتعارض مع القيد أدناه لأنه يعمل فقط حين لا يوجد مستخدم مسجَّل دخوله
       // أصلاً (حالة الزائر)، ولا يستدعي auth.logout() إطلاقاً.
       if (AppFlavorConfig.allowGuestBrowsing) {
+        // الجولة التعريفية — للزائر الجديد في تطبيق العميل، مرة واحدة فقط.
+        if (AppFlavorConfig.flavor == AppFlavor.customer &&
+            !await OnboardingScreen.wasSeen()) {
+          if (!mounted) return;
+          _go(OnboardingScreen(
+            onFinished: () => navigatorKey.currentState?.pushAndRemoveUntil(
+              MaterialPageRoute(
+                  builder: (_) =>
+                      AppFlavorConfig.buildHomeForRole(UserRole.customer)),
+              (_) => false,
+            ),
+          ));
+          return;
+        }
         _go(AppFlavorConfig.buildHomeForRole(UserRole.customer));
         return;
       }
