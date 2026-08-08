@@ -202,7 +202,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, orderBy, where,
-  limit, onSnapshot, getDocs, Timestamp, serverTimestamp }
+  limit, onSnapshot, getDocs, writeBatch, Timestamp, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const app = initializeApp({
@@ -245,6 +245,7 @@ const PAGES = [
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
   ['broadcast', '📢', 'رسالة جماعية'],
+  ['import', '📥', 'استيراد منيو'],
   ['reports', '📈', 'التقارير'],
   ['settings', '⚙️', 'الإعدادات'],
 ];
@@ -394,7 +395,8 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    broadcast: renderBroadcastPage, reports: renderReportsPage, settings: renderSettingsPage };
+    broadcast: renderBroadcastPage, import: renderImportPage, reports: renderReportsPage,
+    settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
 
@@ -795,6 +797,126 @@ function renderBroadcastPage() {
       toast('أُرسلت الرسالة'); renderBroadcastPage();
     } catch (err) { alert('تعذر الإرسال: ' + (err.code || err.message)); }
   });
+}
+
+/* ================= استيراد منيو ================= */
+function renderImportPage() {
+  const restOptions = [...S.restaurants]
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
+    .map((r) => `<option value="${r.id}">${esc(r.emoji || '')} ${esc(r.name)}</option>`).join('');
+  $('main').innerHTML = `
+    <div class="panel">
+      <h3>استيراد / مزامنة منيو مطعم</h3>
+      <p class="meta" style="margin-bottom:12px">
+        ألصق محتوى ملف الاستيراد (JSON) أو اختره من جهازك. الاستيراد <b>آمن للتكرار</b>:
+        الصنف الموجود بنفس الاسم يُحدَّث (السعر، السعرات، رابط الصورة) ولا يُكرَّر،
+        والصنف الجديد يُضاف. روابط الصور تظهر في التطبيق فور الاستيراد.
+      </p>
+      <div class="field"><label>المطعم المستهدف</label>
+        <select id="impRest">${restOptions || '<option value="">لا توجد مطاعم — أنشئ المطعم أولاً</option>'}</select></div>
+      <div class="field"><label>ملف JSON</label>
+        <input type="file" id="impFile" accept=".json,application/json"></div>
+      <div class="field"><label>أو ألصق المحتوى هنا</label>
+        <textarea id="impText" style="min-height:140px;direction:ltr;text-align:left;font-family:monospace"
+          placeholder='{"categories": [{"name": "…", "items": [{"name": "…", "price": 5}]}]}'></textarea></div>
+      <button class="btn" id="impBtn">فحص واستيراد 📥</button>
+      <div id="impStatus" style="margin-top:12px"></div>
+    </div>`;
+
+  document.getElementById('impFile').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (f) document.getElementById('impText').value = await f.text();
+  });
+
+  document.getElementById('impBtn').addEventListener('click', runImport);
+}
+
+async function runImport() {
+  const status = document.getElementById('impStatus');
+  const btn = document.getElementById('impBtn');
+  const rid = document.getElementById('impRest').value;
+  const say = (m) => { status.innerHTML = `<div class="card">${m}</div>`; };
+  if (!rid) { alert('اختر المطعم أولاً'); return; }
+
+  let data;
+  try {
+    data = JSON.parse(document.getElementById('impText').value);
+    if (!Array.isArray(data.categories)) throw new Error('لا يوجد حقل categories');
+  } catch (err) { say('❌ الملف غير سليم: ' + esc(err.message)); return; }
+
+  btn.disabled = true;
+  try {
+    say('⏳ جارٍ قراءة المنيو الحالي للمقارنة…');
+    const catSnap = await getDocs(collection(db, 'restaurants', rid, 'categories'));
+    const itemSnap = await getDocs(collection(db, 'restaurants', rid, 'items'));
+    const catByName = new Map(catSnap.docs.map((d) => [(d.data().name || '').trim(), d.id]));
+    const itemByKey = new Map(itemSnap.docs.map((d) =>
+      [d.data().categoryId + '|' + (d.data().name || '').trim(), d.id]));
+
+    // خطة الاستيراد
+    let newCats = 0, newItems = 0, updItems = 0, totalItems = 0;
+    data.categories.forEach((c) => {
+      if (!catByName.has((c.name || '').trim())) newCats++;
+      (c.items || []).forEach(() => totalItems++);
+    });
+
+    const rest = S.restaurants.find((r) => r.id === rid);
+    if (!confirm(`استيراد ${totalItems} صنفاً في ${data.categories.length} قسماً إلى «${rest?.name}»؟\n(أقسام جديدة: ${newCats} — الأصناف الموجودة بنفس الاسم ستُحدَّث لا تُكرَّر)`)) {
+      btn.disabled = false; say(''); return;
+    }
+
+    say('⏳ جارٍ الاستيراد…');
+    let batch = writeBatch(db), ops = 0;
+    const commitIfFull = async () => {
+      if (ops >= 400) { await batch.commit(); batch = writeBatch(db); ops = 0; }
+    };
+
+    let sortOrder = catSnap.size;
+    for (const c of data.categories) {
+      const cname = (c.name || '').trim();
+      if (!cname) continue;
+      let catId = catByName.get(cname);
+      if (!catId) {
+        const ref = doc(collection(db, 'restaurants', rid, 'categories'));
+        catId = ref.id;
+        batch.set(ref, { name: cname, restaurantId: rid, sortOrder: sortOrder++ });
+        catByName.set(cname, catId); ops++; await commitIfFull();
+      }
+      for (const it of (c.items || [])) {
+        const iname = (it.name || '').trim();
+        if (!iname) continue;
+        const payload = {
+          restaurantId: rid, categoryId: catId, name: iname,
+          price: Number(it.price) || 0,
+          isAvailable: true,
+        };
+        if (it.kcal != null) payload.kcal = Number(it.kcal) || 0;
+        if (it.imageUrl) payload.imageUrl = String(it.imageUrl).trim();
+        if (it.description) payload.description = String(it.description);
+        if (it.emoji) payload.emoji = String(it.emoji);
+        const key = catId + '|' + iname;
+        const existingId = itemByKey.get(key);
+        if (existingId) {
+          batch.update(doc(db, 'restaurants', rid, 'items', existingId), payload);
+          updItems++;
+        } else {
+          const ref = doc(collection(db, 'restaurants', rid, 'items'));
+          batch.set(ref, { description: '', emoji: '🍽️', totalSold: 0, trackStock: false, ...payload });
+          itemByKey.set(key, ref.id);
+          newItems++;
+        }
+        ops++; await commitIfFull();
+      }
+    }
+    if (ops > 0) await batch.commit();
+    say(`✅ <b>اكتمل الاستيراد بنجاح</b><br>
+      أقسام جديدة: ${newCats} — أصناف جديدة: ${newItems} — أصناف حُدّثت: ${updItems}<br>
+      <span class="meta">افتح التطبيق الآن — الأصناف وصورها ستظهر مباشرة.</span>`);
+    toast('اكتمل الاستيراد');
+  } catch (err) {
+    say('❌ تعذر الاستيراد: ' + esc(err.code || err.message));
+  }
+  btn.disabled = false;
 }
 
 /* ================= التقارير ================= */
