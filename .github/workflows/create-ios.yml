@@ -45,6 +45,7 @@ jobs:
           flutter build ios \
             --config-only \
             --release \
+            --no-codesign \
             -t lib/main_${{ matrix.app }}.dart
           xcodebuild build \
             -workspace ios/Runner.xcworkspace \
