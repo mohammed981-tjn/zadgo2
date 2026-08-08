@@ -4,77 +4,212 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#061024">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'self'; connect-src 'none'">
   <link rel="icon" href="images/zadgo-logo-gold.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <title>ZadGo — زادقو | توصيل طلباتك</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <title>ZadGo — زادقو | كل احتياجاتك نوصّلها لك</title>
   <style>
-    :root { --navy: #0b1631; --navy-deep: #061024; --gold: #FFC107; --ink: #eef1f7; --muted: #9aa7bd; }
+    :root { --navy: #0b1631; --navy-deep: #061024; --gold: #FFC107; --ink: #f2f5fb; --muted: #9aa7bd; }
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', Tahoma, sans-serif; }
-    body { background: var(--navy-deep); color: var(--ink); min-height: 100vh; }
-    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 22px; }
+    html { scroll-behavior: smooth; }
+    body { background: var(--navy-deep); color: var(--ink); }
 
-    header { padding: 26px 0 10px; }
-    header img { height: 44px; display: block; }
+    /* ===== سلايدات ملء الشاشة ===== */
+    .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+    section.slide { min-height: 100dvh; scroll-snap-align: start; position: relative;
+      display: flex; flex-direction: column; justify-content: center; padding: 90px 8vw 70px; overflow: hidden; }
+    .bg { position: absolute; inset: 0; background-size: cover; background-position: center; z-index: 0; }
+    .veil { position: absolute; inset: 0; z-index: 1;
+      background: linear-gradient(200deg, rgba(6,16,36,.35) 0%, rgba(6,16,36,.78) 60%, var(--navy-deep) 100%); }
+    .slide > .c { position: relative; z-index: 2; max-width: 900px; }
 
-    .hero { display: flex; align-items: center; gap: 40px; padding: 40px 0 60px; flex-wrap: wrap; }
-    .hero-text { flex: 1.2; min-width: 280px; }
-    .hero-text h1 { font-size: 2.6rem; font-weight: 800; line-height: 1.35; }
-    .hero-text h1 span { color: var(--gold); }
-    .hero-text p { color: var(--muted); font-size: 1.15rem; margin: 18px 0 30px; line-height: 1.9; }
-    .badge-soon { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,193,7,.12);
-      border: 1px solid rgba(255,193,7,.45); color: var(--gold); border-radius: 999px;
-      padding: 12px 26px; font-size: 1.05rem; font-weight: 700; }
-    .badge-soon::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--gold);
-      animation: blink 1.8s infinite; }
-    @keyframes blink { 50% { opacity: .3; } }
-    .hero-art { flex: 1; min-width: 240px; max-width: 360px; }
-    .hero-art img { width: 100%; border-radius: 22px; box-shadow: 0 24px 60px rgba(0,0,0,.45); display: block; }
+    .kicker { display: inline-block; background: var(--gold); height: 10px; width: 120px; border-radius: 999px; margin-bottom: 22px; }
+    h1 { font-size: clamp(2.6rem, 9vw, 5.2rem); font-weight: 900; line-height: 1.25; }
+    h1 span, h2 span { color: var(--gold); }
+    h2 { font-size: clamp(2rem, 7vw, 3.6rem); font-weight: 800; line-height: 1.3; margin-bottom: 14px; }
+    p.sub { color: var(--muted); font-size: clamp(1.05rem, 3.6vw, 1.4rem); line-height: 2; margin-top: 18px; max-width: 640px; }
+    p.sub b { color: var(--ink); }
 
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; padding-bottom: 70px; }
-    .feat { background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.07); border-radius: 18px;
-      padding: 26px 22px; }
-    .feat .ico { font-size: 1.9rem; margin-bottom: 12px; display: block; }
-    .feat h3 { font-size: 1.1rem; margin-bottom: 8px; }
-    .feat p { color: var(--muted); font-size: .92rem; line-height: 1.8; }
+    .cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 34px; border: 2px solid var(--gold);
+      color: var(--gold); border-radius: 999px; padding: 15px 42px; font-size: 1.15rem; font-weight: 800;
+      text-decoration: none; }
+    .cta.solid { background: var(--gold); color: var(--navy-deep); }
+    .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 50% { opacity: .25; } }
 
-    footer { border-top: 1px solid rgba(255,255,255,.08); padding: 26px 0 34px; display: flex;
-      align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
-    footer img { height: 26px; }
-    footer p { color: var(--muted); font-size: .85rem; }
+    /* شريط علوي */
+    .top { position: fixed; top: 0; inset-inline: 0; z-index: 50; display: flex; justify-content: space-between;
+      align-items: center; padding: 18px 6vw; background: linear-gradient(180deg, rgba(6,16,36,.85), transparent); }
+    .top img { height: 40px; }
+
+    /* قائمة ملء الشاشة (بدون جافاسكربت) */
+    #menu-t { display: none; }
+    .burger { z-index: 60; cursor: pointer; display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+    .burger i { display: block; width: 32px; height: 4px; border-radius: 4px; background: var(--gold); transition: .3s; }
+    .overlay { position: fixed; inset: 0; background: var(--navy-deep); z-index: 55; display: flex; flex-direction: column;
+      justify-content: center; padding-inline-start: 10vw; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .35s; }
+    .overlay a { color: var(--ink); text-decoration: none; font-size: clamp(1.7rem, 6.5vw, 2.6rem); font-weight: 800;
+      padding: 10px 0; }
+    .overlay a:first-child { color: var(--gold); }
+    .overlay a:hover { color: var(--gold); }
+    #menu-t:checked ~ .overlay { opacity: 1; pointer-events: auto; }
+    #menu-t:checked ~ .top .burger i:nth-child(1) { transform: translateY(10px) rotate(45deg); }
+    #menu-t:checked ~ .top .burger i:nth-child(2) { opacity: 0; }
+    #menu-t:checked ~ .top .burger i:nth-child(3) { transform: translateY(-10px) rotate(-45deg); }
+
+    /* أرقام كبيرة */
+    .stats { display: flex; gap: 7vw; flex-wrap: wrap; margin-top: 30px; }
+    .stat .n { font-size: clamp(3rem, 11vw, 5.5rem); font-weight: 900; color: var(--gold); line-height: 1.1; }
+    .stat .l { color: var(--ink); font-size: 1.1rem; font-weight: 700; }
+    .stat .kicker { width: 70px; height: 8px; margin-bottom: 8px; }
+
+    /* نقاط القيم */
+    ul.points { margin-top: 20px; list-style: none; }
+    ul.points li { position: relative; padding-inline-start: 30px; margin-bottom: 14px; color: var(--muted);
+      font-size: 1.1rem; line-height: 1.9; }
+    ul.points li::before { content: ''; position: absolute; inset-inline-start: 0; top: 12px; width: 14px; height: 14px;
+      border-radius: 4px; background: var(--gold); }
+    ul.points li b { color: var(--ink); }
+
+    /* سهم النزول */
+    .down { position: absolute; bottom: 22px; inset-inline: 0; margin: auto; width: fit-content; z-index: 2;
+      color: var(--gold); font-size: 1.6rem; animation: bob 2s infinite; }
+    @keyframes bob { 50% { transform: translateY(8px); } }
+
+    footer.slide { min-height: 60dvh; justify-content: flex-end; padding-bottom: 40px; }
+    .foot-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+      border-top: 1px solid rgba(255,255,255,.12); padding-top: 22px; margin-top: 40px; }
+    .foot-row img { height: 30px; }
+    .foot-row p { color: var(--muted); font-size: .9rem; }
+    .badges { display: flex; gap: 12px; margin-top: 26px; flex-wrap: wrap; }
+    .badge { border: 1px solid rgba(255,255,255,.25); border-radius: 14px; padding: 10px 22px; color: var(--muted);
+      font-size: .95rem; }
+    .badge b { color: var(--ink); display: block; font-size: 1.05rem; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header><img src="images/zadgo-logo.png" alt="ZadGo"></header>
+<input type="checkbox" id="menu-t">
 
-    <section class="hero">
-      <div class="hero-text">
-        <h1>كل احتياجاتك<br><span>نوصّلها لك</span></h1>
-        <p>زادقو — منصة توصيل الطلبات من مطاعمك المفضلة إلى باب بيتك.
-           سرعة في التوصيل، متابعة لحظية لطلبك، ودفع سهل وآمن.</p>
-        <span class="badge-soon">التطبيق قادم قريباً</span>
+<div class="top">
+  <label for="menu-t" class="burger"><i></i><i></i><i></i></label>
+  <img src="images/zadgo-logo.png" alt="ZadGo">
+</div>
+
+<nav class="overlay">
+  <a href="#home">الرئيسية</a>
+  <a href="#why">لماذا زادقو</a>
+  <a href="#values">قيمنا</a>
+  <a href="#partners">للمطاعم</a>
+  <a href="#riders">للمناديب</a>
+</nav>
+
+<div class="deck">
+
+  <!-- 1: الرئيسية -->
+  <section class="slide" id="home">
+    <div class="bg" style="background-image:url('images/zadgo-splash.jpg')"></div>
+    <div class="veil"></div>
+    <div class="c">
+      <span class="kicker"></span>
+      <h1>كل احتياجاتك<br><span>نوصّلها لك</span></h1>
+      <p class="sub">زادقو — منصة توصيل سعودية تجمع مطاعمك المفضلة في تطبيق واحد:
+        توصيل سريع، تتبع لحظي لطلبك، وأسعار واضحة بلا مفاجآت.</p>
+      <span class="cta"><span class="pulse"></span> التطبيق قادم قريباً</span>
+    </div>
+    <div class="down">⌄</div>
+  </section>
+
+  <!-- 2: لماذا زادقو -->
+  <section class="slide" id="why">
+    <div class="bg" style="background-image:url('images/fateer-cheddar-honey.jpg')"></div>
+    <div class="veil"></div>
+    <div class="c">
+      <span class="kicker"></span>
+      <h2>منصة واحدة<br><span>وأربعة تطبيقات متخصصة</span></h2>
+      <div class="stats">
+        <div class="stat"><span class="kicker"></span><div class="n">4</div><div class="l">تطبيقات: عميل · مندوب · مطعم · إدارة</div></div>
+        <div class="stat"><span class="kicker"></span><div class="n">100%</div><div class="l">أسعار شفافة مع السعرات الحرارية</div></div>
+        <div class="stat"><span class="kicker"></span><div class="n">24/7</div><div class="l">متابعة لحظية لكل طلب</div></div>
       </div>
-      <div class="hero-art"><img src="images/zadgo-splash.jpg" alt="مندوب زادقو"></div>
-    </section>
+    </div>
+    <div class="down">⌄</div>
+  </section>
 
-    <section class="features">
-      <div class="feat"><span class="ico">🍽️</span><h3>مطاعم مختارة</h3>
-        <p>منيو كامل بالأسعار والسعرات الحرارية لكل صنف، وصور حقيقية للأطباق.</p></div>
-      <div class="feat"><span class="ico">🛵</span><h3>توصيل سريع</h3>
-        <p>سائقون قريبون منك مع تتبع مباشر لموقع طلبك من المطبخ حتى بابك.</p></div>
-      <div class="feat"><span class="ico">📍</span><h3>متابعة لحظية</h3>
-        <p>اعرف حالة طلبك أولاً بأول: تحضير، استلام، وفي الطريق إليك.</p></div>
-      <div class="feat"><span class="ico">💬</span><h3>دعم مباشر</h3>
-        <p>تواصل مع السائق داخل التطبيق، وقسم شكاوى يتابع ملاحظاتك حتى الحل.</p></div>
-    </section>
+  <!-- 3: القيم -->
+  <section class="slide" id="values">
+    <div class="bg" style="background-image:url('images/fateer-honey.jpg')"></div>
+    <div class="veil"></div>
+    <div class="c">
+      <span class="kicker"></span>
+      <h2>العميل <span>أولاً!</span></h2>
+      <ul class="points">
+        <li><b>الصدق في السعر:</b> السعر الذي تراه هو الذي تدفعه — لا رسوم خفية في نهاية الطلب.</li>
+        <li><b>الصدق في الصورة:</b> صور حقيقية للأطباق من مطابخ شركائنا — ما تراه هو ما يصلك.</li>
+        <li><b>الصدق في الوقت:</b> تتبع مباشر من المطبخ حتى بابك، وتعرف أولاً بأول أين طلبك.</li>
+      </ul>
+    </div>
+    <div class="down">⌄</div>
+  </section>
 
-    <footer>
-      <img src="images/zadgo-logo.png" alt="ZadGo">
-      <p>© 2026 ZadGo — zadgo.co · جميع الحقوق محفوظة</p>
-    </footer>
-  </div>
+  <!-- 4: للمطاعم -->
+  <section class="slide" id="partners">
+    <div class="bg" style="background-image:url('images/fateer-station-cover.jpg')"></div>
+    <div class="veil"></div>
+    <div class="c">
+      <span class="kicker"></span>
+      <h2>لأصحاب المطاعم<br><span>كن شريكاً</span></h2>
+      <p class="sub">منيو رقمي كامل بصورك وأسعارك، وشاشة طلبات حية لمطبخك،
+        وتقارير مبيعات يومية — <b>انضمامك معنا من اليوم الأول يعني ظهوراً أوسع بلا تكلفة تأسيس.</b></p>
+      <span class="cta solid">قريباً — سجّل اهتمامك</span>
+    </div>
+    <div class="down">⌄</div>
+  </section>
+
+  <!-- 5: للمناديب -->
+  <section class="slide" id="riders">
+    <div class="bg" style="background-image:url('images/zadgo-splash.jpg')"></div>
+    <div class="veil"></div>
+    <div class="c">
+      <span class="kicker"></span>
+      <h2>للمناديب<br><span>دخل مرن بشروط عادلة</span></h2>
+      <ul class="points">
+        <li><b>أرباح واضحة:</b> نصيبك من كل توصيلة معروف قبل قبولها — ومحفظة ترصد كل ريال.</li>
+        <li><b>حرية الوقت:</b> اتصل متى شئت، واستلم الطلبات القريبة منك.</li>
+        <li><b>إنصاف التقييم:</b> نظام تقييم شفاف يحمي المجتهد.</li>
+      </ul>
+      <span class="cta">قريباً — انضم كمندوب</span>
+    </div>
+    <div class="down">⌄</div>
+  </section>
+
+  <!-- 6: الخاتمة -->
+  <footer class="slide" id="contact">
+    <div class="veil" style="background:var(--navy-deep)"></div>
+    <div class="c">
+      <span class="kicker"></span>
+      <h2>زادقو <span>ينطلق قريباً</span></h2>
+      <p class="sub">نبني المنصة بعناية لتصلك تجربة مكتملة من اليوم الأول.</p>
+      <div class="badges">
+        <span class="badge"><b>قريباً على</b> Google Play</span>
+        <span class="badge"><b>قريباً على</b> App Store</span>
+      </div>
+      <div class="foot-row">
+        <img src="images/zadgo-logo.png" alt="ZadGo">
+        <p>© 2026 ZadGo — zadgo.co · جميع الحقوق محفوظة</p>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  document.querySelectorAll('.overlay a').forEach(function (a) {
+    a.addEventListener('click', function () {
+      document.getElementById('menu-t').checked = false;
+    });
+  });
+</script>
 </body>
 </html>
