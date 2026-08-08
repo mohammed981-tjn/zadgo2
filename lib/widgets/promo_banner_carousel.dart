@@ -88,6 +88,8 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                         Image.network(
                           b.imageUrl,
                           fit: BoxFit.cover,
+                          // فكّ الترميز بعرض معقول للبنر لا بحجم الملف الأصلي.
+                          cacheWidth: 1200,
                           // بديل هادئ عند فشل التحميل بدل أيقونة كسر قبيحة.
                           errorBuilder: (_, __, ___) => Container(
                             color: AppColors.primary.withOpacity(0.1),

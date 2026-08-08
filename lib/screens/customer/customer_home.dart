@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
@@ -128,14 +129,26 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   String _query = '';
   String _category = 'الكل';
 
+  /// مهلة تهدئة للبحث: بدونها كان كل حرف يُعيد بناء كل بطاقات القائمة
+  /// فوراً — تقطيع محسوس على القوائم الكبيرة والأجهزة الضعيفة.
+  Timer? _searchDebounce;
+
   // قائمة الفئات ثابتة في الكود (لا تُقرأ من Firestore)، لذلك تظهر دائماً
   // حتى لو فشل جلب المطاعم.
   static const _categories = ['الكل', 'مشاوي', 'برجر', 'بيتزا', 'مشروبات', 'حلويات'];
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _query = v);
+    });
   }
 
   /// تصفية محلية (على الجهاز) حسب الفئة المختارة ونص البحث — لا استعلام
@@ -163,7 +176,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: TextField(
           controller: _searchCtrl,
-          onChanged: (v) => setState(() => _query = v),
+          onChanged: _onSearchChanged,
           decoration: InputDecoration(
             hintText: 'ابحث عن مطعم أو صنف...',
             prefixIcon: const Icon(Icons.search),

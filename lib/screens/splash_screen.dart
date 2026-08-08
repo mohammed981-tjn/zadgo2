@@ -29,7 +29,10 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 2), _navigate);
+    // كان الانتظار ثانيتين ثابتتين بلا تحميل فعلي خلفهما — ضريبة مجانية على
+    // كل إطلاق (المنافسون أقل من ثانية). 1.2 ثانية تكفي لإتمام حركة الظهور
+    // (700مل) ولمحة الهوية، ثم انتقال فوري.
+    Future.delayed(const Duration(milliseconds: 1200), _navigate);
   }
 
   @override

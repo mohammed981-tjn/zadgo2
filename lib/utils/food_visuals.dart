@@ -122,6 +122,10 @@ class MenuItemVisual extends StatelessWidget {
           width: size,
           height: size,
           fit: BoxFit.cover,
+          // فكّ الترميز بحجم العرض لا بحجم الملف: صورة 2000 بكسل كانت تُفك
+          // في الذاكرة كاملة (~16MB) لعرضها في 60 بكسل. الضرب في 3 يغطي
+          // أعلى كثافات الشاشات دون فرق بصري.
+          cacheWidth: (size * 3).round(),
           errorBuilder: (_, __, ___) => _iconFallback(),
           loadingBuilder: (ctx, child, progress) =>
               progress == null ? child : _iconFallback(),

@@ -513,13 +513,23 @@ class FirebaseService {
     return order.id;
   }
 
+  // ---------------------------------------------------------------------
+  // حدود التدفقات: كانت كل تدفقات الطلبات بلا limit، أي أن فتح أي شاشة
+  // يُنزّل تاريخ الطلبات كاملاً منذ إنشاء المنصة ويعيد تنزيله مع كل تعديل —
+  // كلفة قراءات تنمو خطياً مع العمر، وذاكرة قد تُسقط التطبيق. الحدود أدناه
+  // تغطي كل استخدام واقعي للشاشات؛ التقارير التاريخية الكاملة مكانها تصدير
+  // مخصص لاحقاً لا تدفقاً حياً.
+  // ---------------------------------------------------------------------
+
   Stream<List<models.Order>> streamAllOrders() => _orders
       .orderBy('createdAt', descending: true)
+      .limit(500)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   Stream<List<models.Order>> streamActiveOrders() => _orders
       .orderBy('createdAt', descending: true)
+      .limit(300)
       .snapshots()
       .map((s) => s.docs
           .map((d) => models.Order.fromMap(d.data(), d.id))
@@ -529,18 +539,21 @@ class FirebaseService {
   Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
       .where('restaurantId', isEqualTo: restaurantId)
       .orderBy('createdAt', descending: true)
+      .limit(200)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   Stream<List<models.Order>> streamCustomerOrders(String customerId) => _orders
       .where('customerId', isEqualTo: customerId)
       .orderBy('createdAt', descending: true)
+      .limit(100)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   Stream<List<models.Order>> streamDriverOrders(String driverId) => _orders
       .where('driverId', isEqualTo: driverId)
       .orderBy('createdAt', descending: true)
+      .limit(100)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
