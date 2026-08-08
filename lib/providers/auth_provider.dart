@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/models.dart';
 import 'firebase_service.dart';
+import 'push_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseService _service;
@@ -31,6 +32,12 @@ class AuthProvider extends ChangeNotifier {
           _error = 'تم تعطيل هذا الحساب، يرجى مراجعة الإدارة';
         } else {
           _user = fetched;
+          // تسجيل الجهاز لإشعارات FCM بعد اكتمال بيانات المستخدم — هنا
+          // تحديداً (لا في login وحدها) حتى يشمل أيضاً فتح التطبيق بجلسة
+          // محفوظة، وهي الحالة الأكثر تكراراً بمرّات من تسجيل دخول جديد.
+          if (fetched != null) {
+            PushService.registerDevice(fetched.uid, _service.updateFcmToken);
+          }
         }
       } catch (_) {
         _user = null;
@@ -145,6 +152,14 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // يُمسح توكن الجهاز من مستند المستخدم قبل الخروج (بعده تمنع قواعد
+    // الأمان الكتابة)، فلا تصل إشعارات حسابٍ خرج صاحبه إلى جهاز قد
+    // يستخدمه شخص آخر.
+    final uid = _user?.uid;
+    if (uid != null) {
+      try { await _service.clearFcmToken(uid); } catch (_) {}
+    }
+    await PushService.unregisterDevice();
     try { await _service.signOut(); } catch (_) {}
     _user = null; notifyListeners();
   }

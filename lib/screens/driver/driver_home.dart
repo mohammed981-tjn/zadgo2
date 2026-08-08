@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show HapticFeedback, SystemSound, SystemSoundType;
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
@@ -53,11 +55,22 @@ class _DriverHomeState extends State<DriverHome> {
     service.updateDriverLocation(driverId, _simLat, _simLng);
   }
 
+  /// نغمة + اهتزاز مع كل إسناد جديد — الشريط الصامت لا يلفت سائقاً هاتفه
+  /// في جيبه أو على حامل الدراجة.
+  Future<void> _playAssignmentSound() async {
+    for (var i = 0; i < 4; i++) {
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.vibrate();
+      await Future.delayed(const Duration(milliseconds: 600));
+    }
+  }
+
   void _checkForNotifications(List<Order> orders) {
     for (final o in orders) {
       if (o.needsDriverAcknowledgement) {
         if (!_acknowledgedNotified.contains(o.id)) {
           _acknowledgedNotified.add(o.id);
+          _playAssignmentSound();
           _showDecisionBanner(o);
         }
       } else if (o.driverId != null &&
@@ -65,6 +78,7 @@ class _DriverHomeState extends State<DriverHome> {
           o.status == OrderStatus.driverAssigned) {
         if (!_autoAssignedNotified.contains(o.id)) {
           _autoAssignedNotified.add(o.id);
+          _playAssignmentSound();
           _showInfoBanner(o);
         }
       }

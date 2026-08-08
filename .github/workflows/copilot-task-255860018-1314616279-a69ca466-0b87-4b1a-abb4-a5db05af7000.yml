@@ -93,11 +93,17 @@ jobs:
         # مفتاح بوابة الدفع يُحقن وقت البناء من أسرار المستودع، فلا يُخزَّن في
         # الشيفرة. إن لم يُضبط السرّ يبقى فارغاً، فيختفي خيار الدفع بالبطاقة
         # من التطبيق تلقائياً بدل أن يظهر خياراً معطّلاً.
+        #
+        # ZADGO_API_BASE: عنوان الخادم المرافق للإشعارات (مثل
+        # https://api.zadgo.co) — يُضبط كمتغيّر مستودع (Variables لا Secrets،
+        # فهو ليس سراً). إن لم يُضبط تُتجاهل نداءات الإشعارات بصمت ويعمل
+        # التطبيق كالسابق. راجع server/README-ar.md.
         run: >
           flutter build apk --release --no-shrink
           --flavor ${{ matrix.flavor }}
           -t lib/main_${{ matrix.flavor }}.dart
           --dart-define=MOYASAR_PUBLISHABLE_KEY=${{ secrets.MOYASAR_PUBLISHABLE_KEY }}
+          --dart-define=ZADGO_API_BASE=${{ vars.ZADGO_API_BASE }}
 
       - name: Final APK search
         if: always()

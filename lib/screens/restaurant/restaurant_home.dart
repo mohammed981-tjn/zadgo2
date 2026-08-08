@@ -10,10 +10,13 @@
 // الطلب" في تطبيقه — لأن ضغطة المطعم وحدها غير موثوقة لتأكيد استلام لم
 // يحدث فعلياً (قد يضغط المطعم قبل أن يصل السائق). بمجرد ضغطة السائق،
 // شاشة المطعم تعرض تلقائياً شارة "تم التسليم" دون أي إجراء من طرفها.
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemSound, SystemSoundType;
+import 'package:flutter/services.dart'
+    show HapticFeedback, SystemSound, SystemSoundType;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
@@ -39,9 +42,21 @@ class _RestaurantHomeState extends State<RestaurantHome> {
   bool _firstSnapshot = true;
   int _newOrdersBadgeCount = 0;
   OverlayEntry? _bannerEntry;
+  Timer? _alarmTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // جهاز المطعم «شاشة طلبات» تعمل طوال الدوام: تبقى الشاشة مضاءة ما دام
+    // التطبيق مفتوحاً، فلا يفوّت المطعم طلباً لأن الجهاز أطفأ شاشته —
+    // وهي أكثر أسباب «لم نستلم الطلب» شيوعاً في التشغيل الفعلي.
+    WakelockPlus.enable();
+  }
 
   @override
   void dispose() {
+    WakelockPlus.disable();
+    _stopAlarm();
     _bannerEntry?.remove();
     super.dispose();
   }
@@ -59,18 +74,46 @@ class _RestaurantHomeState extends State<RestaurantHome> {
     final newlyArrived = pendingNow.difference(_knownPendingIds);
     _knownPendingIds = pendingNow;
 
+    // إن عولجت كل الطلبات المعلّقة من تبويب الطلبات مباشرةً (دون ضغط
+    // الشريط)، يسكت الإنذار ويختفي الشريط من تلقاء نفسه.
+    if (pendingNow.isEmpty) {
+      _stopAlarm();
+      _bannerEntry?.remove();
+      _bannerEntry = null;
+    }
+
     if (newlyArrived.isEmpty) return;
 
     setState(() => _newOrdersBadgeCount += newlyArrived.length);
-    _playAlertSound();
+    _startAlarm();
     _showNewOrderBanner(newlyArrived.length);
   }
 
-  Future<void> _playAlertSound() async {
-    for (var i = 0; i < 5; i++) {
-      await SystemSound.play(SystemSoundType.alert);
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
+  /// إنذار متكرّر لا خمس نغمات وتصمت: يظل يرنّ ويهتزّ كل ثانيتين حتى يضغط
+  /// المدير شريط «طلب جديد» فيُقرّ باستلامه — خمس نغمات في مطبخ مشغول تمرّ
+  /// دون أن يسمعها أحد، والطلب الضائع خسارة مباشرة. سقف أمان ٣ دقائق حتى
+  /// لا يرنّ جهاز مهجور بلا نهاية.
+  static const Duration _alarmInterval = Duration(seconds: 2);
+  static const int _alarmMaxTicks = 90;
+
+  void _startAlarm() {
+    _alarmTimer?.cancel();
+    var ticks = 0;
+    SystemSound.play(SystemSoundType.alert);
+    HapticFeedback.vibrate();
+    _alarmTimer = Timer.periodic(_alarmInterval, (t) {
+      if (++ticks >= _alarmMaxTicks) {
+        _stopAlarm();
+        return;
+      }
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.vibrate();
+    });
+  }
+
+  void _stopAlarm() {
+    _alarmTimer?.cancel();
+    _alarmTimer = null;
   }
 
   void _showNewOrderBanner(int count) {
@@ -85,6 +128,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           color: Colors.transparent,
           child: GestureDetector(
             onTap: () {
+              _stopAlarm();
               _bannerEntry?.remove();
               _bannerEntry = null;
               setState(() {
@@ -119,7 +163,11 @@ class _RestaurantHomeState extends State<RestaurantHome> {
     );
     _bannerEntry = entry;
     overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 6), () {
+    // لا إخفاء تلقائياً سريعاً: الشريط يبقى حتى يُقرّ المدير به بالضغط أو
+    // تُعالَج الطلبات المعلّقة كلها — إخفاؤه بعد ثوانٍ كان يعني أن من غاب
+    // عن الشاشة دقيقة لا يرى أي أثر للطلب الفائت. سقف أمان يطابق سقف
+    // الإنذار الصوتي.
+    Future.delayed(_alarmInterval * _alarmMaxTicks, () {
       if (_bannerEntry == entry) {
         entry.remove();
         _bannerEntry = null;

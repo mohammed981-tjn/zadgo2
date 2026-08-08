@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../models/models.dart' as models;
 import '../utils/helpers.dart' show haversineDistanceKm;
+import 'notify_relay.dart';
 
 class FirebaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -99,6 +100,11 @@ class FirebaseService {
 
   Future<void> updateFcmToken(String uid, String token) =>
       _users.doc(uid).update({'fcmToken': token});
+
+  /// يمسح توكن الجهاز عند تسجيل الخروج، فلا يبقى الجهاز عنوان إشعارات
+  /// لحساب لم يعد صاحبه عليه.
+  Future<void> clearFcmToken(String uid) =>
+      _users.doc(uid).update({'fcmToken': FieldValue.delete()});
 
   Stream<List<models.AppUser>> streamUsers() => _users
       .orderBy('createdAt', descending: true)
@@ -494,6 +500,9 @@ class FirebaseService {
       ...order.toMap(),
       if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
     });
+    // إشعار فوري لمديري المطعم بالطلب الجديد عبر الخادم المرافق — بدونه لا
+    // يعلم المطعم بالطلب إلا حين يكون تطبيقه مفتوحاً على الشاشة.
+    NotifyRelay.orderEvent(order.id, OrderEvent.created);
     return order.id;
   }
 
@@ -553,6 +562,9 @@ class FirebaseService {
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
     });
+    // إشعار العميل بتغيّر حالة طلبه. الخادم هو من يقرّر أي الحالات تستحق
+    // إشعاراً فعلاً (فلا يُزعج العميل بكل انتقال داخلي).
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
   Future<void> rejectOrderByRestaurant(String orderId, String reason) async {
@@ -577,6 +589,7 @@ class FirebaseService {
     // رفض المطعم إنهاءٌ للطلب بلا خدمة، فيُعاد للعميل ما خُصم من محفظته تماماً
     // كالإلغاء — وإلا خسر رصيده بسبب رفضٍ لا ذنب له فيه.
     await _refundWalletOnCancel(current);
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
   Future<void> markPickedUpBySelf(String orderId) async {
@@ -637,6 +650,8 @@ class FirebaseService {
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
     await batch.commit();
+    // إشعار السائق بالإسناد — قد يكون تطبيقه مغلقاً لحظتها.
+    NotifyRelay.orderEvent(orderId, OrderEvent.assigned);
   }
 
   static const int _driverCandidatesCount = 3;
@@ -774,6 +789,7 @@ class FirebaseService {
       ).toMap(),
     );
     await batch.commit();
+    NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
   }
 
   Stream<List<models.DriverReassignment>> streamReassignments() => _reassignments
@@ -852,6 +868,9 @@ class FirebaseService {
       ).toMap(),
     );
     await batch.commit();
+    // التسليم يغيّر الحالة داخل الدفعة لا عبر updateOrderStatus، فيُبلَّغ
+    // الخادم هنا صراحةً ليصل العميلَ إشعارُ «تم التوصيل».
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
   /// تسجيل إيداع نقدي: السائق سلّم مبلغاً للإدارة، فيرتفع رصيده بقدره.
