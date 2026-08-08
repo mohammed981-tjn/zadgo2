@@ -295,9 +295,9 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
         color: Colors.white,
         child: TabBar(
           controller: _tabController,
-          labelColor: AppColors.primary,
+          labelColor: context.flavorColors.primary,
           unselectedLabelColor: AppColors.textGray,
-          indicatorColor: AppColors.primary,
+          indicatorColor: context.flavorColors.primary,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           tabs: const [
             Tab(text: 'نشطة'),

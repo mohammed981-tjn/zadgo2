@@ -59,7 +59,13 @@ class _AdminHomeState extends State<AdminHome> {
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: const BoxDecoration(color: AppColors.primary),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [context.flavorColors.primary, context.flavorColors.primaryDark],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -150,7 +156,9 @@ class _StatsTab extends StatelessWidget {
           .fold(0.0, (s, o) => s + o.grandTotal);
       return ListView(padding: const EdgeInsets.all(16), children: [
         Container(padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
+          decoration: BoxDecoration(
+              gradient: LinearGradient(
+                  colors: [context.flavorColors.primary, context.flavorColors.primaryDark]),
               borderRadius: BorderRadius.circular(16)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('إجمالي الإيرادات', style: TextStyle(color: Colors.white70)),
@@ -159,7 +167,7 @@ class _StatsTab extends StatelessWidget {
         const SizedBox(height: 16),
         GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
-          _stat('الطلبات', '${orders.length}', Icons.receipt_long_outlined, AppColors.primary),
+          _stat('الطلبات', '${orders.length}', Icons.receipt_long_outlined, context.flavorColors.primary),
           _stat('النشطة', '$active', Icons.hourglass_empty, AppColors.warning),
           _stat('مكتملة', '$delivered', Icons.done_all, AppColors.success),
         ]),

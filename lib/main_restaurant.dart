@@ -5,7 +5,8 @@
 //
 // [هوية لونية]: يستخدم AppTheme.build(palette: FlavorPalette.restaurant)
 // بدل AppTheme.light الافتراضي، فتظهر كل أزرار وعناصر واجهة هذا التطبيق
-// بالدرجة الذهبية الخاصة بنكهة المطعم بدل الذهبي الافتراضي للنكهة الكاملة.
+// بالبرتقالي الناري الخاص بنكهة المطعم (حرارة المطبخ) — بعيد عمداً عن
+// ذهبي العميل الذي كان قريباً منه سابقاً فيسبب الالتباس.
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -51,7 +52,10 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.restaurant;
   AppFlavorConfig.flavorLabel = 'المطعم';
-  AppFlavorConfig.flavorColor = const Color(0xFFC8960C);
+  AppFlavorConfig.flavorColor = const Color(0xFFE8590C);
+  AppFlavorConfig.flavorIcon = Icons.storefront_rounded;
+  AppFlavorConfig.flavorTagline = 'إدارة مطبخك بذكاء';
+  AppFlavorConfig.flavorLoginTitle = 'بوابة شركاء المطاعم';
   AppFlavorConfig.restrictToRole = UserRole.restaurantManager;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات مديري المطاعم فقط';
   AppFlavorConfig.allowGuestBrowsing = false;

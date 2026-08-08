@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart' as app_auth;
 import '../models/models.dart';
+import '../utils/theme.dart';
 import '../app_flavor.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -54,48 +55,72 @@ class _SplashScreenState extends State<SplashScreen> {
     final screenHeight = MediaQuery.of(context).size.height;
 
     final label = AppFlavorConfig.flavorLabel;
+    final fc = context.flavorColors;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF040E1A),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: screenWidth * 0.75,
-              height: screenHeight * 0.75,
-              child: Image.asset(
-                'assets/images/logo_square.png',
-                fit: BoxFit.contain,
-                alignment: Alignment.center,
-              ),
-            ),
-            if (label != null)
-              Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppFlavorConfig.flavorColor,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppFlavorConfig.flavorColor.withOpacity(0.5),
-                      blurRadius: 12,
-                      spreadRadius: 1,
-                    ),
-                  ],
+      // خلفية البداية بهوية النكهة: تدرّج شعاعي من "ليل" النكهة الفاتح نسبياً
+      // في المركز إلى الأغمق في الأطراف، بدل اللون الكحلي الموحّد السابق.
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0, -0.2),
+            radius: 1.3,
+            colors: [fc.bgDark, fc.bgDarker],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: screenWidth * 0.75,
+                height: screenHeight * 0.6,
+                child: Image.asset(
+                  'assets/images/logo_square.png',
+                  fit: BoxFit.contain,
+                  alignment: Alignment.center,
                 ),
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
+              ),
+              if (label != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [fc.primary, fc.primaryDark],
+                      begin: AlignmentDirectional.centerStart,
+                      end: AlignmentDirectional.centerEnd,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: fc.primary.withOpacity(0.5),
+                        blurRadius: 12,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(AppFlavorConfig.flavorIcon, color: fc.onPrimary, size: 17),
+                      const SizedBox(width: 7),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: fc.onPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

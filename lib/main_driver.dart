@@ -48,7 +48,10 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.driver;
   AppFlavorConfig.flavorLabel = 'السائق';
-  AppFlavorConfig.flavorColor = const Color(0xFF1565C0);
+  AppFlavorConfig.flavorColor = const Color(0xFF1976D2);
+  AppFlavorConfig.flavorIcon = Icons.two_wheeler_rounded;
+  AppFlavorConfig.flavorTagline = 'انطلق، وصّل، واكسب';
+  AppFlavorConfig.flavorLoginTitle = 'دخول الكباتن';
   AppFlavorConfig.restrictToRole = UserRole.driver;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات السائقين فقط';
   AppFlavorConfig.allowGuestBrowsing = false;
@@ -77,7 +80,7 @@ class DriverApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         title: 'ZadGo سائق',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.build(palette: FlavorPalette.driver),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
           child: child!,

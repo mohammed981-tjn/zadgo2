@@ -1,6 +1,93 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../utils/theme.dart';
+
+/// الزر الأساسي الموحّد للمنصة: تدرّج لوني بهوية النكهة الحالية + توهج ناعم
+/// + حالة تحميل مدمجة. يُستخدم في شاشات الدخول والإجراءات الرئيسية بدل
+/// تكرار DecoratedBox/InkWell يدوياً في كل شاشة.
+class ZadGradientButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool loading;
+  final IconData? icon;
+  final double height;
+  const ZadGradientButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.loading = false,
+    this.icon,
+    this.height = 52,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = context.flavorColors;
+    final disabled = onPressed == null || loading;
+    return Semantics(
+      button: true,
+      label: label,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 150),
+        opacity: disabled && !loading ? 0.55 : 1,
+        child: SizedBox(
+          height: height,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                colors: [fc.primaryLight, fc.primary, fc.primaryDark],
+                begin: AlignmentDirectional.centerStart,
+                end: AlignmentDirectional.centerEnd,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: fc.primary.withOpacity(0.45),
+                  blurRadius: 18,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: disabled ? null : onPressed,
+                child: Center(
+                  child: loading
+                      ? SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(color: fc.onPrimary, strokeWidth: 2.4),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (icon != null) ...[
+                              Icon(icon, color: fc.onPrimary, size: 20),
+                              const SizedBox(width: 8),
+                            ],
+                            Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
+                                color: fc.onPrimary,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// عرض موحّد لأخطاء StreamBuilder/FutureBuilder: رسالة عربية واضحة + زر
 /// "إعادة المحاولة" + طباعة الخطأ التقني في الـ console للتشخيص.
@@ -12,6 +99,17 @@ class AppError extends StatelessWidget {
   final VoidCallback? onRetry;
   final String? message;
   const AppError({super.key, this.error, this.onRetry, this.message});
+
+  /// يستخرج رمز الخطأ المختصر من استثناءات Firebase — النمط المعتاد
+  /// `[cloud_firestore/failed-precondition] ...` يُرجع منه
+  /// `failed-precondition` — أو null إن لم يُتعرف على النمط.
+  static String? _errorCode(Object? error) {
+    if (error == null) return null;
+    final match = RegExp(r'\[([\w./-]+)\]').firstMatch(error.toString());
+    if (match == null) return null;
+    final full = match.group(1)!;
+    return full.contains('/') ? full.split('/').last : full;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +135,19 @@ class AppError extends StatelessWidget {
             style: TextStyle(fontSize: 13, color: AppColors.textGray),
             textAlign: TextAlign.center,
           ),
+          // رمز الخطأ المختصر يبقى ظاهراً حتى في نسخة الإصدار: سطر صغير مثل
+          // «failed-precondition» يكفي للتشخيص عن بُعد من صورة شاشة، بينما
+          // النص التقني الكامل (أدناه) محصور بوضع التطوير — بدونه كنا
+          // سنفقد الطريقة التي شُخّص بها عطلا المحفظة والسجل فعلياً.
+          if (_errorCode(error) != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'رمز الخطأ: ${_errorCode(error)}',
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
+              ),
+            ),
 
           // ===================================================================
           // كتلة تشخيص مؤقتة — تُحذف بعد معرفة سبب المشكلة
@@ -48,7 +159,10 @@ class AppError extends StatelessWidget {
           //   • FAILED_PRECONDITION → الاستعلام يحتاج فهرساً مركّباً (index)
           //   • UNAVAILABLE        → مشكلة اتصال شبكة فعلية
           //   • أي خطأ تحويل بيانات → حقل في Firestore بنوع غير متوقع
-          if (error != null) ...[
+          //
+          // [احترافية]: الكتلة الآن محصورة بوضع التطوير (kDebugMode) حتى لا
+          // يرى المستخدم النهائي نصوص أخطاء تقنية بالإنجليزية في الإصدار.
+          if (kDebugMode && error != null) ...[
             const SizedBox(height: 20),
             Container(
               width: double.infinity,
@@ -106,7 +220,7 @@ class AppLoading extends StatelessWidget {
   const AppLoading({super.key, this.message});
   @override
   Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-    const CircularProgressIndicator(color: AppColors.primary),
+    CircularProgressIndicator(color: context.flavorColors.primary),
     if (message != null) ...[const SizedBox(height: 16), Text(message!)],
   ]));
 }

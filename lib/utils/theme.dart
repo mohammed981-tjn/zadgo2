@@ -28,7 +28,24 @@ class FlavorPalette {
   final Color primary;
   final Color primaryDark;
   final Color primaryLight;
-  const FlavorPalette({required this.primary, required this.primaryDark, required this.primaryLight});
+
+  /// لون النص/الأيقونات فوق اللون الأساسي (أبيض للألوان الداكنة، أخضر داكن
+  /// فوق الذهبي الفاتح) — يضمن تبايناً مقروءاً في أزرار كل نكهة.
+  final Color onPrimary;
+
+  /// درجتا الخلفية الداكنة لشاشتَي البداية وتسجيل الدخول — لكل نكهة "ليلها"
+  /// الخاص المشتق من هويتها، فيعرف المستخدم من أول نظرة أي تطبيق فتح.
+  final Color bgDark;
+  final Color bgDarker;
+
+  const FlavorPalette({
+    required this.primary,
+    required this.primaryDark,
+    required this.primaryLight,
+    this.onPrimary = Colors.white,
+    this.bgDark = const Color(0xFF08211A),
+    this.bgDarker = const Color(0xFF04120D),
+  });
 
   /// الهوية الافتراضية — مطابقة تماماً لألوان AppColors الأصلية (النكهة
   /// الكاملة، وأي نكهة أخرى لم تُخصَّص لها هوية بعد).
@@ -36,22 +53,48 @@ class FlavorPalette {
     primary: AppColors.primary,
     primaryDark: AppColors.primaryDark,
     primaryLight: AppColors.primaryLight,
+    onPrimary: AppColors.dark,
   );
 
-  /// هوية نكهة المطعم: ذهبي فاخر أعمق قليلاً من الافتراضي، بطابع "استقبال
-  /// ودافئ" يناسب واجهة تشغيل مطبخ.
+  /// هوية تطبيق العميل: الذهبي الفاخر × الأخضر الملكي — هوية العلامة
+  /// الأساسية التي يراها الجمهور.
+  static const customer = FlavorPalette(
+    primary: AppColors.primary,
+    primaryDark: AppColors.primaryDark,
+    primaryLight: AppColors.primaryLight,
+    onPrimary: AppColors.dark,
+    bgDark: Color(0xFF08211A),
+    bgDarker: Color(0xFF04120D),
+  );
+
+  /// هوية تطبيق السائق: أزرق "كابتن" — لون الطرق والحركة، مختلف تماماً عن
+  /// ذهبي العميل حتى لا يلتبس التطبيقان.
+  static const driver = FlavorPalette(
+    primary: Color(0xFF1976D2),
+    primaryDark: Color(0xFF0D47A1),
+    primaryLight: Color(0xFF64B5F6),
+    bgDark: Color(0xFF0A1E38),
+    bgDarker: Color(0xFF050F1E),
+  );
+
+  /// هوية تطبيق المطعم: برتقالي ناري — حرارة المطبخ والاستعجال، بعيد عن
+  /// ذهبي العميل الذي كان قريباً منه سابقاً فيسبّب الالتباس.
   static const restaurant = FlavorPalette(
-    primary: Color(0xFFC8960C),
-    primaryDark: Color(0xFF9C7209),
-    primaryLight: Color(0xFFE3B94A),
+    primary: Color(0xFFE8590C),
+    primaryDark: Color(0xFFBF4506),
+    primaryLight: Color(0xFFFF8F4C),
+    bgDark: Color(0xFF2A1204),
+    bgDarker: Color(0xFF160902),
   );
 
-  /// هوية نكهة المدير: بني دافئ يوحي بالثقة والإشراف، مختلف تماماً عن
-  /// الذهبي حتى لا يُخلَط بصرياً بين لوحة الإدارة وتطبيق المطعم.
+  /// هوية لوحة المدير: بنفسجي ملكي — طابع "غرفة التحكم"، متمايز بوضوح عن
+  /// النكهات التشغيلية الثلاث.
   static const admin = FlavorPalette(
-    primary: Color(0xFF6D4C41),
-    primaryDark: Color(0xFF4E342E),
-    primaryLight: Color(0xFF8D6E63),
+    primary: Color(0xFF5E35B1),
+    primaryDark: Color(0xFF4527A0),
+    primaryLight: Color(0xFF9575CD),
+    bgDark: Color(0xFF1C1233),
+    bgDarker: Color(0xFF0E081C),
   );
 }
 
@@ -67,6 +110,10 @@ class AppTheme {
     final primary = palette.primary;
     final primaryDark = palette.primaryDark;
     final primaryLight = palette.primaryLight;
+    // لون النص التفاعلي (أزرار نصية/محددة): الهوية الذهبية تحتفظ بالأخضر
+    // الداكن لأن الذهبي الغامق ضعيف التباين على الأبيض؛ بقية الهويات تستخدم
+    // درجتها الداكنة المقروءة.
+    final accentText = palette.onPrimary == AppColors.dark ? AppColors.dark : primaryDark;
 
     return ThemeData(
       useMaterial3: true,
@@ -114,28 +161,28 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
-          foregroundColor: AppColors.dark,
-          elevation: 2,
-          shadowColor: primary.withOpacity(0.5),
-          minimumSize: const Size.fromHeight(48),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-          textStyle: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700),
+          foregroundColor: palette.onPrimary,
+          elevation: 3,
+          shadowColor: primary.withOpacity(0.55),
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 22),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.2),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.dark,
-          side: const BorderSide(color: AppColors.divider, width: 1.5),
-          minimumSize: const Size.fromHeight(44),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          foregroundColor: accentText,
+          side: BorderSide(color: primary.withOpacity(0.45), width: 1.5),
+          minimumSize: const Size.fromHeight(46),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.dark,
+          foregroundColor: accentText,
           textStyle: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -181,10 +228,10 @@ class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
               fontSize: 11,
               fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
-              color: states.contains(WidgetState.selected) ? AppColors.dark : AppColors.textGray,
+              color: states.contains(WidgetState.selected) ? accentText : AppColors.textGray,
             )),
         iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
-              color: states.contains(WidgetState.selected) ? AppColors.dark : AppColors.textGray,
+              color: states.contains(WidgetState.selected) ? accentText : AppColors.textGray,
               size: 24,
             )),
       ),
@@ -202,7 +249,16 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: AppColors.surface,
       dividerTheme: const DividerThemeData(color: AppColors.divider, thickness: 1),
-      extensions: [FlavorColorsExtension(primary: primary, primaryDark: primaryDark, primaryLight: primaryLight)],
+      extensions: [
+        FlavorColorsExtension(
+          primary: primary,
+          primaryDark: primaryDark,
+          primaryLight: primaryLight,
+          onPrimary: palette.onPrimary,
+          bgDark: palette.bgDark,
+          bgDarker: palette.bgDarker,
+        ),
+      ],
     );
   }
 }
@@ -214,14 +270,28 @@ class FlavorColorsExtension extends ThemeExtension<FlavorColorsExtension> {
   final Color primary;
   final Color primaryDark;
   final Color primaryLight;
-  const FlavorColorsExtension({required this.primary, required this.primaryDark, required this.primaryLight});
+  final Color onPrimary;
+  final Color bgDark;
+  final Color bgDarker;
+  const FlavorColorsExtension({
+    required this.primary,
+    required this.primaryDark,
+    required this.primaryLight,
+    this.onPrimary = Colors.white,
+    this.bgDark = const Color(0xFF08211A),
+    this.bgDarker = const Color(0xFF04120D),
+  });
 
   @override
-  FlavorColorsExtension copyWith({Color? primary, Color? primaryDark, Color? primaryLight}) =>
+  FlavorColorsExtension copyWith(
+          {Color? primary, Color? primaryDark, Color? primaryLight, Color? onPrimary, Color? bgDark, Color? bgDarker}) =>
       FlavorColorsExtension(
         primary: primary ?? this.primary,
         primaryDark: primaryDark ?? this.primaryDark,
         primaryLight: primaryLight ?? this.primaryLight,
+        onPrimary: onPrimary ?? this.onPrimary,
+        bgDark: bgDark ?? this.bgDark,
+        bgDarker: bgDarker ?? this.bgDarker,
       );
 
   @override
@@ -231,6 +301,21 @@ class FlavorColorsExtension extends ThemeExtension<FlavorColorsExtension> {
       primary: Color.lerp(primary, other.primary, t)!,
       primaryDark: Color.lerp(primaryDark, other.primaryDark, t)!,
       primaryLight: Color.lerp(primaryLight, other.primaryLight, t)!,
+      onPrimary: Color.lerp(onPrimary, other.onPrimary, t)!,
+      bgDark: Color.lerp(bgDark, other.bgDark, t)!,
+      bgDarker: Color.lerp(bgDarker, other.bgDarker, t)!,
     );
   }
+}
+
+/// اختصار وصولي: `context.flavorColors` بدل السطر الطويل في كل شاشة.
+extension FlavorColorsContextX on BuildContext {
+  FlavorColorsExtension get flavorColors =>
+      Theme.of(this).extension<FlavorColorsExtension>() ??
+      const FlavorColorsExtension(
+        primary: AppColors.primary,
+        primaryDark: AppColors.primaryDark,
+        primaryLight: AppColors.primaryLight,
+        onPrimary: AppColors.dark,
+      );
 }
