@@ -140,6 +140,31 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
           Column(
             children: [
               _buildStatusBanner(),
+              // لافتة التحصيل النقدي (نمط تويو/جاهز): أخطر معلومة على السائق
+              // أن يفوتها وهو عند باب العميل — بلون تحذيري لا سطراً عابراً.
+              if (!widget.readOnly &&
+                  order.paymentMethod == PaymentMethod.cash &&
+                  _headingToCustomer)
+                Container(
+                  width: double.infinity,
+                  color: AppColors.error,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  child: Row(children: [
+                    const Icon(Icons.payments_rounded,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'حصّل من العميل ${formatCurrency(order.grandTotal - order.walletUsed)} نقداً عند التسليم',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13.5),
+                      ),
+                    ),
+                  ]),
+                ),
               Expanded(
                 child: FlutterMap(
                   mapController: _mapController,

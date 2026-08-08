@@ -764,6 +764,16 @@ class Driver {
   /// العقد" (contract violations) المعتمد في تطبيقات التوصيل الكبرى.
   final int warningCount;
 
+  /// عدّادا معدل القبول (نمط تويو/جاهز): مجموع العروض التي وصلته وما قبله
+  /// منها. يُخزَّنان في المستند لا في ذاكرة الجلسة كي لا يُصفَّر المعدل مع
+  /// كل إعادة تشغيل.
+  final int offersTotal;
+  final int offersAccepted;
+
+  /// معدل القبول 0..1 — null قبل أول عرض حتى لا يُعرض «0٪» ظلماً.
+  double? get acceptanceRate =>
+      offersTotal > 0 ? offersAccepted / offersTotal : null;
+
   const Driver({
     required this.id,
     required this.name,
@@ -782,6 +792,8 @@ class Driver {
     this.lng,
     this.lastLocationUpdate,
     this.warningCount = 0,
+    this.offersTotal = 0,
+    this.offersAccepted = 0,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -802,6 +814,8 @@ class Driver {
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
         warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
+        offersTotal: (map['offersTotal'] as num?)?.toInt() ?? 0,
+        offersAccepted: (map['offersAccepted'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -822,6 +836,8 @@ class Driver {
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
         'warningCount': warningCount,
+        'offersTotal': offersTotal,
+        'offersAccepted': offersAccepted,
       };
 }
 

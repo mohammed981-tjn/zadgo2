@@ -40,6 +40,9 @@ class _DriverHomeState extends State<DriverHome> {
   /// 8 ثوانٍ حتى خارج الدوام (~10 آلاف كتابة/سائق/يوم + استنزاف بطارية).
   bool _isOnline = false;
 
+  /// آخر لقطة لمستند السائق — تغذّي بطاقة العرض بموقعه لحساب مسافة الالتقاط.
+  Driver? _driver;
+
   final Set<String> _acknowledgedNotified = {};
   final Set<String> _autoAssignedNotified = {};
   OverlayEntry? _bannerEntry;
@@ -96,6 +99,12 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _checkForNotifications(List<Order> orders) {
+    // طلب خرج من قائمته (رُفض/انقضى/أُلغي) يُمحى من «سبق التنبيه» — فلو عاد
+    // إليه لاحقاً (لا سائق غيره متاحاً مثلاً) ظهر العرض من جديد بدل أن يظل
+    // الطلب غير مرئي له للأبد.
+    final currentIds = orders.map((o) => o.id).toSet();
+    _acknowledgedNotified.removeWhere((id) => !currentIds.contains(id));
+    _autoAssignedNotified.removeWhere((id) => !currentIds.contains(id));
     for (final o in orders) {
       if (o.needsDriverAcknowledgement) {
         if (!_acknowledgedNotified.contains(o.id)) {
@@ -121,79 +130,52 @@ class _DriverHomeState extends State<DriverHome> {
     final service = context.read<FirebaseService>();
     late OverlayEntry entry;
 
+    void dismiss() {
+      if (_bannerEntry == entry) {
+        entry.remove();
+        _bannerEntry = null;
+      }
+    }
+
     entry = OverlayEntry(
       builder: (ctx) => Positioned(
         top: MediaQuery.of(ctx).padding.top + 8,
         left: 16,
         right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.warning,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.local_shipping_rounded, color: Colors.white),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'طلب #${order.orderNumber} أُسند إليك — بانتظار قرارك',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 4),
-              Text(
-                '${order.restaurantName} ← ${order.deliveryAddress}',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () async {
-                      entry.remove();
-                      _bannerEntry = null;
-                      await service.rejectAssignedOrder(order.id);
-                    },
-                    child: const Text('رفض'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.warning,
-                    ),
-                    onPressed: () async {
-                      entry.remove();
-                      _bannerEntry = null;
-                      await service.acceptAssignedOrder(order.id);
-                      // بعد القبول تُفتح مذكرة الاستلام مباشرةً — هي وجهة
-                      // السائق التالية بلا بحث في القوائم.
-                      navigatorKey.currentState?.push(MaterialPageRoute(
-                          builder: (_) =>
-                              PickupDocketScreen(orderId: order.id)));
-                    },
-                    child: const Text('قبول'),
-                  ),
-                ),
-              ]),
-            ]),
-          ),
+        child: _OfferBanner(
+          order: order,
+          driver: _driver,
+          onAccept: () async {
+            dismiss();
+            try {
+              await service.acceptAssignedOrder(order.id);
+            } catch (_) {
+              if (mounted) showError(context, 'تعذّر قبول الطلب — ربما أُلغي أو أُعيد إسناده');
+              return;
+            }
+            // بعد القبول تُفتح مذكرة الاستلام مباشرةً — هي وجهة السائق
+            // التالية بلا بحث في القوائم.
+            navigatorKey.currentState?.push(MaterialPageRoute(
+                builder: (_) => PickupDocketScreen(orderId: order.id)));
+          },
+          onReject: () async {
+            dismiss();
+            try {
+              await service.rejectAssignedOrder(order.id);
+            } catch (_) {
+              if (mounted) showError(context, 'تعذّر رفض الطلب — ربما تغيّرت حالته');
+            }
+          },
+          onExpired: () async {
+            // انقضت مهلة القرار: يُمرَّر الطلب لأقرب سائق آخر تلقائياً —
+            // بصمت، فقد يكون الهاتف في الجيب أصلاً.
+            dismiss();
+            try {
+              await service.rejectAssignedOrder(order.id);
+            } catch (_) {
+              // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
+            }
+          },
         ),
       ),
     );
@@ -277,6 +259,7 @@ class _DriverHomeState extends State<DriverHome> {
         // تحديث حالة الاتصال لبثّ الموقع — بلا setState: البثّ الدوري وحده
         // من يقرؤها، وbuild هذا سيُعاد أصلاً مع كل تغيّر في المستند.
         _isOnline = driver?.isOnline ?? false;
+        _driver = driver;
         return Scaffold(
           appBar: AppBar(
             title: Text('مرحباً ${auth.user?.name ?? ""}'),
@@ -344,6 +327,208 @@ class _DriverHomeState extends State<DriverHome> {
   }
 }
 
+/// بطاقة «عرض توصيل» مكتملة القرار (نمط تويو/جاهز/أوبر): الأجرة المتوقعة،
+/// مسافتا الالتقاط والتوصيل، مبلغ التحصيل النقدي إن وُجد، وعدّاد تنازلي —
+/// السائق يقرّر بمعلومة كاملة، وانقضاء المهلة يمرّر الطلب للسائق التالي بدل
+/// أن يبقى معلّقاً على غافلٍ عن هاتفه.
+class _OfferBanner extends StatefulWidget {
+  final Order order;
+  final Driver? driver;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+  final VoidCallback onExpired;
+  const _OfferBanner({
+    required this.order,
+    required this.driver,
+    required this.onAccept,
+    required this.onReject,
+    required this.onExpired,
+  });
+
+  @override
+  State<_OfferBanner> createState() => _OfferBannerState();
+}
+
+class _OfferBannerState extends State<_OfferBanner> {
+  /// مهلة القرار — 45 ثانية توازن بين سائقٍ يقود لحظتها وطلبٍ ساخن لا
+  /// يحتمل الانتظار (تويو وجاهز في نطاق 30–60 ثانية).
+  static const int _offerSeconds = 45;
+  int _secondsLeft = _offerSeconds;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _secondsLeft--);
+      if (_secondsLeft <= 0) {
+        _timer?.cancel();
+        widget.onExpired();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    final d = widget.driver;
+    final isCash = o.paymentMethod == PaymentMethod.cash;
+
+    // المسافتان — إن توفرت الإحداثيات؛ غيابها يحجب السطر لا يعرض صفراً.
+    double? pickupKm, dropKm;
+    if (d?.lat != null && d?.lng != null &&
+        o.restaurantLat != null && o.restaurantLng != null) {
+      pickupKm = haversineDistanceKm(
+          d!.lat!, d.lng!, o.restaurantLat!, o.restaurantLng!);
+    }
+    if (o.restaurantLat != null && o.restaurantLng != null &&
+        o.deliveryLat != null && o.deliveryLng != null) {
+      dropKm = haversineDistanceKm(
+          o.restaurantLat!, o.restaurantLng!, o.deliveryLat!, o.deliveryLng!);
+    }
+
+    final urgent = _secondsLeft <= 10;
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.warning,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.local_shipping_rounded, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('عرض توصيل — طلب #${o.orderNumber}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14.5)),
+            ),
+            // العدّاد: يحمرّ في الثواني الأخيرة — إلحاح مرئي بلا صوت إضافي.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: urgent ? AppColors.error : Colors.white.withOpacity(0.22),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('${_secondsLeft}ث',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: _secondsLeft / _offerSeconds,
+              minHeight: 4,
+              backgroundColor: Colors.white24,
+              valueColor: AlwaysStoppedAnimation(
+                  urgent ? AppColors.error : Colors.white),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // سطر القرار: الأجرة أولاً — أهم رقم عند السائق.
+          Row(children: [
+            const Icon(Icons.payments_rounded, color: Colors.white, size: 17),
+            const SizedBox(width: 6),
+            Text('أجرتك ${formatCurrency(o.driverShare)}',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15)),
+            if (pickupKm != null || dropKm != null) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  [
+                    if (pickupKm != null)
+                      'الالتقاط ${pickupKm.toStringAsFixed(1)} كم',
+                    if (dropKm != null)
+                      'التوصيل ${dropKm.toStringAsFixed(1)} كم',
+                  ].join(' • '),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ]),
+          if (isCash)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                    'نقدي — ستحصّل ${formatCurrency(o.grandTotal - o.walletUsed)} من العميل',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text('${o.restaurantName} ← ${o.deliveryAddress}',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: widget.onReject,
+                child: const Text('رفض'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.warning,
+                ),
+                onPressed: widget.onAccept,
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('قبول العرض',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
 class _MyOrdersTab extends StatelessWidget {
   final String driverId;
   final Driver? driver;
@@ -353,33 +538,101 @@ class _MyOrdersTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
+    final isOnline = driver?.isOnline ?? false;
 
-    return AppStreamBuilder<List<Order>>(
-      stream: () => service.streamDriverOrders(driverId),
-      builder: (ctx, all) {
-        final active = all.where((o) => o.status.isActive).toList();
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          onOrdersChanged(active);
-        });
-
-        final confirmedActive =
-            active.where((o) => !o.needsDriverAcknowledgement).toList();
-
-        if (confirmedActive.isEmpty) {
-          return AppEmpty(
-            emoji: (driver?.isOnline ?? false) ? '📦' : '🔌',
-            title: 'لا توجد طلبات نشطة حالياً',
-            subtitle: 'سيُسند إليك أي طلب جديد تلقائياً فور توفره',
-          );
-        }
-
-        return ListView(padding: const EdgeInsets.all(12), children: [
-          const SectionHeader(title: 'طلباتي'),
-          ...confirmedActive.map((o) => _OrderCard(order: o)),
-        ]);
-      },
+    // زر الحالة البارز (نمط تويو): مفتاح شريط العنوان الصغير يفوت سائقاً
+    // مستعجلاً، وهذه البطاقة أول ما تقع عليه عينه — بلونٍ حاسم ونص يشرح
+    // أثر الحالة لا اسمها فقط.
+    final statusCard = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: driver == null
+              ? null
+              : () {
+                  HapticFeedback.mediumImpact();
+                  service.setDriverOnline(driverId, !isOnline);
+                },
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isOnline
+                    ? [AppColors.success, const Color(0xFF1B7A43)]
+                    : [const Color(0xFF616E7C), const Color(0xFF3E4C59)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(children: [
+              Icon(isOnline ? Icons.wifi_tethering_rounded : Icons.power_settings_new_rounded,
+                  color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(isOnline ? 'متاح لاستقبال الطلبات' : 'غير متصل',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15)),
+                      Text(
+                          isOnline
+                              ? 'تصلك العروض تلقائياً — اضغط للتوقف'
+                              : 'لن تصلك طلبات — اضغط للاتصال',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 11.5)),
+                    ]),
+              ),
+              Switch(
+                value: isOnline,
+                onChanged: driver == null
+                    ? null
+                    : (v) => service.setDriverOnline(driverId, v),
+                activeColor: Colors.white,
+                activeTrackColor: Colors.white38,
+              ),
+            ]),
+          ),
+        ),
+      ),
     );
+
+    return Column(children: [
+      statusCard,
+      Expanded(
+        child: AppStreamBuilder<List<Order>>(
+          stream: () => service.streamDriverOrders(driverId),
+          builder: (ctx, all) {
+            final active = all.where((o) => o.status.isActive).toList();
+
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onOrdersChanged(active);
+            });
+
+            final confirmedActive =
+                active.where((o) => !o.needsDriverAcknowledgement).toList();
+
+            if (confirmedActive.isEmpty) {
+              return AppEmpty(
+                emoji: isOnline ? '📦' : '🔌',
+                title: 'لا توجد طلبات نشطة حالياً',
+                subtitle: isOnline
+                    ? 'سيصلك عرض بأي طلب جديد فور توفره'
+                    : 'اتصل أولاً ليصلك أي عرض',
+              );
+            }
+
+            return ListView(padding: const EdgeInsets.all(12), children: [
+              const SectionHeader(title: 'طلباتي'),
+              ...confirmedActive.map((o) => _OrderCard(order: o)),
+            ]);
+          },
+        ),
+      ),
+    ]);
   }
 }
 
@@ -503,14 +756,38 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-class _DriverEarningsTab extends StatelessWidget {
+class _DriverEarningsTab extends StatefulWidget {
   final Driver? driver;
   const _DriverEarningsTab({this.driver});
 
   @override
+  State<_DriverEarningsTab> createState() => _DriverEarningsTabState();
+}
+
+/// مجموعات فلترة سجلّ الحركات — قائمة مسطحة واحدة كانت تخلط عُهدة الطلبات
+/// بإيداعات الإدارة فيضيع تتبّع أي خانة (نمط فلاتر تويو: طلبات/مكافآت/...).
+enum _TxFilter { all, orders, settlements, adjustments }
+
+class _DriverEarningsTabState extends State<_DriverEarningsTab> {
+  _TxFilter _filter = _TxFilter.all;
+
+  bool _txMatches(DriverTransaction tx) => switch (_filter) {
+        _TxFilter.all => true,
+        _TxFilter.orders => const {
+            DriverTransactionType.orderCustody,
+            DriverTransactionType.custodyReversal,
+            DriverTransactionType.deliveryCash,
+            DriverTransactionType.deliveryOnline,
+          }.contains(tx.type),
+        _TxFilter.settlements => tx.type == DriverTransactionType.deposit ||
+            tx.type == DriverTransactionType.payout,
+        _TxFilter.adjustments => tx.type == DriverTransactionType.adjustment,
+      };
+
+  @override
   Widget build(BuildContext context) {
-    if (driver == null) return const AppLoading();
-    final d = driver!;
+    if (widget.driver == null) return const AppLoading();
+    final d = widget.driver!;
     // الرصيد بإشارة: سالب يعني أن بيد السائق مالاً ليس له (حصيلة الطلبات
     // النقدية)، وموجب يعني أن للتطبيق مستحقّات عليه للسائق. عرضه برقم مجرّد
     // كان سيوهم السائق بأن الدَّين ربح.
@@ -591,34 +868,127 @@ class _DriverEarningsTab extends StatelessWidget {
             ]),
           ),
         ),
-      const SizedBox(height: 20),
+      const SizedBox(height: 14),
+      // دخل اليوم والأسبوع (نمط مركز دخل تويو) — من الطلبات المُسلَّمة لا من
+      // دفتر الحركات: أجرة الطلب النقدي تبقى بيد السائق ولا تمرّ بالدفتر
+      // أصلاً، فجمع الدفتر وحده كان سيُظهر دخلاً أنقص من الحقيقة.
+      AppStreamBuilder<List<Order>>(
+        stream: () =>
+            context.read<FirebaseService>().streamDriverOrders(d.id),
+        builder: (ctx, orders) {
+          final now = DateTime.now();
+          final todayStart = DateTime(now.year, now.month, now.day);
+          final weekStart = todayStart.subtract(const Duration(days: 6));
+          double today = 0, week = 0;
+          int todayCount = 0, weekCount = 0;
+          for (final o in orders) {
+            if (o.status != OrderStatus.delivered) continue;
+            final t = o.statusChangedAt ?? o.updatedAt ?? o.createdAt;
+            if (!t.isBefore(weekStart)) {
+              week += o.driverShare;
+              weekCount++;
+              if (!t.isBefore(todayStart)) {
+                today += o.driverShare;
+                todayCount++;
+              }
+            }
+          }
+          return Row(children: [
+            Expanded(
+                child: _incomeCard('دخل اليوم', today, todayCount,
+                    Icons.today_rounded, context.flavorColors.primary)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _incomeCard('آخر ٧ أيام', week, weekCount,
+                    Icons.date_range_rounded, AppColors.success)),
+          ]);
+        },
+      ),
+      const SizedBox(height: 14),
       GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
         _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, context.flavorColors.primary),
         _stat('استلمته فعلياً', formatCurrency(d.totalEarnings), Icons.savings_outlined, AppColors.success),
         _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
-        _stat('الحالة', d.isOnline ? 'متصل' : 'غير متصل', d.isOnline ? Icons.wifi : Icons.wifi_off,
-            d.isOnline ? AppColors.success : AppColors.textGray),
+        // معدل القبول (نمط تويو) — من عدّادات المستند الدائمة، و«—» قبل
+        // أول عرض حتى لا يظهر صفر ظالم.
+        _stat(
+            'معدل القبول',
+            d.acceptanceRate == null
+                ? '—'
+                : '${(d.acceptanceRate! * 100).round()}٪',
+            Icons.thumb_up_alt_outlined,
+            (d.acceptanceRate ?? 1) >= 0.8
+                ? AppColors.success
+                : AppColors.warning),
       ]),
       const SizedBox(height: 16),
       const SectionHeader(title: 'سجلّ الحركات'),
+      // فلاتر السجلّ — تصفية محلية على التدفّق القائم بلا استعلامات إضافية.
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final (f, label) in const [
+              (_TxFilter.all, 'الكل'),
+              (_TxFilter.orders, 'الطلبات'),
+              (_TxFilter.settlements, 'إيداع وصرف'),
+              (_TxFilter.adjustments, 'تسويات'),
+            ])
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ChoiceChip(
+                  label: Text(label, style: const TextStyle(fontSize: 12)),
+                  selected: _filter == f,
+                  onSelected: (_) => setState(() => _filter = f),
+                ),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 6),
       SizedBox(
         height: 320,
         child: AppStreamBuilder<List<DriverTransaction>>(
           stream: () => context.read<FirebaseService>().streamDriverTransactions(d.id),
           builder: (ctx, txs) {
-            if (txs.isEmpty) {
-              return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات بعد');
+            final filtered = txs.where(_txMatches).toList();
+            if (filtered.isEmpty) {
+              return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات هنا');
             }
             return ListView.builder(
-              itemCount: txs.length,
-              itemBuilder: (_, i) => _TransactionTile(tx: txs[i]),
+              itemCount: filtered.length,
+              itemBuilder: (_, i) => _TransactionTile(tx: filtered[i]),
             );
           },
         ),
       ),
     ]);
   }
+
+  Widget _incomeCard(
+          String label, double amount, int count, IconData icon, Color color) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textGray)),
+            ]),
+            const SizedBox(height: 6),
+            Text(formatCurrency(amount),
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+            Text('$count توصيلة',
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.textGray)),
+          ]),
+        ),
+      );
 
   Widget _stat(String label, String value, IconData icon, Color color) => Card(child: Padding(
     padding: const EdgeInsets.all(16),

@@ -901,10 +901,16 @@ class FirebaseService {
       'driverName': chosen.name,
       'driverPhone': chosen.phone,
       'updatedAt': FieldValue.serverTimestamp(),
-      'driverAcknowledged': true,
+      // عرض حقيقي لا إسناد صامت: كان يُكتب true هنا فيتجاوز المسارُ الأكثر
+      // شيوعاً (الإسناد التلقائي) موافقةَ السائق كلياً — لا قبول ولا رفض ولا
+      // حتى علمٌ مؤكَّد. الآن يظهر له عرض بالأجرة والمسافتين وعدّاد، وانقضاء
+      // المهلة أو الرفض يمرّران الطلب لغيره.
+      'driverAcknowledged': false,
     });
     batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
     await batch.commit();
+    // إشعار السائق المرشَّح — تطبيقه قد يكون بالخلفية لحظة العرض.
+    NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
     return true;
   }
 
@@ -925,10 +931,20 @@ class FirebaseService {
     if (!current.needsDriverAcknowledgement) {
       return;
     }
-    await ref.update({
+    final batch = _db.batch();
+    batch.update(ref, {
       'driverAcknowledged': true,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    // معدل القبول يُحسب من المستند لا من ذاكرة الجلسة — عدّاد الجلسة كان
+    // يُصفَّر مع كل إعادة تشغيل فلا يتراكم معدل حقيقي.
+    if (current.driverId != null && current.driverId!.isNotEmpty) {
+      batch.update(_drivers.doc(current.driverId!), {
+        'offersTotal': FieldValue.increment(1),
+        'offersAccepted': FieldValue.increment(1),
+      });
+    }
+    await batch.commit();
   }
 
   Future<void> rejectAssignedOrder(String orderId) async {
@@ -951,7 +967,12 @@ class FirebaseService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     if (current.driverId != null && current.driverId!.isNotEmpty) {
-      batch.update(_drivers.doc(current.driverId!), {'isAvailable': true});
+      batch.update(_drivers.doc(current.driverId!), {
+        'isAvailable': true,
+        // الرفض (أو انقضاء مهلة العرض) عرضٌ وصل ولم يُقبل — يدخل المقام
+        // دون البسط في معدل القبول.
+        'offersTotal': FieldValue.increment(1),
+      });
     }
     await batch.commit();
 

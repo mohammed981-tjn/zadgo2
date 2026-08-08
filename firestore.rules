@@ -161,11 +161,14 @@ service cloud.firestore {
             (resource.data.driverId == currentUid() &&
                 !changedKeys().hasAny(['items', 'driverShare', 'appShare',
                                        'customerId', 'restaurantId', 'orderNumber'])) ||
-            // السائق يقبل الطلب بنفسه (تصميم مقصود)، لكن فقط إن كان الطلب
-            // بلا سائق مُسنَد أصلاً — يمنع سائقاً من الاستيلاء على طلب مُسنَد
-            // لغيره عبر الكتابة المباشرة على driverId.
-            (resource.data.driverId == null &&
-                request.resource.data.driverId == currentUid() &&
+            // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
+            // بعد رفضه إياه — يمرّره جهازُه تلقائياً لأقرب سائق آخر
+            // (driverId لغيره). كان الشرط يُلزم أن يكون المعرّف الجديد هو
+            // الكاتب نفسه، فتنجح إعادة الإسناد فقط حين تعود للرافض ذاته
+            // وتُرفض حين تذهب لغيره — عكس المطلوب تماماً. الاستيلاء على طلب
+            // مُسنَد لغيره ما زال ممنوعاً (الشرط driverId == null)، والإسناد
+            // لغيره صار مجرد «عرض» يملك صاحبه رفضه (driverAcknowledged).
+            (resource.data.driverId == null && isDriver() &&
                 !changedKeys().hasAny(orderMoneyKeys())) ||
             (isRestaurantManagerOf(resource.data.restaurantId) &&
                 !changedKeys().hasAny(orderMoneyKeys()))
