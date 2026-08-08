@@ -16,9 +16,14 @@ import 'package:geolocator/geolocator.dart';
 class LocationGuard {
   LocationGuard._();
 
-  /// نصف قطر السماح حول الهدف — ١٠٠ متر: يغطي مواقف السيارات ومداخل
+  /// نصف قطر السماح حول المطعم — ١٠٠ متر: يغطي مواقف السيارات ومداخل
   /// المجمّعات دون أن يسمح بتأكيد من حيّ آخر.
   static const double proximityMeters = 100;
+
+  /// نصف قطر السماح حول موقع العميل عند التسليم — ١٥٠ متراً بقرار المالك:
+  /// أوسع قليلاً من نطاق المطعم لأن دبّوس العميل أقل دقة (يحدده بنفسه على
+  /// الخريطة) والتسليم قد يتم عند بوابة الحي أو موقف السيارات.
+  static const double deliveryProximityMeters = 150;
 
   /// يقرأ موقع الجهاز الحالي بدقة عالية، أو يرمي رسالة عربية مفهومة.
   static Future<Position> currentPosition() async {
@@ -54,6 +59,7 @@ class LocationGuard {
     required double? targetLat,
     required double? targetLng,
     required String targetLabel,
+    double radius = proximityMeters,
   }) async {
     if (targetLat == null || targetLng == null) return null;
 
@@ -71,12 +77,12 @@ class LocationGuard {
 
     final distance = Geolocator.distanceBetween(
         pos.latitude, pos.longitude, targetLat, targetLng);
-    if (distance > proximityMeters) {
+    if (distance > radius) {
       final shown = distance >= 1000
           ? '${(distance / 1000).toStringAsFixed(1)} كم'
           : '${distance.round()} متر';
       return 'أنت على بُعد $shown من $targetLabel — '
-          'التأكيد متاح ضمن ${proximityMeters.round()} متر فقط';
+          'التأكيد متاح ضمن ${radius.round()} متر فقط';
     }
     return null;
   }
