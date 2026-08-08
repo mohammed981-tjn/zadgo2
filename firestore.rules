@@ -330,6 +330,29 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // order_proofs — وثيقة إثبات الطلب: أزمنة وإحداثيات وصول السائق
+    // واستلامه وتسليمه + صورتا الاستلام والتسليم (مضغوطتان داخل المستند).
+    //   • الكتابة: السائق صاحب الوثيقة (driverId == uid) — يكتبها تدريجياً
+    //     بدمج (merge) عند كل محطة — والمدير العام.
+    //   • القراءة: المدير (شاشة حسم الشكاوى) والسائق صاحبها.
+    //   • الحذف: ممنوع — وثيقة نزاع لا تُمحى.
+    // ---------------------------------------------------------------------
+    match /order_proofs/{orderId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.driverId == currentUid()
+          );
+      allow create: if isSignedIn() && (
+            isAdmin() || request.resource.data.driverId == currentUid()
+          );
+      allow update: if isSignedIn() && (
+            isAdmin() ||
+            (resource.data.driverId == currentUid() &&
+                request.resource.data.driverId == currentUid())
+          );
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // reassignments — سجل تدقيق لإعادة توزيع السائقين، للمدير العام فقط.
     // ---------------------------------------------------------------------
     match /reassignments/{reassignmentId} {

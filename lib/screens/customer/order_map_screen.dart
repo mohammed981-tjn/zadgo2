@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/driver_proof_flow.dart';
 import '../../widgets/common_widgets.dart';
 
 class OrderMapScreen extends StatefulWidget {
@@ -198,19 +199,10 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
-                            final isCash =
-                                order.paymentMethod == PaymentMethod.cash;
-                            final ok = await showConfirmDialog(context,
-                                title: 'استلام الطلب',
-                                content: isCash
-                                    ? 'هل استلمت الطلب من المطعم؟\n\n'
-                                        'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
-                                        '(قيمة الطلب) حتى تحصيلها من العميل.'
-                                    : 'هل استلمت الطلب من المطعم؟',
-                                confirmLabel: 'نعم');
-                            if (ok == true) {
-                              await service.markOrderPickedUp(order.id);
-                              if (context.mounted) Navigator.pop(context);
+                            final done = await DriverProofFlow.confirmPickup(
+                                context, service, order);
+                            if (done && context.mounted) {
+                              Navigator.pop(context);
                             }
                           },
                           icon: const Icon(Icons.check_circle_outline),
@@ -221,20 +213,15 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
-                            final ok = await showConfirmDialog(context,
-                                title: 'تأكيد التوصيل',
-                                content: 'هل تم توصيل الطلب للعميل؟',
-                                confirmLabel: 'نعم');
-                            if (ok == true) {
-                              await service.markOrderDelivered(order.id, order.driverId ?? '');
-                              if (context.mounted) {
-                                showSuccess(
-                                    context,
-                                    order.paymentMethod == PaymentMethod.cash
-                                        ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
-                                        : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
-                                Navigator.pop(context);
-                              }
+                            final done = await DriverProofFlow.confirmDelivery(
+                                context, service, order);
+                            if (done && context.mounted) {
+                              showSuccess(
+                                  context,
+                                  order.paymentMethod == PaymentMethod.cash
+                                      ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
+                                      : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
+                              Navigator.pop(context);
                             }
                           },
                           style: OutlinedButton.styleFrom(

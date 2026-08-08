@@ -1,4 +1,6 @@
 // lib/models/models.dart
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
 
@@ -1135,6 +1137,11 @@ class Order {
   /// وجوب العكس عند الإلغاء أو إعادة الإسناد بعد الاستلام.
   final bool custodyDebited;
 
+  /// لحظة تسجيل السائق وصوله إلى المطعم (زر «وصلت المطعم» ضمن النطاق
+  /// الجغرافي). حجر الأساس في حسم نزاع «مَن أخّر الطلب؟»: وصل ٧:١٠ واستلم
+  /// ٧:٣٥ = التأخير من المطعم لا من السائق.
+  final DateTime? arrivedAtRestaurantAt;
+
   const Order({
     required this.id,
     required this.restaurantId,
@@ -1171,6 +1178,7 @@ class Order {
     this.walletUsed = 0,
     this.driverAcknowledged = true,
     this.custodyDebited = false,
+    this.arrivedAtRestaurantAt,
   });
 
   /// عُهدة الطلب النقدي على السائق لحظة استلامه: قيمة الوجبات (للمطعم)
@@ -1260,6 +1268,8 @@ class Order {
         walletUsed: (map['walletUsed'] as num?)?.toDouble() ?? 0,
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
         custodyDebited: map['custodyDebited'] as bool? ?? false,
+        arrivedAtRestaurantAt:
+            (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -1299,6 +1309,8 @@ class Order {
         'walletUsed': walletUsed,
         'driverAcknowledged': driverAcknowledged,
         'custodyDebited': custodyDebited,
+        if (arrivedAtRestaurantAt != null)
+          'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
       };
 
   Order copyWith({
@@ -1353,6 +1365,66 @@ class Order {
         walletUsed: walletUsed,
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
         custodyDebited: custodyDebited,
+        arrivedAtRestaurantAt: arrivedAtRestaurantAt,
+      );
+}
+
+/// وثيقة إثبات طلب واحد — مستند `order_proofs/{orderId}`: أزمنة وإحداثيات
+/// المحطات الثلاث (وصول المطعم / الاستلام / التسليم) مع صورتَي الاستلام
+/// والتسليم مضغوطتين داخل المستند نفسه (Blob).
+///
+/// لماذا داخل Firestore لا في Storage؟ تخزين الملفات ينتظر خطة Blaze؛
+/// صورة مضغوطة (~٦٠ كيلوبايت) داخل مستند مستقل عن مستند الطلب تعمل اليوم
+/// مجاناً، ولا تُبطئ قوائم الطلبات لأن أحداً لا يقرأ هذا المستند إلا شاشة
+/// النزاع. عند الترقية يتحوّل التخزين إلى روابط Storage بلا تغيير في البنية.
+class OrderProof {
+  final String orderId;
+  final String driverId;
+
+  final DateTime? arrivedAt;
+  final double? arrivedLat;
+  final double? arrivedLng;
+
+  final Uint8List? pickupPhoto;
+  final DateTime? pickupAt;
+  final double? pickupLat;
+  final double? pickupLng;
+
+  final Uint8List? deliveryPhoto;
+  final DateTime? deliveryAt;
+  final double? deliveryLat;
+  final double? deliveryLng;
+
+  const OrderProof({
+    required this.orderId,
+    required this.driverId,
+    this.arrivedAt,
+    this.arrivedLat,
+    this.arrivedLng,
+    this.pickupPhoto,
+    this.pickupAt,
+    this.pickupLat,
+    this.pickupLng,
+    this.deliveryPhoto,
+    this.deliveryAt,
+    this.deliveryLat,
+    this.deliveryLng,
+  });
+
+  factory OrderProof.fromMap(Map<String, dynamic> map, String id) => OrderProof(
+        orderId: id,
+        driverId: map['driverId'] as String? ?? '',
+        arrivedAt: (map['arrivedAt'] as Timestamp?)?.toDate(),
+        arrivedLat: (map['arrivedLat'] as num?)?.toDouble(),
+        arrivedLng: (map['arrivedLng'] as num?)?.toDouble(),
+        pickupPhoto: (map['pickupPhoto'] as Blob?)?.bytes,
+        pickupAt: (map['pickupAt'] as Timestamp?)?.toDate(),
+        pickupLat: (map['pickupLat'] as num?)?.toDouble(),
+        pickupLng: (map['pickupLng'] as num?)?.toDouble(),
+        deliveryPhoto: (map['deliveryPhoto'] as Blob?)?.bytes,
+        deliveryAt: (map['deliveryAt'] as Timestamp?)?.toDate(),
+        deliveryLat: (map['deliveryLat'] as num?)?.toDouble(),
+        deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
       );
 }
 

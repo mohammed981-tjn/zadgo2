@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show HapticFeedback, SystemSound, SystemSoundType;
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
@@ -14,6 +15,8 @@ import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
 import '../customer/submit_complaint_screen.dart';
 import '../customer/my_complaints_screen.dart';
+import '../../utils/driver_proof_flow.dart';
+import '../../utils/location_guard.dart';
 import '../../navigator_key.dart';
 
 class DriverHome extends StatefulWidget {
@@ -25,9 +28,11 @@ class DriverHome extends StatefulWidget {
 class _DriverHomeState extends State<DriverHome> {
   int _tab = 0;
   Timer? _locationTimer;
-  double _simLat = 24.7136;
-  double _simLng = 46.6753;
   int _driverStreamRetryToken = 0;
+
+  /// هل يجري بثّ موقعٍ الآن؟ يمنع تراكم قراءات GPS متوازية إن تأخرت واحدة
+  /// أكثر من دورة المؤقّت.
+  bool _pushingLocation = false;
 
   final Set<String> _acknowledgedNotified = {};
   final Set<String> _autoAssignedNotified = {};
@@ -36,6 +41,9 @@ class _DriverHomeState extends State<DriverHome> {
   @override
   void initState() {
     super.initState();
+    // طلب إذن الموقع مبكراً حتى لا يصطدم به السائق أول مرة وهو مستعجل
+    // على تأكيد استلام. الفشل هنا مقبول بصمت — الحارس سيعيد الطلب عند الحاجة.
+    LocationGuard.currentPosition().then((_) {}).catchError((_) {});
     _locationTimer = Timer.periodic(const Duration(seconds: 8), (_) => _pushLocation());
   }
 
@@ -46,14 +54,29 @@ class _DriverHomeState extends State<DriverHome> {
     super.dispose();
   }
 
-  void _pushLocation() {
+  /// بثّ موقع السائق الحقيقي دورياً — يغذّي خريطة تتبّع الطلب عند العميل
+  /// والإسناد التلقائي لأقرب سائق.
+  ///
+  /// كان الكود السابق يبثّ موقعاً **محاكى** (نقطة وسط الرياض تهتز عشوائياً)
+  /// — بقية من التطوير المبكر جعلت خريطة العميل والإسناد بالمسافة بلا معنى.
+  Future<void> _pushLocation() async {
+    if (_pushingLocation || !mounted) return;
     final auth = context.read<app_auth.AuthProvider>();
     final service = context.read<FirebaseService>();
     final driverId = auth.user?.uid;
     if (driverId == null) return;
-    _simLat += (0.0003 * (DateTime.now().second.isEven ? 1 : -1));
-    _simLng += (0.0003 * (DateTime.now().second.isOdd ? 1 : -1));
-    service.updateDriverLocation(driverId, _simLat, _simLng);
+    _pushingLocation = true;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 7),
+      );
+      await service.updateDriverLocation(driverId, pos.latitude, pos.longitude);
+    } catch (_) {
+      // فشل قراءة دورية لا يستحق إزعاجاً — الدورة التالية بعد ثوانٍ.
+    } finally {
+      _pushingLocation = false;
+    }
   }
 
   /// نغمة + اهتزاز مع كل إسناد جديد — الشريط الصامت لا يلفت سائقاً هاتفه
@@ -424,21 +447,22 @@ class _OrderCard extends StatelessWidget {
     if (order.status == OrderStatus.readyForPickup ||
         order.status == OrderStatus.searchingDriver ||
         order.status == OrderStatus.driverAssigned) {
-      return SizedBox(width: double.infinity, child: ElevatedButton.icon(
-        onPressed: () async {
-          // للطلب النقدي يُصارَح السائق بقيمة العُهدة قبل التأكيد — القيد
-          // بلا إخبار مسبق يبدو خصماً غامضاً ويفقد الدفتر ثقته.
-          final isCash = order.paymentMethod == PaymentMethod.cash;
-          final ok = await showConfirmDialog(ctx,
-              title: 'استلام الطلب',
-              content: isCash
-                  ? 'هل استلمت الطلب فعلياً من المطعم؟\n\n'
-                      'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
-                      '(قيمة الطلب) حتى تحصيلها من العميل عند التسليم.'
-                  : 'هل استلمت الطلب فعلياً من المطعم؟',
-              confirmLabel: 'نعم');
-          if (ok == true) {
-            await service.markPickedUpBySelf(order.id);
+      return Column(children: [
+        // تسجيل الوصول أولاً — يوثّق زمنياً أن السائق حاضر وينتظر، فيحسم
+        // نزاع «من أخّر الطلب» لصالح الحقيقة. يختفي بعد تسجيله.
+        if (order.arrivedAtRestaurantAt == null) ...[
+          SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            onPressed: () => DriverProofFlow.recordArrival(ctx, service, order),
+            icon: const Icon(Icons.where_to_vote_outlined),
+            label: const Text('وصلتُ المطعم'),
+          )),
+          const SizedBox(height: 8),
+        ],
+        SizedBox(width: double.infinity, child: ElevatedButton.icon(
+          onPressed: () async {
+            // التدفّق الكامل: نطاق ١٠٠م ← صورة إلزامية ← عُهدة ← حالة.
+            final done = await DriverProofFlow.confirmPickup(ctx, service, order);
+            if (!done) return;
             final now = DateTime.now();
             navigatorKey.currentState?.push(
               MaterialPageRoute(
@@ -452,27 +476,24 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
             );
-          }
-        },
-        icon: const Icon(Icons.delivery_dining),
-        label: const Text('استلمت الطلب — في الطريق'),
-      ));
+          },
+          icon: const Icon(Icons.delivery_dining),
+          label: const Text('استلمت الطلب — في الطريق'),
+        )),
+      ]);
     }
     if (order.status == OrderStatus.onTheWay) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
         onPressed: () async {
-          final ok = await showConfirmDialog(ctx, title: 'تأكيد التوصيل', content: 'هل تم توصيل الطلب للعميل؟', confirmLabel: 'نعم');
-          if (ok == true) {
-            await service.markOrderDelivered(order.id, order.driverId ?? '');
-            if (ctx.mounted) {
-              // النقدي: أجرته ضمن النقد الذي بيده لا قيداً في المحفظة —
-              // رسالة «+أرباح» كانت ستوهمه بإضافة لن يجدها في سجلّه.
-              showSuccess(
-                  ctx,
-                  order.paymentMethod == PaymentMethod.cash
-                      ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
-                      : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
-            }
+          final done = await DriverProofFlow.confirmDelivery(ctx, service, order);
+          if (done && ctx.mounted) {
+            // النقدي: أجرته ضمن النقد الذي بيده لا قيداً في المحفظة —
+            // رسالة «+أرباح» كانت ستوهمه بإضافة لن يجدها في سجلّه.
+            showSuccess(
+                ctx,
+                order.paymentMethod == PaymentMethod.cash
+                    ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
+                    : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
           }
         },
         style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),

@@ -1,5 +1,6 @@
 // lib/providers/firebase_service.dart
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -662,6 +663,77 @@ class FirebaseService {
     await batch.commit();
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
+
+  CollectionReference<Map<String, dynamic>> get _orderProofs =>
+      _db.collection('order_proofs');
+
+  /// تسجيل وصول السائق إلى المطعم: طابع زمني على الطلب (يقرؤه الجميع في
+  /// نزاع «من أخّر؟») + الإحداثيات في وثيقة الإثبات.
+  Future<void> recordArrivalAtRestaurant({
+    required models.Order order,
+    required double lat,
+    required double lng,
+  }) async {
+    final driverId = order.driverId ?? '';
+    if (driverId.isEmpty) return;
+    final batch = _db.batch();
+    batch.update(_orders.doc(order.id), {
+      'arrivedAtRestaurantAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(
+      _orderProofs.doc(order.id),
+      {
+        'driverId': driverId,
+        'orderNumber': order.orderNumber,
+        'arrivedAt': FieldValue.serverTimestamp(),
+        'arrivedLat': lat,
+        'arrivedLng': lng,
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+  }
+
+  /// حفظ صورة إثبات الاستلام من المطعم — تُكتب **قبل** تغيير الحالة وقيد
+  /// العُهدة، فلا يوجد استلام مكتمل بلا صورته.
+  Future<void> savePickupProof({
+    required models.Order order,
+    required Uint8List photo,
+    required double lat,
+    required double lng,
+  }) =>
+      _orderProofs.doc(order.id).set({
+        'driverId': order.driverId ?? '',
+        'orderNumber': order.orderNumber,
+        'pickupPhoto': Blob(photo),
+        'pickupAt': FieldValue.serverTimestamp(),
+        'pickupLat': lat,
+        'pickupLng': lng,
+      }, SetOptions(merge: true));
+
+  /// حفظ صورة إثبات التسليم عند العميل — قبل تأكيد التوصيل.
+  Future<void> saveDeliveryProof({
+    required models.Order order,
+    required Uint8List photo,
+    required double lat,
+    required double lng,
+  }) =>
+      _orderProofs.doc(order.id).set({
+        'driverId': order.driverId ?? '',
+        'orderNumber': order.orderNumber,
+        'deliveryPhoto': Blob(photo),
+        'deliveryAt': FieldValue.serverTimestamp(),
+        'deliveryLat': lat,
+        'deliveryLng': lng,
+      }, SetOptions(merge: true));
+
+  /// وثيقة إثبات طلب — تعرضها شاشة الشكوى عند المدير خطاً زمنياً.
+  Stream<models.OrderProof?> streamOrderProof(String orderId) =>
+      _orderProofs.doc(orderId).snapshots().map((d) =>
+          d.exists && d.data() != null
+              ? models.OrderProof.fromMap(d.data()!, d.id)
+              : null);
 
   /// عكس عُهدة طلب أُلغي بعد استلام السائق له — بدون هذا يبقى القيد على
   /// السائق لطلب لن يحصّل قيمته من أحد.
