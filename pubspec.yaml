@@ -43,8 +43,10 @@ dependencies:
   http: ^1.3.0
 
   # إبقاء شاشة جهاز المطعم مضاءة — الجهاز يعمل «شاشة طلبات» طوال الدوام.
-  # مثبّتة على 1.4.0: الإصدارات 1.5.0+ تتطلّب Dart 3.10 والبناء هنا على 3.5.
-  wakelock_plus: 1.4.0
+  # مثبّتة على 1.3.3 تحديداً: 1.4.0 تجرّ package_info_plus 9.x التي كسرت
+  # بناء أندرويد فعلاً (compileSdkVersion is not specified)، و1.5.0+ تتطلّب
+  # Dart 3.10 والبناء هنا على 3.5. هذه تقبل package_info_plus 8.x المتوافقة.
+  wakelock_plus: 1.3.3
 
   flutter_rating_bar: ^4.0.1
   badges: ^3.1.2

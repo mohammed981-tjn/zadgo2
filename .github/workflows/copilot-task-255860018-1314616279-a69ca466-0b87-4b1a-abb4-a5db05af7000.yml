@@ -94,8 +94,9 @@ jobs:
         # الشيفرة. إن لم يُضبط السرّ يبقى فارغاً، فيختفي خيار الدفع بالبطاقة
         # من التطبيق تلقائياً بدل أن يظهر خياراً معطّلاً.
         #
-        # ZADGO_API_BASE: عنوان الخادم المرافق للإشعارات (مثل
-        # https://api.zadgo.co) — يُضبط كمتغيّر مستودع (Variables لا Secrets،
+        # ZADGO_NOTIFY_URL: العنوان الكامل لنقطة إشعارات الخادم المرافق
+        # (مثل https://api.zadgo.co/notify.php على استضافة PHP، أو عنوان
+        # Cloudflare Worker) — يُضبط كمتغيّر مستودع (Variables لا Secrets،
         # فهو ليس سراً). إن لم يُضبط تُتجاهل نداءات الإشعارات بصمت ويعمل
         # التطبيق كالسابق. راجع server/README-ar.md.
         run: >
@@ -103,7 +104,7 @@ jobs:
           --flavor ${{ matrix.flavor }}
           -t lib/main_${{ matrix.flavor }}.dart
           --dart-define=MOYASAR_PUBLISHABLE_KEY=${{ secrets.MOYASAR_PUBLISHABLE_KEY }}
-          --dart-define=ZADGO_API_BASE=${{ vars.ZADGO_API_BASE }}
+          --dart-define=ZADGO_NOTIFY_URL=${{ vars.ZADGO_NOTIFY_URL }}
 
       - name: Final APK search
         if: always()
