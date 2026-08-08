@@ -59,7 +59,12 @@ class FirebaseService {
       case models.OrderStatus.onTheWay:
         return to == models.OrderStatus.delivered;
       case models.OrderStatus.noDriverFound:
-        return to == models.OrderStatus.driverAssigned;
+        // إسناد يدوي من المدير بعد فشل البحث التلقائي، أو إلغاء الطلب. كان
+        // الإلغاء ممنوعاً من هذه الحالة (لأن noDriverFound ليست isActive فلا
+        // تشملها قاعدة الإلغاء العامة)، فيبقى الطلب عالقاً بلا مخرج — ومعه
+        // يبقى رصيد المحفظة المخصوم محجوزاً بلا إعادة.
+        return to == models.OrderStatus.driverAssigned ||
+            to == models.OrderStatus.cancelled;
       case models.OrderStatus.delivered:
       case models.OrderStatus.restaurantRejected:
       case models.OrderStatus.cancelled:
@@ -568,6 +573,10 @@ class FirebaseService {
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
     });
+
+    // رفض المطعم إنهاءٌ للطلب بلا خدمة، فيُعاد للعميل ما خُصم من محفظته تماماً
+    // كالإلغاء — وإلا خسر رصيده بسبب رفضٍ لا ذنب له فيه.
+    await _refundWalletOnCancel(current);
   }
 
   Future<void> markPickedUpBySelf(String orderId) async {
@@ -933,24 +942,51 @@ class FirebaseService {
               .toList());
 
   /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
-  Future<void> cancelOrder(String orderId) =>
-      updateOrderStatus(orderId, models.OrderStatus.cancelled);
+  Future<void> cancelOrder(String orderId) async {
+    final order = await _getOrderOrThrow(orderId);
+    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
+    await _refundWalletOnCancel(order);
+  }
 
   /// إلغاء العميل لطلبه — مسموح فقط قبل أن يبدأ المطعم التحضير
   /// ([models.Order.canCustomerCancel]). التحقق هنا وليس في الواجهة فقط، حتى
   /// لا يمرّ إلغاء متأخر لو استُدعيت الدالة من مسار آخر أو تغيّرت الحالة بين
   /// عرض الزر والضغط عليه.
   Future<void> cancelOrderByCustomer(String orderId) async {
+    final order = await _getOrderOrThrow(orderId);
+    if (!order.canCustomerCancel) {
+      throw Exception('لا يمكن إلغاء الطلب بعد بدء التحضير، تواصل مع الإدارة');
+    }
+    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
+    await _refundWalletOnCancel(order);
+  }
+
+  Future<models.Order> _getOrderOrThrow(String orderId) async {
     final doc = await _orders.doc(orderId).get();
     final data = doc.data();
     if (!doc.exists || data == null) {
       throw Exception('الطلب غير موجود');
     }
-    final order = models.Order.fromMap(data, doc.id);
-    if (!order.canCustomerCancel) {
-      throw Exception('لا يمكن إلغاء الطلب بعد بدء التحضير، تواصل مع الإدارة');
-    }
-    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
+    return models.Order.fromMap(data, doc.id);
+  }
+
+  /// يُعيد إلى محفظة العميل ما خُصم منها لهذا الطلب عند إلغائه.
+  ///
+  /// بدون هذه الخطوة كان العميل يدفع من رصيده ثم يُلغى طلبه فيضيع الرصيد
+  /// نهائياً — خسارة مباشرة له لا يراها إلا بمقارنة رصيده قبل الطلب وبعده.
+  ///
+  /// يُستدعى بعد نجاح تغيير الحالة لا قبله: لو فشل الإلغاء لسبب ما، لا يكون
+  /// رصيد قد أُعيد لطلب ما زال قائماً.
+  Future<void> _refundWalletOnCancel(models.Order order) async {
+    if (order.walletUsed <= 0) return;
+    await _recordWalletEntry(
+      userId: order.customerId,
+      amount: order.walletUsed,
+      type: models.WalletTransactionType.orderReversal,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      note: 'إلغاء الطلب',
+    );
   }
 
   Future<Map<String, dynamic>> getDeliverySettings() async {

@@ -334,7 +334,11 @@ class _TrackedOrderCard extends StatelessWidget {
           ],
           // ✅ إنهاء الطلب أو إلغاؤه مباشرة من شاشة المتابعة الحية دون التنقل
           // بين شاشات أخرى — مفيد للطوارئ (مشكلة اتصال، طلب لن يُستكمل...).
-          if (order.status.isActive) ...[
+          // «تعذّر إيجاد سائق» ليست حالة نشطة تقنياً، لكنها ليست منتهية أيضاً:
+          // الطلب عالق ينتظر قرار المدير (إسناد سائق أو إلغاء). بدون إظهار
+          // الأزرار هنا يبقى الطلب بلا مخرج، ويبقى معه رصيد المحفظة محجوزاً.
+          if (order.status.isActive ||
+              order.status == OrderStatus.noDriverFound) ...[
             const SizedBox(height: 8),
             Row(children: [
               Expanded(
