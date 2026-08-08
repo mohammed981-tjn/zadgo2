@@ -619,61 +619,6 @@ class FirebaseService {
     });
   }
 
-  // ===========================================================================
-  // إجراءات مدير المطعم على الطلب
-  // ===========================================================================
-
-  /// رفض المطعم للطلب مع تسجيل سبب الرفض (نص حر يكتبه مدير المطعم).
-  ///
-  /// يختلف تماماً عن إلغاء الطلب (cancelOrder) الذي يبقى للمدير العام حصراً:
-  /// الرفض هنا لا يقع إلا في بداية دورة الطلب، حين يكون بحالة
-  /// restaurantPending ولم يبدأ التحضير بعد.
-  Future<void> rejectOrderByRestaurant(String orderId, String reason) async {
-    final ref = _orders.doc(orderId);
-    final doc = await ref.get();
-    if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
-    }
-
-    final current = models.Order.fromMap(doc.data()!, doc.id);
-    if (current.status != models.OrderStatus.restaurantPending) {
-      throw Exception('لا يمكن رفض الطلب بعد قبوله — حالته الحالية: ${current.status.label}');
-    }
-
-    await ref.update({
-      'status': models.OrderStatus.restaurantRejected.name,
-      'rejectionReason': reason.trim(),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'statusChangedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
-  /// تأكيد مدير المطعم أن الطلب خرج فعلياً من عنده (سلّمه يدوياً للسائق
-  /// الذي جاء لاستلامه).
-  ///
-  /// مهم: هذا **لا يغيّر حالة الطلب** (تبقى readyForPickup) لأن دورة الطلب
-  /// الرسمية بين السائق والعميل والمدير لا شأن للمطعم بها — السائق هو من
-  /// يسجّل استلامه من نظامه كما كان تماماً. كل ما يفعله هذا الحقل أن شاشة
-  /// المطعم تعتبر الطلب منتهياً عندها وتنقله لتبويب "منتهية" فوراً، بشكل
-  /// دائم محفوظ في القاعدة (لا مجرد إخفاء محلي يعود بعد إعادة فتح التطبيق).
-  Future<void> markRestaurantHandedOff(String orderId) async {
-    final ref = _orders.doc(orderId);
-    final doc = await ref.get();
-    if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
-    }
-
-    final current = models.Order.fromMap(doc.data()!, doc.id);
-    if (current.status != models.OrderStatus.readyForPickup) {
-      throw Exception('لا يمكن تأكيد خروج الطلب قبل تعليمه "جاهز للاستلام"');
-    }
-
-    await ref.update({
-      'restaurantHandedOff': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-  }
-
   Future<void> assignDriver(String orderId, String driverId, String driverName) async {
     final ref = _orders.doc(orderId);
     final orderDoc = await ref.get();
