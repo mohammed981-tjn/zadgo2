@@ -366,6 +366,12 @@ class _ProofTimeline extends StatelessWidget {
                 InfoRow(
                     icon: Icons.done_all_rounded,
                     text: 'تسليم للعميل: ${_fmt(proof.deliveryAt)}'),
+                if ((proof.deliveryDistanceMeters ?? 0) > 100)
+                  InfoRow(
+                      icon: Icons.social_distance_rounded,
+                      text: 'سُلّم على بُعد '
+                          '${proof.deliveryDistanceMeters! >= 1000 ? "${(proof.deliveryDistanceMeters! / 1000).toStringAsFixed(1)} كم" : "${proof.deliveryDistanceMeters} م"}'
+                          ' من موقع العميل المسجّل'),
                 const SizedBox(height: 10),
                 Row(children: [
                   if (proof.pickupPhoto != null)

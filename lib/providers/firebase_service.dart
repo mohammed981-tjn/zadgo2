@@ -695,37 +695,44 @@ class FirebaseService {
     await batch.commit();
   }
 
-  /// حفظ صورة إثبات الاستلام من المطعم — تُكتب **قبل** تغيير الحالة وقيد
-  /// العُهدة، فلا يوجد استلام مكتمل بلا صورته.
+  /// حفظ إثبات الاستلام من المطعم — يُكتب **قبل** تغيير الحالة وقيد
+  /// العُهدة. الصورة اختيارية (سياسة المرونة)؛ الزمن والإحداثيات يُسجَّلان
+  /// دائماً فهما بيّنة قائمة بذاتها.
   Future<void> savePickupProof({
     required models.Order order,
-    required Uint8List photo,
+    Uint8List? photo,
     required double lat,
     required double lng,
   }) =>
       _orderProofs.doc(order.id).set({
         'driverId': order.driverId ?? '',
         'orderNumber': order.orderNumber,
-        'pickupPhoto': Blob(photo),
+        if (photo != null) 'pickupPhoto': Blob(photo),
         'pickupAt': FieldValue.serverTimestamp(),
         'pickupLat': lat,
         'pickupLng': lng,
       }, SetOptions(merge: true));
 
-  /// حفظ صورة إثبات التسليم عند العميل — قبل تأكيد التوصيل.
+  /// حفظ إثبات التسليم عند العميل — قبل تأكيد التوصيل. الصورة اختيارية
+  /// (سياسة المرونة)، و[distanceMeters] بُعد السائق عن موقع العميل المسجّل
+  /// لحظة التسليم — يُسجَّل خاصةً حين يكون كبيراً، فهو البيّنة في نزاع
+  /// «سلّم في مكان آخر».
   Future<void> saveDeliveryProof({
     required models.Order order,
-    required Uint8List photo,
+    Uint8List? photo,
     required double lat,
     required double lng,
+    double? distanceMeters,
   }) =>
       _orderProofs.doc(order.id).set({
         'driverId': order.driverId ?? '',
         'orderNumber': order.orderNumber,
-        'deliveryPhoto': Blob(photo),
+        if (photo != null) 'deliveryPhoto': Blob(photo),
         'deliveryAt': FieldValue.serverTimestamp(),
         'deliveryLat': lat,
         'deliveryLng': lng,
+        if (distanceMeters != null)
+          'deliveryDistanceMeters': distanceMeters.round(),
       }, SetOptions(merge: true));
 
   /// وثيقة إثبات طلب — تعرضها شاشة الشكوى عند المدير خطاً زمنياً.

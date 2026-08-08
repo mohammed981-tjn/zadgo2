@@ -1395,6 +1395,10 @@ class OrderProof {
   final double? deliveryLat;
   final double? deliveryLng;
 
+  /// بُعد السائق عن موقع العميل المسجّل لحظة التسليم (بالأمتار) — يُسجَّل
+  /// دائماً، وقيمته الكبيرة بيّنة «سلّم في مكان آخر» عند النزاع.
+  final int? deliveryDistanceMeters;
+
   const OrderProof({
     required this.orderId,
     required this.driverId,
@@ -1409,6 +1413,7 @@ class OrderProof {
     this.deliveryAt,
     this.deliveryLat,
     this.deliveryLng,
+    this.deliveryDistanceMeters,
   });
 
   factory OrderProof.fromMap(Map<String, dynamic> map, String id) => OrderProof(
@@ -1425,6 +1430,7 @@ class OrderProof {
         deliveryAt: (map['deliveryAt'] as Timestamp?)?.toDate(),
         deliveryLat: (map['deliveryLat'] as num?)?.toDouble(),
         deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
+        deliveryDistanceMeters: (map['deliveryDistanceMeters'] as num?)?.toInt(),
       );
 }
 
