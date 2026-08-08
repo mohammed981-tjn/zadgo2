@@ -23,9 +23,18 @@ dependencies:
   # اختيار صور الأصناف والمطاعم من الجهاز ورفعها من داخل لوحة الإدارة.
   image_picker: ^1.1.2
 
-  # بوابة الدفع «ميسر» — تدعم mada وVisa وMastercard وApple Pay. مُثبّتة على
-  # 3.0.4 وهي النسخة التي جُرّب بها التكامل فعلياً.
-  moyasar: 3.0.4
+  # بوابة الدفع «ميسر» — تدعم mada وVisa وMastercard وApple Pay.
+  #
+  # مثبّتة على 2.0.16 عمداً: الإصدارات 2.0.17+ (ومنها 3.x) تعتمد
+  # webview_flutter ^4.13.0 الذي يتطلّب Dart ‏3.6، بينما البناء هنا على
+  # Flutter 3.24.0 = Dart ‏3.5.0. الإصدار 2.0.16 يعتمد webview_flutter
+  # ^4.10.0 وهو متوافق مع 3.5.
+  #
+  # الفروق بين 2.0.16 و3.x لا تمسّ ما نستخدمه: PaymentConfig و
+  # CreditCardConfig و CreditCard و PaymentResponse و PaymentStatus
+  # متطابقة نصّاً في الإصدارين؛ الإضافات في 3.x هي Samsung Pay و
+  # Union Pay وتقسيم المدفوعات — ولا نستعمل شيئاً منها.
+  moyasar: 2.0.16
 
   provider: ^6.1.2
 

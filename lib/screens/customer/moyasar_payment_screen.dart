@@ -64,7 +64,9 @@ class MoyasarPaymentScreen extends StatelessWidget {
       amount: (amountSar * 100).round(),
       description: orderDescription,
       metadata: const {'source': 'zadgo_app'},
-      creditCard: const CreditCardConfig(saveCard: false, manual: false),
+      // ليست const: مُنشئ CreditCardConfig في حزمة ميسر غير ثابت (حقوله
+      // قابلة للتعديل)، فوضع const هنا خطأ ترجمة.
+      creditCard: CreditCardConfig(saveCard: false, manual: false),
     );
 
     void onPaymentResult(dynamic result) {
@@ -131,9 +133,12 @@ class MoyasarPaymentScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            // نموذج البطاقة بالعربية واتجاه RTL — الحزمة توفّرهما جاهزين،
+            // فلا داعي لنموذج من تصميمنا يخرجنا من نطاق PCI.
             CreditCard(
               config: paymentConfig,
               onPaymentResult: onPaymentResult,
+              locale: const Localization.ar(),
             ),
           ],
         ),
