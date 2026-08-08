@@ -969,6 +969,9 @@ class Order {
   final double? restaurantLat;
   final double? restaurantLng;
   final String? rejectionReason;
+  /// معرّف عملية الدفع لدى بوابة الدفع (Moyasar) — يُملأ فقط عند نجاح شحن
+  /// البطاقة فعلياً، ووجوده هو الدليل الوحيد على أن الطلب مدفوع مسبقاً.
+  final String? paymentId;
   final bool driverAcknowledged;
 
   const Order({
@@ -1003,6 +1006,7 @@ class Order {
     this.restaurantLat,
     this.restaurantLng,
     this.rejectionReason,
+    this.paymentId,
     this.driverAcknowledged = true,
   });
 
@@ -1084,6 +1088,7 @@ class Order {
         restaurantLat: (map['restaurantLat'] as num?)?.toDouble(),
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
         rejectionReason: map['rejectionReason'] as String?,
+        paymentId: map['paymentId'] as String?,
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
       );
 
@@ -1120,6 +1125,7 @@ class Order {
         'restaurantLat': restaurantLat,
         'restaurantLng': restaurantLng,
         'rejectionReason': rejectionReason,
+        if (paymentId != null) 'paymentId': paymentId,
         'driverAcknowledged': driverAcknowledged,
       };
 
@@ -1171,6 +1177,7 @@ class Order {
         restaurantLat: restaurantLat,
         restaurantLng: restaurantLng,
         rejectionReason: rejectionReason ?? this.rejectionReason,
+        paymentId: paymentId,
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
       );
 }

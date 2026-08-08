@@ -16,6 +16,8 @@ import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'pick_location_screen.dart';
 import 'my_orders_screen.dart';
+import 'moyasar_payment_screen.dart';
+import '../../utils/payment_config.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
@@ -170,6 +172,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double get _deliveryFee =>
       Pricing.deliveryFee(_distanceKm ?? 0);
 
+  /// إجمالي ما يدفعه العميل — مصدر واحد يستخدمه العرض وشحن البطاقة معاً، حتى
+  /// لا يُشحن مبلغ يخالف ما رآه العميل على الشاشة.
+  double _orderTotal() {
+    final itemsTotal = context.read<CartProvider>().itemsTotal;
+    return itemsTotal + _deliveryFee + Pricing.fixedDeliveryCommission;
+  }
+
   // ← دالة تحويل الإحداثيات إلى عنوان
   Future<String> _getAddressFromLatLng(double lat, double lng) async {
     try {
@@ -220,6 +229,33 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    // الدفع بالبطاقة يسبق إنشاء الطلب: لا يُسجَّل طلب إلا بعد أن تؤكّد البوابة
+    // شحن المبلغ فعلياً. العكس (إنشاء الطلب ثم محاولة الدفع) يُنتج طلبات
+    // معلّقة بلا سداد يصعب تنظيفها لاحقاً.
+    String? paymentId;
+    if (_payment == PaymentMethod.card) {
+      final totalToCharge = _orderTotal();
+      final result = await Navigator.push<MoyasarPaymentResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MoyasarPaymentScreen(
+            amountSar: totalToCharge,
+            orderDescription: 'طلب ZadGo — ${_restaurant?.displayName ?? ''}',
+          ),
+        ),
+      );
+      // العميل خرج من شاشة الدفع دون إكمالها.
+      if (result == null) return;
+      if (!result.success) {
+        if (mounted) {
+          showError(context, result.errorMessage ?? 'فشلت عملية الدفع');
+        }
+        return;
+      }
+      paymentId = result.paymentId;
+    }
+
+    if (!mounted) return;
     setState(() => _loading = true);
 
     final cart = context.read<CartProvider>();
@@ -249,7 +285,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       deliveryAddress: _addrCtrl.text.trim(),
       items: cart.toOrderItems(),
       paymentMethod: _payment,
-      isPaid: _payment != PaymentMethod.cash,
+      // السداد المسبق يثبت بمعرّف عملية حقيقي من البوابة فقط، لا بمجرّد اختيار
+      // العميل «بطاقة» في القائمة.
+      isPaid: paymentId != null,
+      paymentId: paymentId,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,
@@ -290,7 +329,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     const fixedFee = Pricing.fixedDeliveryCommission;
     // العميل يدفع الوجبات + التوصيل + الرسم الثابت فقط (عمولة 15% تُخصم من
     // المطعم ولا تظهر للعميل).
-    final total = itemsTotal + delivery + fixedFee;
+    final total = _orderTotal();
 
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
@@ -362,12 +401,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
           const SizedBox(height: 20),
           const Text('طريقة الدفع', style: TextStyle(fontWeight: FontWeight.bold)),
-          ...PaymentMethod.values.map(
+          // خيار البطاقة يظهر فقط عند تهيئة بوابة الدفع، فلا يصطدم العميل بخيار
+          // لا يعمل. المحفظة مخفيّة حتى تُنفَّذ فعلياً.
+          ...PaymentMethod.values
+              .where((p) =>
+                  p == PaymentMethod.cash ||
+                  (p == PaymentMethod.card && PaymentConfig_.isConfigured))
+              .map(
             (p) => RadioListTile<PaymentMethod>(
               value: p,
               groupValue: _payment,
               onChanged: (v) => setState(() => _payment = v!),
               title: Text(p.label),
+              subtitle: p == PaymentMethod.card && PaymentConfig_.isTestKey
+                  ? const Text('وضع الاختبار — لن يُسحب مبلغ حقيقي',
+                      style: TextStyle(fontSize: 11, color: AppColors.warning))
+                  : null,
             ),
           ),
           const SizedBox(height: 20),

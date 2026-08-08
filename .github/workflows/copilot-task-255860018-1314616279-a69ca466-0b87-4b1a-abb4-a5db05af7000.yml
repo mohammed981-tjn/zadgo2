@@ -90,7 +90,14 @@ jobs:
           flutter analyze --no-fatal-warnings --no-fatal-infos | tee flutter_analyze.log
 
       - name: Build APK (${{ matrix.flavor }} flavor)
-        run: flutter build apk --release --no-shrink --flavor ${{ matrix.flavor }} -t lib/main_${{ matrix.flavor }}.dart
+        # مفتاح بوابة الدفع يُحقن وقت البناء من أسرار المستودع، فلا يُخزَّن في
+        # الشيفرة. إن لم يُضبط السرّ يبقى فارغاً، فيختفي خيار الدفع بالبطاقة
+        # من التطبيق تلقائياً بدل أن يظهر خياراً معطّلاً.
+        run: >
+          flutter build apk --release --no-shrink
+          --flavor ${{ matrix.flavor }}
+          -t lib/main_${{ matrix.flavor }}.dart
+          --dart-define=MOYASAR_PUBLISHABLE_KEY=${{ secrets.MOYASAR_PUBLISHABLE_KEY }}
 
       - name: Final APK search
         if: always()

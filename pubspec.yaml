@@ -23,6 +23,10 @@ dependencies:
   # اختيار صور الأصناف والمطاعم من الجهاز ورفعها من داخل لوحة الإدارة.
   image_picker: ^1.1.2
 
+  # بوابة الدفع «ميسر» — تدعم mada وVisa وMastercard وApple Pay. مُثبّتة على
+  # 3.0.4 وهي النسخة التي جُرّب بها التكامل فعلياً.
+  moyasar: 3.0.4
+
   provider: ^6.1.2
 
   flutter_rating_bar: ^4.0.1
