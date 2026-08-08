@@ -81,6 +81,10 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo_square.png
+    # الشعار الكتابي الرسمي بخلفية شفافة — شاشات البداية لكل النكهات.
+    - assets/images/logo_wordmark.png
+    # بوستر افتتاح تطبيق العميل (الشعار + السائق + العبارة التسويقية).
+    - assets/images/splash_customer.jpg
   fonts:
     - family: Cairo
       fonts:

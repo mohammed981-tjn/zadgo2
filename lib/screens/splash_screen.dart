@@ -11,12 +11,31 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   bool _navigated = false;
+
+  /// ظهور تدريجي مع تكبير طفيف للشعار — لمسة «حيّة» بلا انتظار إضافي:
+  /// الحركة تجري ضمن ثانيتَي الانتظار القائمتين أصلاً.
+  late final AnimationController _anim = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 700))
+    ..forward();
+  late final Animation<double> _fade =
+      CurvedAnimation(parent: _anim, curve: Curves.easeOut);
+  late final Animation<double> _scale =
+      Tween(begin: 0.92, end: 1.0).animate(
+          CurvedAnimation(parent: _anim, curve: Curves.easeOutBack));
+
   @override
   void initState() {
     super.initState();
     Future.delayed(const Duration(seconds: 2), _navigate);
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
   }
 
   void _navigate() {
@@ -52,14 +71,34 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-
     final label = AppFlavorConfig.flavorLabel;
     final fc = context.flavorColors;
 
+    // تطبيق العميل — واجهة الجمهور — يفتح ببوستر العلامة الكامل (الشعار
+    // والسائق والعبارة التسويقية) ملء الشاشة، فيبدو كتطبيقات التوصيل
+    // الكبرى من أول لحظة. بقية النكهات أدوات عمل داخلية، فتكتفي بالشعار
+    // الكتابي على «ليل» هويتها — أسرع وأقل تشتيتاً لمن يفتحها عشرات
+    // المرات يومياً.
+    if (AppFlavorConfig.flavor == AppFlavor.customer) {
+      return Scaffold(
+        body: FadeTransition(
+          opacity: _fade,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            color: const Color(0xFF0E1B33),
+            child: Image.asset(
+              'assets/images/splash_customer.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       // خلفية البداية بهوية النكهة: تدرّج شعاعي من "ليل" النكهة الفاتح نسبياً
-      // في المركز إلى الأغمق في الأطراف، بدل اللون الكحلي الموحّد السابق.
+      // في المركز إلى الأغمق في الأطراف.
       body: Container(
         width: double.infinity,
         height: double.infinity,
@@ -71,55 +110,68 @@ class _SplashScreenState extends State<SplashScreen> {
           ),
         ),
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: screenWidth * 0.75,
-                height: screenHeight * 0.6,
-                child: Image.asset(
-                  'assets/images/logo_square.png',
-                  fit: BoxFit.contain,
-                  alignment: Alignment.center,
-                ),
-              ),
-              if (label != null)
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [fc.primary, fc.primaryDark],
-                      begin: AlignmentDirectional.centerStart,
-                      end: AlignmentDirectional.centerEnd,
+          child: FadeTransition(
+            opacity: _fade,
+            child: ScaleTransition(
+              scale: _scale,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // الشعار الكتابي الرسمي بخلفية شفافة — يتوافق مع أي «ليل»
+                  // نكهة، بدل الشعار المربع ذي الخلفية الكحلية المثبتة.
+                  Image.asset(
+                    'assets/images/logo_wordmark.png',
+                    width: screenWidth * 0.62,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    AppFlavorConfig.flavorTagline,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: Colors.white.withOpacity(0.6),
+                      letterSpacing: 0.3,
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: fc.primary.withOpacity(0.5),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(AppFlavorConfig.flavorIcon, color: fc.onPrimary, size: 17),
-                      const SizedBox(width: 7),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: fc.onPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
+                  const SizedBox(height: 26),
+                  if (label != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [fc.primary, fc.primaryDark],
+                          begin: AlignmentDirectional.centerStart,
+                          end: AlignmentDirectional.centerEnd,
                         ),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: fc.primary.withOpacity(0.5),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-            ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(AppFlavorConfig.flavorIcon, color: fc.onPrimary, size: 17),
+                          const SizedBox(width: 7),
+                          Text(
+                            label,
+                            style: TextStyle(
+                              color: fc.onPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
