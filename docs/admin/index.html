@@ -202,7 +202,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, orderBy, where,
-  limit, onSnapshot, getDocs, writeBatch, Timestamp, serverTimestamp }
+  limit, onSnapshot, getDocs, writeBatch, runTransaction, Timestamp, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const app = initializeApp({
@@ -330,7 +330,7 @@ onAuthStateChanged(auth, async (user) => {
       $('loginError').classList.remove('hidden');
       return;
     }
-    adminUser = { name: snap.data().name || '', email: user.email || '' };
+    adminUser = { name: snap.data().name || '', email: user.email || '', uid: user.uid };
     $('adminChip').innerHTML = `<b>${esc(adminUser.name || 'المدير العام')}</b><br>${esc(adminUser.email)}`;
     $('loginView').classList.add('hidden');
     $('appView').classList.remove('hidden');
@@ -638,45 +638,131 @@ function showRestEdit(id) {
   });
 }
 
-/* ================= السائقون ================= */
+/* ================= السائقون (نظام المحفظة — المرحلة صفر) ================= */
+const TXN_TYPE_AR = {
+  deliveryCash: ['توصيل نقدي', '#ca6f1e'],
+  deliveryOnline: ['توصيل إلكتروني', '#1e8449'],
+  deposit: ['إيداع نقدي', '#1e8449'],
+  payout: ['صرف للسائق', '#2471a3'],
+  adjustment: ['تسوية', '#8e44ad'],
+};
+function balanceBadge(bal) {
+  if (bal > 0.009) return badge(`له ${fmtMoney(bal)} ${SAR}`, '#1e8449');
+  if (bal < -0.009) return badge(`عليه تسليم ${fmtMoney(-bal)} ${SAR}`, '#ca6f1e');
+  return badge('رصيد متزن', '#7f8c8d');
+}
+
 function renderDriversPage() {
   const list = [...S.drivers].sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
+  const owedToDrivers = list.reduce((s2, d) => s2 + Math.max(0, Number(d.balance) || 0), 0);
+  const owedByDrivers = list.reduce((s2, d) => s2 + Math.max(0, -(Number(d.balance) || 0)), 0);
   $('main').innerHTML = `
     <div class="kpi-grid">
       <div class="kpi"><div class="num">${list.filter((d) => d.isOnline).length}</div><div class="lbl">متصل الآن</div></div>
-      <div class="kpi"><div class="num">${list.filter((d) => d.isOnline && d.isAvailable).length}</div><div class="lbl">متاح لطلب جديد</div></div>
-      <div class="kpi"><div class="num">${fmtMoney(list.reduce((s, d) => s + (Number(d.pendingPayout) || 0), 0))}</div>
-        <div class="lbl">مستحقات غير مسددة (${SAR})</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(owedByDrivers)}</div><div class="lbl">نقد بعهدة السائقين (${SAR})</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(owedToDrivers)}</div><div class="lbl">مستحق للسائقين (${SAR})</div></div>
     </div>
-    ${list.map((d) => `
+    ${list.map((d) => {
+      const bal = Number(d.balance) || 0;
+      const legacy = Number(d.pendingPayout) || 0;
+      return `
       <div class="card">
         <div class="row1">
           <span class="title">🛵 ${esc(d.name || '—')}</span>
           <span>${d.isOnline ? badge('متصل', '#1e8449') : badge('غير متصل', '#7f8c8d')}
-            ${d.isOnline ? (d.isAvailable ? badge('متاح', '#2471a3') : badge('مشغول بطلب', '#ca6f1e')) : ''}</span>
+            ${balanceBadge(bal)}</span>
         </div>
         <div class="meta">
           📞 ${esc(d.phone || '—')} — ${esc(d.vehicleType || '')} ${esc(d.vehiclePlate || '')}<br>
           التوصيلات: ${Number(d.totalDeliveries) || 0} — ⭐ ${(Number(d.rating) || 0).toFixed(1)}
-          (${Number(d.ratingCount) || 0} تقييم)<br>
-          الأرباح الكلية: <b>${fmtMoney(d.totalEarnings)} ${SAR}</b> —
-          مستحقات معلّقة: <b style="color:${(Number(d.pendingPayout) || 0) > 0 ? 'var(--orange)' : 'var(--ok)'}">
-          ${fmtMoney(d.pendingPayout)} ${SAR}</b>
-          ${d.lastLocationUpdate ? '<br>آخر تحديث موقع: ' + esc(fmtTime(d.lastLocationUpdate)) : ''}
+          (${Number(d.ratingCount) || 0} تقييم) — الأرباح الكلية: <b>${fmtMoney(d.totalEarnings)} ${SAR}</b>
+          ${legacy > 0 && d.balance == null ? '<br><span style="color:var(--orange)">⚠️ رصيد نظام قديم (مستحقات): ' + fmtMoney(legacy) + ' ' + SAR + ' — سيُرحَّل مع النسخة الجديدة</span>' : ''}
         </div>
-        ${(Number(d.pendingPayout) || 0) > 0 ? `
-          <div class="row1" style="margin-top:8px">
-            <button class="toggle-btn on" data-payout="${d.id}" data-amount="${Number(d.pendingPayout) || 0}">
-              تسوية المستحقات (${fmtMoney(d.pendingPayout)} ${SAR}) ✓</button>
-          </div>` : ''}
-      </div>`).join('') || '<div class="empty">لا يوجد سائقون بعد</div>'}`;
+        <div class="row1" style="margin-top:8px;gap:6px">
+          <button class="toggle-btn on" data-wallet="deposit" data-did="${d.id}">📥 إيداع نقدي</button>
+          <button class="toggle-btn" data-wallet="payout" data-did="${d.id}">📤 صرف</button>
+          <button class="toggle-btn" data-wallet="adjustment" data-did="${d.id}">⚖️ تسوية</button>
+          <button class="toggle-btn" data-txns="${d.id}">📒 سجل الحركات</button>
+        </div>
+      </div>`;
+    }).join('') || '<div class="empty">لا يوجد سائقون بعد</div>'}`;
 
-  $('main').querySelectorAll('[data-payout]').forEach((b) => b.addEventListener('click', async () => {
-    const amt = fmtMoney(b.dataset.amount);
-    if (!confirm(`تأكيد أنك سدّدت ${amt} ${SAR} لهذا السائق؟ سيُصفَّر رصيد مستحقاته.`)) return;
-    try { await updateDoc(doc(db, 'drivers', b.dataset.payout), { pendingPayout: 0 }); toast('تمت التسوية'); }
-    catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
-  }));
+  $('main').querySelectorAll('[data-wallet]').forEach((b) =>
+    b.addEventListener('click', () => showWalletModal(b.dataset.did, b.dataset.wallet)));
+  $('main').querySelectorAll('[data-txns]').forEach((b) =>
+    b.addEventListener('click', () => showTxnsModal(b.dataset.txns)));
+}
+
+function showWalletModal(driverId, kind) {
+  const d = S.drivers.find((x) => x.id === driverId);
+  if (!d) return;
+  const bal = Number(d.balance) || 0;
+  const meta = {
+    deposit: ['تسجيل إيداع نقدي', 'المبلغ الذي سلّمه السائق للإدارة نقداً', 'إيداع'],
+    payout: ['صرف مبلغ للسائق', 'المبلغ الذي دفعته الإدارة للسائق', 'صرف'],
+    adjustment: ['تسوية يدوية', 'مبلغ بإشارة: موجب يزيد رصيد السائق، سالب ينقصه', 'تسوية'],
+  }[kind];
+  openModal(`
+    <h3>${meta[0]} — ${esc(d.name)} <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    <div class="kv"><span>الرصيد الحالي</span><b>${balanceBadge(bal)}</b></div>
+    <div class="field" style="margin-top:10px"><label>${meta[1]} (${SAR})</label>
+      <input type="number" step="any" id="w_amount" ${kind === 'adjustment' ? '' : 'min="0.01"'}></div>
+    <div class="field"><label>ملاحظة (اختياري)</label>
+      <input type="text" id="w_note" maxlength="120" placeholder="مثال: استلام نقدية يوم الجمعة"></div>
+    <button class="btn block" id="w_save">${meta[2]} وتسجيل الحركة</button>
+    <p class="meta" style="margin-top:8px">تُسجَّل حركة دائمة في دفتر السائق ولا يمكن تعديلها لاحقاً — التصحيح يكون بحركة تسوية جديدة.</p>
+  `);
+  document.getElementById('w_save').addEventListener('click', async () => {
+    const raw = Number(document.getElementById('w_amount').value);
+    const note = document.getElementById('w_note').value.trim();
+    if (!raw || (kind !== 'adjustment' && raw <= 0)) { alert('أدخل مبلغاً صحيحاً'); return; }
+    const delta = kind === 'deposit' ? Math.abs(raw) : kind === 'payout' ? -Math.abs(raw) : raw;
+    const after = bal + delta;
+    if (!confirm(`تأكيد ${meta[2]} بمبلغ ${fmtMoney(Math.abs(delta))} ${SAR}؟\nالرصيد بعد الحركة: ${after >= 0 ? 'له' : 'عليه'} ${fmtMoney(Math.abs(after))} ${SAR}`)) return;
+    try {
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, 'drivers', driverId);
+        const snap = await tx.get(ref);
+        const cur = Number(snap.data()?.balance) || 0;
+        const newBal = cur + delta;
+        tx.update(ref, { balance: newBal });
+        tx.set(doc(collection(db, 'driver_transactions')), {
+          driverId, type: kind, amount: delta, balanceAfter: newBal,
+          note: note || null, performedBy: adminUser.uid,
+          createdAt: serverTimestamp(),
+        });
+      });
+      toast('سُجّلت الحركة بنجاح'); closeModal();
+    } catch (err) {
+      alert('تعذر التسجيل: ' + (err.code || err.message) +
+        '\n(إن كان الخطأ permission-denied فقواعد Firestore الجديدة لم تُنشر بعد)');
+    }
+  });
+}
+
+async function showTxnsModal(driverId) {
+  const d = S.drivers.find((x) => x.id === driverId);
+  openModal(`<h3>📒 سجل حركات ${esc(d?.name || '')} <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    <div id="txnsBody"><div class="loading">جارٍ التحميل…</div></div>`);
+  try {
+    const qs = await getDocs(query(collection(db, 'driver_transactions'),
+      where('driverId', '==', driverId), limit(200)));
+    const txns = qs.docs.map((x) => x.data())
+      .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
+    document.getElementById('txnsBody').innerHTML = txns.length ? txns.map((t) => {
+      const [lbl, color] = TXN_TYPE_AR[t.type] || [t.type, '#7f8c8d'];
+      const amt = Number(t.amount) || 0;
+      return `<div class="kv">
+        <span>${badge(lbl, color)}<br><small class="meta">${esc(fmtTime(t.createdAt))}${t.orderNumber ? ' · طلب #' + esc(t.orderNumber) : ''}${t.note ? '<br>' + esc(t.note) : ''}</small></span>
+        <b style="color:${amt >= 0 ? 'var(--ok)' : 'var(--red)'}">${amt >= 0 ? '+' : '−'}${fmtMoney(Math.abs(amt))}<br>
+        <small class="meta">الرصيد: ${fmtMoney(t.balanceAfter)}</small></b>
+      </div>`;
+    }).join('') : '<div class="empty">لا حركات مسجلة بعد</div>';
+  } catch (err) {
+    document.getElementById('txnsBody').innerHTML =
+      `<div class="empty">تعذر التحميل: ${esc(err.code || err.message)}<br>
+      <small>إن كان الخطأ permission-denied فقواعد Firestore الجديدة لم تُنشر بعد</small></div>`;
+  }
 }
 
 /* ================= المستخدمون ================= */
