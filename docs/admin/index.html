@@ -6,16 +6,19 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0e3a2c">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛵</text></svg>">
+<link rel="icon" href="../images/zadgo-logo-gold.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <title>لوحة تحكم ZadGo</title>
 <style>
   :root {
-    --green: #1a5c46; --green-dark: #0e3a2c; --green-light: #e8f3ef; --gold: #ffc93c;
-    --bg: #f2f5f4; --card: #ffffff; --text: #172420; --muted: #64756f; --line: #e3eae7;
+    --green: #13224a; --green-dark: #0b1631; --green-light: #eef2fb; --gold: #FFC107;
+    --bg: #f3f5f9; --card: #ffffff; --text: #16203a; --muted: #66718a; --line: #e4e8f1;
     --red: #c0392b; --blue: #2471a3; --orange: #ca6f1e; --purple: #8e44ad; --ok: #1e8449;
     --side-w: 232px;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; font-family: "Segoe UI", Tahoma, Arial, sans-serif; }
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', "Segoe UI", Tahoma, Arial, sans-serif; }
   body { background: var(--bg); color: var(--text); min-height: 100vh; }
   .hidden { display: none !important; }
   button { font-family: inherit; }
@@ -161,7 +164,7 @@
 <!-- ================= الدخول ================= -->
 <div id="loginView">
   <form class="login-card" id="loginForm">
-    <h1>Zad<span>Go</span></h1>
+    <img src="../images/zadgo-logo.png" alt="ZadGo" style="display:block;height:52px;margin:0 auto 14px;background:var(--green-dark);border-radius:12px;padding:9px 16px">
     <p class="sub">لوحة التحكم — دخول المدير العام فقط</p>
     <div id="loginError" class="error-box hidden"></div>
     <div class="field"><label>البريد الإلكتروني</label>
@@ -175,7 +178,7 @@
 <!-- ================= اللوحة ================= -->
 <div id="appView" class="hidden">
   <aside class="side">
-    <div class="brand">Zad<span>Go</span><small>لوحة التحكم الإدارية</small></div>
+    <div class="brand"><img src="../images/zadgo-logo.png" alt="ZadGo" style="height:34px;display:block"><small>لوحة التحكم الإدارية</small></div>
     <div id="sideNav"></div>
     <div class="side-foot">zadgo.co © 2026</div>
   </aside>
