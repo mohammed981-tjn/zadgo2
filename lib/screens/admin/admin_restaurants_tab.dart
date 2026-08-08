@@ -580,7 +580,7 @@ class _ItemForm extends StatefulWidget {
 
 class _ItemFormState extends State<_ItemForm> {
   final _form = GlobalKey<FormState>();
-  late final TextEditingController _name, _desc, _price, _emoji, _stock;
+  late final TextEditingController _name, _desc, _price, _emoji, _stock, _kcal;
   bool _loading = false;
   bool _trackStock = false;
   late String? _categoryId;
@@ -597,6 +597,7 @@ class _ItemFormState extends State<_ItemForm> {
     _price = TextEditingController(text: i?.price.toString() ?? '');
     _emoji = TextEditingController(text: i?.emoji ?? '🍽️');
     _stock = TextEditingController(text: i?.stockQuantity?.toString() ?? '');
+    _kcal  = TextEditingController(text: i?.kcal?.toString() ?? '');
     _trackStock = i?.trackStock ?? false;
     _imageUrl = i?.imageUrl;
     // القيمة المبدئية للفئة: فئة الصنف الحالية إن كانت لا تزال موجودة فعلاً
@@ -608,7 +609,7 @@ class _ItemFormState extends State<_ItemForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _desc, _price, _emoji, _stock]) c.dispose();
+    for (final c in [_name, _desc, _price, _emoji, _stock, _kcal]) c.dispose();
     super.dispose();
   }
 
@@ -631,6 +632,7 @@ class _ItemFormState extends State<_ItemForm> {
           _trackStock && _stock.text.isNotEmpty ? int.tryParse(_stock.text) : null,
       imageUrl: _imageUrl,
       totalSold: widget.existing?.totalSold ?? 0,
+      kcal: int.tryParse(_kcal.text.trim()),
     );
     if (widget.existing == null) {
       await service.addMenuItem(item);
@@ -672,6 +674,8 @@ class _ItemFormState extends State<_ItemForm> {
                 _f(_name, 'اسم الصنف'),
                 _f(_desc, 'الوصف'),
                 _f(_price, 'السعر', type: TextInputType.number, validator: validatePrice),
+                _f(_kcal, 'السعرات الحرارية (اختياري)',
+                    type: TextInputType.number, isReq: false),
                 ImageUploadField(
                   label: 'صورة الصنف',
                   imageUrl: _imageUrl,

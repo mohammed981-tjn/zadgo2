@@ -270,6 +270,19 @@ class _ItemTile extends StatelessWidget {
                           color: AppColors.textGray, fontSize: 12.5),
                     ),
                   ],
+                  // السعرات الحرارية — تُعرض مستقلةً عن الوصف بأيقونة واضحة،
+                  // كما في تطبيقات التوصيل الكبرى، لا مدسوسةً داخل نصّ الوصف.
+                  if (item.kcal != null && item.kcal! > 0) ...[
+                    const SizedBox(height: 3),
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.local_fire_department_outlined,
+                          size: 13, color: AppColors.textGray),
+                      const SizedBox(width: 3),
+                      Text('${item.kcal} سعرة حرارية',
+                          style: const TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray)),
+                    ]),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -632,6 +632,11 @@ class MenuItem {
   final int totalSold;
   final String? imageUrl;
 
+  /// السعرات الحرارية للصنف — تكتبها أداة استيراد المنيو في لوحة الويب،
+  /// ويعرضها التطبيق للعميل. حقل مستقل لا جزء من الوصف، حتى يمكن تنسيقه
+  /// وترشيحه لاحقاً بدل أن يكون نصاً حرّاً داخل جملة.
+  final int? kcal;
+
   const MenuItem({
     required this.id,
     required this.restaurantId,
@@ -645,7 +650,40 @@ class MenuItem {
     this.trackStock = false,
     this.totalSold = 0,
     this.imageUrl,
+    this.kcal,
   });
+
+  /// نسخة معدَّلة مع الإبقاء على بقية الحقول كما هي. تُستخدم في كل موضع يعدّل
+  /// حقلاً واحداً (السعر مثلاً)؛ بدونها كان كل موضع يعيد بناء الكائن كاملاً،
+  /// فيكفي أن يُضاف حقل جديد للنموذج حتى يُمحى صامتاً عند أول تعديل سعر.
+  MenuItem copyWith({
+    String? categoryId,
+    String? name,
+    String? description,
+    double? price,
+    String? emoji,
+    bool? isAvailable,
+    int? stockQuantity,
+    bool? trackStock,
+    int? totalSold,
+    String? imageUrl,
+    int? kcal,
+  }) =>
+      MenuItem(
+        id: id,
+        restaurantId: restaurantId,
+        categoryId: categoryId ?? this.categoryId,
+        name: name ?? this.name,
+        description: description ?? this.description,
+        price: price ?? this.price,
+        emoji: emoji ?? this.emoji,
+        isAvailable: isAvailable ?? this.isAvailable,
+        stockQuantity: stockQuantity ?? this.stockQuantity,
+        trackStock: trackStock ?? this.trackStock,
+        totalSold: totalSold ?? this.totalSold,
+        imageUrl: imageUrl ?? this.imageUrl,
+        kcal: kcal ?? this.kcal,
+      );
 
   bool get canOrder =>
       isAvailable && (!trackStock || (stockQuantity != null && stockQuantity! > 0));
@@ -672,6 +710,7 @@ class MenuItem {
       trackStock: map['trackStock'] as bool? ?? false,
       totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
       imageUrl: imageUrl,
+      kcal: (map['kcal'] as num?)?.toInt(),
     );
   }
 
@@ -687,6 +726,7 @@ class MenuItem {
         'trackStock': trackStock,
         'totalSold': totalSold,
         'imageUrl': imageUrl,
+        'kcal': kcal,
       };
 }
 

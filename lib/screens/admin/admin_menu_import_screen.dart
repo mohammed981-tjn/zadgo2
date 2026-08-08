@@ -95,11 +95,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
           if (name.isEmpty) continue;
           final price = (i['price'] as num?)?.toDouble() ?? 0;
           final kcal = (i['kcal'] as num?)?.toInt();
-          // السعرات تُحفظ ضمن الوصف لأن النموذج لا يملك حقلاً لها، وعرضها
-          // للعميل قيمة مضافة حقيقية في منيو مأكولات.
-          final desc = (i['description'] as String?)?.trim().isNotEmpty == true
-              ? i['description'] as String
-              : (kcal != null ? '$kcal سعرة حرارية' : '');
+          final desc = (i['description'] as String?)?.trim() ?? '';
 
           items.add(MenuItem(
             id: uuid.v4(),
@@ -114,6 +110,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
             imageUrl: (i['imageUrl'] as String?)?.trim().isNotEmpty == true
                 ? i['imageUrl'] as String
                 : null,
+            kcal: kcal,
           ));
         }
       }
