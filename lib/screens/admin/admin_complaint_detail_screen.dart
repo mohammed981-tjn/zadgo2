@@ -1,4 +1,6 @@
 // lib/screens/admin/admin_complaint_detail_screen.dart
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -222,6 +224,11 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   ),
                 ),
                 const SizedBox(height: 12),
+                // خط الإثبات الزمني: وصول السائق وصورتا الاستلام والتسليم —
+                // يحسم «الطلب ناقص» و«لم يصلني» و«من أخّر» في دقيقة بدل
+                // مكالمات متضاربة.
+                _ProofTimeline(orderId: c.orderId),
+                const SizedBox(height: 12),
                 const Text('محادثة مع مقدّم الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 8),
                 StreamBuilder<List<ChatMessage>>(
@@ -316,4 +323,110 @@ class _PartyRow extends StatelessWidget {
             child: Text(role!.label, style: const TextStyle(fontSize: 10, color: AppColors.primary)),
           ),
       ]);
+}
+/// خط الإثبات الزمني للطلب المشكو بشأنه: زمن وصول السائق للمطعم، وصورة
+/// الاستلام، وصورة التسليم — بأزمنتها. تُقرأ من وثيقة order_proofs التي
+/// يكتبها تطبيق السائق عند كل محطة (ضمن نطاق ١٠٠ متر وبكاميرا مباشرة).
+class _ProofTimeline extends StatelessWidget {
+  final String orderId;
+  const _ProofTimeline({required this.orderId});
+
+  String _fmt(DateTime? d) => d == null
+      ? '—'
+      : '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')} '
+          '(${d.year}/${d.month}/${d.day})';
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: StreamBuilder<OrderProof?>(
+          stream: service.streamOrderProof(orderId),
+          builder: (ctx, snap) {
+            final proof = snap.data;
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('سجلّ الإثبات',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 10),
+              if (proof == null)
+                const Text(
+                  'لا توثيق لهذا الطلب — استُلم أو سُلّم بنسخة تطبيق سابقة '
+                  'لنظام التوثيق، أو لم يبدأ السائق رحلته بعد.',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+                )
+              else ...[
+                InfoRow(
+                    icon: Icons.where_to_vote_outlined,
+                    text: 'وصول المطعم: ${_fmt(proof.arrivedAt)}'),
+                InfoRow(
+                    icon: Icons.shopping_bag_outlined,
+                    text: 'استلام الطلب: ${_fmt(proof.pickupAt)}'),
+                InfoRow(
+                    icon: Icons.done_all_rounded,
+                    text: 'تسليم للعميل: ${_fmt(proof.deliveryAt)}'),
+                if ((proof.deliveryDistanceMeters ?? 0) > 100)
+                  InfoRow(
+                      icon: Icons.social_distance_rounded,
+                      text: 'سُلّم على بُعد '
+                          '${proof.deliveryDistanceMeters! >= 1000 ? "${(proof.deliveryDistanceMeters! / 1000).toStringAsFixed(1)} كم" : "${proof.deliveryDistanceMeters} م"}'
+                          ' من موقع العميل المسجّل'),
+                const SizedBox(height: 10),
+                Row(children: [
+                  if (proof.pickupPhoto != null)
+                    Expanded(
+                        child: _ProofPhoto(
+                            label: 'صورة الاستلام', bytes: proof.pickupPhoto!)),
+                  if (proof.pickupPhoto != null && proof.deliveryPhoto != null)
+                    const SizedBox(width: 10),
+                  if (proof.deliveryPhoto != null)
+                    Expanded(
+                        child: _ProofPhoto(
+                            label: 'صورة التسليم',
+                            bytes: proof.deliveryPhoto!)),
+                ]),
+                if (proof.pickupPhoto == null && proof.deliveryPhoto == null)
+                  const Text('لا صور محفوظة بعد',
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.textGray)),
+              ],
+            ]);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ProofPhoto extends StatelessWidget {
+  final String label;
+  final Uint8List bytes;
+  const _ProofPhoto({required this.label, required this.bytes});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          GestureDetector(
+            // تكبير الصورة للفحص — تفاصيل «هل الشنطة مغلقة؟ كم صنفاً؟»
+            // لا تُرى في مصغّرة.
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => Dialog(
+                child: InteractiveViewer(child: Image.memory(bytes)),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.memory(bytes,
+                  height: 130, width: double.infinity, fit: BoxFit.cover),
+            ),
+          ),
+        ],
+      );
 }

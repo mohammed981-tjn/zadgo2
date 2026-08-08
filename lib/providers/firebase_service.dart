@@ -1,5 +1,6 @@
 // lib/providers/firebase_service.dart
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -598,6 +599,13 @@ class FirebaseService {
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
+  /// تأكيد استلام السائق للطلب من المطعم — لحظة انتقال العُهدة.
+  ///
+  /// للطلبات النقدية تُقيَّد قيمة الطلب (الوجبات + الرسم الثابت) على محفظة
+  /// السائق **هنا** لا عند التسليم: البضاعة صارت بيده وذمّته مشغولة بقيمتها
+  /// حتى يحصّلها من العميل — وهو النموذج المعمول به في تطبيقات التوصيل
+  /// السعودية (كيتا/مرسول). القيد وتغيير الحالة في دفعة واحدة، فلا استلام
+  /// بلا قيد ولا قيد بلا استلام.
   Future<void> markPickedUpBySelf(String orderId) async {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
@@ -608,15 +616,162 @@ class FirebaseService {
     final current = models.Order.fromMap(doc.data()!, doc.id);
     if (current.status != models.OrderStatus.readyForPickup &&
         current.status != models.OrderStatus.searchingDriver &&
-        current.status != models.OrderStatus.driverAssigned) {
+        current.status != models.OrderStatus.driverAssigned &&
+        current.status != models.OrderStatus.pickedUp) {
       throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
     }
 
-    await ref.update({
+    final driverId = current.driverId ?? '';
+    final needsCustody = current.paymentMethod == models.PaymentMethod.cash &&
+        !current.custodyDebited &&
+        driverId.isNotEmpty;
+
+    final batch = _db.batch();
+    batch.update(ref, {
       'status': models.OrderStatus.onTheWay.name,
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
+      if (needsCustody) 'custodyDebited': true,
     });
+
+    if (needsCustody) {
+      final custody = current.custodyAmount;
+      final driverDoc = await _drivers.doc(driverId).get();
+      final balance = driverDoc.exists && driverDoc.data() != null
+          ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
+          : 0.0;
+      final txRef = _driverTransactions.doc();
+      batch.update(_drivers.doc(driverId), {
+        'balance': FieldValue.increment(-custody),
+      });
+      batch.set(
+        txRef,
+        models.DriverTransaction(
+          id: txRef.id,
+          driverId: driverId,
+          type: models.DriverTransactionType.orderCustody,
+          amount: -custody,
+          balanceAfter: balance - custody,
+          orderId: orderId,
+          orderNumber: current.orderNumber,
+          performedBy: _auth.currentUser?.uid ?? driverId,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+    }
+
+    await batch.commit();
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _orderProofs =>
+      _db.collection('order_proofs');
+
+  /// تسجيل وصول السائق إلى المطعم: طابع زمني على الطلب (يقرؤه الجميع في
+  /// نزاع «من أخّر؟») + الإحداثيات في وثيقة الإثبات.
+  Future<void> recordArrivalAtRestaurant({
+    required models.Order order,
+    required double lat,
+    required double lng,
+  }) async {
+    final driverId = order.driverId ?? '';
+    if (driverId.isEmpty) return;
+    final batch = _db.batch();
+    batch.update(_orders.doc(order.id), {
+      'arrivedAtRestaurantAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(
+      _orderProofs.doc(order.id),
+      {
+        'driverId': driverId,
+        'orderNumber': order.orderNumber,
+        'arrivedAt': FieldValue.serverTimestamp(),
+        'arrivedLat': lat,
+        'arrivedLng': lng,
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+  }
+
+  /// حفظ إثبات الاستلام من المطعم — يُكتب **قبل** تغيير الحالة وقيد
+  /// العُهدة. الصورة اختيارية (سياسة المرونة)؛ الزمن والإحداثيات يُسجَّلان
+  /// دائماً فهما بيّنة قائمة بذاتها.
+  Future<void> savePickupProof({
+    required models.Order order,
+    Uint8List? photo,
+    required double lat,
+    required double lng,
+  }) =>
+      _orderProofs.doc(order.id).set({
+        'driverId': order.driverId ?? '',
+        'orderNumber': order.orderNumber,
+        if (photo != null) 'pickupPhoto': Blob(photo),
+        'pickupAt': FieldValue.serverTimestamp(),
+        'pickupLat': lat,
+        'pickupLng': lng,
+      }, SetOptions(merge: true));
+
+  /// حفظ إثبات التسليم عند العميل — قبل تأكيد التوصيل. الصورة اختيارية
+  /// (سياسة المرونة)، و[distanceMeters] بُعد السائق عن موقع العميل المسجّل
+  /// لحظة التسليم — يُسجَّل خاصةً حين يكون كبيراً، فهو البيّنة في نزاع
+  /// «سلّم في مكان آخر».
+  Future<void> saveDeliveryProof({
+    required models.Order order,
+    Uint8List? photo,
+    required double lat,
+    required double lng,
+    double? distanceMeters,
+  }) =>
+      _orderProofs.doc(order.id).set({
+        'driverId': order.driverId ?? '',
+        'orderNumber': order.orderNumber,
+        if (photo != null) 'deliveryPhoto': Blob(photo),
+        'deliveryAt': FieldValue.serverTimestamp(),
+        'deliveryLat': lat,
+        'deliveryLng': lng,
+        if (distanceMeters != null)
+          'deliveryDistanceMeters': distanceMeters.round(),
+      }, SetOptions(merge: true));
+
+  /// وثيقة إثبات طلب — تعرضها شاشة الشكوى عند المدير خطاً زمنياً.
+  Stream<models.OrderProof?> streamOrderProof(String orderId) =>
+      _orderProofs.doc(orderId).snapshots().map((d) =>
+          d.exists && d.data() != null
+              ? models.OrderProof.fromMap(d.data()!, d.id)
+              : null);
+
+  /// عكس عُهدة طلب أُلغي بعد استلام السائق له — بدون هذا يبقى القيد على
+  /// السائق لطلب لن يحصّل قيمته من أحد.
+  Future<void> _reverseCustodyIfNeeded(models.Order order) async {
+    final driverId = order.driverId ?? '';
+    if (!order.custodyDebited || driverId.isEmpty) return;
+    final driverDoc = await _drivers.doc(driverId).get();
+    if (!driverDoc.exists || driverDoc.data() == null) return;
+    final balance = models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance;
+    final custody = order.custodyAmount;
+    final txRef = _driverTransactions.doc();
+    final batch = _db.batch();
+    batch.update(_drivers.doc(driverId), {
+      'balance': FieldValue.increment(custody),
+    });
+    batch.set(
+      txRef,
+      models.DriverTransaction(
+        id: txRef.id,
+        driverId: driverId,
+        type: models.DriverTransactionType.custodyReversal,
+        amount: custody,
+        balanceAfter: balance + custody,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        note: 'إلغاء الطلب بعد الاستلام',
+        performedBy: _auth.currentUser?.uid ?? '',
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    await batch.commit();
   }
 
   Future<void> assignDriver(String orderId, String driverId, String driverName) async {
@@ -795,6 +950,40 @@ class FirebaseService {
       ).toMap(),
     );
     await batch.commit();
+
+    // إعادة إسناد طلبٍ استُلم فعلاً (عُهدته مقيّدة على السائق القديم):
+    // تُردّ العُهدة للقديم وتُقيَّد على الجديد — البضاعة انتقلت من يدٍ ليد،
+    // والدفتران يجب أن يعكسا ذلك وإلا حُوسب سائق على طلب ليس بيده.
+    if (order.custodyDebited) {
+      await _reverseCustodyIfNeeded(order);
+      final custody = order.custodyAmount;
+      final newDoc = await _drivers.doc(newDriverId).get();
+      final newBalance = newDoc.exists && newDoc.data() != null
+          ? models.Driver.fromMap(newDoc.data()!, newDoc.id).balance
+          : 0.0;
+      final custodyTx = _driverTransactions.doc();
+      final custodyBatch = _db.batch();
+      custodyBatch.update(_drivers.doc(newDriverId), {
+        'balance': FieldValue.increment(-custody),
+      });
+      custodyBatch.set(
+        custodyTx,
+        models.DriverTransaction(
+          id: custodyTx.id,
+          driverId: newDriverId,
+          type: models.DriverTransactionType.orderCustody,
+          amount: -custody,
+          balanceAfter: newBalance - custody,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          note: 'إعادة إسناد بعد الاستلام',
+          performedBy: performedBy,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+      await custodyBatch.commit();
+    }
+
     NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
   }
 
@@ -803,10 +992,10 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.DriverReassignment.fromMap(d.data(), d.id)).toList());
 
-  Future<void> markOrderPickedUp(String orderId) async {
-    await updateOrderStatus(orderId, models.OrderStatus.pickedUp);
-    await updateOrderStatus(orderId, models.OrderStatus.onTheWay);
-  }
+  /// نفس مسار [markPickedUpBySelf] تماماً — تُبقى الدالتان لأن كلاً من شاشة
+  /// السائق وشاشة الخريطة تستدعي باسم مختلف تاريخياً، والمنطق (قيد العُهدة
+  /// مع تغيير الحالة) يجب أن يكون واحداً مهما كان المدخل.
+  Future<void> markOrderPickedUp(String orderId) => markPickedUpBySelf(orderId);
 
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();
@@ -826,16 +1015,16 @@ class FirebaseService {
     final orderNumber = order.orderNumber;
     // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
     //
-    // • نقدي: السائق قبض من العميل كامل المبلغ (وجبات + توصيل + رسم ثابت)،
-    //   وما ليس له منه هو قيمة الوجبات (للمطعم) والرسم الثابت (للتطبيق) —
-    //   فيُقيَّد عليه ديناً. أجرته تبقى بيده فلا تُقيَّد له.
+    // • نقدي: قيمة الطلب قُيّدت عُهدةً لحظة الاستلام من المطعم
+    //   (markPickedUpBySelf)، فلا قيد إضافياً هنا — القيد المزدوج كان
+    //   سيُحمّل السائق الطلب مرّتين. الاستثناء: طلب استُلم بنسخة قديمة
+    //   لا تعرف قيد العُهدة (custodyDebited=false)، فيُقيَّد هنا كالسابق
+    //   حتى لا يضيع القيد كلياً أثناء الانتقال بين النسختين.
     // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
-    //
-    // كان الكود سابقاً يزيد pendingPayout بأجرة السائق في الحالتين، وهو
-    // افتراض مقلوب في الدفع النقدي (الغالب حالياً) لأنه يجعل التطبيق مديناً
-    // لسائق يحمل أصلاً مال المطعم في جيبه.
     final isCash = paymentMethod == models.PaymentMethod.cash;
-    final delta = isCash ? -(itemsTotal + appShare) : driverPayout;
+    final delta = isCash
+        ? (order.custodyDebited ? 0.0 : -(itemsTotal + appShare))
+        : driverPayout;
 
     final driverDoc = await _drivers.doc(driverId).get();
     final currentBalance = driverDoc.exists && driverDoc.data() != null
@@ -853,26 +1042,30 @@ class FirebaseService {
     });
     batch.update(_drivers.doc(driverId), {
       'totalDeliveries': FieldValue.increment(1),
-      'balance': FieldValue.increment(delta),
+      if (delta != 0) 'balance': FieldValue.increment(delta),
       'isAvailable': true,
     });
     // الحركة تُكتب في نفس الدفعة، فلا يتغيّر رصيد دون سجلّ يفسّره.
-    batch.set(
-      txRef,
-      models.DriverTransaction(
-        id: txRef.id,
-        driverId: driverId,
-        type: isCash
-            ? models.DriverTransactionType.deliveryCash
-            : models.DriverTransactionType.deliveryOnline,
-        amount: delta,
-        balanceAfter: currentBalance + delta,
-        orderId: orderId,
-        orderNumber: orderNumber,
-        performedBy: _auth.currentUser?.uid ?? driverId,
-        createdAt: DateTime.now(),
-      ).toMap(),
-    );
+    // وحين لا تغيير على الرصيد (نقدي قُيّدت عُهدته عند الاستلام) لا تُكتب
+    // حركة صفرية تُلوّث السجلّ.
+    if (delta != 0) {
+      batch.set(
+        txRef,
+        models.DriverTransaction(
+          id: txRef.id,
+          driverId: driverId,
+          type: isCash
+              ? models.DriverTransactionType.deliveryCash
+              : models.DriverTransactionType.deliveryOnline,
+          amount: delta,
+          balanceAfter: currentBalance + delta,
+          orderId: orderId,
+          orderNumber: orderNumber,
+          performedBy: _auth.currentUser?.uid ?? driverId,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+    }
     await batch.commit();
     // التسليم يغيّر الحالة داخل الدفعة لا عبر updateOrderStatus، فيُبلَّغ
     // الخادم هنا صراحةً ليصل العميلَ إشعارُ «تم التوصيل».
@@ -972,6 +1165,9 @@ class FirebaseService {
     final order = await _getOrderOrThrow(orderId);
     await updateOrderStatus(orderId, models.OrderStatus.cancelled);
     await _refundWalletOnCancel(order);
+    // إن كان السائق قد استلم الطلب فعُهدته مقيّدة عليه — تُردّ له، فالطلب
+    // الملغى لن يحصّل قيمته من أحد.
+    await _reverseCustodyIfNeeded(order);
   }
 
   /// إلغاء العميل لطلبه — مسموح فقط قبل أن يبدأ المطعم التحضير
