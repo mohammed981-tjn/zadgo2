@@ -1,0 +1,60 @@
+name: Build iOS Apps
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - customer
+          - driver
+          - restaurant
+          - admin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install --repo-update
+
+      # ملاحظة: البناء بدون --flavor لأن مشروع Xcode الحالي لا يحوي إعدادات
+      # بناء لكل نسخة (Debug-customer وأخواتها). التمييز بين النسخ يتم عبر
+      # نقطة الدخول -t فقط، وهو كافٍ لبناء غير موقّع للتحقق من التوافق.
+      - name: Build ${{ matrix.app }} (unsigned)
+        run: |
+          flutter build ios \
+            --release \
+            --no-codesign \
+            -t lib/main_${{ matrix.app }}.dart
+
+      - name: Package ${{ matrix.app }} app bundle
+        run: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -qr zadgo-${{ matrix.app }}-unsigned.ipa Payload
+          rm -rf Payload
+
+      - name: Upload ${{ matrix.app }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ matrix.app }}-unsigned
+          path: build/ios/iphoneos/zadgo-${{ matrix.app }}-unsigned.ipa
+          if-no-files-found: error
