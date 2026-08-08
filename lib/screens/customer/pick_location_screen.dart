@@ -15,16 +15,28 @@ class PickLocationScreen extends StatefulWidget {
 class _PickLocationScreenState extends State<PickLocationScreen> {
   final MapController _mapController = MapController();
 
-  static const LatLng _fallbackCenter = LatLng(24.7136, 46.6753); // الرياض
-  late LatLng _selected;
+  /// مركز مبدئي للخريطة حين لا يتوفّر موقع بعد — **لعرض الخريطة فقط**، ولا
+  /// يُعامَل موقعاً مختاراً. سابقاً كان يُسند مباشرةً إلى الموقع المختار،
+  /// فيؤكّد العميل «الرياض» ظنّاً أنها موقعه بينما تعذّر تحديد موقعه فعلاً —
+  /// ومن هنا نشأت طلبات بمسافات مئات الكيلومترات.
+  static const LatLng _mapStartCenter = LatLng(24.7136, 46.6753);
+
+  /// الموقع المختار فعلياً: من GPS أو بنقرة العميل. `null` يعني «لم يُختر
+  /// موقع بعد»، فيبقى زر التأكيد معطّلاً ولا يُرسَل موقع لم يقصده أحد.
+  LatLng? _selected;
 
   bool _loadingGps = true;
   String? _gpsError;
 
+  /// هل الموقع المُلتقط من GPS مُحاكى (محاكي أو تطبيق موقع وهمي)؟ يُعرض
+  /// تحذيراً لأن العنوان الناتج لن يطابق موقع العميل الحقيقي، فيصل السائق
+  /// إلى مكان خاطئ.
+  bool _mockedLocation = false;
+
   @override
   void initState() {
     super.initState();
-    _selected = widget.initialLocation ?? _fallbackCenter;
+    _selected = widget.initialLocation;
 
     // تحديد الموقع تلقائيًا بعد بناء الواجهة
     WidgetsBinding.instance.addPostFrameCallback((_) => _fetchCurrentLocation());
@@ -34,6 +46,7 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
     setState(() {
       _loadingGps = true;
       _gpsError = null;
+      _mockedLocation = false;
     });
 
     try {
@@ -74,6 +87,9 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
       setState(() {
         _selected = point;
         _loadingGps = false;
+        // geolocator يبلّغ صراحةً إن كان الموقع مُحاكى — وهي الحالة المعتادة
+        // على المحاكي أو مع تطبيقات الموقع الوهمي.
+        _mockedLocation = pos.isMocked;
       });
 
       // تحريك الكاميرا
@@ -88,7 +104,12 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng point) {
-    setState(() => _selected = point);
+    setState(() {
+      _selected = point;
+      // اختيار يدوي صريح يلغي أي تحذير سابق — العميل حدّد موقعه بنفسه.
+      _gpsError = null;
+      _mockedLocation = false;
+    });
     _mapController.move(point, 16);
   }
 
@@ -120,7 +141,7 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _selected,
+              initialCenter: _selected ?? _mapStartCenter,
               initialZoom: 15,
               onTap: _onMapTap,
             ),
@@ -129,25 +150,59 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.zadam.delivery',
               ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _selected,
-                    width: 50,
-                    height: 50,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: AppColors.primary,
-                      size: 44,
+              // لا تُعرض علامة إلا لموقع مختار فعلاً، فلا يظنّ العميل أن
+              // موقعاً افتراضياً هو موقعه.
+              if (_selected != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _selected!,
+                      width: 50,
+                      height: 50,
+                      child: Icon(
+                        Icons.location_on,
+                        color: _mockedLocation
+                            ? AppColors.warning
+                            : AppColors.primary,
+                        size: 44,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
             ],
           ),
 
+          // تحذير الموقع المُحاكى — أخطر من فشل التحديد، لأن الموقع يبدو
+          // صحيحاً وليس كذلك، فيصل السائق إلى مكان لا يسكنه العميل.
+          if (_mockedLocation)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.error,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.gps_off_rounded, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'الموقع المُلتقط مُحاكى وليس حقيقياً — اضغط على الخريطة '
+                        'لتحديد موقعك الفعلي',
+                        style: TextStyle(color: Colors.white, fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // رسالة الخطأ
-          if (_gpsError != null)
+          if (_gpsError != null && !_mockedLocation)
             Positioned(
               top: 12,
               left: 12,
@@ -187,9 +242,11 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                   color: Colors.black.withOpacity(0.6),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  'اضغط على الخريطة لتعديل الموقع',
-                  style: TextStyle(color: Colors.white, fontSize: 12),
+                child: Text(
+                  _selected == null
+                      ? 'اضغط على الخريطة لتحديد موقعك'
+                      : 'اضغط على الخريطة لتعديل الموقع',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
             ),
@@ -204,13 +261,17 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: () => Navigator.pop(context, _selected),
+              // لا تأكيد بلا موقع مختار: سابقاً كان الزر يعيد الموقع
+              // الافتراضي (الرياض) حتى لو لم يُحدَّد شيء إطلاقاً.
+              onPressed: _selected == null
+                  ? null
+                  : () => Navigator.pop(context, _selected),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
               ),
-              child: const Text(
-                'تأكيد هذا الموقع',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              child: Text(
+                _selected == null ? 'حدّد موقعاً أولاً' : 'تأكيد هذا الموقع',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
           ),
