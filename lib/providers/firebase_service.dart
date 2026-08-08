@@ -851,7 +851,11 @@ class FirebaseService {
 
   static const int _driverCandidatesCount = 3;
 
-  Future<bool> autoAssignNearestDriver(models.Order order) async {
+  /// [excludeDriverId]: سائق يُستبعد من الترشيح — يُمرَّر عند إعادة الإسناد
+  /// بعد رفضه للطلب، وإلا اختير «الأقرب» وهو الرافض نفسه فعاد إليه الطلب
+  /// فوراً وبعلم إقرار مسبق فلا يظهر له شيء أصلاً.
+  Future<bool> autoAssignNearestDriver(models.Order order,
+      {String? excludeDriverId}) async {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
 
@@ -859,6 +863,7 @@ class FirebaseService {
     final candidateDistances = <double>[];
     for (final doc in driversSnap.docs) {
       final d = models.Driver.fromMap(doc.data(), doc.id);
+      if (d.id == excludeDriverId) continue;
       if (!d.isOnline || !d.isAvailable) continue;
       if (d.lat == null || d.lng == null) continue;
       final distance =
@@ -940,7 +945,8 @@ class FirebaseService {
     final refreshedDoc = await ref.get();
     if (refreshedDoc.exists && refreshedDoc.data() != null) {
       final refreshedOrder = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
-      await autoAssignNearestDriver(refreshedOrder);
+      await autoAssignNearestDriver(refreshedOrder,
+          excludeDriverId: current.driverId);
     }
   }
 
@@ -1282,7 +1288,9 @@ class FirebaseService {
       'customerRating': orderRating,
       'driverRating': driverRating,
       'isRated': true,
-      if (review != null) 'review': review,
+      // كان المفتاح 'review' بينما النموذج يقرأ 'customerReview' — فكل نص
+      // تقييم كتبه عميل كان يُحفظ في حقل لا يقرؤه أحد ويضيع من كل الشاشات.
+      if (review != null) 'customerReview': review,
     });
     await updateDriverRating(driverId, driverRating);
     if (restaurantId != null) {
@@ -1356,6 +1364,19 @@ class FirebaseService {
     String? reassignToDriverName,
     String? adminNote,
   }) async {
+    // حارس المضاعفة: الحل يُنفَّذ مرة واحدة. ضغطتان متتاليتان على «تأكيد
+    // الحل» (أو نقرة من جهازين) كانتا تضيفان الاسترداد مرتين لمحفظة العميل.
+    // الفحص على أحدث حالة في القاعدة لا على النسخة الممررة من الشاشة، فقد
+    // تكون فُتحت قبل أن يحلها مدير آخر.
+    final freshDoc = await _complaints.doc(complaint.id).get();
+    final freshStatus = models.Complaint.fromMap(
+            freshDoc.data() ?? const {}, complaint.id)
+        .status;
+    if (freshStatus == models.ComplaintStatus.resolved ||
+        freshStatus == models.ComplaintStatus.closed) {
+      throw Exception('هذه الشكوى محلولة مسبقاً — لا يُنفَّذ الحل مرتين');
+    }
+
     if (refundPercentage != null && refundPercentage > 0) {
       // الاسترداد يُحسب على **قيمة الوجبات** لا على إجمالي الطلب: أجرة
       // التوصيل خدمة أُدّيت فعلاً ووصلت للسائق، فإعادتها للعميل تعني خصمها

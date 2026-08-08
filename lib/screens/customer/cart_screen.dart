@@ -554,6 +554,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   value: locationSet ? formatCurrency(amountDue) : '—',
                   bold: true,
                 ),
+                // سطر الضريبة المتضمَّنة — متطلب فوترة (ZATCA): الأسعار
+                // شاملة الضريبة، وقيمتها تُستخرج بمعادلة المبلغ × 15 ÷ 115
+                // (لا تُضاف فوق الإجمالي). إظهارها إفصاح لا رسوم جديدة.
+                if (locationSet)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('شامل ضريبة القيمة المضافة (15٪)',
+                            style: TextStyle(
+                                fontSize: 11.5, color: AppColors.textGray)),
+                        Text(
+                          formatCurrency(
+                              Pricing.vatIncludedIn(itemsTotal + delivery + fixedFee)),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),

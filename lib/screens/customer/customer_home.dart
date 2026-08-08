@@ -271,7 +271,11 @@ class _RestaurantCard extends StatelessWidget {
                       color: AppColors.warning),
                 _MetaChip(icon: Icons.timer_outlined, label: '${r.estimatedTimeMin} د', color: AppColors.textGray),
                 _MetaChip(icon: Icons.delivery_dining_outlined,
-                    label: r.deliveryFee > 0 ? formatCurrency(r.deliveryFee) : 'توصيل مجاني',
+                    // «توصيل مجاني» كانت كذبة مكلفة: حقل المطعم القديم صفر
+                    // بينما التسعير الموحّد يحصّل 9+ ر.س فعلاً — فيصدم العميل
+                    // في الدفع ويفقد الثقة. الصدق أرخص: «التوصيل من 9 ر.س».
+                    label:
+                        'التوصيل من ${Pricing.baseDeliveryFee.toStringAsFixed(0)} ر.س',
                     color: AppColors.textGray),
                 if (isPopular)
                   const _MetaChip(icon: Icons.local_fire_department_rounded, label: 'الأكثر طلباً', color: AppColors.primary),

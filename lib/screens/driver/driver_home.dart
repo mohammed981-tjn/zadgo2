@@ -34,6 +34,11 @@ class _DriverHomeState extends State<DriverHome> {
   /// أكثر من دورة المؤقّت.
   bool _pushingLocation = false;
 
+  /// آخر حالة اتصال معروفة للسائق — تُحدَّث من تدفّق مستنده في build. البثّ
+  /// يتوقف كلياً وهو «غير متصل»: بلا هذا الشرط كان الجهاز يكتب موقعاً كل
+  /// 8 ثوانٍ حتى خارج الدوام (~10 آلاف كتابة/سائق/يوم + استنزاف بطارية).
+  bool _isOnline = false;
+
   final Set<String> _acknowledgedNotified = {};
   final Set<String> _autoAssignedNotified = {};
   OverlayEntry? _bannerEntry;
@@ -60,7 +65,7 @@ class _DriverHomeState extends State<DriverHome> {
   /// كان الكود السابق يبثّ موقعاً **محاكى** (نقطة وسط الرياض تهتز عشوائياً)
   /// — بقية من التطوير المبكر جعلت خريطة العميل والإسناد بالمسافة بلا معنى.
   Future<void> _pushLocation() async {
-    if (_pushingLocation || !mounted) return;
+    if (_pushingLocation || !mounted || !_isOnline) return;
     final auth = context.read<app_auth.AuthProvider>();
     final service = context.read<FirebaseService>();
     final driverId = auth.user?.uid;
@@ -254,6 +259,9 @@ class _DriverHomeState extends State<DriverHome> {
           );
         }
         final driver = snap.data;
+        // تحديث حالة الاتصال لبثّ الموقع — بلا setState: البثّ الدوري وحده
+        // من يقرؤها، وbuild هذا سيُعاد أصلاً مع كل تغيّر في المستند.
+        _isOnline = driver?.isOnline ?? false;
         return Scaffold(
           appBar: AppBar(
             title: Text('مرحباً ${auth.user?.name ?? ""}'),
