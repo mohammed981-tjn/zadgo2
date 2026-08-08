@@ -60,7 +60,8 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDark]),
+                gradient: LinearGradient(
+                    colors: [context.flavorColors.primary, context.flavorColors.primaryDark]),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

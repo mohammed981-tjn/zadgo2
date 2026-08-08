@@ -522,10 +522,12 @@ class _DriverEarningsTab extends StatelessWidget {
       Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
+          // الأحمر الدلالي عند الدَّين يتقدّم على هوية النكهة — إشارة مالية
+          // لا زخرفة؛ وفي الحالة الطبيعية تدرّج أزرق الكابتن.
           gradient: LinearGradient(
             colors: owesPlatform
                 ? [AppColors.error, const Color(0xFFB71C1C)]
-                : [AppColors.primary, AppColors.primaryDark],
+                : [context.flavorColors.primary, context.flavorColors.primaryDark],
           ),
           borderRadius: BorderRadius.circular(16),
         ),
@@ -554,8 +556,9 @@ class _DriverEarningsTab extends StatelessWidget {
                 onPressed: () => _showTopUpSheet(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor:
-                      owesPlatform ? AppColors.error : AppColors.primaryDark,
+                  foregroundColor: owesPlatform
+                      ? AppColors.error
+                      : context.flavorColors.primaryDark,
                 ),
                 icon: const Icon(Icons.add_card_rounded, size: 18),
                 label: const Text('شحن المحفظة',
@@ -593,7 +596,7 @@ class _DriverEarningsTab extends StatelessWidget {
       const SizedBox(height: 20),
       GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
-        _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, AppColors.primary),
+        _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, context.flavorColors.primary),
         _stat('استلمته فعلياً', formatCurrency(d.totalEarnings), Icons.savings_outlined, AppColors.success),
         _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
         _stat('الحالة', d.isOnline ? 'متصل' : 'غير متصل', d.isOnline ? Icons.wifi : Icons.wifi_off,

@@ -4,9 +4,9 @@
 // بدور مدير عام يُرفض ويُسجَّل خروجه تلقائياً.
 //
 // [هوية لونية]: يستخدم AppTheme.build(palette: FlavorPalette.admin) بدل
-// AppTheme.light الافتراضي، فتظهر كل عناصر واجهة هذا التطبيق باللون البني
-// الخاص بنكهة المدير — مختلف عمداً عن الذهبي الخاص بنكهة المطعم حتى لا
-// يُخلَط بينهما بصرياً.
+// AppTheme.light الافتراضي، فتظهر كل عناصر واجهة هذا التطبيق بالبنفسجي
+// الملكي الخاص بنكهة المدير («غرفة التحكم») — متمايز بوضوح عن النكهات
+// التشغيلية الثلاث حتى لا يُخلَط بينها بصرياً.
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -52,7 +52,10 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.admin;
   AppFlavorConfig.flavorLabel = 'المدير العام';
-  AppFlavorConfig.flavorColor = const Color(0xFF6D4C41);
+  AppFlavorConfig.flavorColor = const Color(0xFF5E35B1);
+  AppFlavorConfig.flavorIcon = Icons.admin_panel_settings_rounded;
+  AppFlavorConfig.flavorTagline = 'غرفة التحكم الكاملة لمنصتك';
+  AppFlavorConfig.flavorLoginTitle = 'دخول المدير العام';
   AppFlavorConfig.restrictToRole = UserRole.admin;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات المدير العام فقط';
   AppFlavorConfig.allowGuestBrowsing = false;

@@ -16,7 +16,7 @@
 // الملف فقط (الذي لا يستورد أي شاشة دور)، وتستدعي هذه الدوال دون أن "تعرف"
 // فعلياً أي الشاشات الفعلية خلفها.
 import 'package:flutter/widgets.dart';
-import 'package:flutter/material.dart' show Color, Colors;
+import 'package:flutter/material.dart' show Color, Colors, Icons;
 import 'models/models.dart';
 
 /// نكهة التطبيق الحالية، لأغراض تشخيصية/تحليلية فقط (لا تُستخدم في منطق
@@ -47,6 +47,18 @@ class AppFlavorConfig {
 
   /// لون الشارة المرافقة لـ [flavorLabel]، مميّز لكل نكهة.
   static Color flavorColor = Colors.grey;
+
+  /// أيقونة هوية النكهة الظاهرة في شعار شاشة تسجيل الدخول — حقيبة طعام
+  /// للعميل، دراجة للكابتن، واجهة متجر للمطعم، لوحة تحكم للمدير. القيمة
+  /// الافتراضية تطابق الشكل القديم (النكهة الكاملة).
+  static IconData flavorIcon = Icons.two_wheeler_rounded;
+
+  /// السطر التعريفي أسفل اسم ZadGo في شاشة الدخول، بصياغة خاصة بكل نكهة.
+  static String flavorTagline = 'كل احتياجاتك نوصلها لك';
+
+  /// عنوان قسم الدخول («دخول الكباتن»، «بوابة شركاء المطاعم»…)؛ `null`
+  /// يعرض «تسجيل الدخول» العام.
+  static String? flavorLoginTitle;
 
   /// يبني الشاشة الرئيسية المناسبة لدور مُصادَق عليه بالفعل ومطابق للقيد.
   static Widget Function(UserRole role) buildHomeForRole =

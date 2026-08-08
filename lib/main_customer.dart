@@ -49,7 +49,10 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.customer;
   AppFlavorConfig.flavorLabel = 'العميل';
-  AppFlavorConfig.flavorColor = const Color(0xFF2E7D32);
+  AppFlavorConfig.flavorColor = const Color(0xFFD4A017);
+  AppFlavorConfig.flavorIcon = Icons.shopping_bag_rounded;
+  AppFlavorConfig.flavorTagline = 'أشهى المطاعم توصلك أينما كنت';
+  AppFlavorConfig.flavorLoginTitle = 'تسجيل دخول العميل';
   AppFlavorConfig.restrictToRole = UserRole.customer;
   AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات العملاء فقط';
   AppFlavorConfig.allowGuestBrowsing = true;
@@ -81,7 +84,7 @@ class CustomerApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         title: 'ZadGo عميل',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.build(palette: FlavorPalette.customer),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
           child: child!,

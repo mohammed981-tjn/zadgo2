@@ -3,8 +3,14 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/models.dart';
 import '../../utils/helpers.dart';
+import '../../utils/theme.dart';
+import '../../widgets/common_widgets.dart';
 import '../../app_flavor.dart';
 
+/// شاشة تسجيل الدخول الموحّدة الكود، المتمايزة الهوية: كل نكهة (عميل/سائق/
+/// مطعم/مدير) تظهر بخلفيتها الداكنة الخاصة، وأيقونتها، وعنوانها، وزر دخول
+/// متدرّج بلونها — عبر [FlavorColorsExtension] و[AppFlavorConfig] فقط،
+/// دون أي استيراد لشاشات الأدوار (الفصل على مستوى الحزمة محفوظ كما هو).
 class LoginScreen extends StatefulWidget {
   /// عند تفعيلها (الدخول أثناء إتمام الطلب كزائر) تُغلق الشاشة بعد نجاح
   /// الدخول بدل الانتقال للرئيسية، ليستكمل المستدعي (شاشة السلة) الطلب من
@@ -21,11 +27,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passCtrl = TextEditingController();
   bool _obscure = true;
 
-  static const Color bgDark = Color(0xFF08211A);
-  static const Color bgDarker = Color(0xFF04120D);
-  static const Color zadgoGold = Color(0xFFD4A017);
-  static const Color zadgoGoldLight = Color(0xFFF0C550);
-  static const Color zadgoSilver = Color(0xFFC7CFD6);
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
 
   void _navigate(UserRole role) {
     Navigator.pushAndRemoveUntil(context,
@@ -55,11 +62,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  InputDecoration _fieldDecoration(String label, IconData icon, {Widget? suffix}) {
+  InputDecoration _fieldDecoration(String label, IconData icon, Color accent, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: Colors.white60, fontSize: 14),
-      prefixIcon: Icon(icon, color: zadgoGold, size: 20),
+      prefixIcon: Icon(icon, color: accent, size: 20),
       suffixIcon: suffix,
       filled: true,
       fillColor: Colors.white.withOpacity(0.06),
@@ -73,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: zadgoGold, width: 1.6),
+        borderSide: BorderSide(color: accent, width: 1.6),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
     );
@@ -82,16 +89,17 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
+    final fc = context.flavorColors;
 
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment(0, -0.6),
+            center: const Alignment(0, -0.6),
             radius: 1.4,
-            colors: [bgDark, bgDarker],
+            colors: [fc.bgDark, fc.bgDarker],
           ),
         ),
         child: SafeArea(
@@ -108,41 +116,42 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 24),
-                    // ✅ الشعار المصمم بالكود - أيقونة مع توهج ذهبي
+                    // الشعار المتوهج: أيقونة النكهة داخل قرص متدرّج بلونها،
+                    // مع هالة إشعاع خلفية — هوية مميزة من أول نظرة.
                     Container(
-                      width: 100,
-                      height: 100,
+                      width: 104,
+                      height: 104,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
-                            zadgoGold.withOpacity(0.25),
-                            zadgoGold.withOpacity(0.0),
+                            fc.primary.withOpacity(0.28),
+                            fc.primary.withOpacity(0.0),
                           ],
                         ),
                       ),
                       child: Center(
                         child: Container(
-                          width: 76,
-                          height: 76,
+                          width: 78,
+                          height: 78,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [zadgoGoldLight, zadgoGold],
+                            gradient: LinearGradient(
+                              colors: [fc.primaryLight, fc.primary],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: zadgoGold.withOpacity(0.5),
-                                blurRadius: 20,
+                                color: fc.primary.withOpacity(0.55),
+                                blurRadius: 24,
                                 spreadRadius: 2,
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.two_wheeler_rounded,
-                            color: bgDarker,
+                          child: Icon(
+                            AppFlavorConfig.flavorIcon,
+                            color: fc.bgDarker,
                             size: 40,
                           ),
                         ),
@@ -150,8 +159,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
                     ShaderMask(
-                      shaderCallback: (bounds) => const LinearGradient(
-                        colors: [zadgoGoldLight, zadgoGold],
+                      shaderCallback: (bounds) => LinearGradient(
+                        colors: [fc.primaryLight, fc.primary],
                       ).createShader(bounds),
                       child: const Text(
                         'ZadGo',
@@ -165,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'كل احتياجاتك نوصلها لك',
+                      AppFlavorConfig.flavorTagline,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.55),
@@ -177,39 +186,50 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         decoration: BoxDecoration(
-                          color: AppFlavorConfig.flavorColor,
+                          gradient: LinearGradient(
+                            colors: [fc.primary, fc.primaryDark],
+                            begin: AlignmentDirectional.centerStart,
+                            end: AlignmentDirectional.centerEnd,
+                          ),
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: AppFlavorConfig.flavorColor.withOpacity(0.45),
+                              color: fc.primary.withOpacity(0.45),
                               blurRadius: 10,
                               spreadRadius: 1,
                             ),
                           ],
                         ),
-                        child: Text(
-                          AppFlavorConfig.flavorLabel!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(AppFlavorConfig.flavorIcon, color: fc.onPrimary, size: 15),
+                            const SizedBox(width: 6),
+                            Text(
+                              AppFlavorConfig.flavorLabel!,
+                              style: TextStyle(
+                                color: fc.onPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                     const SizedBox(height: 40),
-                    // ✅ النموذج - نفس الخلفية الداكنة، حقول شفافة
+                    // النموذج — نفس الخلفية الداكنة، حقول شفافة بلون النكهة.
                     Form(
                       key: _form,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Align(
-                            alignment: Alignment.centerRight,
+                          Align(
+                            alignment: AlignmentDirectional.centerStart,
                             child: Text(
-                              'تسجيل الدخول',
-                              style: TextStyle(
+                              AppFlavorConfig.flavorLoginTitle ?? 'تسجيل الدخول',
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -222,7 +242,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             keyboardType: TextInputType.emailAddress,
                             textDirection: TextDirection.ltr,
                             style: const TextStyle(color: Colors.white),
-                            decoration: _fieldDecoration('البريد الإلكتروني', Icons.email_outlined),
+                            decoration:
+                                _fieldDecoration('البريد الإلكتروني', Icons.email_outlined, fc.primaryLight),
                             validator: validateEmail,
                           ),
                           const SizedBox(height: 14),
@@ -234,6 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             decoration: _fieldDecoration(
                               'كلمة المرور',
                               Icons.lock_outline,
+                              fc.primaryLight,
                               suffix: IconButton(
                                 icon: Icon(
                                   _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
@@ -246,95 +268,54 @@ class _LoginScreenState extends State<LoginScreen> {
                             validator: validatePassword,
                           ),
                           const SizedBox(height: 26),
-                          SizedBox(
-                            height: 50,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                gradient: const LinearGradient(
-                                  colors: [zadgoGoldLight, zadgoGold],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: zadgoGold.withOpacity(0.4),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(14),
-                                  onTap: auth.loading ? null : _login,
-                                  child: Center(
-                                    child: auth.loading
-                                        ? const SizedBox(
-                                            width: 22,
-                                            height: 22,
-                                            child: CircularProgressIndicator(
-                                              color: bgDarker,
-                                              strokeWidth: 2,
-                                            ),
-                                          )
-                                        : const Text(
-                                            'دخول',
-                                            style: TextStyle(
-                                              fontSize: 17,
-                                              fontWeight: FontWeight.w800,
-                                              color: bgDarker,
-                                              letterSpacing: 0.3,
-                                            ),
-                                          ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                          ZadGradientButton(
+                            label: 'دخول',
+                            loading: auth.loading,
+                            onPressed: auth.loading ? null : _login,
                           ),
                           const SizedBox(height: 18),
                           if (AppFlavorConfig.buildRegisterScreen != null)
-                          Center(
-                            child: TextButton(
-                              onPressed: () async {
-                                final buildRegister = AppFlavorConfig.buildRegisterScreen!;
-                                final result = await Navigator.push<bool>(
+                            Center(
+                              child: TextButton(
+                                onPressed: () async {
+                                  final buildRegister = AppFlavorConfig.buildRegisterScreen!;
+                                  final result = await Navigator.push<bool>(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => buildRegister(fromCheckout: widget.fromCheckout)),
+                                  );
+                                  if (widget.fromCheckout && result == true && context.mounted) {
+                                    Navigator.pop(context, true);
+                                  }
+                                },
+                                child: Text(
+                                  'ليس لديك حساب؟ سجّل الآن',
+                                  style: TextStyle(
+                                    color: fc.primaryLight,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (AppFlavorConfig.buildRegisterWithCodeScreen != null)
+                            Center(
+                              child: TextButton(
+                                onPressed: () => Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (_) => buildRegister(fromCheckout: widget.fromCheckout)),
-                                );
-                                if (widget.fromCheckout && result == true && context.mounted) {
-                                  Navigator.pop(context, true);
-                                }
-                              },
-                              child: Text(
-                                'ليس لديك حساب؟ سجّل الآن',
-                                style: TextStyle(
-                                  color: zadgoGoldLight,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13.5,
+                                      builder: (_) => AppFlavorConfig.buildRegisterWithCodeScreen!()),
+                                ),
+                                child: Text(
+                                  'لديك كود تسجيل؟ سجّل الآن',
+                                  style: TextStyle(
+                                    color: AppColors.silver.withOpacity(0.85),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12.5,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          if (AppFlavorConfig.buildRegisterWithCodeScreen != null)
-                          Center(
-                            child: TextButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => AppFlavorConfig.buildRegisterWithCodeScreen!()),
-                              ),
-                              child: Text(
-                                'لديك كود تسجيل؟ سجّل الآن',
-                                style: TextStyle(
-                                  color: zadgoSilver.withOpacity(0.85),
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12.5,
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
