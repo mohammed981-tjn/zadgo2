@@ -571,7 +571,10 @@ function showOrderModal(id) {
 /* ================= المطاعم ================= */
 function renderRestaurantsPage() {
   const list = [...S.restaurants].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
-  $('main').innerHTML = list.map((r) => `
+  $('main').innerHTML = `
+    <div class="toolbar">
+      <button class="btn" data-page="import">📥 استيراد منيو لمطعم</button>
+    </div>` + list.map((r) => `
     <div class="card">
       <div class="row1">
         <span class="title">${esc(r.emoji || '🍽️')} ${esc(r.name || '')}</span>
