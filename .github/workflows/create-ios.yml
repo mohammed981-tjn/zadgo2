@@ -37,16 +37,29 @@ jobs:
       # ملاحظة: البناء بدون --flavor لأن مشروع Xcode الحالي لا يحوي إعدادات
       # بناء لكل نسخة (Debug-customer وأخواتها). التمييز بين النسخ يتم عبر
       # نقطة الدخول -t فقط، وهو كافٍ لبناء غير موقّع للتحقق من التوافق.
+      # يُستخدم xcodebuild مباشرة مع تعطيل التوقيع بالكامل لأن
+      # flutter build ios --no-codesign يفشل أحياناً بفحص Development Team.
       - name: Build ${{ matrix.app }} (unsigned)
         run: |
+          set -o pipefail
           flutter build ios \
+            --config-only \
             --release \
-            --no-codesign \
             -t lib/main_${{ matrix.app }}.dart
+          xcodebuild build \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios_dd \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tail -200
 
       - name: Package ${{ matrix.app }} app bundle
         run: |
-          cd build/ios/iphoneos
+          cd build/ios_dd/Build/Products/Release-iphoneos
           mkdir -p Payload
           cp -r Runner.app Payload/
           zip -qr zadgo-${{ matrix.app }}-unsigned.ipa Payload
@@ -56,5 +69,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-${{ matrix.app }}-unsigned
-          path: build/ios/iphoneos/zadgo-${{ matrix.app }}-unsigned.ipa
+          path: build/ios_dd/Build/Products/Release-iphoneos/zadgo-${{ matrix.app }}-unsigned.ipa
           if-no-files-found: error
