@@ -1223,6 +1223,144 @@ class FirebaseService {
     await batch.commit();
   }
 
+  // -------------------------------------------------------------------------
+  // طلبات سحب المستحقّات — السائق يطلب، والإدارة تصرف أو ترفض.
+  // -------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _payoutRequests =>
+      _db.collection('payout_requests');
+
+  /// تقديم طلب سحب من السائق نفسه. الحارسان هنا خط الدفاع الأول للتجربة
+  /// (رسالة عربية مفهومة)؛ التسوية النهائية تظل عند الصرف حيث يُعاد فحص
+  /// الرصيد لحظتها.
+  Future<void> submitPayoutRequest({
+    required String driverId,
+    required String driverName,
+    required double amount,
+    required String method,
+  }) async {
+    if (amount <= 0) throw Exception('أدخل مبلغاً أكبر من صفر');
+    final driverDoc = await _drivers.doc(driverId).get();
+    final balance = driverDoc.exists && driverDoc.data() != null
+        ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
+        : 0.0;
+    if (amount > balance) {
+      throw Exception(
+          'المبلغ أكبر من رصيدك المتاح (${balance.toStringAsFixed(2)} ر.س)');
+    }
+    final existing = await _payoutRequests
+        .where('driverId', isEqualTo: driverId)
+        .get();
+    final hasPending = existing.docs
+        .map((d) => models.PayoutRequest.fromMap(d.data(), d.id))
+        .any((r) => r.status == models.PayoutRequestStatus.pending);
+    if (hasPending) {
+      throw Exception('لديك طلب سحب قيد المعالجة بالفعل — انتظر بتّه أولاً');
+    }
+    final ref = _payoutRequests.doc();
+    await ref.set(models.PayoutRequest(
+      id: ref.id,
+      driverId: driverId,
+      driverName: driverName,
+      amount: amount,
+      method: method.trim(),
+      createdAt: DateTime.now(),
+    ).toMap());
+  }
+
+  /// طلبات سحب سائق واحد، الأحدث أولاً (ترتيب محلي — لا فهرس مركّب).
+  Stream<List<models.PayoutRequest>> streamMyPayoutRequests(String driverId) =>
+      _payoutRequests
+          .where('driverId', isEqualTo: driverId)
+          .limit(50)
+          .snapshots()
+          .map((s) {
+        final list = s.docs
+            .map((d) => models.PayoutRequest.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// كل طلبات السحب للوحة الإدارة، الأحدث أولاً.
+  Stream<List<models.PayoutRequest>> streamAllPayoutRequests() =>
+      _payoutRequests.limit(200).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.PayoutRequest.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// صرف طلب سحب: خصم الرصيد + حركة payout + إغلاق الطلب — دفعة واحدة.
+  /// فحص الحالة والرصيد من قراءة طازجة يمنع الصرف المزدوج (نفس درس
+  /// resolveComplaint) والصرف فوق الرصيد إن تراكمت عُهدة بعد التقديم.
+  Future<void> payPayoutRequest(models.PayoutRequest request,
+      {String? adminNote}) async {
+    final freshReq = await _payoutRequests.doc(request.id).get();
+    if (!freshReq.exists || freshReq.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final fresh = models.PayoutRequest.fromMap(freshReq.data()!, freshReq.id);
+    if (fresh.status != models.PayoutRequestStatus.pending) {
+      throw Exception('هذا الطلب ${fresh.status.label} بالفعل');
+    }
+    final driverDoc = await _drivers.doc(fresh.driverId).get();
+    if (!driverDoc.exists || driverDoc.data() == null) {
+      throw Exception('السائق غير موجود');
+    }
+    final balance =
+        models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance;
+    if (fresh.amount > balance) {
+      throw Exception(
+          'رصيد السائق الحالي (${balance.toStringAsFixed(2)} ر.س) أقل من المبلغ — '
+          'تغيّر بعد تقديم الطلب. ارفض الطلب أو انتظر تسويته');
+    }
+    final txRef = _driverTransactions.doc();
+    final batch = _db.batch();
+    batch.update(_drivers.doc(fresh.driverId), {
+      'balance': FieldValue.increment(-fresh.amount),
+      'totalEarnings': FieldValue.increment(fresh.amount),
+    });
+    batch.set(
+      txRef,
+      models.DriverTransaction(
+        id: txRef.id,
+        driverId: fresh.driverId,
+        type: models.DriverTransactionType.payout,
+        amount: -fresh.amount,
+        balanceAfter: balance - fresh.amount,
+        note: 'صرف طلب سحب (${fresh.method})',
+        performedBy: _auth.currentUser?.uid ?? '',
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    batch.update(_payoutRequests.doc(fresh.id), {
+      'status': models.PayoutRequestStatus.paid.name,
+      'processedAt': Timestamp.fromDate(DateTime.now()),
+      if (adminNote != null && adminNote.trim().isNotEmpty)
+        'adminNote': adminNote.trim(),
+    });
+    await batch.commit();
+  }
+
+  /// رفض طلب سحب بسبب مكتوب يظهر للسائق.
+  Future<void> rejectPayoutRequest(String requestId, String adminNote) async {
+    final freshReq = await _payoutRequests.doc(requestId).get();
+    if (!freshReq.exists || freshReq.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final fresh = models.PayoutRequest.fromMap(freshReq.data()!, freshReq.id);
+    if (fresh.status != models.PayoutRequestStatus.pending) {
+      throw Exception('هذا الطلب ${fresh.status.label} بالفعل');
+    }
+    await _payoutRequests.doc(requestId).update({
+      'status': models.PayoutRequestStatus.rejected.name,
+      'adminNote': adminNote.trim(),
+      'processedAt': Timestamp.fromDate(DateTime.now()),
+    });
+  }
+
   /// سجلّ حركات سائق، الأحدث أولاً. (ترتيب محلي — انظر تعليق
   /// [streamWalletTransactions] عن الفهارس المركّبة.)
   Stream<List<models.DriverTransaction>> streamDriverTransactions(String driverId) =>

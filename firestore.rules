@@ -383,6 +383,25 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // payout_requests — طلبات سحب مستحقّات السائقين. السائق يُنشئ طلبه هو
+    // فقط وبحالة pending إلزاماً (لا يُنشئ طلباً «مصروفاً» جاهزاً)، ويقرأ
+    // طلباته وحدها. البتّ (صرف/رفض) للمدير العام حصراً، والحذف ممنوع —
+    // سجلّ مالي يبقى للمراجعة.
+    // ---------------------------------------------------------------------
+    match /payout_requests/{requestId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.driverId == currentUid()
+          );
+      allow create: if isDriver() &&
+          request.resource.data.driverId == currentUid() &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.amount is number &&
+          request.resource.data.amount > 0;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // broadcasts — إرسال رسائل جماعية للمدير العام فقط، وقراءتها لأي مستخدم
     // مسجّل دخوله (كل من السائقين والعملاء يقرؤون الرسائل الموجّهة لهم).
     // ---------------------------------------------------------------------

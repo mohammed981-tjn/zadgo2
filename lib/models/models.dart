@@ -841,6 +841,80 @@ class Driver {
       };
 }
 
+/// حالة طلب سحب مستحقّات السائق.
+enum PayoutRequestStatus { pending, paid, rejected }
+
+PayoutRequestStatus _payoutRequestStatusFromString(String? raw) =>
+    _enumValueFromString<PayoutRequestStatus>(
+      raw,
+      PayoutRequestStatus.values,
+      PayoutRequestStatus.pending,
+      'PayoutRequestStatus',
+    );
+
+extension PayoutRequestStatusExt on PayoutRequestStatus {
+  String get label => switch (this) {
+        PayoutRequestStatus.pending => 'قيد المعالجة',
+        PayoutRequestStatus.paid => 'مصروف',
+        PayoutRequestStatus.rejected => 'مرفوض',
+      };
+}
+
+/// طلب سحب مستحقّات يقدّمه السائق بنفسه (نمط نينجا/تويو: زر «اسحب أموالي»)
+/// بدل انتظار مبادرة الإدارة — الإدارة تصرفه فيتقيّد في دفتر الحركات
+/// بحركة payout كالمعتاد، أو ترفضه بسبب مكتوب يراه السائق.
+class PayoutRequest {
+  final String id;
+  final String driverId;
+  final String driverName;
+  final double amount;
+
+  /// طريقة الاستلام التي يكتبها السائق: آيبان للتحويل أو «نقداً من الإدارة».
+  final String method;
+  final PayoutRequestStatus status;
+
+  /// ردّ الإدارة — سبب الرفض أو ملاحظة الصرف.
+  final String? adminNote;
+  final DateTime createdAt;
+  final DateTime? processedAt;
+
+  const PayoutRequest({
+    required this.id,
+    required this.driverId,
+    required this.driverName,
+    required this.amount,
+    required this.method,
+    this.status = PayoutRequestStatus.pending,
+    this.adminNote,
+    required this.createdAt,
+    this.processedAt,
+  });
+
+  factory PayoutRequest.fromMap(Map<String, dynamic> map, String id) =>
+      PayoutRequest(
+        id: id,
+        driverId: map['driverId'] as String? ?? '',
+        driverName: map['driverName'] as String? ?? '',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        method: map['method'] as String? ?? '',
+        status: _payoutRequestStatusFromString(map['status'] as String?),
+        adminNote: map['adminNote'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        processedAt: (map['processedAt'] as Timestamp?)?.toDate(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'driverId': driverId,
+        'driverName': driverName,
+        'amount': amount,
+        'method': method,
+        'status': status.name,
+        if (adminNote != null) 'adminNote': adminNote,
+        'createdAt': Timestamp.fromDate(createdAt),
+        if (processedAt != null) 'processedAt': Timestamp.fromDate(processedAt!),
+      };
+}
+
 /// نوع حركة محفظة العميل.
 enum WalletTransactionType {
   /// استرداد من الإدارة عند حلّ شكوى.

@@ -16,6 +16,7 @@ import 'admin_complaints_screen.dart';
 import 'admin_reports_tab.dart';
 import 'admin_driver_ledger_screen.dart';
 import 'admin_banners_screen.dart';
+import 'admin_payout_requests_screen.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
 /// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
@@ -104,6 +105,15 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'البنرات الترويجية', child: AdminBannersScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.savings_outlined),
+              title: const Text('طلبات سحب السائقين'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات سحب السائقين', child: AdminPayoutRequestsScreen())));
               },
             ),
             ListTile(

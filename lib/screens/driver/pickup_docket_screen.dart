@@ -66,13 +66,28 @@ class PickupDocketScreen extends StatelessWidget {
                     color: fc.primary.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Row(children: [
-                    Icon(Icons.storefront_rounded, size: 18, color: fc.primary),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text('اعرض هذه الشاشة لموظف المطعم لمطابقة الطلب',
-                          style: TextStyle(fontSize: 12.5)),
-                    ),
+                  child: Column(children: [
+                    Row(children: [
+                      Icon(Icons.storefront_rounded, size: 18, color: fc.primary),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('اعرض هذه الشاشة لموظف المطعم لمطابقة الطلب',
+                            style: TextStyle(fontSize: 12.5)),
+                      ),
+                    ]),
+                    const SizedBox(height: 6),
+                    // الخطوة الذهبية (نمط نينجا/كيتا): مطابقة رقم الكيس تمنع
+                    // «الطلب الخاطئ» — أكثر أخطاء الاستلام شيوعاً — من جذره.
+                    Row(children: [
+                      Icon(Icons.qr_code_2_rounded, size: 18, color: fc.primary),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                            'طابق رقم الطلب على ملصق الكيس مع الرقم أدناه قبل المغادرة',
+                            style: TextStyle(
+                                fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      ),
+                    ]),
                   ]),
                 ),
                 const SizedBox(height: 12),

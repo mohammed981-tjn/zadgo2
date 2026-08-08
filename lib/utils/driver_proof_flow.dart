@@ -113,12 +113,14 @@ class DriverProofFlow {
     final ok = await showConfirmDialog(
       context,
       title: 'استلام الطلب',
-      content: (isCash
+      content: 'هل طابقت رقم الطلب #${order.orderNumber} على ملصق الكيس '
+              'وعدد الأصناف؟\n\n' +
+          (isCash
               ? 'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
                   '(قيمة الطلب) حتى تحصيلها من العميل.\n\n'
               : '') +
           'التالي: صورة سريعة للطلب — اختيارية، لكنها حجّتك في أي نزاع.',
-      confirmLabel: 'متابعة',
+      confirmLabel: 'طابقتُ — متابعة',
     );
     if (ok != true || !context.mounted) return false;
 
