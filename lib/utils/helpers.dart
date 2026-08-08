@@ -111,6 +111,15 @@ class Pricing {
   /// رسم توصيل ثابت للتطبيق يتحمّله العميل في كل طلب.
   static const double fixedDeliveryCommission = 3.0;
 
+  /// أقصى مسافة توصيل مقبولة بالكيلومترات. بدون هذا الحدّ يستطيع العميل
+  /// تحديد موقع في مدينة أخرى فتُحتسب أجرة توصيل خيالية (مثل 732 ر.س لمسافة
+  /// 730 كم) على طلب لا يستطيع أي سائق تنفيذه أصلاً.
+  static const double maxDeliveryDistanceKm = 25.0;
+
+  /// هل الموقع خارج نطاق خدمة المطعم؟
+  static bool isOutOfRange(double distanceKm) =>
+      distanceKm > maxDeliveryDistanceKm;
+
   /// أجرة التوصيل حسب المسافة: أساس ثابت لأول 7 كم + 1 ر.س لكل كم إضافي،
   /// مع إجبار كسور الكيلومتر للأعلى (9.8 كم → 10).
   static double deliveryFee(double distanceKm) {

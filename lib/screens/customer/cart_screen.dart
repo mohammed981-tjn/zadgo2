@@ -249,6 +249,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    // منع الطلب خارج نطاق الخدمة: بدونه يُحتسب توصيل بمئات الريالات على طلب
+    // لا يستطيع أي سائق تنفيذه.
+    final distance = _distanceKm;
+    if (distance != null && Pricing.isOutOfRange(distance)) {
+      showError(context,
+          'الموقع خارج نطاق التوصيل (${distance.toStringAsFixed(0)} كم). '
+          'الحد الأقصى ${Pricing.maxDeliveryDistanceKm.toStringAsFixed(0)} كم');
+      return;
+    }
+
     // الدفع بالبطاقة يسبق إنشاء الطلب: لا يُسجَّل طلب إلا بعد أن تؤكّد البوابة
     // شحن المبلغ فعلياً. العكس (إنشاء الطلب ثم محاولة الدفع) يُنتج طلبات
     // معلّقة بلا سداد يصعب تنظيفها لاحقاً.
@@ -378,6 +388,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final walletBalance = _walletBalance;
     final walletApplied = _walletApplied();
     final amountDue = _amountDue();
+    final outOfRange = _distanceKm != null && Pricing.isOutOfRange(_distanceKm!);
 
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
@@ -447,6 +458,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   : 'حدد موقعك على الخريطة',
             ),
           ),
+          if (outOfRange)
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                const Icon(Icons.wrong_location_outlined,
+                    color: AppColors.error, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'الموقع يبعد ${_distanceKm!.toStringAsFixed(0)} كم عن المطعم — '
+                    'خارج نطاق التوصيل (${Pricing.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
+                    'اختر موقعاً أقرب.',
+                    style: const TextStyle(color: AppColors.error, fontSize: 12),
+                  ),
+                ),
+              ]),
+            ),
           const SizedBox(height: 20),
           // رصيد المحفظة يُطبَّق كخصم على الإجمالي. يظهر فقط عند وجود رصيد،
           // فلا يزحم الشاشة لمن لا رصيد له.
@@ -529,14 +562,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: (_loading || !locationSet) ? null : _placeOrder,
+              onPressed:
+                  (_loading || !locationSet || outOfRange) ? null : _placeOrder,
               child: _loading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : Text(locationSet
-                      ? (amountDue <= 0
-                          ? 'تأكيد الطلب • مدفوع من المحفظة'
-                          : 'تأكيد الطلب • ${formatCurrency(amountDue)}')
-                      : 'حدّد موقعك أولاً'),
+                  : Text(!locationSet
+                      ? 'حدّد موقعك أولاً'
+                      : outOfRange
+                          ? 'الموقع خارج نطاق التوصيل'
+                          : (amountDue <= 0
+                              ? 'تأكيد الطلب • مدفوع من المحفظة'
+                              : 'تأكيد الطلب • ${formatCurrency(amountDue)}')),
             ),
           ),
         ],
