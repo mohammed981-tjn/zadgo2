@@ -16,6 +16,7 @@ import '../customer/order_chat_screen.dart';
 import '../customer/submit_complaint_screen.dart';
 import '../customer/my_complaints_screen.dart';
 import '../../utils/driver_proof_flow.dart';
+import 'pickup_docket_screen.dart';
 import '../../utils/location_guard.dart';
 import '../../navigator_key.dart';
 
@@ -181,6 +182,11 @@ class _DriverHomeState extends State<DriverHome> {
                       entry.remove();
                       _bannerEntry = null;
                       await service.acceptAssignedOrder(order.id);
+                      // بعد القبول تُفتح مذكرة الاستلام مباشرةً — هي وجهة
+                      // السائق التالية بلا بحث في القوائم.
+                      navigatorKey.currentState?.push(MaterialPageRoute(
+                          builder: (_) =>
+                              PickupDocketScreen(orderId: order.id)));
                     },
                     child: const Text('قبول'),
                   ),
@@ -216,16 +222,25 @@ class _DriverHomeState extends State<DriverHome> {
                 BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4)),
               ],
             ),
-            child: Row(children: [
-              const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'طلب جديد #${order.orderNumber} أُسند إليك',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+            child: GestureDetector(
+              onTap: () {
+                entry.remove();
+                _bannerEntry = null;
+                navigatorKey.currentState?.push(MaterialPageRoute(
+                    builder: (_) => PickupDocketScreen(orderId: order.id)));
+              },
+              child: Row(children: [
+                const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'طلب جديد #${order.orderNumber} أُسند إليك — اضغط لمذكرة الاستلام',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                  ),
                 ),
-              ),
-            ]),
+                const Icon(Icons.chevron_left_rounded, color: Colors.white),
+              ]),
+            ),
           ),
         ),
       ),
@@ -455,40 +470,15 @@ class _OrderCard extends StatelessWidget {
     if (order.status == OrderStatus.readyForPickup ||
         order.status == OrderStatus.searchingDriver ||
         order.status == OrderStatus.driverAssigned) {
-      return Column(children: [
-        // تسجيل الوصول أولاً — يوثّق زمنياً أن السائق حاضر وينتظر، فيحسم
-        // نزاع «من أخّر الطلب» لصالح الحقيقة. يختفي بعد تسجيله.
-        if (order.arrivedAtRestaurantAt == null) ...[
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(
-            onPressed: () => DriverProofFlow.recordArrival(ctx, service, order),
-            icon: const Icon(Icons.where_to_vote_outlined),
-            label: const Text('وصلتُ المطعم'),
-          )),
-          const SizedBox(height: 8),
-        ],
-        SizedBox(width: double.infinity, child: ElevatedButton.icon(
-          onPressed: () async {
-            // التدفّق الكامل: نطاق ١٠٠م ← صورة إلزامية ← عُهدة ← حالة.
-            final done = await DriverProofFlow.confirmPickup(ctx, service, order);
-            if (!done) return;
-            final now = DateTime.now();
-            navigatorKey.currentState?.push(
-              MaterialPageRoute(
-                builder: (_) => OrderMapScreen(
-                  order: order.copyWith(
-                    status: OrderStatus.onTheWay,
-                    updatedAt: now,
-                    statusChangedAt: now,
-                  ),
-                  readOnly: false,
-                ),
-              ),
-            );
-          },
-          icon: const Icon(Icons.delivery_dining),
-          label: const Text('استلمت الطلب — في الطريق'),
-        )),
-      ]);
+      // مذكرة الاستلام هي مركز ما قبل الاستلام كله: رقم الطلب الضخم
+      // للمطابقة أمام المطعم، الأصناف، شريط الدفع، وأزرار «وصلتُ» و«استلمت»
+      // بحارس النطاق والعُهدة — بدل توزيعها أزراراً متفرقة على البطاقة.
+      return SizedBox(width: double.infinity, child: ElevatedButton.icon(
+        onPressed: () => navigatorKey.currentState?.push(MaterialPageRoute(
+            builder: (_) => PickupDocketScreen(orderId: order.id))),
+        icon: const Icon(Icons.receipt_long_rounded),
+        label: const Text('مذكرة الاستلام — اعرضها للمطعم'),
+      ));
     }
     if (order.status == OrderStatus.onTheWay) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
