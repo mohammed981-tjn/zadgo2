@@ -8,6 +8,7 @@ import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
+import '../../widgets/promo_banner_carousel.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';
@@ -200,6 +201,9 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         ),
       ),
       const SizedBox(height: 4),
+      // البنرات الترويجية — تختفي أثناء البحث حتى لا تزاحم النتائج، وتختفي
+      // كلياً حين لا حملة فعّالة.
+      if (_query.isEmpty) const PromoBannerCarousel(),
       Expanded(
         // ملاحظة مهمة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس Stream
         // جاهزاً، لذلك يُمرَّر اسم الدالة بلا أقواس (tear-off). إضافة أقواس

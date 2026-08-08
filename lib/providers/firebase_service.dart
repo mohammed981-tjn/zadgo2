@@ -667,6 +667,40 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _orderProofs =>
       _db.collection('order_proofs');
 
+  CollectionReference<Map<String, dynamic>> get _banners =>
+      _db.collection('banners');
+
+  /// البنرات الفعّالة لشاشة العميل — الترتيب محلياً (sortOrder ثم الأحدث)
+  /// فلا حاجة لفهرس مركّب.
+  Stream<List<models.PromoBanner>> streamActiveBanners() => _banners
+      .where('isActive', isEqualTo: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.PromoBanner.fromMap(d.data(), d.id))
+          .toList()
+        ..sort((a, b) {
+          final c = a.sortOrder.compareTo(b.sortOrder);
+          return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
+        }));
+
+  /// كل البنرات لإدارة المدير.
+  Stream<List<models.PromoBanner>> streamAllBanners() =>
+      _banners.snapshots().map((s) => s.docs
+          .map((d) => models.PromoBanner.fromMap(d.data(), d.id))
+          .toList()
+        ..sort((a, b) {
+          final c = a.sortOrder.compareTo(b.sortOrder);
+          return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
+        }));
+
+  Future<void> saveBanner(models.PromoBanner banner) =>
+      _banners.doc(banner.id).set(banner.toMap());
+
+  Future<void> setBannerActive(String id, bool active) =>
+      _banners.doc(id).update({'isActive': active});
+
+  Future<void> deleteBanner(String id) => _banners.doc(id).delete();
+
   /// تسجيل وصول السائق إلى المطعم: طابع زمني على الطلب (يقرؤه الجميع في
   /// نزاع «من أخّر؟») + الإحداثيات في وثيقة الإثبات.
   Future<void> recordArrivalAtRestaurant({

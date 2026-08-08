@@ -1736,3 +1736,54 @@ class RegistrationCode {
         'usedByName': usedByName,
       };
 }
+/// بنر ترويجي أعلى شاشة مطاعم العميل — عروض، مطاعم جديدة، إعلانات موسمية.
+///
+/// الصورة رابط خارجي (المكان الطبيعي: zadgo.co/images — استبدال الملف
+/// بنفس الاسم هناك يحدّث البنر عند الجميع بلا لمس للتطبيق). البنر يظهر
+/// فقط حين [isActive]، فتتحكم الإدارة بالحملة تشغيلاً وإيقافاً بضغطة.
+class PromoBanner {
+  final String id;
+  final String imageUrl;
+
+  /// عنوان اختياري يظهر شريطاً أسفل الصورة (يُترك فارغاً لو كان النص
+  /// مرسوماً داخل الصورة نفسها).
+  final String title;
+
+  /// معرّف مطعم اختياري: ضغطة البنر تفتح صفحته مباشرة.
+  final String? restaurantId;
+
+  final bool isActive;
+
+  /// ترتيب العرض — الأصغر أولاً.
+  final int sortOrder;
+  final DateTime createdAt;
+
+  const PromoBanner({
+    required this.id,
+    required this.imageUrl,
+    this.title = '',
+    this.restaurantId,
+    this.isActive = true,
+    this.sortOrder = 0,
+    required this.createdAt,
+  });
+
+  factory PromoBanner.fromMap(Map<String, dynamic> map, String id) => PromoBanner(
+        id: id,
+        imageUrl: map['imageUrl'] as String? ?? '',
+        title: map['title'] as String? ?? '',
+        restaurantId: map['restaurantId'] as String?,
+        isActive: map['isActive'] as bool? ?? true,
+        sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'imageUrl': imageUrl,
+        'title': title,
+        if (restaurantId != null) 'restaurantId': restaurantId,
+        'isActive': isActive,
+        'sortOrder': sortOrder,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
