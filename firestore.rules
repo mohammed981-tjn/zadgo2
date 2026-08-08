@@ -5,10 +5,17 @@ rules_version = '2';
 // مفتوحة بالكامل (وضع الاختبار الافتراضي) أو معتمدة على تكوين يدوي غير
 // موثّق في المستودع.
 //
-// ملاحظة: التطبيق لا يستخدم Cloud Functions، لذا بعض التحقق (كضمان صحة
-// القيم الرقمية المحوّلة كالعمولات أو أرصدة السائقين) يبقى على مسؤولية
-// التطبيق نفسه؛ القواعد هنا تركّز على منع أي مستخدم من الوصول لبيانات لا
-// تخصّه أو انتحال دور لا يملكه.
+// ملاحظة مهمة: التطبيق لا يستخدم Cloud Functions، فهذه القواعد هي خط الدفاع
+// الوحيد أمام الكتابة المباشرة على Firestore (عبر REST API أو نسخة معدّلة من
+// التطبيق). لذلك لا تكتفي بمنع الوصول لبيانات الآخرين، بل تُجمّد أيضاً
+// الحقول المالية (رصيد المحفظة، عمولة التطبيق، أجرة السائق، حالة السداد)
+// فلا يعدّلها إلا المدير العام.
+//
+// ما تبقّى بلا تغطية كاملة ويحتاج منطقاً على الخادم لاحقاً:
+//   • قيم الطلب المالية لحظة الإنشاء تأتي من تطبيق العميل ولا يمكن التحقق من
+//     صحتها هنا (تتطلّب إعادة حساب السعر على الخادم).
+//   • السائق يزيد مستحقّاته على مستنده عند تأكيد التوصيل، فالقاعدة تسمح بذلك
+//     لأن التدفّق الحالي يتطلّبه.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -46,21 +53,51 @@ service cloud.firestore {
       return hasRole('restaurantManager') && userData().restaurantId == restaurantId;
     }
 
+    /// الحقول التي تغيّرت فعلياً في هذا التحديث — أساس كل قيود الحقول أدناه.
+    /// استُخدم فحص "الحقول المتأثّرة" بدل مقارنة القيم مباشرةً لأنه يتعامل
+    /// بشكل صحيح مع الحقول الغائبة في المستندات القديمة (إضافة الحقل تُعدّ
+    /// تغييراً فتُرفض)، بدل أن يفشل التقييم عند قراءة حقل غير موجود.
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    /// حقول الطلب التي تحدّد المال: قيمة الأصناف، وأجرة السائق، وحصّة
+    /// التطبيق، وعمولته، وحالة السداد، وهوية أطراف الطلب. لا يجوز لأي طرف
+    /// غير المدير العام تعديلها بعد إنشاء الطلب.
+    function orderMoneyKeys() {
+      return ['items', 'driverShare', 'appShare', 'platformCommission',
+              'isPaid', 'customerId', 'restaurantId', 'orderNumber'];
+    }
+
     // ---------------------------------------------------------------------
     // users — كل مستخدم يرى ويعدّل بياناته فقط؛ المدير العام يرى الجميع.
     // إنشاء المستند مسموح فقط لصاحب الـ uid نفسه (تسجيل ذاتي)، ولا يمكن لأي
     // مستخدم غير المدير العام تغيير دوره الخاص (role) أو حالة تفعيله
     // (isActive) بعد الإنشاء لمنع تصعيد الصلاحيات ذاتياً.
+    //
+    // رصيد المحفظة (walletBalance) محمي كذلك: لا يزيده إلا المدير العام عند
+    // حلّ شكوى باسترداد. لولا هذا القيد لأمكن لأي مستخدم ضبط رصيده على أي
+    // مبلغ عبر تحديث مستنده مباشرةً — فالتطبيق لا يستخدم Cloud Functions،
+    // وهذه القواعد هي خط الدفاع الوحيد أمام الكتابة المباشرة.
     // ---------------------------------------------------------------------
     match /users/{userId} {
       allow get: if isSignedIn() && (currentUid() == userId || isAdmin());
       allow list: if isAdmin();
-      allow create: if isSignedIn() && currentUid() == userId;
+      // الإنشاء الذاتي يبدأ برصيد صفر إلزاماً، فلا يُنشئ أحد حسابه برصيد جاهز.
+      allow create: if isSignedIn() && currentUid() == userId &&
+          (!('walletBalance' in request.resource.data) ||
+              request.resource.data.walletBalance == 0);
       allow update: if isSignedIn() && (
             isAdmin() ||
             (currentUid() == userId &&
-                request.resource.data.role == resource.data.role &&
-                request.resource.data.isActive == resource.data.isActive)
+                !changedKeys().hasAny(['role', 'isActive']) &&
+                // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
+                // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
+                // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
+                // سيُرفض تماماً، أو كان فتحُه سيسمح بشحن الرصيد ذاتياً.
+                (!changedKeys().hasAny(['walletBalance']) ||
+                    request.resource.data.walletBalance <
+                        resource.data.walletBalance))
           );
       allow delete: if isAdmin();
     }
@@ -74,7 +111,11 @@ service cloud.firestore {
     match /restaurants/{restaurantId} {
       allow read: if true;
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || isRestaurantManagerOf(restaurantId);
+      // العميل يحدّث تقييم المطعم بعد استلام طلبه — مقصور على حقلَي
+      // rating/ratingCount فقط، تماماً كتقييم السائق، فلا يستطيع تعديل
+      // الأسعار أو الاسم أو حالة الفتح من تطبيق العميل.
+      allow update: if isAdmin() || isRestaurantManagerOf(restaurantId) ||
+          (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']));
 
       match /categories/{categoryId} {
         allow read: if true;
@@ -106,51 +147,158 @@ service cloud.firestore {
             isRestaurantManagerOf(resource.data.restaurantId)
           );
       allow create: if isCustomer() && request.resource.data.customerId == currentUid();
+      // بعد الإنشاء، لا يعدّل أحدٌ الحقول المالية (قيمة الأصناف، أجرة السائق،
+      // حصّة التطبيق، حالة السداد...) إلا المدير العام — باستثناء واحد مقصود:
+      // السائق المُسنَد يضبط isPaid و platformCommission لحظة تأكيد التوصيل،
+      // فتلك خطوة إغلاق الطلب في تدفّق التطبيق الحالي.
+      //
+      // بدون هذا القيد كان بإمكان العميل تحديث طلبه وضبط isPaid على true بلا
+      // دفع، أو تصفير عمولة التطبيق وأجرة السائق.
       allow update: if isSignedIn() && (
             isAdmin() ||
-            resource.data.customerId == currentUid() ||
-            resource.data.driverId == currentUid() ||
+            (resource.data.customerId == currentUid() &&
+                !changedKeys().hasAny(orderMoneyKeys())) ||
+            (resource.data.driverId == currentUid() &&
+                !changedKeys().hasAny(['items', 'driverShare', 'appShare',
+                                       'customerId', 'restaurantId', 'orderNumber'])) ||
             // السائق يقبل الطلب بنفسه (تصميم مقصود)، لكن فقط إن كان الطلب
             // بلا سائق مُسنَد أصلاً — يمنع سائقاً من الاستيلاء على طلب مُسنَد
             // لغيره عبر الكتابة المباشرة على driverId.
-            (resource.data.driverId == null && request.resource.data.driverId == currentUid()) ||
-            isRestaurantManagerOf(resource.data.restaurantId)
+            (resource.data.driverId == null &&
+                request.resource.data.driverId == currentUid() &&
+                !changedKeys().hasAny(orderMoneyKeys())) ||
+            (isRestaurantManagerOf(resource.data.restaurantId) &&
+                !changedKeys().hasAny(orderMoneyKeys()))
           );
       allow delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
     // drivers — القراءة لأي مستخدم مسجّل دخوله (تُستخدم لعرض بيانات السائق
-    // ضمن تتبّع الطلب). الكتابة: السائق نفسه لتحديث حالته/موقعه، أو المدير
-    // العام لإعادة التوزيع، أو مدير المطعم عند التعيين التلقائي، أو العميل
-    // عند تقييم السائق بعد التوصيل (مقصور على حقلَي rating/ratingCount فقط
-    // لمنع تعديل موقع السائق أو حالته من طرف عميل).
+    // ضمن تتبّع الطلب).
+    //
+    // الكتابة كانت مفتوحة لأي سائق على مستند أي سائق آخر (isDriver() وحدها)،
+    // ما يعني أن سائقاً واحداً كان بإمكانه تعديل أرباح زميله ومستحقّاته
+    // (pendingPayout/totalEarnings). القيد الآن:
+    //   • السائق: مستنده هو فقط.
+    //   • غير العميل (سائق/مدير مطعم): مستند سائق آخر بحقل isAvailable وحده —
+    //     وهو ما يتطلّبه الإسناد التلقائي عند قبول المطعم للطلب أو عند رفض
+    //     سائق لطلبه فيُعاد إسناده لأقرب سائق متاح.
+    //   • العميل: rating/ratingCount فقط عند تقييم السائق بعد التوصيل.
+    //   • المدير العام: بلا قيد (إعادة التوزيع وصرف المستحقّات).
     // ---------------------------------------------------------------------
     match /drivers/{driverId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && currentUid() == driverId;
       allow update: if isSignedIn() && (
-            isAdmin() || isDriver() || hasRole('restaurantManager') ||
-            (isCustomer() &&
-                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'ratingCount']))
+            isAdmin() ||
+            (isDriver() && currentUid() == driverId) ||
+            (!isCustomer() && changedKeys().hasOnly(['isAvailable'])) ||
+            (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']))
           );
       allow delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
-    // complaints — العميل ينشئ شكوى على طلبه الخاص فقط. يراها العميل صاحبها،
-    // مدير المطعم المعني، أو المدير العام. حلّها/تحديث حالتها للمدير العام.
+    // driver_transactions — دفتر حساب السائق: حركة لكل تغيّر في رصيده
+    // (توصيل/إيداع/صرف/تسوية). سجلّ محاسبي، لذا:
+    //   • القراءة: السائق صاحب الحركة والمدير العام فقط.
+    //   • الإنشاء: المدير (إيداع/صرف/تسوية)، أو السائق على حركاته هو وحدها
+    //     (تُكتب تلقائياً لحظة تأكيد التوصيل من تطبيقه).
+    //   • التعديل والحذف: ممنوعان تماماً حتى على المدير — السجلّ المحاسبي
+    //     لا يُعدَّل بأثر رجعي، والتصحيح يكون بحركة «تسوية» جديدة تبقى ظاهرة.
+    // ---------------------------------------------------------------------
+    match /driver_transactions/{transactionId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.driverId == currentUid()
+          );
+      allow create: if isSignedIn() && (
+            isAdmin() ||
+            (isDriver() && request.resource.data.driverId == currentUid())
+          );
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // wallet_transactions — دفتر محفظة العميل: حركة لكل تغيّر في رصيده
+    // (استرداد/دفع طلب/تسوية).
+    //   • القراءة: صاحب المحفظة والمدير العام.
+    //   • الإنشاء: المدير (استرداد/تسوية)، أو العميل على حركاته هو وحدها
+    //     (تُكتب لحظة استخدام رصيده في دفع طلب).
+    //   • التعديل والحذف ممنوعان حتى على المدير — سجلّ محاسبي لا يُعدَّل
+    //     بأثر رجعي، والتصحيح بحركة تسوية جديدة تبقى ظاهرة.
+    //
+    // ملاحظة: حماية الرصيد نفسه في قاعدة users (walletBalance لا يعدّله إلا
+    // المدير) لا تكفي وحدها لأن العميل يحتاج خصم رصيده عند الدفع؛ الخصم يتم
+    // ضمن معاملة تتحقّق من كفاية الرصيد، ويبقى مقيّداً في هذا الدفتر.
+    // ---------------------------------------------------------------------
+    match /wallet_transactions/{transactionId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.userId == currentUid()
+          );
+      allow create: if isSignedIn() && (
+            isAdmin() || request.resource.data.userId == currentUid()
+          );
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // complaints — الشكوى يقدّمها أي طرف في الطلب (عميل/سائق/مدير مطعم)
+    // بصفته submittedByUid. يقرؤها: مقدّمها، والمشكوّ في حقه، وعميل الطلب،
+    // ومدير المطعم المعني، والمدير العام. حلّها وتحديث حالتها للمدير وحده.
+    //
+    // كانت القاعدة القديمة تفترض أن العميل وحده يشتكي (isCustomer +
+    // customerId)، بينما التطبيق يتيح الشكوى للسائق والمطعم أيضاً — فكان
+    // إرسالهما سيُرفض. كما كان السرد (list) للمدير وحده، فشاشة «شكاواي»
+    // (استعلام المستخدم عن شكاواه هو) كانت سترفض حتى لصاحبها.
     // ---------------------------------------------------------------------
     match /complaints/{complaintId} {
       allow get: if isSignedIn() && (
             isAdmin() ||
             resource.data.customerId == currentUid() ||
+            resource.data.submittedByUid == currentUid() ||
+            resource.data.againstUid == currentUid() ||
             isRestaurantManagerOf(resource.data.restaurantId)
           );
-      allow list: if isAdmin();
-      allow create: if isCustomer() && request.resource.data.customerId == currentUid();
+      // السرد مسموح فقط باستعلامات تضمن أن كل النتائج تخص المستخدم نفسه
+      // (شكاواه المقدَّمة أو المقدَّمة عليه، أو شكاوى مطعمه لمديره) — محرّك
+      // القواعد يرفض أي استعلام قد يُرجع شكوى غيره.
+      allow list: if isSignedIn() && (
+            isAdmin() ||
+            resource.data.submittedByUid == currentUid() ||
+            resource.data.againstUid == currentUid() ||
+            isRestaurantManagerOf(resource.data.restaurantId)
+          );
+      allow create: if isSignedIn() &&
+          request.resource.data.submittedByUid == currentUid();
       allow update: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // complaint_messages — دردشة الشكوى بين مقدّمها والإدارة. البنية نفسها
+    // بنية chat_messages لكن حقل orderId يحمل معرّف الشكوى.
+    //
+    // لم يكن لهذه المجموعة أي قواعد إطلاقاً، فكانت مرفوضة بالكامل (الرفض
+    // الافتراضي) — حتى دردشة المدير نفسها من شاشة تفاصيل الشكوى.
+    // ---------------------------------------------------------------------
+    match /complaint_messages/{messageId} {
+      function relatedComplaint() {
+        return get(/databases/$(database)/documents/complaints/$(resource.data.orderId)).data;
+      }
+      function relatedComplaintFromRequest() {
+        return get(/databases/$(database)/documents/complaints/$(request.resource.data.orderId)).data;
+      }
+
+      allow get, list: if isSignedIn() && (
+            isAdmin() ||
+            relatedComplaint().submittedByUid == currentUid()
+          );
+      allow create: if isSignedIn() &&
+          request.resource.data.senderId == currentUid() && (
+            isAdmin() ||
+            relatedComplaintFromRequest().submittedByUid == currentUid()
+          );
     }
 
     // ---------------------------------------------------------------------

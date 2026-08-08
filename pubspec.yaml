@@ -14,8 +14,39 @@ dependencies:
   firebase_auth: 5.3.3
   cloud_firestore: 5.5.0
   firebase_messaging: 15.1.5
+  # مثبّت على 12.3.6 عمداً: الإصدارات 12.3.7+ تتطلّب firebase_core ^3.8.1،
+  # بينما بقية حزم Firebase هنا مثبّتة على إصدارات محدّدة مع firebase_core
+  # 3.8.0. ترقية firebase_core كانت ستجرّ ترقية auth وfirestore وmessaging
+  # معاً — تغيير واسع لا مبرّر له لإضافة التخزين وحده.
+  firebase_storage: 12.3.6
+
+  # اختيار صور الأصناف والمطاعم من الجهاز ورفعها من داخل لوحة الإدارة.
+  image_picker: ^1.1.2
+
+  # بوابة الدفع «ميسر» — تدعم mada وVisa وMastercard وApple Pay.
+  #
+  # مثبّتة على 2.0.16 عمداً: الإصدارات 2.0.17+ (ومنها 3.x) تعتمد
+  # webview_flutter ^4.13.0 الذي يتطلّب Dart ‏3.6، بينما البناء هنا على
+  # Flutter 3.24.0 = Dart ‏3.5.0. الإصدار 2.0.16 يعتمد webview_flutter
+  # ^4.10.0 وهو متوافق مع 3.5.
+  #
+  # الفروق بين 2.0.16 و3.x لا تمسّ ما نستخدمه: PaymentConfig و
+  # CreditCardConfig و CreditCard و PaymentResponse و PaymentStatus
+  # متطابقة نصّاً في الإصدارين؛ الإضافات في 3.x هي Samsung Pay و
+  # Union Pay وتقسيم المدفوعات — ولا نستعمل شيئاً منها.
+  moyasar: 2.0.16
 
   provider: ^6.1.2
+
+  # نداءات «الخادم المرافق» للإشعارات (lib/providers/notify_relay.dart).
+  # النطاق ^1.3.0 يطابق ما تشترطه moyasar نفسها فلا يضيف قيداً جديداً.
+  http: ^1.3.0
+
+  # إبقاء شاشة جهاز المطعم مضاءة — الجهاز يعمل «شاشة طلبات» طوال الدوام.
+  # مثبّتة على 1.3.3 تحديداً: 1.4.0 تجرّ package_info_plus 9.x التي كسرت
+  # بناء أندرويد فعلاً (compileSdkVersion is not specified)، و1.5.0+ تتطلّب
+  # Dart 3.10 والبناء هنا على 3.5. هذه تقبل package_info_plus 8.x المتوافقة.
+  wakelock_plus: 1.3.3
 
   flutter_rating_bar: ^4.0.1
   badges: ^3.1.2
@@ -28,11 +59,18 @@ dependencies:
   latlong2: ^0.9.1
   url_launcher: ^6.3.1
   shared_preferences: ^2.3.3
+  geolocator: ^13.0.1
+
+  # ⭐ إضافة ضرورية لحل خطأ نقل العنوان
+  geocoding: ^2.1.0
 
   pdf: ^3.11.1
   printing: ^5.13.4
   excel: ^4.0.6
   share_plus: ^10.1.2
+
+dependency_overrides:
+  geolocator_android: 4.6.0
 
 dev_dependencies:
   flutter_test:

@@ -31,5 +31,12 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
+        <!-- مطلوب على Android 11+ (API 30) حتى يتمكّن url_launcher من فتح
+             تطبيق الاتصال عبر tel: — بدونه يفشل زر الاتصال بين العميل
+             والسائق صامتاً. -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
     </queries>
 </manifest>

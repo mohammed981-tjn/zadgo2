@@ -60,7 +60,7 @@ jobs:
         with:
           flutter-version: '3.24.0'
           channel: 'stable'
-          cache: true
+          cache: false
 
       - name: Verify Flutter installation
         run: flutter doctor -v
@@ -77,6 +77,8 @@ jobs:
           rm -rf .dart_tool
           rm -rf android/.gradle
           rm -rf build
+          rm -rf ~/.pub-cache
+          rm -rf ~/.gradle
 
       - name: Install dependencies
         run: flutter pub get
@@ -88,7 +90,21 @@ jobs:
           flutter analyze --no-fatal-warnings --no-fatal-infos | tee flutter_analyze.log
 
       - name: Build APK (${{ matrix.flavor }} flavor)
-        run: flutter build apk --release --no-shrink --flavor ${{ matrix.flavor }} -t lib/main_${{ matrix.flavor }}.dart
+        # مفتاح بوابة الدفع يُحقن وقت البناء من أسرار المستودع، فلا يُخزَّن في
+        # الشيفرة. إن لم يُضبط السرّ يبقى فارغاً، فيختفي خيار الدفع بالبطاقة
+        # من التطبيق تلقائياً بدل أن يظهر خياراً معطّلاً.
+        #
+        # ZADGO_NOTIFY_URL: العنوان الكامل لنقطة إشعارات الخادم المرافق
+        # (مثل https://api.zadgo.co/notify.php على استضافة PHP، أو عنوان
+        # Cloudflare Worker) — يُضبط كمتغيّر مستودع (Variables لا Secrets،
+        # فهو ليس سراً). إن لم يُضبط تُتجاهل نداءات الإشعارات بصمت ويعمل
+        # التطبيق كالسابق. راجع server/README-ar.md.
+        run: >
+          flutter build apk --release --no-shrink
+          --flavor ${{ matrix.flavor }}
+          -t lib/main_${{ matrix.flavor }}.dart
+          --dart-define=MOYASAR_PUBLISHABLE_KEY=${{ secrets.MOYASAR_PUBLISHABLE_KEY }}
+          --dart-define=ZADGO_NOTIFY_URL=${{ vars.ZADGO_NOTIFY_URL }}
 
       - name: Final APK search
         if: always()
@@ -103,4 +119,3 @@ jobs:
             android/app/build/outputs/apk/${{ matrix.flavor }}/release/app-${{ matrix.flavor }}-release.apk
           if-no-files-found: warn
           retention-days: 7
-

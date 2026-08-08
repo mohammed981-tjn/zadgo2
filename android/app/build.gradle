@@ -13,10 +13,6 @@ if (localPropertiesFile.exists()) {
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode') ?: '1'
 def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '1.0'
 
-// إعدادات توقيع الإصدار (release signing) — تُقرأ من key.properties المحلي
-// (غير مُتتبَّع في git) أو من متغيرات البيئة (لبيئات CI/CD)، وتُتاح فقط عند
-// توفر جميع البيانات المطلوبة. في غيابها، يستمر البناء بتوقيع debug كما كان
-// سابقاً حتى لا يتعطل بناء CI أو بيئات التطوير المحلية.
 def keystorePropertiesFile = rootProject.file('key.properties')
 def keystoreProperties = new Properties()
 def hasReleaseSigning = false
@@ -36,6 +32,14 @@ if (keystorePropertiesFile.exists()) {
             keystoreProperties.getProperty('keyAlias') &&
             keystoreProperties.getProperty('keyPassword')
 }
+
+// ✅ يجب تعريف flutter { } قبل أي استخدام لـ flutter.xxx داخل بلوك
+// android { } التالي (مثل flutter.ndkVersion) — كان معرَّفاً في آخر
+// الملف سابقاً، ما جعل flutter.ndkVersion يُقرأ قبل أن يُعرَّف الكائن
+// نفسه، فيفشل Gradle بصمت في حقن الـ "flutter" extension بشكل صحيح على
+// المشروع الفرعي بأكمله — وهذا بالضبط ما كان يظهر كخطأ غامض في حزم مثل
+// geolocator_android رغم أن المشكلة لا علاقة لها بإصدار أي حزمة.
+flutter { source '../..' }
 
 android {
     namespace "com.zadam.delivery"
@@ -57,10 +61,6 @@ android {
         multiDexEnabled true
     }
 
-    // نكهات بناء (flavors) لإنتاج تطبيق مستقل لكل دور (عميل/سائق/مدير
-    // مطعم/مدير عام)، بجانب النكهة الكاملة التي تحتوي كل الأدوار كما كان
-    // الحال سابقاً. applicationIdSuffix مختلف لكل نكهة يسمح بتثبيت الأربعة
-    // معاً على نفس الجهاز بلا تعارض.
     flavorDimensions "app"
     productFlavors {
         full {
@@ -108,8 +108,6 @@ android {
         }
     }
 }
-
-flutter { source '../..' }
 
 dependencies {
     implementation 'androidx.multidex:multidex:2.0.1'

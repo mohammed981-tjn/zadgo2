@@ -25,7 +25,34 @@ enum PaymentMethod { cash, card, wallet }
 
 enum ComplaintStatus { open, inProgress, resolved, closed }
 
-enum ComplaintType { lateDelivery, wrongOrder, badQuality, driverBehavior, other }
+/// أنواع الشكاوى — موسَّعة لتغطي الأطراف الثلاثة (عميل/سائق/مطعم) معاً. القيم
+/// القديمة (lateDelivery, wrongOrder, badQuality, driverBehavior, other) أُبقيت
+/// كما هي بلا حذف، فأي شكوى قديمة محفوظة بها في Firestore تبقى صالحة تماماً؛
+/// الأنواع الجديدة أُضيفت فقط بجانبها. أي دور يرى الأنواع الخاصة به عبر
+/// [ComplaintTypeScope.typesForRole] لا القائمة كاملة.
+enum ComplaintType {
+  // أنواع العميل (ضد السائق أو المطعم)
+  lateDelivery,
+  wrongOrder,
+  badQuality,
+  driverBehavior,
+  unclearFees,
+
+  // أنواع السائق (ضد العميل أو المطعم)
+  customerNotResponding,
+  wrongAddress,
+  restaurantDelay,
+  customerBehavior,
+  orderMismatch,
+
+  // أنواع المطعم (ضد السائق أو العميل)
+  driverNotPickedUp,
+  driverLateForPickup,
+  customerCancelledAfterPrep,
+  driverBehaviorAtRestaurant,
+
+  other,
+}
 
 T _enumValueFromString<T extends Enum>(
   String? raw,
@@ -51,7 +78,6 @@ OrderStatus _orderStatusFromString(String? raw) => _enumValueFromString<OrderSta
       OrderStatus.created,
       'OrderStatus',
       legacyValues: const {
-        // توافق عكسي مع القيم القديمة المخزنة في Firestore قبل توسيع دورة الحالة.
         'pending': OrderStatus.restaurantPending,
         'confirmed': OrderStatus.restaurantAccepted,
         'preparing': OrderStatus.preparing,
@@ -175,8 +201,14 @@ extension OrderStatusExt on OrderStatus {
       this != OrderStatus.cancelled &&
       this != OrderStatus.refunded;
 
-  /// عكس [isActive] — الطلب انتهى ولن تتغيّر حالته بعد الآن.
   bool get isFinished => !isActive;
+
+  bool get isRestaurantResponsibility =>
+      this == OrderStatus.created ||
+      this == OrderStatus.restaurantPending ||
+      this == OrderStatus.restaurantAccepted ||
+      this == OrderStatus.preparing ||
+      this == OrderStatus.readyForPickup;
 }
 
 extension PaymentMethodExt on PaymentMethod {
@@ -202,13 +234,97 @@ extension PaymentMethodExt on PaymentMethod {
 extension ComplaintTypeExt on ComplaintType {
   String get label {
     const map = {
+      // أنواع العميل
       ComplaintType.lateDelivery: 'تأخر التوصيل',
-      ComplaintType.wrongOrder: 'طلب خاطئ',
-      ComplaintType.badQuality: 'جودة رديئة',
+      ComplaintType.wrongOrder: 'طلب ناقص أو خاطئ',
+      ComplaintType.badQuality: 'جودة الطعام',
       ComplaintType.driverBehavior: 'سلوك السائق',
+      ComplaintType.unclearFees: 'رسوم/سعر غير واضح',
+      // أنواع السائق
+      ComplaintType.customerNotResponding: 'عميل لا يرد على الاتصال',
+      ComplaintType.wrongAddress: 'عنوان خاطئ أو غير واضح',
+      ComplaintType.restaurantDelay: 'تأخر المطعم في التحضير',
+      ComplaintType.customerBehavior: 'سلوك العميل عند الاستلام',
+      ComplaintType.orderMismatch: 'طلب غير مطابق لما استُلم',
+      // أنواع المطعم
+      ComplaintType.driverNotPickedUp: 'سائق لم يستلم الطلب في الوقت',
+      ComplaintType.driverLateForPickup: 'سائق تأخر عن الاستلام رغم الجاهزية',
+      ComplaintType.customerCancelledAfterPrep: 'عميل ألغى بعد التحضير',
+      ComplaintType.driverBehaviorAtRestaurant: 'سلوك السائق داخل المطعم',
       ComplaintType.other: 'أخرى',
     };
     return map[this] ?? '';
+  }
+}
+
+/// يربط كل دور بأنواع الشكاوى التي يحق له رفعها، ومصدرٌ واحدٌ للحقيقة تعتمده
+/// شاشة تقديم الشكوى لبناء قائمة الأنواع ديناميكياً حسب دور المُقدِّم — بدل
+/// تكرار القوائم في عدة شاشات. النوع [ComplaintType.other] متاح لكل الأدوار.
+extension ComplaintTypeScope on ComplaintType {
+  static const Map<UserRole, List<ComplaintType>> _byRole = {
+    UserRole.customer: [
+      ComplaintType.lateDelivery,
+      ComplaintType.wrongOrder,
+      ComplaintType.badQuality,
+      ComplaintType.driverBehavior,
+      ComplaintType.unclearFees,
+      ComplaintType.other,
+    ],
+    UserRole.driver: [
+      ComplaintType.customerNotResponding,
+      ComplaintType.wrongAddress,
+      ComplaintType.restaurantDelay,
+      ComplaintType.customerBehavior,
+      ComplaintType.orderMismatch,
+      ComplaintType.other,
+    ],
+    UserRole.restaurantManager: [
+      ComplaintType.driverNotPickedUp,
+      ComplaintType.driverLateForPickup,
+      ComplaintType.customerCancelledAfterPrep,
+      ComplaintType.driverBehaviorAtRestaurant,
+      ComplaintType.other,
+    ],
+  };
+
+  /// أنواع الشكاوى المتاحة لدورٍ معيّن؛ المدير العام يرى كل الأنواع (لأنه قد
+  /// يسجّل شكوى نيابةً عن أي طرف)، وأي دور غير مُعرَّف يسقط إلى [other] فقط.
+  static List<ComplaintType> typesForRole(UserRole role) {
+    if (role == UserRole.admin) return ComplaintType.values;
+    return _byRole[role] ?? const [ComplaintType.other];
+  }
+
+  /// الطرف المنطقي الذي تُوجَّه ضده الشكوى افتراضياً حسب نوعها — تستخدمه شاشة
+  /// تقديم الشكوى لاختيار «الشكوى ضد» تلقائياً بدل ترك المستخدم يخمّن. `null`
+  /// يعني شكوى عامة عن الطلب (لا طرف محدد)، كما في [ComplaintType.other].
+  UserRole? get suggestedAgainstRole {
+    switch (this) {
+      // شكاوى العميل
+      case ComplaintType.driverBehavior:
+      case ComplaintType.lateDelivery:
+        return UserRole.driver;
+      case ComplaintType.wrongOrder:
+      case ComplaintType.badQuality:
+      case ComplaintType.unclearFees:
+        return UserRole.restaurantManager;
+      // شكاوى السائق
+      case ComplaintType.customerNotResponding:
+      case ComplaintType.wrongAddress:
+      case ComplaintType.customerBehavior:
+        return UserRole.customer;
+      case ComplaintType.restaurantDelay:
+      case ComplaintType.orderMismatch:
+        return UserRole.restaurantManager;
+      // شكاوى المطعم
+      case ComplaintType.driverNotPickedUp:
+      case ComplaintType.driverLateForPickup:
+      case ComplaintType.driverBehaviorAtRestaurant:
+        return UserRole.driver;
+      case ComplaintType.customerCancelledAfterPrep:
+        return UserRole.customer;
+      case ComplaintType.other:
+        return null;
+    }
   }
 }
 
@@ -234,6 +350,40 @@ extension ComplaintStatusExt on ComplaintStatus {
   }
 }
 
+/// عنوان محفوظ للعميل (منزل/عمل/مخصّص) — يُخزَّن ضمن مستند المستخدم نفسه لا
+/// في مجموعة فرعية، فيُقرأ مع بيانات الحساب في نفس الطلب بلا استعلام إضافي،
+/// ولا يحتاج قاعدة أمان جديدة (تحديثه جزء من تحديث المستخدم لبياناته).
+class SavedAddress {
+  final String label;
+  final String address;
+  final double? lat;
+  final double? lng;
+
+  const SavedAddress({
+    required this.label,
+    required this.address,
+    this.lat,
+    this.lng,
+  });
+
+  factory SavedAddress.fromMap(Map<String, dynamic> map) => SavedAddress(
+        label: map['label'] as String? ?? '',
+        address: map['address'] as String? ?? '',
+        lat: (map['lat'] as num?)?.toDouble(),
+        lng: (map['lng'] as num?)?.toDouble(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'label': label,
+        'address': address,
+        'lat': lat,
+        'lng': lng,
+      };
+
+  /// عنوان بلا إحداثيات لا يصلح للطلب، لأن أجرة التوصيل تُحسب من المسافة.
+  bool get hasLocation => lat != null && lng != null;
+}
+
 class AppUser {
   final String uid;
   final String name;
@@ -245,8 +395,13 @@ class AppUser {
   final String? restaurantId;
   final String? restaurantName;
   final bool isActive;
-  /// رقم الإقامة/الهوية — مطلوب لحسابات المدير العام والسائق ومدير المطعم.
   final String? nationalId;
+
+  /// رصيد محفظة العميل الداخلي — يُضاف إليه أي استرداد جزئي يقرره المدير
+  /// عند حل شكوى، ويُستخدَم تلقائياً كخصم في الطلب القادم. لا علاقة له
+  /// بأي بوابة دفع خارجية؛ هو رصيد داخلي بسيط ضمن Firestore فقط.
+  final double walletBalance;
+  final List<SavedAddress> savedAddresses;
 
   const AppUser({
     required this.uid,
@@ -260,6 +415,8 @@ class AppUser {
     this.restaurantName,
     this.isActive = true,
     this.nationalId,
+    this.walletBalance = 0.0,
+    this.savedAddresses = const [],
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -274,6 +431,10 @@ class AppUser {
         restaurantName: map['restaurantName'] as String?,
         isActive: map['isActive'] as bool? ?? true,
         nationalId: map['nationalId'] as String?,
+        walletBalance: (map['walletBalance'] as num?)?.toDouble() ?? 0.0,
+        savedAddresses: ((map['savedAddresses'] as List?) ?? [])
+            .map((e) => SavedAddress.fromMap((e as Map).cast<String, dynamic>()))
+            .toList(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -287,6 +448,8 @@ class AppUser {
         if (restaurantName != null) 'restaurantName': restaurantName,
         if (nationalId != null) 'nationalId': nationalId,
         'isActive': isActive,
+        'walletBalance': walletBalance,
+        'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
       };
 
   AppUser copyWith({
@@ -297,6 +460,8 @@ class AppUser {
     String? restaurantName,
     bool? isActive,
     String? nationalId,
+    double? walletBalance,
+    List<SavedAddress>? savedAddresses,
   }) =>
       AppUser(
         uid: uid,
@@ -310,6 +475,8 @@ class AppUser {
         restaurantName: restaurantName ?? this.restaurantName,
         isActive: isActive ?? this.isActive,
         nationalId: nationalId ?? this.nationalId,
+        walletBalance: walletBalance ?? this.walletBalance,
+        savedAddresses: savedAddresses ?? this.savedAddresses,
       );
 }
 
@@ -320,23 +487,23 @@ class Restaurant {
   final String emoji;
   final String phone;
   final bool isOpen;
-  /// نصيب السائق من أجرة التوصيل (بدلاً من رقم رسوم توصيل واحد).
   final double driverShareFee;
-  /// نصيب التطبيق/المنصة من أجرة التوصيل.
   final double appShareFee;
-  /// أجرة كل كيلومتر إضافي (تُضاف كاملة لنصيب السائق) بعد تجاوز [freeKm].
   final double perKmFee;
-  /// عدد الكيلومترات المشمولة ضمن أجرة التوصيل الأساسية دون رسوم إضافية.
   final double freeKm;
   final double minOrder;
   final String address;
   final int estimatedTimeMin;
   final double rating;
+  /// عدد التقييمات التي بُني عليها [rating]؛ صفر يعني مطعماً جديداً بلا
+  /// تقييمات بعد، فيُعرض «جديد» بدل رقم موهم.
+  final int ratingCount;
   final int totalOrders;
+  /// اسم الفرع (مثل «العزيزية»)؛ يميّز فرعين لنفس العلامة التجارية بوضوح
+  /// بدل الاعتماد على العنوان الصغير وحده.
+  final String branchName;
   final double? lat;
   final double? lng;
-  /// رابط صورة اختياري للمطعم؛ إن توفّر يُعرض تلقائياً بدل التصميم البديل
-  /// (تدرج لوني + الحرف الأول من الاسم) دون أي تعديل على الكود.
   final String? imageUrl;
 
   const Restaurant({
@@ -354,15 +521,24 @@ class Restaurant {
     required this.address,
     this.estimatedTimeMin = 30,
     this.rating = 5.0,
+    this.ratingCount = 0,
     this.totalOrders = 0,
+    this.branchName = '',
     this.lat,
     this.lng,
     this.imageUrl,
   });
 
-  /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الأماكن
-  /// التي كانت تعرض رقماً واحداً فقط.
   double get deliveryFee => driverShareFee + appShareFee;
+
+  /// الاسم المعروض للعميل — يضمّ اسم الفرع إن وُجد، فيميّز فرعين لنفس
+  /// العلامة التجارية بوضوح: «فطير ستيشن — العزيزية».
+  String get displayName =>
+      branchName.trim().isEmpty ? name : '$name — ${branchName.trim()}';
+
+  /// هل المطعم بلا تقييمات بعد؟ عندها يُعرض «جديد» بدل 5.0 الافتراضية،
+  /// لأن تقييماً كاملاً بلا مقيّمين يفقد ثقة المستخدم.
+  bool get isNewlyListed => ratingCount <= 0;
 
   factory Restaurant.fromMap(Map<String, dynamic> map, String id) =>
       Restaurant(
@@ -372,7 +548,6 @@ class Restaurant {
         emoji: map['emoji'] as String? ?? '🍽️',
         phone: map['phone'] as String? ?? '',
         isOpen: map['isOpen'] as bool? ?? true,
-        // توافق مع البيانات القديمة التي كانت تخزّن deliveryFee كرقم واحد فقط.
         driverShareFee: (map['driverShareFee'] as num?)?.toDouble() ??
             (map['deliveryFee'] as num?)?.toDouble() ??
             5.0,
@@ -383,7 +558,9 @@ class Restaurant {
         address: map['address'] as String? ?? '',
         estimatedTimeMin: (map['estimatedTimeMin'] as num?)?.toInt() ?? 30,
         rating: (map['rating'] as num?)?.toDouble() ?? 5.0,
+        ratingCount: (map['ratingCount'] as num?)?.toInt() ?? 0,
         totalOrders: (map['totalOrders'] as num?)?.toInt() ?? 0,
+        branchName: map['branchName'] as String? ?? '',
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         imageUrl: map['imageUrl'] as String?,
@@ -399,12 +576,13 @@ class Restaurant {
         'appShareFee': appShareFee,
         'perKmFee': perKmFee,
         'freeKm': freeKm,
-        // نُبقي على الحقل القديم مؤقتاً لتوافق النسخ الأقدم من التطبيق.
         'deliveryFee': deliveryFee,
         'minOrder': minOrder,
         'address': address,
         'estimatedTimeMin': estimatedTimeMin,
         'rating': rating,
+        'ratingCount': ratingCount,
+        'branchName': branchName,
         'totalOrders': totalOrders,
         'lat': lat,
         'lng': lng,
@@ -452,9 +630,12 @@ class MenuItem {
   final int? stockQuantity;
   final bool trackStock;
   final int totalSold;
-  /// رابط صورة اختياري للصنف؛ إن توفّر يُعرض تلقائياً بدل الأيقونة الرمزية
-  /// حسب الفئة دون أي تعديل على الكود.
   final String? imageUrl;
+
+  /// السعرات الحرارية للصنف — تكتبها أداة استيراد المنيو في لوحة الويب،
+  /// ويعرضها التطبيق للعميل. حقل مستقل لا جزء من الوصف، حتى يمكن تنسيقه
+  /// وترشيحه لاحقاً بدل أن يكون نصاً حرّاً داخل جملة.
+  final int? kcal;
 
   const MenuItem({
     required this.id,
@@ -469,14 +650,44 @@ class MenuItem {
     this.trackStock = false,
     this.totalSold = 0,
     this.imageUrl,
+    this.kcal,
   });
+
+  /// نسخة معدَّلة مع الإبقاء على بقية الحقول كما هي. تُستخدم في كل موضع يعدّل
+  /// حقلاً واحداً (السعر مثلاً)؛ بدونها كان كل موضع يعيد بناء الكائن كاملاً،
+  /// فيكفي أن يُضاف حقل جديد للنموذج حتى يُمحى صامتاً عند أول تعديل سعر.
+  MenuItem copyWith({
+    String? categoryId,
+    String? name,
+    String? description,
+    double? price,
+    String? emoji,
+    bool? isAvailable,
+    int? stockQuantity,
+    bool? trackStock,
+    int? totalSold,
+    String? imageUrl,
+    int? kcal,
+  }) =>
+      MenuItem(
+        id: id,
+        restaurantId: restaurantId,
+        categoryId: categoryId ?? this.categoryId,
+        name: name ?? this.name,
+        description: description ?? this.description,
+        price: price ?? this.price,
+        emoji: emoji ?? this.emoji,
+        isAvailable: isAvailable ?? this.isAvailable,
+        stockQuantity: stockQuantity ?? this.stockQuantity,
+        trackStock: trackStock ?? this.trackStock,
+        totalSold: totalSold ?? this.totalSold,
+        imageUrl: imageUrl ?? this.imageUrl,
+        kcal: kcal ?? this.kcal,
+      );
 
   bool get canOrder =>
       isAvailable && (!trackStock || (stockQuantity != null && stockQuantity! > 0));
 
-  /// يبني [MenuItem] من مستند Firestore بتسامح أمام أنواع حقول غير متوقعة
-  /// (مثلاً `price` نصّاً أو `imageUrl` بنوع غير نصّي)؛ عنصر واحد بحقل غير
-  /// متوقع لا يجب أن يُسقط تحليل كل قائمة الأصناف بخطأ عام.
   factory MenuItem.fromMap(Map<String, dynamic> map, String id) {
     final rawPrice = map['price'];
     final price = rawPrice is num
@@ -499,6 +710,7 @@ class MenuItem {
       trackStock: map['trackStock'] as bool? ?? false,
       totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
       imageUrl: imageUrl,
+      kcal: (map['kcal'] as num?)?.toInt(),
     );
   }
 
@@ -514,6 +726,7 @@ class MenuItem {
         'trackStock': trackStock,
         'totalSold': totalSold,
         'imageUrl': imageUrl,
+        'kcal': kcal,
       };
 }
 
@@ -527,12 +740,27 @@ class Driver {
   final bool isOnline;
   final double totalEarnings;
   final double pendingPayout;
+
+  /// رصيد السائق **بإشارة** — أساس دفتر الحساب:
+  ///   • موجب (+) = التطبيق مدين للسائق (من الطلبات المدفوعة إلكترونياً).
+  ///   • سالب (−) = السائق مدين للتطبيق (من الطلبات النقدية، إذ يقبض كامل
+  ///     المبلغ من العميل فيبقى بيده مالُ المطعم ورسمُ التطبيق).
+  ///
+  /// يحلّ محلّ [pendingPayout] الذي كان يفترض دائماً أن التطبيق هو المدين،
+  /// وهو افتراض صحيح للدفع الإلكتروني ومقلوب تماماً للدفع النقدي.
+  final double balance;
   final int totalDeliveries;
   final double rating;
   final int ratingCount;
   final double? lat;
   final double? lng;
   final DateTime? lastLocationUpdate;
+
+  /// عدد الإنذارات التراكمية الناتجة عن حل شكاوى ضد هذا السائق. عند
+  /// وصولها لحد معيّن (3 حالياً)، يُعلَّق السائق تلقائياً (isAvailable
+  /// تتحول false بشكل دائم) حتى يتواصل معه المدير — بنفس منطق "مخالفات
+  /// العقد" (contract violations) المعتمد في تطبيقات التوصيل الكبرى.
+  final int warningCount;
 
   const Driver({
     required this.id,
@@ -544,12 +772,14 @@ class Driver {
     this.isOnline = false,
     this.totalEarnings = 0,
     this.pendingPayout = 0,
+    this.balance = 0,
     this.totalDeliveries = 0,
     this.rating = 5.0,
     this.ratingCount = 0,
     this.lat,
     this.lng,
     this.lastLocationUpdate,
+    this.warningCount = 0,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -562,12 +792,14 @@ class Driver {
         isOnline: map['isOnline'] as bool? ?? false,
         totalEarnings: (map['totalEarnings'] as num?)?.toDouble() ?? 0,
         pendingPayout: (map['pendingPayout'] as num?)?.toDouble() ?? 0,
+        balance: (map['balance'] as num?)?.toDouble() ?? 0,
         totalDeliveries: (map['totalDeliveries'] as num?)?.toInt() ?? 0,
         rating: (map['rating'] as num?)?.toDouble() ?? 5.0,
         ratingCount: (map['ratingCount'] as num?)?.toInt() ?? 0,
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
+        warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -579,6 +811,7 @@ class Driver {
         'isOnline': isOnline,
         'totalEarnings': totalEarnings,
         'pendingPayout': pendingPayout,
+        'balance': balance,
         'totalDeliveries': totalDeliveries,
         'rating': rating,
         'ratingCount': ratingCount,
@@ -586,6 +819,218 @@ class Driver {
         'lng': lng,
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
+        'warningCount': warningCount,
+      };
+}
+
+/// نوع حركة محفظة العميل.
+enum WalletTransactionType {
+  /// استرداد من الإدارة عند حلّ شكوى.
+  refund,
+
+  /// خصم عند استخدام الرصيد في دفع طلب.
+  orderPayment,
+
+  /// إعادة الرصيد المستخدَم عند إلغاء الطلب.
+  orderReversal,
+
+  /// تسوية يدوية من الإدارة.
+  adjustment,
+}
+
+WalletTransactionType _walletTxTypeFromString(String? raw) =>
+    _enumValueFromString<WalletTransactionType>(
+      raw,
+      WalletTransactionType.values,
+      WalletTransactionType.adjustment,
+      'WalletTransactionType',
+    );
+
+extension WalletTransactionTypeExt on WalletTransactionType {
+  String get label {
+    const map = {
+      WalletTransactionType.refund: 'استرداد',
+      WalletTransactionType.orderPayment: 'دفع طلب',
+      WalletTransactionType.orderReversal: 'إعادة رصيد طلب ملغى',
+      WalletTransactionType.adjustment: 'تسوية',
+    };
+    return map[this] ?? '';
+  }
+
+  IconData get icon {
+    const map = {
+      WalletTransactionType.refund: Icons.replay_circle_filled_rounded,
+      WalletTransactionType.orderPayment: Icons.shopping_bag_outlined,
+      WalletTransactionType.orderReversal: Icons.undo_rounded,
+      WalletTransactionType.adjustment: Icons.tune_rounded,
+    };
+    return map[this] ?? Icons.account_balance_wallet_outlined;
+  }
+}
+
+/// حركة واحدة في محفظة العميل — بنفس فلسفة دفتر السائق: تُكتب مع تغيّر
+/// الرصيد في دفعة واحدة، فيعرف العميل سبب كل تغيّر بدل رقم يتبدّل بلا تفسير.
+class WalletTransaction {
+  final String id;
+  final String userId;
+  final WalletTransactionType type;
+
+  /// المبلغ بإشارة: موجب يزيد الرصيد، سالب ينقصه.
+  final double amount;
+  final double balanceAfter;
+  final String? orderId;
+  final String? orderNumber;
+  final String? note;
+  final DateTime createdAt;
+
+  const WalletTransaction({
+    required this.id,
+    required this.userId,
+    required this.type,
+    required this.amount,
+    required this.balanceAfter,
+    this.orderId,
+    this.orderNumber,
+    this.note,
+    required this.createdAt,
+  });
+
+  factory WalletTransaction.fromMap(Map<String, dynamic> map, String id) =>
+      WalletTransaction(
+        id: id,
+        userId: map['userId'] as String? ?? '',
+        type: _walletTxTypeFromString(map['type'] as String?),
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        balanceAfter: (map['balanceAfter'] as num?)?.toDouble() ?? 0,
+        orderId: map['orderId'] as String?,
+        orderNumber: map['orderNumber'] as String?,
+        note: map['note'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'userId': userId,
+        'type': type.name,
+        'amount': amount,
+        'balanceAfter': balanceAfter,
+        if (orderId != null) 'orderId': orderId,
+        if (orderNumber != null) 'orderNumber': orderNumber,
+        if (note != null) 'note': note,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
+/// نوع حركة دفتر السائق — يحدّد اتجاه أثرها على الرصيد ومصدرها.
+enum DriverTransactionType {
+  /// توصيل طلب نقدي: السائق قبض كامل المبلغ، فيُقيَّد عليه ما ليس له.
+  deliveryCash,
+
+  /// توصيل طلب مدفوع إلكترونياً: التطبيق قبض المبلغ، فتُقيَّد أجرة السائق له.
+  deliveryOnline,
+
+  /// إيداع: السائق سلّم نقداً للإدارة.
+  deposit,
+
+  /// صرف: الإدارة دفعت للسائق مستحقّاته.
+  payout,
+
+  /// تسوية يدوية من الإدارة (تصحيح خطأ، مكافأة، خصم...).
+  adjustment,
+}
+
+DriverTransactionType _driverTxTypeFromString(String? raw) =>
+    _enumValueFromString<DriverTransactionType>(
+      raw,
+      DriverTransactionType.values,
+      DriverTransactionType.adjustment,
+      'DriverTransactionType',
+    );
+
+extension DriverTransactionTypeExt on DriverTransactionType {
+  String get label {
+    const map = {
+      DriverTransactionType.deliveryCash: 'توصيل نقدي',
+      DriverTransactionType.deliveryOnline: 'توصيل إلكتروني',
+      DriverTransactionType.deposit: 'إيداع نقدي',
+      DriverTransactionType.payout: 'صرف مستحقّات',
+      DriverTransactionType.adjustment: 'تسوية يدوية',
+    };
+    return map[this] ?? '';
+  }
+
+  IconData get icon {
+    const map = {
+      DriverTransactionType.deliveryCash: Icons.payments_outlined,
+      DriverTransactionType.deliveryOnline: Icons.credit_card,
+      DriverTransactionType.deposit: Icons.south_west_rounded,
+      DriverTransactionType.payout: Icons.north_east_rounded,
+      DriverTransactionType.adjustment: Icons.tune_rounded,
+    };
+    return map[this] ?? Icons.receipt_long_outlined;
+  }
+}
+
+/// حركة واحدة في دفتر حساب السائق. تُكتب مع كل تغيير على الرصيد في نفس
+/// الدفعة (batch)، فلا يتغيّر رصيد دون حركة تفسّره — وهو ما يجعل أي نزاع
+/// قابلاً للمراجعة بدل الاعتماد على رقم مجرّد.
+class DriverTransaction {
+  final String id;
+  final String driverId;
+  final DriverTransactionType type;
+
+  /// المبلغ **بإشارة**: موجب يزيد الرصيد، سالب ينقصه.
+  final double amount;
+
+  /// الرصيد بعد تطبيق هذه الحركة — يُحفظ وقت الكتابة ليبقى السجلّ مقروءاً
+  /// دون إعادة حساب التسلسل كاملاً.
+  final double balanceAfter;
+
+  final String? orderId;
+  final String? orderNumber;
+  final String? note;
+
+  /// مَن نفّذ الحركة (uid) — السائق نفسه عند التوصيل، أو المدير عند الإيداع
+  /// والصرف والتسوية.
+  final String performedBy;
+  final DateTime createdAt;
+
+  const DriverTransaction({
+    required this.id,
+    required this.driverId,
+    required this.type,
+    required this.amount,
+    required this.balanceAfter,
+    this.orderId,
+    this.orderNumber,
+    this.note,
+    required this.performedBy,
+    required this.createdAt,
+  });
+
+  factory DriverTransaction.fromMap(Map<String, dynamic> map, String id) =>
+      DriverTransaction(
+        id: id,
+        driverId: map['driverId'] as String? ?? '',
+        type: _driverTxTypeFromString(map['type'] as String?),
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        balanceAfter: (map['balanceAfter'] as num?)?.toDouble() ?? 0,
+        orderId: map['orderId'] as String?,
+        orderNumber: map['orderNumber'] as String?,
+        note: map['note'] as String?,
+        performedBy: map['performedBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'driverId': driverId,
+        'type': type.name,
+        'amount': amount,
+        'balanceAfter': balanceAfter,
+        if (orderId != null) 'orderId': orderId,
+        if (orderNumber != null) 'orderNumber': orderNumber,
+        if (note != null) 'note': note,
+        'performedBy': performedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
       };
 }
 
@@ -644,10 +1089,11 @@ class Order {
   final DateTime? statusChangedAt;
   final String? driverId;
   final String? driverName;
+  /// هاتف السائق المُسنَد — يُنسخ في الطلب عند الإسناد ليتمكّن العميل من
+  /// الاتصال به مباشرةً دون قراءة مستند السائق (لا يملك صلاحية ذلك).
+  final String? driverPhone;
   final String? notes;
-  /// نصيب السائق من أجرة التوصيل لهذا الطلب (بدلاً من رقم رسوم توصيل واحد).
   final double driverShare;
-  /// نصيب التطبيق/المنصة من أجرة التوصيل لهذا الطلب.
   final double appShare;
   final String orderNumber;
   final double? customerRating;
@@ -659,20 +1105,14 @@ class Order {
   final double? deliveryLng;
   final double? restaurantLat;
   final double? restaurantLng;
-
-  /// هل أكّد المطعم خروج الطلب من عنده (تسليمه فعلياً للسائق الذي جاء
-  /// لاستلامه)؟ يضغطه مدير المطعم بنفسه في حالة readyForPickup.
-  ///
-  /// مهم: هذا الحقل يخص **شاشة المطعم وحدها** — تستخدمه لتصنيف الطلب
-  /// "نشط/منتهٍ" عندها، فبمجرد ضغطه ينتقل الطلب لتبويب "منتهية" ولا يعود
-  /// يشغل المطعم. بقية الأطراف (السائق/العميل/المدير) لا يعتمدون عليه
-  /// إطلاقاً ويستمرون بالاعتماد على [status] وحدها؛ فحالة الطلب في القاعدة
-  /// تبقى readyForPickup حتى يسجّل السائق استلامه من نظامه كالمعتاد.
-  final bool restaurantHandedOff;
-
-  /// سبب رفض المطعم للطلب (نص حر يكتبه مدير المطعم) — يُملأ فقط حين تكون
-  /// [status] هي restaurantRejected، ويبقى null فيما عدا ذلك.
   final String? rejectionReason;
+  /// معرّف عملية الدفع لدى بوابة الدفع (Moyasar) — يُملأ فقط عند نجاح شحن
+  /// البطاقة فعلياً، ووجوده هو الدليل الوحيد على أن الطلب مدفوع مسبقاً.
+  final String? paymentId;
+  /// المبلغ المخصوم من رصيد محفظة العميل لهذا الطلب. الباقي يُدفع بالوسيلة
+  /// المختارة، فالمحفظة تُطبَّق كخصم على الإجمالي لا كوسيلة دفع منفصلة.
+  final double walletUsed;
+  final bool driverAcknowledged;
 
   const Order({
     required this.id,
@@ -691,6 +1131,7 @@ class Order {
     this.statusChangedAt,
     this.driverId,
     this.driverName,
+    this.driverPhone,
     this.notes,
     this.driverShare = 5.0,
     this.appShare = 0.0,
@@ -704,22 +1145,53 @@ class Order {
     this.deliveryLng,
     this.restaurantLat,
     this.restaurantLng,
-    this.restaurantHandedOff = false,
     this.rejectionReason,
+    this.paymentId,
+    this.walletUsed = 0,
+    this.driverAcknowledged = true,
   });
 
-  /// إجمالي أجرة التوصيل (نصيب السائق + نصيب التطبيق) — للتوافق مع الحسابات
-  /// السابقة التي كانت تعتمد رقماً واحداً.
   double get deliveryFee => driverShare + appShare;
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
   double get grandTotal => itemsTotal + deliveryFee;
-  /// عمولة التطبيق من المطعم — ١٥٪ من قيمة الوجبة (لا تشمل أجرة التوصيل).
   double get calculatedCommission => itemsTotal * 0.15;
 
-  /// هل انتهى دور المطعم في هذا الطلب؟ يُستخدم في شاشة المطعم فقط لتصنيف
-  /// "نشطة/منتهية": ينتهي الدور إما بانتهاء الطلب نفسه (توصيل/إلغاء/رفض)
-  /// أو بتأكيد المطعم خروج الطلب من عنده.
-  bool get isDoneForRestaurant => status.isFinished || restaurantHandedOff;
+  /// صافي مستحقّات المطعم = قيمة الوجبات بعد خصم عمولة التطبيق (15%). قيمة
+  /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.
+  double get restaurantNet => itemsTotal - platformCommission;
+
+  /// مهلة تقديم الشكوى بعد انتهاء الطلب — 24 ساعة، وهي النافذة المعتمدة في
+  /// تطبيقات التوصيل الكبرى: تكفي لاكتشاف النقص/الخطأ/الجودة بعد فتح الطلب،
+  /// ثم يُغلق الملف تلقائياً فلا تبقى الطلبات القديمة مفتوحة للشكاوى للأبد.
+  static const Duration complaintWindow = Duration(hours: 24);
+
+  /// اللحظة التي انتهى فيها الطلب (تسليم/إلغاء/رفض)؛ [statusChangedAt] يُحدَّث
+  /// عند كل تغيير حالة، فهو وقت الانتهاء للطلبات المنتهية.
+  DateTime get _finishedAt => statusChangedAt ?? updatedAt ?? createdAt;
+
+  /// ما تبقّى من مهلة الشكوى؛ `null` للطلبات الجارية (بلا مهلة بعد).
+  Duration? get complaintTimeLeft {
+    if (status.isActive) return null;
+    final left = _finishedAt.add(complaintWindow).difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  /// هل يمكن تقديم شكوى على هذا الطلب الآن؟ الطلبات الجارية دائماً مفتوحة،
+  /// والمنتهية مفتوحة خلال [complaintWindow] من لحظة انتهائها فقط.
+  bool get canSubmitComplaint =>
+      status.isActive || (complaintTimeLeft ?? Duration.zero) > Duration.zero;
+
+  /// هل يحقّ للعميل إلغاء الطلب بنفسه؟ مسموح فقط قبل أن يبدأ المطعم التحضير
+  /// فعلياً — أي قبل الإرسال، وأثناء انتظار موافقة المطعم، وبعد قبوله مباشرةً.
+  /// بمجرّد الانتقال إلى [OrderStatus.preparing] يكون المطعم قد بدأ يتكبّد
+  /// تكلفة الطعام، فيصبح الإلغاء قراراً إدارياً فقط (من لوحة التحكم).
+  bool get canCustomerCancel =>
+      status == OrderStatus.created ||
+      status == OrderStatus.restaurantPending ||
+      status == OrderStatus.restaurantAccepted;
+
+  bool get needsDriverAcknowledgement =>
+      driverId != null && driverId!.isNotEmpty && !driverAcknowledged;
 
   factory Order.fromMap(Map<String, dynamic> map, String id) => Order(
         id: id,
@@ -740,8 +1212,8 @@ class Order {
         statusChangedAt: (map['statusChangedAt'] as Timestamp?)?.toDate(),
         driverId: map['driverId'] as String?,
         driverName: map['driverName'] as String?,
+        driverPhone: map['driverPhone'] as String?,
         notes: map['notes'] as String?,
-        // توافق مع الطلبات القديمة التي كانت تخزّن deliveryFee كرقم واحد فقط.
         driverShare: (map['driverShare'] as num?)?.toDouble() ??
             (map['deliveryFee'] as num?)?.toDouble() ??
             5.0,
@@ -756,10 +1228,10 @@ class Order {
         deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
         restaurantLat: (map['restaurantLat'] as num?)?.toDouble(),
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
-        // الطلبات القديمة لا تحتوي هذا الحقل إطلاقاً — تُعامل كأن المطعم لم
-        // يؤكد خروجها بعد (false)، فلا حاجة لأي ترحيل بيانات يدوي.
-        restaurantHandedOff: map['restaurantHandedOff'] as bool? ?? false,
         rejectionReason: map['rejectionReason'] as String?,
+        paymentId: map['paymentId'] as String?,
+        walletUsed: (map['walletUsed'] as num?)?.toDouble() ?? 0,
+        driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -779,10 +1251,10 @@ class Order {
             statusChangedAt != null ? Timestamp.fromDate(statusChangedAt!) : null,
         'driverId': driverId,
         'driverName': driverName,
+        'driverPhone': driverPhone,
         'notes': notes,
         'driverShare': driverShare,
         'appShare': appShare,
-        // نُبقي على الحقل القديم مؤقتاً لتوافق النسخ الأقدم من التطبيق.
         'deliveryFee': deliveryFee,
         'orderNumber': orderNumber,
         'customerRating': customerRating,
@@ -794,8 +1266,10 @@ class Order {
         'deliveryLng': deliveryLng,
         'restaurantLat': restaurantLat,
         'restaurantLng': restaurantLng,
-        'restaurantHandedOff': restaurantHandedOff,
         'rejectionReason': rejectionReason,
+        if (paymentId != null) 'paymentId': paymentId,
+        'walletUsed': walletUsed,
+        'driverAcknowledged': driverAcknowledged,
       };
 
   Order copyWith({
@@ -804,14 +1278,15 @@ class Order {
     DateTime? statusChangedAt,
     String? driverId,
     String? driverName,
+    String? driverPhone,
     bool? isPaid,
     double? platformCommission,
     double? customerRating,
     String? customerReview,
     double? driverRating,
     bool? isRated,
-    bool? restaurantHandedOff,
     String? rejectionReason,
+    bool? driverAcknowledged,
   }) =>
       Order(
         id: id,
@@ -830,6 +1305,7 @@ class Order {
         statusChangedAt: statusChangedAt ?? this.statusChangedAt,
         driverId: driverId ?? this.driverId,
         driverName: driverName ?? this.driverName,
+        driverPhone: driverPhone ?? this.driverPhone,
         notes: notes,
         driverShare: driverShare,
         appShare: appShare,
@@ -843,8 +1319,10 @@ class Order {
         deliveryLng: deliveryLng,
         restaurantLat: restaurantLat,
         restaurantLng: restaurantLng,
-        restaurantHandedOff: restaurantHandedOff ?? this.restaurantHandedOff,
         rejectionReason: rejectionReason ?? this.rejectionReason,
+        paymentId: paymentId,
+        walletUsed: walletUsed,
+        driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
       );
 }
 
@@ -862,6 +1340,35 @@ class Complaint {
   final DateTime createdAt;
   final String? adminNote;
 
+  /// نص القرار الذي يكتبه المدير عند حلّ الشكوى. كان يُكتب في المستند ولا
+  /// يقرؤه النموذج، فلا يراه مقدّم الشكوى أبداً — مع أنه جواب شكواه.
+  final String? resolution;
+
+  final String submittedByUid;
+  final String submittedByName;
+  final UserRole submittedByRole;
+
+  final String? againstUid;
+  final UserRole? againstRole;
+
+  /// مهلة الرد المعلنة لمقدّم الشكوى — تُعرض «نردّ خلال 24 ساعة» ويُحسب
+  /// منها الموعد المتوقع. التزام خدمة لا قيد تقني.
+  static const Duration responseSla = Duration(hours: 24);
+
+  /// الموعد الذي وعدنا بالرد قبله.
+  DateTime get expectedResponseBy => createdAt.add(responseSla);
+
+  /// رقم الشكوى المعروض للمستخدم وللإدارة في التواصل — مشتق ثابت من
+  /// المعرّف، قصير يُقرأ ويُملى هاتفياً بسهولة.
+  String get displayNumber {
+    final clean = id.replaceAll('-', '').toUpperCase();
+    return clean.length <= 6 ? clean : clean.substring(0, 6);
+  }
+
+  /// هل الشكوى ما تزال بانتظار معالجة الإدارة؟
+  bool get isAwaitingAction =>
+      status == ComplaintStatus.open || status == ComplaintStatus.inProgress;
+
   const Complaint({
     required this.id,
     required this.orderId,
@@ -875,22 +1382,44 @@ class Complaint {
     this.status = ComplaintStatus.open,
     required this.createdAt,
     this.adminNote,
-  });
+    this.resolution,
+    String? submittedByUid,
+    String? submittedByName,
+    UserRole? submittedByRole,
+    this.againstUid,
+    this.againstRole,
+  })  : submittedByUid = submittedByUid ?? customerId,
+        submittedByName = submittedByName ?? customerName,
+        submittedByRole = submittedByRole ?? UserRole.customer;
 
-  factory Complaint.fromMap(Map<String, dynamic> map, String id) => Complaint(
-        id: id,
-        orderId: map['orderId'] as String? ?? '',
-        orderNumber: map['orderNumber'] as String? ?? '',
-        customerId: map['customerId'] as String? ?? '',
-        customerName: map['customerName'] as String? ?? '',
-        restaurantId: map['restaurantId'] as String? ?? '',
-        restaurantName: map['restaurantName'] as String? ?? '',
-        type: _complaintTypeFromString(map['type'] as String?),
-        description: map['description'] as String? ?? '',
-        status: _complaintStatusFromString(map['status'] as String?),
-        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-        adminNote: map['adminNote'] as String?,
-      );
+  factory Complaint.fromMap(Map<String, dynamic> map, String id) {
+    final customerId = map['customerId'] as String? ?? '';
+    final customerName = map['customerName'] as String? ?? '';
+    return Complaint(
+      id: id,
+      orderId: map['orderId'] as String? ?? '',
+      orderNumber: map['orderNumber'] as String? ?? '',
+      customerId: customerId,
+      customerName: customerName,
+      restaurantId: map['restaurantId'] as String? ?? '',
+      restaurantName: map['restaurantName'] as String? ?? '',
+      type: _complaintTypeFromString(map['type'] as String?),
+      description: map['description'] as String? ?? '',
+      status: _complaintStatusFromString(map['status'] as String?),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      adminNote: map['adminNote'] as String?,
+      resolution: map['resolution'] as String?,
+      submittedByUid: (map['submittedByUid'] as String?) ?? customerId,
+      submittedByName: (map['submittedByName'] as String?) ?? customerName,
+      submittedByRole: map['submittedByRole'] != null
+          ? _userRoleFromString(map['submittedByRole'] as String?)
+          : UserRole.customer,
+      againstUid: map['againstUid'] as String?,
+      againstRole: map['againstRole'] != null
+          ? _userRoleFromString(map['againstRole'] as String?)
+          : null,
+    );
+  }
 
   Map<String, dynamic> toMap() => {
         'orderId': orderId,
@@ -904,6 +1433,12 @@ class Complaint {
         'status': status.name,
         'createdAt': Timestamp.fromDate(createdAt),
         'adminNote': adminNote,
+        if (resolution != null) 'resolution': resolution,
+        'submittedByUid': submittedByUid,
+        'submittedByName': submittedByName,
+        'submittedByRole': submittedByRole.name,
+        if (againstUid != null) 'againstUid': againstUid,
+        if (againstRole != null) 'againstRole': againstRole!.name,
       };
 }
 
@@ -1005,8 +1540,6 @@ class DriverReassignment {
       };
 }
 
-/// جمهور الرسالة الجماعية (البث): كل السائقين أو كل العملاء، كل مجموعة منفصلة
-/// تماماً عن الأخرى ولا علاقة لها بدردشة الطلب بين العميل والسائق.
 enum BroadcastAudience { drivers, customers }
 
 class BroadcastMessage {
@@ -1044,11 +1577,6 @@ class BroadcastMessage {
       };
 }
 
-/// رمز تسجيل يُصدره المدير العام لدور محدد (مدير عام / سائق / مدير مطعم) —
-/// يُرسل يدوياً للشخص المستهدف، ويُستخدم مرة واحدة فقط للتسجيل الذاتي عبر
-/// شاشة "التسجيل برمز" بدلاً من فتح التسجيل الذاتي لهذه الأدوار الحساسة.
-/// [restaurantId]/[restaurantName] تُستخدمان فقط عندما يكون [role] هو
-/// مدير مطعم؛ تبقى فارغتين لبقية الأدوار.
 class RegistrationCode {
   final String code;
   final UserRole role;

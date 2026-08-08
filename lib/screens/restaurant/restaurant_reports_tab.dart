@@ -1,8 +1,8 @@
 // lib/screens/restaurant/restaurant_reports_tab.dart
 //
-// شاشة "التقارير والحسابات" لمدير المطعم — تعرض حالة كل طلب وقيمة الوجبات
-// فقط (دون سعر التوصيل)، بالإضافة إلى تقرير مالي إجمالي بقيمة الوجبات
-// المباعة من المطعم دون احتساب أجرة التوصيل.
+// شاشة "التقارير والحسابات" لمدير المطعم — تقتصر على ما يخصّ المطعم وحده:
+// حالة كل طلب وقيمة وجباته، وإجمالي قيمة الوجبات المباعة. أجرة التوصيل لا
+// علاقة للمطعم بها إطلاقاً، فلا تظهر هنا ولا يُشار إليها في أي نص.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -70,7 +70,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                     style: const TextStyle(
                         color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
-                Text('${sold.length} طلب مكتمل • بدون احتساب سعر التوصيل',
+                Text('${sold.length} طلب مكتمل',
                     style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ]),
             ),

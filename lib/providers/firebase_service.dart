@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import '../models/models.dart' as models;
 import '../utils/helpers.dart' show haversineDistanceKm;
+import 'notify_relay.dart';
 
 class FirebaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -16,12 +17,18 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
+  CollectionReference<Map<String, dynamic>> get _complaintMessages =>
+      _db.collection('complaint_messages');
   CollectionReference<Map<String, dynamic>> get _reassignments => _db.collection('reassignments');
   CollectionReference<Map<String, dynamic>> get _broadcasts => _db.collection('broadcasts');
   CollectionReference<Map<String, dynamic>> get _registrationCodes =>
       _db.collection('registrationCodes');
   CollectionReference<Map<String, dynamic>> get _deliverySettings =>
       _db.collection('delivery_settings');
+  CollectionReference<Map<String, dynamic>> get _driverTransactions =>
+      _db.collection('driver_transactions');
+  CollectionReference<Map<String, dynamic>> get _walletTransactions =>
+      _db.collection('wallet_transactions');
 
   bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
     if (from == to) return true;
@@ -41,20 +48,24 @@ class FirebaseService {
       case models.OrderStatus.preparing:
         return to == models.OrderStatus.readyForPickup;
       case models.OrderStatus.readyForPickup:
-        return to == models.OrderStatus.searchingDriver;
+        return to == models.OrderStatus.searchingDriver ||
+            to == models.OrderStatus.onTheWay;
       case models.OrderStatus.searchingDriver:
         return to == models.OrderStatus.driverAssigned ||
             to == models.OrderStatus.noDriverFound;
       case models.OrderStatus.driverAssigned:
-        return to == models.OrderStatus.pickedUp;
+        return to == models.OrderStatus.onTheWay;
       case models.OrderStatus.pickedUp:
         return to == models.OrderStatus.onTheWay;
       case models.OrderStatus.onTheWay:
         return to == models.OrderStatus.delivered;
       case models.OrderStatus.noDriverFound:
-        // يسمح للمدير بإسناد سائق يدوياً بعد فشل البحث التلقائي (مهلة انتظار
-        // السائق) دون المرور بحالة searchingDriver مجدداً.
-        return to == models.OrderStatus.driverAssigned;
+        // إسناد يدوي من المدير بعد فشل البحث التلقائي، أو إلغاء الطلب. كان
+        // الإلغاء ممنوعاً من هذه الحالة (لأن noDriverFound ليست isActive فلا
+        // تشملها قاعدة الإلغاء العامة)، فيبقى الطلب عالقاً بلا مخرج — ومعه
+        // يبقى رصيد المحفظة المخصوم محجوزاً بلا إعادة.
+        return to == models.OrderStatus.driverAssigned ||
+            to == models.OrderStatus.cancelled;
       case models.OrderStatus.delivered:
       case models.OrderStatus.restaurantRejected:
       case models.OrderStatus.cancelled:
@@ -90,6 +101,11 @@ class FirebaseService {
   Future<void> updateFcmToken(String uid, String token) =>
       _users.doc(uid).update({'fcmToken': token});
 
+  /// يمسح توكن الجهاز عند تسجيل الخروج، فلا يبقى الجهاز عنوان إشعارات
+  /// لحساب لم يعد صاحبه عليه.
+  Future<void> clearFcmToken(String uid) =>
+      _users.doc(uid).update({'fcmToken': FieldValue.delete()});
+
   Stream<List<models.AppUser>> streamUsers() => _users
       .orderBy('createdAt', descending: true)
       .snapshots()
@@ -102,8 +118,128 @@ class FirebaseService {
 
   Future<void> deleteUserDoc(String uid) => _users.doc(uid).delete();
 
-  /// ينشئ حساب مستخدم جديد (مثل مدير مطعم) بدون تسجيل خروج المدير الحالي،
-  /// عبر تطبيق Firebase ثانوي مؤقت.
+  /// يتابع مستند المستخدم لحظياً — تحتاجه شاشة «حسابي» ليظهر رصيد المحفظة
+  /// محدَّثاً فور إضافة استرداد من الإدارة، بدل قيمة قديمة من وقت الدخول.
+  Stream<models.AppUser?> streamUser(String uid) => _users.doc(uid).snapshots().map(
+      (d) => d.exists && d.data() != null ? models.AppUser.fromMap(d.data()!, d.id) : null);
+
+  /// يحفظ عناوين العميل. الحقل جزء من مستند المستخدم، فيحدّثه صاحبه بنفسه
+  /// دون صلاحيات إضافية (قواعد الأمان تمنع تعديل الدور والرصيد فقط).
+  Future<void> updateSavedAddresses(String uid, List<models.SavedAddress> addresses) =>
+      _users.doc(uid).update({
+        'savedAddresses': addresses.map((a) => a.toMap()).toList(),
+      });
+
+  /// إضافة رصيد لمحفظة العميل مع حركة توثّق السبب. كانت تزيد الرصيد بلا سجلّ،
+  /// فيرى العميل رقماً يتبدّل دون تفسير ولا تستطيع الإدارة تدقيقه.
+  Future<void> addWalletCredit(
+    String userId,
+    double amount, {
+    models.WalletTransactionType type = models.WalletTransactionType.refund,
+    String? orderId,
+    String? orderNumber,
+    String? note,
+  }) =>
+      _recordWalletEntry(
+        userId: userId,
+        amount: amount.abs(),
+        type: type,
+        orderId: orderId,
+        orderNumber: orderNumber,
+        note: note,
+      );
+
+  /// خصم من رصيد المحفظة عند استخدامه في دفع طلب. يتحقّق من كفاية الرصيد
+  /// داخل معاملة (transaction) لا بقراءة ثم كتابة، فطلبان متزامنان لا
+  /// يستطيعان إنفاق الرصيد نفسه مرّتين.
+  Future<void> spendFromWallet({
+    required String userId,
+    required double amount,
+    required String orderId,
+    required String orderNumber,
+  }) async {
+    if (amount <= 0) return;
+    final userRef = _users.doc(userId);
+    final txRef = _walletTransactions.doc();
+
+    await _db.runTransaction((transaction) async {
+      final snap = await transaction.get(userRef);
+      final data = snap.data();
+      if (!snap.exists || data == null) {
+        throw Exception('حساب العميل غير موجود');
+      }
+      final current = (data['walletBalance'] as num?)?.toDouble() ?? 0;
+      if (current + 0.001 < amount) {
+        throw Exception('رصيد المحفظة غير كافٍ');
+      }
+      transaction.update(userRef, {'walletBalance': current - amount});
+      transaction.set(
+        txRef,
+        models.WalletTransaction(
+          id: txRef.id,
+          userId: userId,
+          type: models.WalletTransactionType.orderPayment,
+          amount: -amount,
+          balanceAfter: current - amount,
+          orderId: orderId,
+          orderNumber: orderNumber,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+    });
+  }
+
+  /// يكتب حركة محفظة ويحدّث الرصيد في دفعة واحدة.
+  Future<void> _recordWalletEntry({
+    required String userId,
+    required double amount,
+    required models.WalletTransactionType type,
+    String? orderId,
+    String? orderNumber,
+    String? note,
+  }) async {
+    if (amount == 0) return;
+    final doc = await _users.doc(userId).get();
+    final current = (doc.data()?['walletBalance'] as num?)?.toDouble() ?? 0;
+    final signed = type == models.WalletTransactionType.orderPayment ? -amount : amount;
+    final txRef = _walletTransactions.doc();
+    final batch = _db.batch();
+    batch.update(_users.doc(userId), {
+      'walletBalance': FieldValue.increment(signed),
+    });
+    batch.set(
+      txRef,
+      models.WalletTransaction(
+        id: txRef.id,
+        userId: userId,
+        type: type,
+        amount: signed,
+        balanceAfter: current + signed,
+        orderId: orderId,
+        orderNumber: orderNumber,
+        note: note,
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    await batch.commit();
+  }
+
+  /// سجلّ حركات محفظة عميل، الأحدث أولاً.
+  ///
+  /// الترتيب داخل التطبيق لا في الاستعلام عمداً: جمعُ where مع orderBy في
+  /// Firestore يستلزم فهرساً مركّباً يُنشأ يدوياً من وحدة التحكم، ونسيانه
+  /// يُسقط الشاشة بخطأ failed-precondition (حدث فعلاً). حركات المستخدم
+  /// الواحد قليلة، فالترتيب المحلي بلا كلفة ويُسقط الاعتماد على خطوة
+  /// نشر خارجية بالكامل.
+  Stream<List<models.WalletTransaction>> streamWalletTransactions(String userId) =>
+      _walletTransactions
+          .where('userId', isEqualTo: userId)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.WalletTransaction.fromMap(d.data(), d.id))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
   Future<void> createManagedUser({
     required String name,
     required String email,
@@ -140,9 +276,6 @@ class FirebaseService {
     await createUser(newUser);
   }
 
-  /// يرسل رابط إعادة تعيين كلمة المرور إلى بريد المستخدم — تُستخدم من إدارة
-  /// التطبيق للتحكم الكامل في بيانات اعتماد أي حساب (بما فيه مدير المطعم)
-  /// دون الحاجة لمعرفة كلمة المرور الحالية.
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
 
@@ -153,11 +286,6 @@ class FirebaseService {
     return List.generate(6, (_) => _codeChars[rnd.nextInt(_codeChars.length)]).join();
   }
 
-  /// يولّد كود تسجيل جديد وحيد الاستخدام لدور محدد (مدير عام/سائق/مدير
-  /// مطعم)، ليُرسله المدير العام يدوياً (واتساب/اتصال) للشخص المستهدف.
-  /// يستخدم الرمز نفسه كمعرّف للمستند لضمان عدم تكرار نفس الرمز لرمزين
-  /// مختلفين في آن واحد. [restaurantId]/[restaurantName] مطلوبان فقط عند
-  /// توليد رمز لدور مدير مطعم.
   Future<models.RegistrationCode> generateRegistrationCode({
     required models.UserRole role,
     String restaurantId = '',
@@ -181,34 +309,19 @@ class FirebaseService {
     throw Exception('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى');
   }
 
-  /// رموز التسجيل الخاصة بمطعم محدد (لعرضها/إعادة إرسالها/إلغائها من لوحة المدير).
   Stream<List<models.RegistrationCode>> streamRegistrationCodes(
           String restaurantId) =>
       _registrationCodes
           .where('restaurantId', isEqualTo: restaurantId)
-          .orderBy('createdAt', descending: true)
           .snapshots()
           .map((s) => s.docs
               .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
-              .toList());
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
-  /// يُبطل كود تسجيل لم يُستخدم بعد (مثلاً عند إرسال رمز جديد بدلاً منه).
   Future<void> revokeRegistrationCode(String code) =>
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
 
-  /// يتحقق أولاً (قراءة فقط، بدون تسجيل دخول) من صلاحية كود التسجيل، ثم
-  /// يُنشئ الحساب بالمصادقة (`createUserWithEmailAndPassword`)، وبعد أن
-  /// يصبح المستخدم مُصادَقاً (`request.auth != null`) يستهلك الرمز عبر
-  /// معاملة Firestore (Transaction) لضمان استخدامه مرة واحدة فقط حتى مع
-  /// محاولات متزامنة، بالدور المحدَّد في الرمز (مدير عام/سائق/مدير مطعم) —
-  /// ويربطه تلقائياً بالمطعم صاحب الرمز إن كان الدور مدير مطعم، أو ينشئ سجل
-  /// سائق إن كان الدور سائق.
-  /// في حال فشل استهلاك الرمز بعد إنشاء الحساب (مثلاً استُهلك الرمز من
-  /// محاولة متزامنة أخرى بين التحقق الأولي وإنشاء الحساب)، يُحذف الحساب
-  /// المُصادَق حديثاً لتفادي ترك حساب "يتيم" بلا رمز صالح.
-  /// [expectedRole] (اختياري): حين تُمرَّر من نكهة تطبيق مقيّدة بدور واحد
-  /// (سائق/مطعم/أدمن)، يُرفض أي كود بدور مختلف فوراً كقراءة فقط قبل إنشاء
-  /// الحساب أصلاً — لا تغيير في ترتيب استهلاك الرمز.
   Future<models.AppUser> registerWithCode({
     required String code,
     required String name,
@@ -216,14 +329,10 @@ class FirebaseService {
     required String password,
     required String phone,
     String? nationalId,
-    // الدور المتوقَع لهذه النكهة (سائق/مطعم/أدمن)؛ null يعني بلا قيد (النكهة
-    // الكاملة). فحص قراءة فقط لا يغيّر ترتيب الكتابة على registrationCodes.
     models.UserRole? expectedRole,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
 
-    // 1) تحقق أولي (قراءة فقط) قبل أي تسجيل دخول — لا يتطلب كتابة على
-    // registrationCodes، فيعمل حتى بدون مصادقة.
     final initialSnap = await ref.get();
     if (!initialSnap.exists || initialSnap.data() == null) {
       throw Exception('كود التسجيل غير صحيح');
@@ -236,13 +345,10 @@ class FirebaseService {
       throw Exception('هذا الكود غير مخصص لهذا التطبيق');
     }
 
-    // 2) إنشاء الحساب بالمصادقة — بعدها يصبح request.auth != null.
     final cred = await register(email.trim(), password.trim());
     final uid = cred.user!.uid;
 
     try {
-      // 3) الآن بعد المصادقة، استهلك الرمز عبر معاملة Firestore لضمان
-      // الذرّية حتى مع محاولات متزامنة.
       final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
         final snap = await tx.get(ref);
         if (!snap.exists || snap.data() == null) {
@@ -278,13 +384,9 @@ class FirebaseService {
       await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
       return newUser;
     } catch (e) {
-      // فشل استهلاك الرمز أو إنشاء بيانات المستخدم بعد إنشاء حساب المصادقة
-      // — نحذف حساب المصادقة اليتيم لتفادي ترك حساب بلا بيانات مرتبطة به.
       try {
         await cred.user?.delete();
-      } catch (_) {
-        // تجاهل أي خطأ أثناء التنظيف، الأولوية لإعادة رمي الخطأ الأصلي.
-      }
+      } catch (_) {}
       rethrow;
     }
   }
@@ -305,9 +407,13 @@ class FirebaseService {
   }
 
   Stream<List<models.MenuCategory>> streamCategories(String rId) => _categories(rId)
-      .orderBy('sortOrder')
       .snapshots()
-      .map((s) => s.docs.map((d) => models.MenuCategory.fromMap(d.data(), d.id)).toList());
+      .map((s) {
+        final list =
+            s.docs.map((d) => models.MenuCategory.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+        return list;
+      });
 
   Future<void> addCategory(models.MenuCategory cat) =>
       _categories(cat.restaurantId).doc(cat.id).set(cat.toMap());
@@ -318,6 +424,39 @@ class FirebaseService {
 
   Future<void> addMenuItem(models.MenuItem item) =>
       _items(item.restaurantId).doc(item.id).set(item.toMap());
+
+  /// استيراد منيو كامل دفعة واحدة (تصنيفات وأصنافها) — بديل عن إدخال عشرات
+  /// الأصناف يدوياً نموذجاً نموذجاً.
+  ///
+  /// يُكتب كل شيء في دفعة واحدة (batch) لا كتابات متفرّقة: إمّا أن ينجح
+  /// المنيو كاملاً أو لا يُكتب منه شيء، فلا يبقى المطعم بمنيو نصفه مفقود لو
+  /// انقطعت الشبكة في المنتصف.
+  ///
+  /// حدّ Firestore للدفعة الواحدة 500 عملية، لذا تُقسَّم تلقائياً عند تجاوزه.
+  Future<void> importMenu({
+    required String restaurantId,
+    required List<models.MenuCategory> categories,
+    required List<models.MenuItem> items,
+  }) async {
+    const maxOps = 450; // هامش أمان تحت حدّ 500
+    final ops = <void Function(WriteBatch)>[];
+
+    for (final c in categories) {
+      ops.add((b) => b.set(_categories(restaurantId).doc(c.id), c.toMap()));
+    }
+    for (final i in items) {
+      ops.add((b) => b.set(_items(restaurantId).doc(i.id), i.toMap()));
+    }
+
+    for (var start = 0; start < ops.length; start += maxOps) {
+      final end = (start + maxOps).clamp(0, ops.length);
+      final batch = _db.batch();
+      for (var k = start; k < end; k++) {
+        ops[k](batch);
+      }
+      await batch.commit();
+    }
+  }
   Future<void> updateMenuItem(models.MenuItem item) =>
       _items(item.restaurantId).doc(item.id).update(item.toMap());
   Future<void> toggleItemAvailability(String rId, String itemId, bool isAvailable) =>
@@ -337,7 +476,6 @@ class FirebaseService {
   Future<void> setDriverOnline(String id, bool isOnline) =>
       _drivers.doc(id).update({'isOnline': isOnline});
 
-  // ✅ تتبع حي لموقع السائق
   Future<void> updateDriverLocation(String driverId, double lat, double lng) =>
       _drivers.doc(driverId).update({
         'lat': lat,
@@ -345,11 +483,11 @@ class FirebaseService {
         'lastLocationUpdate': FieldValue.serverTimestamp(),
       });
 
-  Future<void> markPayoutDone(String driverId, double amount) =>
-      _drivers.doc(driverId).update({
-        'totalEarnings': FieldValue.increment(amount),
-        'pendingPayout': 0,
-      });
+  // أُزيلت markPayoutDone: كانت تصفّر pendingPayout وفق النموذج القديم الذي
+  // يفترض أن التطبيق هو المدين دائماً، وهو افتراض مقلوب للطلبات النقدية.
+  // بديلها [recordDriverPayout] الذي يقيّد الصرف في دفتر الحساب مع حركة
+  // موثّقة. لم تكن مستدعاة من أي شاشة، فإزالتها لا تكسر شيئاً وتمنع استخدامها
+  // بالخطأ فتفسد الرصيد الجديد.
 
   Future<void> updateDriverRating(String driverId, double newRating) async {
     final doc = await _drivers.doc(driverId).get();
@@ -368,6 +506,9 @@ class FirebaseService {
       ...order.toMap(),
       if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
     });
+    // إشعار فوري لمديري المطعم بالطلب الجديد عبر الخادم المرافق — بدونه لا
+    // يعلم المطعم بالطلب إلا حين يكون تطبيقه مفتوحاً على الشاشة.
+    NotifyRelay.orderEvent(order.id, OrderEvent.created);
     return order.id;
   }
 
@@ -376,10 +517,6 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
-  /// جميع الطلبات النشطة والقادمة (لشاشة متابعة الطلبات الحية في لوحة المدير)،
-  /// بالإضافة إلى طلبات "تعذر إيجاد سائق" (noDriverFound) رغم أنها ليست
-  /// نشطة تقنياً (isActive == false) لأن المدير يحتاج رؤيتها لإسناد سائق
-  /// يدوياً بعد فشل البحث التلقائي — إخفاؤها يعني ضياع الطلب دون تدخل.
   Stream<List<models.Order>> streamActiveOrders() => _orders
       .orderBy('createdAt', descending: true)
       .snapshots()
@@ -388,7 +525,6 @@ class FirebaseService {
           .where((o) => o.status.isActive || o.status == models.OrderStatus.noDriverFound)
           .toList());
 
-  /// طلبات مطعم محدد فقط (لتطبيق/دور مدير المطعم)
   Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
       .where('restaurantId', isEqualTo: restaurantId)
       .orderBy('createdAt', descending: true)
@@ -429,6 +565,55 @@ class FirebaseService {
 
     await ref.update({
       'status': status.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+    // إشعار العميل بتغيّر حالة طلبه. الخادم هو من يقرّر أي الحالات تستحق
+    // إشعاراً فعلاً (فلا يُزعج العميل بكل انتقال داخلي).
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
+  }
+
+  Future<void> rejectOrderByRestaurant(String orderId, String reason) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (current.status != models.OrderStatus.restaurantPending) {
+      throw Exception('لا يمكن رفض الطلب بعد قبوله — حالته الحالية: ${current.status.label}');
+    }
+
+    await ref.update({
+      'status': models.OrderStatus.restaurantRejected.name,
+      'rejectionReason': reason.trim(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    });
+
+    // رفض المطعم إنهاءٌ للطلب بلا خدمة، فيُعاد للعميل ما خُصم من محفظته تماماً
+    // كالإلغاء — وإلا خسر رصيده بسبب رفضٍ لا ذنب له فيه.
+    await _refundWalletOnCancel(current);
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
+  }
+
+  Future<void> markPickedUpBySelf(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (current.status != models.OrderStatus.readyForPickup &&
+        current.status != models.OrderStatus.searchingDriver &&
+        current.status != models.OrderStatus.driverAssigned) {
+      throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
+    }
+
+    await ref.update({
+      'status': models.OrderStatus.onTheWay.name,
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
     });
@@ -508,43 +693,123 @@ class FirebaseService {
       }
     }
 
+    final driverDoc = await _drivers.doc(driverId).get();
+    final driverData = driverDoc.exists && driverDoc.data() != null
+        ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id)
+        : null;
+    final isDriverOnline = driverData?.isOnline ?? false;
+
     final batch = _db.batch();
     batch.update(ref, {
       'driverId': driverId,
       'driverName': driverName,
+      'driverPhone': driverData?.phone,
       'status': models.OrderStatus.driverAssigned.name,
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
+      'driverAcknowledged': isDriverOnline,
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
     await batch.commit();
+    // إشعار السائق بالإسناد — قد يكون تطبيقه مغلقاً لحظتها.
+    NotifyRelay.orderEvent(orderId, OrderEvent.assigned);
   }
 
-  /// خوارزمية تعيين السائق التلقائي: تبحث عن أقرب سائق متصل ومتاح لموقع
-  /// المطعم (باستخدام معادلة Haversine) وتُسند له الطلب تلقائياً.
-  /// تُعيد true إذا تم إيجاد سائق مناسب وتعيينه، أو false إن لم يوجد.
+  static const int _driverCandidatesCount = 3;
+
   Future<bool> autoAssignNearestDriver(models.Order order) async {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
-    models.Driver? nearest;
-    double nearestDistance = double.infinity;
+
+    final candidateDrivers = <models.Driver>[];
+    final candidateDistances = <double>[];
     for (final doc in driversSnap.docs) {
       final d = models.Driver.fromMap(doc.data(), doc.id);
       if (!d.isOnline || !d.isAvailable) continue;
       if (d.lat == null || d.lng == null) continue;
-      final distance = haversineDistanceKm(order.restaurantLat!, order.restaurantLng!, d.lat!, d.lng!);
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearest = d;
-      }
+      final distance =
+          haversineDistanceKm(order.restaurantLat!, order.restaurantLng!, d.lat!, d.lng!);
+      candidateDrivers.add(d);
+      candidateDistances.add(distance);
     }
-    if (nearest == null) return false;
-    await assignDriver(order.id, nearest.id, nearest.name);
+    if (candidateDrivers.isEmpty) return false;
+
+    final indices = List<int>.generate(candidateDrivers.length, (i) => i);
+    indices.sort((a, b) => candidateDistances[a].compareTo(candidateDistances[b]));
+
+    final nearestIndices = indices.take(_driverCandidatesCount).toList();
+
+    nearestIndices.sort(
+        (a, b) => candidateDrivers[b].rating.compareTo(candidateDrivers[a].rating));
+    final chosen = candidateDrivers[nearestIndices.first];
+
+    final batch = _db.batch();
+    batch.update(_orders.doc(order.id), {
+      'driverId': chosen.id,
+      'driverName': chosen.name,
+      'driverPhone': chosen.phone,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'driverAcknowledged': true,
+    });
+    batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
+    await batch.commit();
     return true;
   }
 
-  /// تحويل الطلب من سائق إلى آخر (يستخدمها المدير فقط عند الطوارئ)
-  /// آلية استقبال الطلب من قبل السائق الأول تبقى دون أي تغيير.
+  Future<bool> tryAutoAssignOnAcceptance(models.Order order) => autoAssignNearestDriver(order);
+
+  Future<bool> retryAutoAssignIfNeeded(models.Order order) async {
+    if (order.driverId != null && order.driverId!.isNotEmpty) return true;
+    return autoAssignNearestDriver(order);
+  }
+
+  Future<void> acceptAssignedOrder(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!current.needsDriverAcknowledgement) {
+      return;
+    }
+    await ref.update({
+      'driverAcknowledged': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> rejectAssignedOrder(String orderId) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!current.needsDriverAcknowledgement) {
+      throw Exception('لا يمكن رفض هذا الطلب في حالته الحالية');
+    }
+
+    final batch = _db.batch();
+    batch.update(ref, {
+      'driverId': null,
+      'driverName': null,
+      'driverPhone': null,
+      'driverAcknowledged': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    if (current.driverId != null && current.driverId!.isNotEmpty) {
+      batch.update(_drivers.doc(current.driverId!), {'isAvailable': true});
+    }
+    await batch.commit();
+
+    final refreshedDoc = await ref.get();
+    if (refreshedDoc.exists && refreshedDoc.data() != null) {
+      final refreshedOrder = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
+      await autoAssignNearestDriver(refreshedOrder);
+    }
+  }
+
   Future<void> reassignDriver({
     required models.Order order,
     required String newDriverId,
@@ -552,10 +817,16 @@ class FirebaseService {
     required String reason,
     required String performedBy,
   }) async {
+    final newDriverDoc = await _drivers.doc(newDriverId).get();
+    final newDriverPhone = newDriverDoc.exists && newDriverDoc.data() != null
+        ? models.Driver.fromMap(newDriverDoc.data()!, newDriverDoc.id).phone
+        : null;
+
     final batch = _db.batch();
     batch.update(_orders.doc(order.id), {
       'driverId': newDriverId,
       'driverName': newDriverName,
+      'driverPhone': newDriverPhone,
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.update(_drivers.doc(newDriverId), {'isAvailable': false});
@@ -579,6 +850,7 @@ class FirebaseService {
       ).toMap(),
     );
     await batch.commit();
+    NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
   }
 
   Stream<List<models.DriverReassignment>> streamReassignments() => _reassignments
@@ -593,17 +865,39 @@ class FirebaseService {
 
   Future<void> markOrderDelivered(String orderId, String driverId) async {
     final orderDoc = await _orders.doc(orderId).get();
-    double commission = 0;
-    double driverPayout = 10;
-    if (orderDoc.exists && orderDoc.data() != null) {
-      final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
-      if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
-        throw Exception(
-            'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
-      }
-      commission = order.calculatedCommission;
-      driverPayout = order.driverShare;
+    if (!orderDoc.exists || orderDoc.data() == null) {
+      throw Exception('الطلب غير موجود');
     }
+    final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+    if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
+      throw Exception(
+          'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
+    }
+    final commission = order.calculatedCommission;
+    final driverPayout = order.driverShare;
+    final itemsTotal = order.itemsTotal;
+    final appShare = order.appShare;
+    final paymentMethod = order.paymentMethod;
+    final orderNumber = order.orderNumber;
+    // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
+    //
+    // • نقدي: السائق قبض من العميل كامل المبلغ (وجبات + توصيل + رسم ثابت)،
+    //   وما ليس له منه هو قيمة الوجبات (للمطعم) والرسم الثابت (للتطبيق) —
+    //   فيُقيَّد عليه ديناً. أجرته تبقى بيده فلا تُقيَّد له.
+    // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
+    //
+    // كان الكود سابقاً يزيد pendingPayout بأجرة السائق في الحالتين، وهو
+    // افتراض مقلوب في الدفع النقدي (الغالب حالياً) لأنه يجعل التطبيق مديناً
+    // لسائق يحمل أصلاً مال المطعم في جيبه.
+    final isCash = paymentMethod == models.PaymentMethod.cash;
+    final delta = isCash ? -(itemsTotal + appShare) : driverPayout;
+
+    final driverDoc = await _drivers.doc(driverId).get();
+    final currentBalance = driverDoc.exists && driverDoc.data() != null
+        ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
+        : 0.0;
+
+    final txRef = _driverTransactions.doc();
     final batch = _db.batch();
     batch.update(_orders.doc(orderId), {
       'status': models.OrderStatus.delivered.name,
@@ -614,22 +908,191 @@ class FirebaseService {
     });
     batch.update(_drivers.doc(driverId), {
       'totalDeliveries': FieldValue.increment(1),
-      'pendingPayout': FieldValue.increment(driverPayout),
+      'balance': FieldValue.increment(delta),
       'isAvailable': true,
     });
+    // الحركة تُكتب في نفس الدفعة، فلا يتغيّر رصيد دون سجلّ يفسّره.
+    batch.set(
+      txRef,
+      models.DriverTransaction(
+        id: txRef.id,
+        driverId: driverId,
+        type: isCash
+            ? models.DriverTransactionType.deliveryCash
+            : models.DriverTransactionType.deliveryOnline,
+        amount: delta,
+        balanceAfter: currentBalance + delta,
+        orderId: orderId,
+        orderNumber: orderNumber,
+        performedBy: _auth.currentUser?.uid ?? driverId,
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    await batch.commit();
+    // التسليم يغيّر الحالة داخل الدفعة لا عبر updateOrderStatus، فيُبلَّغ
+    // الخادم هنا صراحةً ليصل العميلَ إشعارُ «تم التوصيل».
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
+  }
+
+  /// تسجيل إيداع نقدي: السائق سلّم مبلغاً للإدارة، فيرتفع رصيده بقدره.
+  Future<void> recordDriverDeposit({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: amount.abs(),
+        type: models.DriverTransactionType.deposit,
+        note: note,
+      );
+
+  /// تسجيل صرف مستحقّات: الإدارة دفعت للسائق، فينخفض رصيده بقدره.
+  Future<void> recordDriverPayout({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: -amount.abs(),
+        type: models.DriverTransactionType.payout,
+        note: note,
+      );
+
+  /// تسوية يدوية بإشارة موجبة أو سالبة (تصحيح خطأ، مكافأة، خصم).
+  Future<void> recordDriverAdjustment({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: amount,
+        type: models.DriverTransactionType.adjustment,
+        note: note,
+      );
+
+  /// يكتب حركة دفتر ويحدّث الرصيد معاً في دفعة واحدة — إمّا أن يتغيّر الرصيد
+  /// ومعه سجلّه أو لا يتغيّر شيء، فلا يبقى رصيد بلا تفسير.
+  Future<void> _recordDriverLedgerEntry({
+    required String driverId,
+    required double amount,
+    required models.DriverTransactionType type,
+    String? note,
+  }) async {
+    if (amount == 0) return;
+    final doc = await _drivers.doc(driverId).get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('السائق غير موجود');
+    }
+    final current = models.Driver.fromMap(doc.data()!, doc.id).balance;
+    final txRef = _driverTransactions.doc();
+    final batch = _db.batch();
+    batch.update(_drivers.doc(driverId), {
+      'balance': FieldValue.increment(amount),
+      // الصرف يُراكم في إجمالي ما استلمه السائق فعلياً.
+      if (type == models.DriverTransactionType.payout)
+        'totalEarnings': FieldValue.increment(amount.abs()),
+    });
+    batch.set(
+      txRef,
+      models.DriverTransaction(
+        id: txRef.id,
+        driverId: driverId,
+        type: type,
+        amount: amount,
+        balanceAfter: current + amount,
+        note: note,
+        performedBy: _auth.currentUser?.uid ?? '',
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
     await batch.commit();
   }
 
-  Future<void> cancelOrder(String orderId) =>
-      updateOrderStatus(orderId, models.OrderStatus.cancelled);
+  /// سجلّ حركات سائق، الأحدث أولاً. (ترتيب محلي — انظر تعليق
+  /// [streamWalletTransactions] عن الفهارس المركّبة.)
+  Stream<List<models.DriverTransaction>> streamDriverTransactions(String driverId) =>
+      _driverTransactions
+          .where('driverId', isEqualTo: driverId)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.DriverTransaction.fromMap(d.data(), d.id))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
 
-  /// مُهل معالجة الطلبات العالقة (بالدقائق)، تُقرأ من مستند واحد ثابت
-  /// delivery_settings/config في Firestore بدل تثبيتها في الكود، ليمكن
-  /// تغييرها فوراً دون إصدار تطبيق جديد. القيم الافتراضية أدناه (يوفّرها
-  /// المستدعي) تُستخدم إن كان المستند أو أي حقل منه غير موجود بعد.
+  /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
+  Future<void> cancelOrder(String orderId) async {
+    final order = await _getOrderOrThrow(orderId);
+    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
+    await _refundWalletOnCancel(order);
+  }
+
+  /// إلغاء العميل لطلبه — مسموح فقط قبل أن يبدأ المطعم التحضير
+  /// ([models.Order.canCustomerCancel]). التحقق هنا وليس في الواجهة فقط، حتى
+  /// لا يمرّ إلغاء متأخر لو استُدعيت الدالة من مسار آخر أو تغيّرت الحالة بين
+  /// عرض الزر والضغط عليه.
+  Future<void> cancelOrderByCustomer(String orderId) async {
+    final order = await _getOrderOrThrow(orderId);
+    if (!order.canCustomerCancel) {
+      throw Exception('لا يمكن إلغاء الطلب بعد بدء التحضير، تواصل مع الإدارة');
+    }
+    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
+    await _refundWalletOnCancel(order);
+  }
+
+  Future<models.Order> _getOrderOrThrow(String orderId) async {
+    final doc = await _orders.doc(orderId).get();
+    final data = doc.data();
+    if (!doc.exists || data == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    return models.Order.fromMap(data, doc.id);
+  }
+
+  /// يُعيد إلى محفظة العميل ما خُصم منها لهذا الطلب عند إلغائه.
+  ///
+  /// بدون هذه الخطوة كان العميل يدفع من رصيده ثم يُلغى طلبه فيضيع الرصيد
+  /// نهائياً — خسارة مباشرة له لا يراها إلا بمقارنة رصيده قبل الطلب وبعده.
+  ///
+  /// يُستدعى بعد نجاح تغيير الحالة لا قبله: لو فشل الإلغاء لسبب ما، لا يكون
+  /// رصيد قد أُعيد لطلب ما زال قائماً.
+  Future<void> _refundWalletOnCancel(models.Order order) async {
+    if (order.walletUsed <= 0) return;
+    await _recordWalletEntry(
+      userId: order.customerId,
+      amount: order.walletUsed,
+      type: models.WalletTransactionType.orderReversal,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      note: 'إلغاء الطلب',
+    );
+  }
+
   Future<Map<String, dynamic>> getDeliverySettings() async {
     final doc = await _deliverySettings.doc('config').get();
     return doc.data() ?? {};
+  }
+
+  /// يحدّث متوسط تقييم المطعم تراكمياً بنفس أسلوب تقييم السائق. كان تقييم
+  /// المطاعم لا يُحدَّث إطلاقاً، فتبقى كلها على القيمة الافتراضية 5.0 مهما
+  /// بلغ عدد الطلبات — وهو ما يُفقد التقييمات معناها أمام العميل.
+  Future<void> updateRestaurantRating(String restaurantId, double newRating) async {
+    if (restaurantId.isEmpty) return;
+    final doc = await _restaurants.doc(restaurantId).get();
+    if (!doc.exists || doc.data() == null) return;
+    final restaurant = models.Restaurant.fromMap(doc.data()!, doc.id);
+    final newCount = restaurant.ratingCount + 1;
+    // المطاعم بلا تقييمات سابقة تبدأ من التقييم الأول نفسه، لا من متوسط مع
+    // القيمة الافتراضية 5.0 التي لم يمنحها أحد.
+    final newAvg = restaurant.ratingCount <= 0
+        ? newRating
+        : ((restaurant.rating * restaurant.ratingCount) + newRating) / newCount;
+    await _restaurants.doc(restaurantId).update({
+      'rating': double.parse(newAvg.toStringAsFixed(1)),
+      'ratingCount': newCount,
+    });
   }
 
   Future<void> rateOrder({
@@ -638,6 +1101,7 @@ class FirebaseService {
     required double orderRating,
     required double driverRating,
     String? review,
+    String? restaurantId,
   }) async {
     await _orders.doc(orderId).update({
       'customerRating': orderRating,
@@ -646,12 +1110,49 @@ class FirebaseService {
       if (review != null) 'review': review,
     });
     await updateDriverRating(driverId, driverRating);
+    if (restaurantId != null) {
+      await updateRestaurantRating(restaurantId, orderRating);
+    }
   }
 
   Stream<List<models.Complaint>> streamComplaints() => _complaints
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList());
+
+  // شكاوى المستخدم الواحد: ترتيب محلي بدل orderBy — انظر تعليق
+  // [streamWalletTransactions] عن الفهارس المركّبة.
+  Stream<List<models.Complaint>> streamComplaintsSubmittedBy(String uid) => _complaints
+      .where('submittedByUid', isEqualTo: uid)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  Stream<List<models.Complaint>> streamComplaintsAgainst(String uid) => _complaints
+      .where('againstUid', isEqualTo: uid)
+      .snapshots()
+      .map((s) => s.docs.map((d) => models.Complaint.fromMap(d.data(), d.id)).toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// شكاوى مطعم بعينه — تبويب «مقدَّمة عليّ» عند مدير المطعم. الشكوى ضد
+  /// المطعم تُسجَّل بمعرّف المطعم في againstUid لا بمعرّف مديره، فالاستعلام
+  /// هنا بمعرّف المطعم (وقاعدة الأمان تسمح لمديره بذلك تحديداً).
+  Stream<List<models.Complaint>> streamComplaintsForRestaurant(String restaurantId) =>
+      _complaints
+          .where('restaurantId', isEqualTo: restaurantId)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.Complaint.fromMap(d.data(), d.id))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// متابعة حيّة لشكوى واحدة — تحتاجها شاشة التفاصيل ليرى مقدّمها تغيّر
+  /// الحالة وصدور القرار لحظياً. `null` إن حُذفت.
+  Stream<models.Complaint?> streamComplaint(String complaintId) =>
+      _complaints.doc(complaintId).snapshots().map((d) =>
+          d.exists && d.data() != null
+              ? models.Complaint.fromMap(d.data()!, d.id)
+              : null);
 
   Future<void> submitComplaint(models.Complaint complaint) =>
       _complaints.doc(complaint.id).set(complaint.toMap());
@@ -668,7 +1169,102 @@ class FirebaseService {
         if (resolution != null) 'resolution': resolution,
       });
 
-  // ✅ الشات — دردشة بين العميل والسائق
+  static const int _driverWarningThreshold = 3;
+
+  Future<void> resolveComplaint({
+    required models.Complaint complaint,
+    required models.Order order,
+    required String adminUid,
+    double? refundPercentage,
+    bool warnAgainstParty = false,
+    String? reassignToDriverId,
+    String? reassignToDriverName,
+    String? adminNote,
+  }) async {
+    if (refundPercentage != null && refundPercentage > 0) {
+      // الاسترداد يُحسب على **قيمة الوجبات** لا على إجمالي الطلب: أجرة
+      // التوصيل خدمة أُدّيت فعلاً ووصلت للسائق، فإعادتها للعميل تعني خصمها
+      // من المنصّة بلا سبب. الاسترداد الكامل (100%) وحده يشمل الإجمالي لأن
+      // الطلب حينها يُعدّ كأن لم يكن.
+      final isFullRefund = refundPercentage >= 100;
+      final refundAmount = isFullRefund
+          ? order.grandTotal
+          : order.itemsTotal * (refundPercentage / 100);
+
+      await addWalletCredit(
+        order.customerId,
+        refundAmount,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        note: 'استرداد ${refundPercentage.toStringAsFixed(0)}% — شكوى',
+      );
+
+      // الاسترداد الكامل يُنهي الطلب مالياً، فتُضبط حالته على «تم الاسترداد»
+      // بدل بقائه «تم التوصيل» فيظهر في التقارير كإيراد محقّق.
+      if (isFullRefund) {
+        await _orders.doc(order.id).update({
+          'status': models.OrderStatus.refunded.name,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'statusChangedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    if (warnAgainstParty &&
+        complaint.againstRole == models.UserRole.driver &&
+        complaint.againstUid != null) {
+      final driverRef = _drivers.doc(complaint.againstUid!);
+      final driverDoc = await driverRef.get();
+      if (driverDoc.exists && driverDoc.data() != null) {
+        final driver = models.Driver.fromMap(driverDoc.data()!, driverDoc.id);
+        final newCount = driver.warningCount + 1;
+        final updates = <String, dynamic>{'warningCount': newCount};
+        if (newCount >= _driverWarningThreshold) {
+          updates['isAvailable'] = false;
+          updates['isOnline'] = false;
+        }
+        await driverRef.update(updates);
+      }
+    }
+
+    if (reassignToDriverId != null && reassignToDriverName != null) {
+      await reassignDriver(
+        order: order,
+        newDriverId: reassignToDriverId,
+        newDriverName: reassignToDriverName,
+        reason: 'نقل بناءً على شكوى #${complaint.orderNumber}',
+        performedBy: adminUid,
+      );
+    }
+
+    final actionsSummary = <String>[
+      if (refundPercentage != null && refundPercentage > 0)
+        'استرداد ${refundPercentage.toStringAsFixed(0)}%',
+      if (warnAgainstParty) 'تسجيل إنذار',
+      if (reassignToDriverId != null) 'نقل الطلب لسائق آخر',
+    ].join(' + ');
+
+    await _complaints.doc(complaint.id).update({
+      'status': models.ComplaintStatus.resolved.name,
+      'adminNote': adminNote ??
+          (actionsSummary.isEmpty ? 'تم الحل بلا إجراء إضافي' : actionsSummary),
+    });
+  }
+
+  /// دردشة داخلية بين المدير ومقدّم الشكوى — نفس بنية ChatMessage تماماً
+  /// المستخدَمة في order_chat_screen.dart، لكن مربوطة بمعرّف الشكوى
+  /// (complaintId) بدل معرّف الطلب (orderId)، ومخزَّنة في مجموعة منفصلة
+  /// (complaint_messages) حتى لا تختلط بدردشة الطلب بين العميل والسائق.
+  Stream<List<models.ChatMessage>> streamComplaintChat(String complaintId) =>
+      _complaintMessages
+          .where('orderId', isEqualTo: complaintId)
+          .snapshots()
+          .map((s) => s.docs.map((d) => models.ChatMessage.fromMap(d.data(), d.id)).toList()
+            ..sort((a, b) => a.createdAt.compareTo(b.createdAt)));
+
+  Future<void> sendComplaintChatMessage(models.ChatMessage message) =>
+      _complaintMessages.doc(message.id).set(message.toMap());
+
   Stream<List<models.ChatMessage>> streamChatMessages(String orderId) => _messages
       .where('orderId', isEqualTo: orderId)
       .orderBy('createdAt')
@@ -678,8 +1274,6 @@ class FirebaseService {
   Future<void> sendChatMessage(models.ChatMessage message) =>
       _messages.doc(message.id).set(message.toMap());
 
-  // ✅ البث الجماعي (Broadcast) — رسالة عامة من المدير العام لكل السائقين أو
-  // لكل العملاء دفعة واحدة. شاشة منفصلة تماماً عن دردشة الطلب الفردية.
   Stream<List<models.BroadcastMessage>> streamBroadcasts(models.BroadcastAudience audience) => _broadcasts
       .where('audience', isEqualTo: audience.name)
       .orderBy('createdAt', descending: true)

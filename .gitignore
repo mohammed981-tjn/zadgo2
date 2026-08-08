@@ -9,3 +9,8 @@ build/
 android/key.properties
 *.jks
 *.keystore
+
+# إعداد الخادم المرافق الفعلي ومفاتيح حساب الخدمة — لا تُرفع أبداً.
+# النسخة القابلة للرفع هي config.sample.php فقط.
+server/api/config.php
+service-account*.json

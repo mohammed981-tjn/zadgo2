@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../utils/theme.dart';
 
 String formatCurrency(double amount) => '${amount.toStringAsFixed(2)} ر.س';
@@ -23,6 +24,24 @@ Future<bool?> showConfirmDialog(BuildContext context, {required String title, re
         child: Text(confirmLabel)),
   ]),
 );
+
+/// يفتح تطبيق الاتصال على الرقم المُعطى — تُستخدم للاتصال بين العميل والسائق
+/// أثناء التوصيل. تعرض رسالة واضحة بدل الفشل الصامت إن تعذّر فتح المتصل أو
+/// كان الرقم غير متوفّر.
+Future<void> callPhone(BuildContext context, String? phone) async {
+  final number = phone?.trim() ?? '';
+  if (number.isEmpty) {
+    showError(context, 'رقم الهاتف غير متوفّر');
+    return;
+  }
+  final uri = Uri(scheme: 'tel', path: number);
+  try {
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+  } catch (_) {
+    if (context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+  }
+}
 
 String? validateRequired(String? v, [String label = 'هذا الحقل']) =>
     (v == null || v.trim().isEmpty) ? '$label مطلوب' : null;
@@ -72,3 +91,93 @@ int ceilExtraKm(double distanceKm, double freeKm) {
 /// أجرة الكيلومترات الإضافية بعد إجبار التقريب للأعلى — بدون كسور.
 double calculateExtraKmFee(double distanceKm, double freeKm, double perKmFee) =>
     ceilExtraKm(distanceKm, freeKm) * perKmFee;
+
+/// إعدادات التسعير الموحّدة لكل التطبيق — مصدر واحد للحقيقة. القيم هنا ثوابت
+/// عمل عامة (لا لكل مطعم)؛ يمكن لاحقاً نقلها إلى إعدادات عامة في Firestore
+/// (delivery_settings) دون تغيير بقية الكود لأن الجميع يمرّ عبر هذه الدوال.
+class Pricing {
+  Pricing._();
+
+  /// عمولة التطبيق على قيمة الوجبة (يدفعها العميل فوق سعر الوجبة).
+  static const double appCommissionRate = 0.15;
+
+  /// أجرة توصيل أول [baseDeliveryKm] كم (ثابتة).
+  static const double baseDeliveryFee = 9.0;
+  static const double baseDeliveryKm = 7.0;
+
+  /// أجرة كل كيلومتر إضافي فوق المدى الأساسي.
+  static const double perExtraKmFee = 1.0;
+
+  /// رسم توصيل ثابت للتطبيق يتحمّله العميل في كل طلب.
+  static const double fixedDeliveryCommission = 3.0;
+
+  /// أقصى مسافة توصيل مقبولة بالكيلومترات. بدون هذا الحدّ يستطيع العميل
+  /// تحديد موقع في مدينة أخرى فتُحتسب أجرة توصيل خيالية (مثل 732 ر.س لمسافة
+  /// 730 كم) على طلب لا يستطيع أي سائق تنفيذه أصلاً.
+  static const double maxDeliveryDistanceKm = 25.0;
+
+  /// هل الموقع خارج نطاق خدمة المطعم؟
+  static bool isOutOfRange(double distanceKm) =>
+      distanceKm > maxDeliveryDistanceKm;
+
+  /// أجرة التوصيل حسب المسافة: أساس ثابت لأول 7 كم + 1 ر.س لكل كم إضافي،
+  /// مع إجبار كسور الكيلومتر للأعلى (9.8 كم → 10).
+  static double deliveryFee(double distanceKm) {
+    final extraKm = ceilExtraKm(distanceKm, baseDeliveryKm);
+    return baseDeliveryFee + extraKm * perExtraKmFee;
+  }
+
+  /// عمولة التطبيق على الوجبة (15%) — تُخصم من مستحقّات المطعم ولا يدفعها
+  /// العميل؛ تُستخدم في تقارير المدير فقط (قيمة الطلب للعميل = قيمتها للمطعم).
+  static double appCommission(double itemsTotal) => itemsTotal * appCommissionRate;
+
+  /// صافي مستحقّات المطعم من قيمة وجباته بعد خصم عمولة التطبيق.
+  static double restaurantNet(double itemsTotal) =>
+      itemsTotal - appCommission(itemsTotal);
+
+  /// نسبة ضريبة القيمة المضافة في السعودية.
+  static const double vatRate = 0.15;
+
+  // -------------------------------------------------------------------------
+  // إعدادات دفتر السائق — مفاتيح المراحل. المرحلة الحالية (صفر: التجريب)
+  // تسجّل كل الحركات بلا أي تقييد، والمحاسبة يدوية خارج التطبيق.
+  //
+  // الانتقال للمراحل التالية تغيير قيمة هنا لا إعادة برمجة:
+  //   المرحلة ١: تنبيه فقط (العتبة مضبوطة أصلاً، والسقف يبقى null).
+  //   المرحلة ٢: ضبط driverDebtHardLimit ثم maxCashOrderValue.
+  // راجع dev-docs/driver-wallet-design.md للتفصيل.
+  // -------------------------------------------------------------------------
+
+  /// عتبة تنبيه دَين السائق — تُعرض تحذيراً فقط، ولا توقف أي إسناد.
+  static const double driverDebtWarningThreshold = 50.0;
+
+  /// سقف الدَّين الذي يتوقّف عنده إسناد الطلبات النقدية.
+  /// `null` = بلا إيقاف إطلاقاً (المرحلة الحالية).
+  static const double? driverDebtHardLimit = null;
+
+  /// أقصى قيمة طلب يُسمح بدفعها نقداً. `null` = بلا سقف (المرحلة الحالية).
+  static const double? maxCashOrderValue = null;
+
+  /// هل بلغ رصيد السائق حدّ التوقّف عن الطلبات النقدية؟ يُرجع false دائماً
+  /// ما دام [driverDebtHardLimit] بقيمة null — أي لا تقييد في مرحلة التجريب.
+  static bool isDriverCashBlocked(double balance) {
+    final limit = driverDebtHardLimit;
+    if (limit == null) return false;
+    return balance <= -limit;
+  }
+
+  /// هل تجاوز السائق عتبة التنبيه؟ (عرض فقط، بلا أثر تشغيلي)
+  static bool isDriverDebtWarning(double balance) =>
+      balance <= -driverDebtWarningThreshold;
+
+  /// قيمة الضريبة **المتضمَّنة** في مبلغ شامل لها. الأسعار المعروضة للعميل
+  /// شاملة الضريبة (كما يقتضي النظام)، فتُستخرج منها بالمعادلة
+  /// المبلغ × 15 ÷ 115 — لا بضربها في 15% (ذاك يُضاعف الاحتساب).
+  static double vatIncludedIn(double grossAmount) =>
+      grossAmount * vatRate / (1 + vatRate);
+
+  /// إجمالي ما يدفعه العميل = الوجبات + التوصيل + الرسم الثابت (بلا عمولة
+  /// الوجبة — فهي تُخصم من المطعم لا تُضاف على العميل).
+  static double customerTotal(double itemsTotal, double distanceKm) =>
+      itemsTotal + deliveryFee(distanceKm) + fixedDeliveryCommission;
+}

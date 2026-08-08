@@ -8,7 +8,10 @@ import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/image_upload_field.dart';
+import '../../providers/storage_service.dart';
 import 'pick_location_screen.dart';
+import 'admin_menu_import_screen.dart';
 
 class AdminRestaurantsTab extends StatelessWidget {
   const AdminRestaurantsTab({super.key});
@@ -66,7 +69,7 @@ class _RestaurantCard extends StatelessWidget {
             child: Text(restaurant.emoji, style: const TextStyle(fontSize: 24)),
           ),
         ),
-        title: Text(restaurant.name,
+        title: Text(restaurant.displayName,
             style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(restaurant.description,
             maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -156,16 +159,21 @@ class _RestaurantForm extends StatefulWidget {
 
 class _RestaurantFormState extends State<_RestaurantForm> {
   final _form = GlobalKey<FormState>();
-  late final TextEditingController _name, _desc, _phone, _addr,
+  late final TextEditingController _name, _branch, _desc, _phone, _addr,
       _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji;
   bool _loading = false;
   double? _lat, _lng;
+  String? _imageUrl;
+  // معرّف ثابت يُحسب مرة واحدة، ليُرفع الغلاف تحت مسار المطعم نفسه حتى قبل
+  // حفظه لأول مرة (بدل توليد معرّف جديد عند الحفظ فتضيع الصورة المرفوعة).
+  late final String _restaurantId = widget.existing?.id ?? const Uuid().v4();
 
   @override
   void initState() {
     super.initState();
     final r = widget.existing;
     _name  = TextEditingController(text: r?.name ?? '');
+    _branch = TextEditingController(text: r?.branchName ?? '');
     _desc  = TextEditingController(text: r?.description ?? '');
     _phone = TextEditingController(text: r?.phone ?? '');
     _addr  = TextEditingController(text: r?.address ?? '');
@@ -178,11 +186,12 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _emoji = TextEditingController(text: r?.emoji ?? '🍽️');
     _lat = r?.lat;
     _lng = r?.lng;
+    _imageUrl = r?.imageUrl;
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _desc, _phone, _addr, _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji]) {
+    for (final c in [_name, _branch, _desc, _phone, _addr, _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji]) {
       c.dispose();
     }
     super.dispose();
@@ -210,8 +219,9 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     setState(() => _loading = true);
     final service = context.read<FirebaseService>();
     final r = Restaurant(
-      id: widget.existing?.id ?? const Uuid().v4(),
+      id: _restaurantId,
       name: _name.text.trim(),
+      branchName: _branch.text.trim(),
       description: _desc.text.trim(),
       emoji: _emoji.text.trim(),
       phone: _phone.text.trim(),
@@ -224,6 +234,9 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
       rating: widget.existing?.rating ?? 5.0,
+      ratingCount: widget.existing?.ratingCount ?? 0,
+      totalOrders: widget.existing?.totalOrders ?? 0,
+      imageUrl: _imageUrl,
       lat: _lat,
       lng: _lng,
     );
@@ -265,6 +278,15 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 const SizedBox(height: 16),
                 _f(_emoji, 'رمز المطعم (Emoji)', isReq: false),
                 _f(_name, 'اسم المطعم'),
+                // اسم الفرع اختياري — يُملأ فقط للعلامات ذات الفروع المتعددة
+                // ليظهر للعميل «فطير ستيشن — العزيزية» بدل اسمين متطابقين.
+                _f(_branch, 'اسم الفرع (اختياري) — مثل: العزيزية', isReq: false),
+                ImageUploadField(
+                  label: 'صورة المطعم',
+                  imageUrl: _imageUrl,
+                  pathBuilder: (ext) => StorageService.restaurantPath(_restaurantId, ext),
+                  onChanged: (url) => setState(() => _imageUrl = url),
+                ),
                 _f(_desc, 'وصف المطعم'),
                 _f(_phone, 'رقم الهاتف', type: TextInputType.phone),
                 _f(_addr, 'العنوان'),
@@ -342,7 +364,24 @@ class MenuManagerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return Scaffold(
-      appBar: AppBar(title: Text('قائمة ${restaurant.name}')),
+      appBar: AppBar(
+        title: Text('قائمة ${restaurant.displayName}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file_outlined),
+            tooltip: 'استيراد منيو',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdminMenuImportScreen(
+                  restaurantId: restaurant.id,
+                  restaurantName: restaurant.displayName,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: AppStreamBuilder<List<MenuCategory>>(
         stream: () => service.streamCategories(restaurant.id),
         builder: (ctx, cats) {
@@ -541,10 +580,13 @@ class _ItemForm extends StatefulWidget {
 
 class _ItemFormState extends State<_ItemForm> {
   final _form = GlobalKey<FormState>();
-  late final TextEditingController _name, _desc, _price, _emoji, _stock;
+  late final TextEditingController _name, _desc, _price, _emoji, _stock, _kcal;
   bool _loading = false;
   bool _trackStock = false;
   late String? _categoryId;
+  String? _imageUrl;
+  // معرّف ثابت للصنف حتى تُرفع صورته تحت مساره الصحيح قبل الحفظ الأول.
+  late final String _itemId = widget.existing?.id ?? const Uuid().v4();
 
   @override
   void initState() {
@@ -555,7 +597,9 @@ class _ItemFormState extends State<_ItemForm> {
     _price = TextEditingController(text: i?.price.toString() ?? '');
     _emoji = TextEditingController(text: i?.emoji ?? '🍽️');
     _stock = TextEditingController(text: i?.stockQuantity?.toString() ?? '');
+    _kcal  = TextEditingController(text: i?.kcal?.toString() ?? '');
     _trackStock = i?.trackStock ?? false;
+    _imageUrl = i?.imageUrl;
     // القيمة المبدئية للفئة: فئة الصنف الحالية إن كانت لا تزال موجودة فعلاً
     // ضمن قائمة الفئات، وإلا (صنف "بلا فئة" مثلاً) تُترك بلا اختيار مبدئي
     // ليختار المدير فئة صريحة بدل الإبقاء على معرّف فئة غير موجود.
@@ -565,7 +609,7 @@ class _ItemFormState extends State<_ItemForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _desc, _price, _emoji, _stock]) c.dispose();
+    for (final c in [_name, _desc, _price, _emoji, _stock, _kcal]) c.dispose();
     super.dispose();
   }
 
@@ -575,7 +619,7 @@ class _ItemFormState extends State<_ItemForm> {
     setState(() => _loading = true);
     final service = context.read<FirebaseService>();
     final item = MenuItem(
-      id: widget.existing?.id ?? const Uuid().v4(),
+      id: _itemId,
       restaurantId: widget.restaurantId,
       categoryId: _categoryId!,
       name: _name.text.trim(),
@@ -586,6 +630,9 @@ class _ItemFormState extends State<_ItemForm> {
       trackStock: _trackStock,
       stockQuantity:
           _trackStock && _stock.text.isNotEmpty ? int.tryParse(_stock.text) : null,
+      imageUrl: _imageUrl,
+      totalSold: widget.existing?.totalSold ?? 0,
+      kcal: int.tryParse(_kcal.text.trim()),
     );
     if (widget.existing == null) {
       await service.addMenuItem(item);
@@ -627,6 +674,15 @@ class _ItemFormState extends State<_ItemForm> {
                 _f(_name, 'اسم الصنف'),
                 _f(_desc, 'الوصف'),
                 _f(_price, 'السعر', type: TextInputType.number, validator: validatePrice),
+                _f(_kcal, 'السعرات الحرارية (اختياري)',
+                    type: TextInputType.number, isReq: false),
+                ImageUploadField(
+                  label: 'صورة الصنف',
+                  imageUrl: _imageUrl,
+                  pathBuilder: (ext) =>
+                      StorageService.menuItemPath(widget.restaurantId, _itemId, ext),
+                  onChanged: (url) => setState(() => _imageUrl = url),
+                ),
                 SwitchListTile(
                   value: _trackStock,
                   onChanged: (v) => setState(() => _trackStock = v),

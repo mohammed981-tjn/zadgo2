@@ -1,7 +1,9 @@
+// lib/providers/auth_provider.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/models.dart';
 import 'firebase_service.dart';
+import 'push_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseService _service;
@@ -30,6 +32,12 @@ class AuthProvider extends ChangeNotifier {
           _error = 'تم تعطيل هذا الحساب، يرجى مراجعة الإدارة';
         } else {
           _user = fetched;
+          // تسجيل الجهاز لإشعارات FCM بعد اكتمال بيانات المستخدم — هنا
+          // تحديداً (لا في login وحدها) حتى يشمل أيضاً فتح التطبيق بجلسة
+          // محفوظة، وهي الحالة الأكثر تكراراً بمرّات من تسجيل دخول جديد.
+          if (fetched != null) {
+            PushService.registerDevice(fetched.uid, _service.updateFcmToken);
+          }
         }
       } catch (_) {
         _user = null;
@@ -38,11 +46,43 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// ينتظر فعلياً حتى تمتلئ بيانات المستخدم الكاملة (_user) بعد نجاح
+  /// المصادقة، بدل الاعتماد فقط على تدفّق authStateChanges المستقل الذي
+  /// قد يصل بعد أن يكون login() قد أرجع true بالفعل — وهذا بالضبط ما كان
+  /// يسبب ظهور "فشل تسجيل الدخول" رغم صحة البيانات في المحاولة الأولى:
+  /// login_screen.dart كان يتحقق من auth.user فور استلام true، بينما
+  /// auth.user لم يُملأ بعد لأن _onAuthChanged لم يكتمل.
+  ///
+  /// نفحص كل 100 مللي ثانية لمدة أقصاها 8 ثوانٍ (حد أمان معقول لأي بطء
+  /// شبكة غير متوقع)؛ إن لم يمتلئ _user خلالها، نعتبرها حالة فشل حقيقية
+  /// بدل الانتظار للأبد.
+  Future<bool> _waitForUserData() async {
+    const maxWait = Duration(seconds: 8);
+    const pollInterval = Duration(milliseconds: 100);
+    final deadline = DateTime.now().add(maxWait);
+
+    while (_user == null && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(pollInterval);
+    }
+    return _user != null;
+  }
+
   Future<bool> login(String email, String password) async {
     _loading = true; _error = null; notifyListeners();
     try {
       await _service.signIn(email.trim(), password.trim());
-      _loading = false; notifyListeners();
+
+      // ننتظر هنا حتى يكتمل _onAuthChanged فعلياً ويملأ _user، بدل إرجاع
+      // true فوراً بعد نجاح المصادقة وحدها.
+      final userReady = await _waitForUserData();
+
+      _loading = false;
+      notifyListeners();
+
+      if (!userReady) {
+        _error = 'تعذّر تحميل بيانات الحساب، حاول مرة أخرى';
+        return false;
+      }
       return true;
     } on FirebaseAuthException catch (e) {
       _error = _mapError(e.code); _loading = false; notifyListeners();
@@ -79,9 +119,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// تسجيل ذاتي بدور محدد (مدير عام/سائق/مدير مطعم) باستخدام رمز تسجيل
-  /// صادر من المدير العام — يحدد الرمز نفسه الدور، ويربط حساب مدير المطعم
-  /// تلقائياً بالمطعم صاحب الرمز عند الحاجة.
   Future<bool> registerWithCode({
     required String code,
     required String name,
@@ -115,6 +152,14 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // يُمسح توكن الجهاز من مستند المستخدم قبل الخروج (بعده تمنع قواعد
+    // الأمان الكتابة)، فلا تصل إشعارات حسابٍ خرج صاحبه إلى جهاز قد
+    // يستخدمه شخص آخر.
+    final uid = _user?.uid;
+    if (uid != null) {
+      try { await _service.clearFcmToken(uid); } catch (_) {}
+    }
+    await PushService.unregisterDevice();
     try { await _service.signOut(); } catch (_) {}
     _user = null; notifyListeners();
   }

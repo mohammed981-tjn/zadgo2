@@ -1,26 +1,22 @@
 // lib/screens/restaurant/restaurant_home.dart
 //
-// شاشة "مدير المطعم" — أساس أُعيد استخدامه من شاشة الطلبات في لوحة المدير
-// (admin_home.dart) مع فلترة تلقائية على restaurantId الخاص بالمستخدم فقط.
-// هذه الشاشة هي نقطة الانطلاق التي سيُبنى فوقها تطبيق المطعم المنفصل مستقبلاً.
+// شاشة "مدير المطعم" — دور المطعم ثلاث مراحل فعلية فقط لا رابعة لها:
+//   ١) تأكيد الاستلام   (restaurantPending  → restaurantAccepted)
+//   ٢) جاري التحضير     (restaurantAccepted → preparing)
+//   ٣) جاهز للاستلام    (preparing          → readyForPickup)
 //
-// [مرحلة أ]: عرض أصناف الطلب داخل البطاقة، ملاحظة العميل العامة، رقم جواله
-// مع زر اتصال مباشر، ووقت انتظار الطلب منذ إنشائه.
-//
-// [مرحلة ب]: قائمة الطلبات مقسّمة لتبويبين فرعيين بشريط TabBar — "نشطة"
-// (الأقدم أولاً) و"منتهية" (الأحدث أولاً).
-//
-// [مرحلة ج]: تنبيه صوتي (SystemSound، بلا مكتبات أو ملفات صوت إضافية) يتكرر
-// 5 مرات عند وصول طلب جديد بينما التطبيق مفتوح، مع ثلاثة مؤشرات بصرية معاً:
-// شارة عددية حمراء على تبويب "الطلبات" بالشريط السفلي، وميض لخلفية أول طلب
-// جديد لثوانٍ عند ظهوره، وشريط علوي مؤقت (Banner) يظهر حتى لو كان المطعم
-// متصفحاً تبويباً آخر (التقارير/الأسعار) وقت وصول الطلب. لا يغطي هذا إشعار
-// نظام حين يكون التطبيق مغلقاً تماماً — ذاك يتطلب Cloud Functions، والمشروع
-// مبني عمداً على تجنّبها (انظر تعليق أعلى firestore.rules).
+// بعد "جاهز للاستلام"، لا يملك المطعم أي زر إضافي. الانتقال التالي
+// (readyForPickup → onTheWay) ينتج حصراً عن ضغطة السائق نفسه على "استلمت
+// الطلب" في تطبيقه — لأن ضغطة المطعم وحدها غير موثوقة لتأكيد استلام لم
+// يحدث فعلياً (قد يضغط المطعم قبل أن يصل السائق). بمجرد ضغطة السائق،
+// شاشة المطعم تعرض تلقائياً شارة "تم التسليم" دون أي إجراء من طرفها.
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show SystemSound, SystemSoundType;
+import 'package:flutter/services.dart'
+    show HapticFeedback, SystemSound, SystemSoundType;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
@@ -28,6 +24,8 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../customer/submit_complaint_screen.dart';
+import '../customer/my_complaints_screen.dart';
 import 'restaurant_reports_tab.dart';
 import 'restaurant_menu_prices_tab.dart';
 
@@ -41,31 +39,34 @@ class RestaurantHome extends StatefulWidget {
 class _RestaurantHomeState extends State<RestaurantHome> {
   int _tab = 0;
 
-  /// معرّفات الطلبات الجديدة (restaurantPending) المعروفة من آخر مرة وصلت
-  /// فيها بيانات — تُستخدم لاكتشاف وصول طلب جديد فعلياً (id لم يكن موجوداً
-  /// سابقاً) بدل الاعتماد على مجرد تغيّر عدد الطلبات، الذي قد يتغيّر أيضاً
-  /// عند تحديث حالة طلب موجود مسبقاً.
   Set<String> _knownPendingIds = {};
   bool _firstSnapshot = true;
   int _newOrdersBadgeCount = 0;
   OverlayEntry? _bannerEntry;
+  Timer? _alarmTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // جهاز المطعم «شاشة طلبات» تعمل طوال الدوام: تبقى الشاشة مضاءة ما دام
+    // التطبيق مفتوحاً، فلا يفوّت المطعم طلباً لأن الجهاز أطفأ شاشته —
+    // وهي أكثر أسباب «لم نستلم الطلب» شيوعاً في التشغيل الفعلي.
+    WakelockPlus.enable();
+  }
 
   @override
   void dispose() {
+    WakelockPlus.disable();
+    _stopAlarm();
     _bannerEntry?.remove();
     super.dispose();
   }
 
-  /// يُستدعى مع كل دفعة جديدة من الطلبات القادمة من Firestore. يقارن
-  /// الطلبات الجديدة الحالية (بانتظار تأكيد المطعم) بما كان معروفاً سابقاً،
-  /// ويطلق التنبيه الصوتي/البصري فقط عند ظهور معرّف لم يكن موجوداً من قبل.
   void _detectNewOrders(List<Order> allOrders) {
     final pendingNow =
         allOrders.where((o) => o.status == OrderStatus.restaurantPending).map((o) => o.id).toSet();
 
     if (_firstSnapshot) {
-      // أول تحميل للشاشة: لا نُطلق تنبيهات لطلبات كانت موجودة أصلاً قبل
-      // فتح التطبيق، فقط نسجّلها كنقطة انطلاق للمقارنة.
       _firstSnapshot = false;
       _knownPendingIds = pendingNow;
       return;
@@ -74,22 +75,48 @@ class _RestaurantHomeState extends State<RestaurantHome> {
     final newlyArrived = pendingNow.difference(_knownPendingIds);
     _knownPendingIds = pendingNow;
 
+    // إن عولجت كل الطلبات المعلّقة من تبويب الطلبات مباشرةً (دون ضغط
+    // الشريط)، يسكت الإنذار ويختفي الشريط من تلقاء نفسه.
+    if (pendingNow.isEmpty) {
+      _stopAlarm();
+      _bannerEntry?.remove();
+      _bannerEntry = null;
+    }
+
     if (newlyArrived.isEmpty) return;
 
     setState(() => _newOrdersBadgeCount += newlyArrived.length);
-    _playAlertSound();
+    _startAlarm();
     _showNewOrderBanner(newlyArrived.length);
   }
 
-  Future<void> _playAlertSound() async {
-    for (var i = 0; i < 5; i++) {
-      await SystemSound.play(SystemSoundType.alert);
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
+  /// إنذار متكرّر لا خمس نغمات وتصمت: يظل يرنّ ويهتزّ كل ثانيتين حتى يضغط
+  /// المدير شريط «طلب جديد» فيُقرّ باستلامه — خمس نغمات في مطبخ مشغول تمرّ
+  /// دون أن يسمعها أحد، والطلب الضائع خسارة مباشرة. سقف أمان ٣ دقائق حتى
+  /// لا يرنّ جهاز مهجور بلا نهاية.
+  static const Duration _alarmInterval = Duration(seconds: 2);
+  static const int _alarmMaxTicks = 90;
+
+  void _startAlarm() {
+    _alarmTimer?.cancel();
+    var ticks = 0;
+    SystemSound.play(SystemSoundType.alert);
+    HapticFeedback.vibrate();
+    _alarmTimer = Timer.periodic(_alarmInterval, (t) {
+      if (++ticks >= _alarmMaxTicks) {
+        _stopAlarm();
+        return;
+      }
+      SystemSound.play(SystemSoundType.alert);
+      HapticFeedback.vibrate();
+    });
   }
 
-  /// شريط علوي مؤقت يظهر فوق أي تبويب حالي (حتى لو كان المطعم يتصفّح
-  /// التقارير أو الأسعار وقت وصول الطلب)، ويختفي تلقائياً أو بالضغط عليه.
+  void _stopAlarm() {
+    _alarmTimer?.cancel();
+    _alarmTimer = null;
+  }
+
   void _showNewOrderBanner(int count) {
     _bannerEntry?.remove();
     final overlay = Overlay.of(context);
@@ -102,6 +129,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           color: Colors.transparent,
           child: GestureDetector(
             onTap: () {
+              _stopAlarm();
               _bannerEntry?.remove();
               _bannerEntry = null;
               setState(() {
@@ -136,7 +164,11 @@ class _RestaurantHomeState extends State<RestaurantHome> {
     );
     _bannerEntry = entry;
     overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 6), () {
+    // لا إخفاء تلقائياً سريعاً: الشريط يبقى حتى يُقرّ المدير به بالضغط أو
+    // تُعالَج الطلبات المعلّقة كلها — إخفاؤه بعد ثوانٍ كان يعني أن من غاب
+    // عن الشاشة دقيقة لا يرى أي أثر للطلب الفائت. سقف أمان يطابق سقف
+    // الإنذار الصوتي.
+    Future.delayed(_alarmInterval * _alarmMaxTicks, () {
       if (_bannerEntry == entry) {
         entry.remove();
         _bannerEntry = null;
@@ -157,6 +189,24 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           _ => 'أسعار القائمة',
         }),
         actions: [
+          IconButton(
+            tooltip: 'الشكاوى',
+            icon: const Icon(Icons.support_agent_rounded),
+            onPressed: () {
+              final uid = auth.user?.uid;
+              if (uid == null) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MyComplaintsScreen(
+                    uid: uid,
+                    role: UserRole.restaurantManager,
+                    restaurantId: auth.user?.restaurantId,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -212,12 +262,6 @@ class _RestaurantHomeState extends State<RestaurantHome> {
   }
 }
 
-/// قائمة طلبات المطعم، مقسّمة لتبويبين فرعيين: نشطة ومنتهية.
-///
-/// "نشطة" = كل حالة ما زالت جارية (isActive حسب تعريفها في models.dart)،
-/// مرتّبة تصاعدياً بوقت الإنشاء (الأقدم أولاً) لأنه الأكثر إلحاحاً على
-/// المطعم. "منتهية" = المكتملة/المرفوضة/الملغاة، مرتّبة تنازلياً (الأحدث
-/// أولاً) لأنها للمراجعة لا للتنفيذ.
 class _RestaurantOrdersList extends StatefulWidget {
   final String restaurantId;
   final void Function(List<Order> allOrders) onOrdersChanged;
@@ -265,17 +309,16 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
         child: AppStreamBuilder<List<Order>>(
           stream: () => service.streamRestaurantOrders(widget.restaurantId),
           builder: (ctx, orders) {
-            // إبلاغ الشاشة الأم بكل دفعة بيانات جديدة لاكتشاف الطلبات
-            // الجديدة فعلياً (بعد انتهاء بناء هذا الإطار، تفادياً لاستدعاء
-            // setState أثناء البناء).
             WidgetsBinding.instance.addPostFrameCallback((_) {
               widget.onOrdersChanged(orders);
             });
 
-            final active = orders.where((o) => o.status.isActive).toList()
-              ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-            final finished = orders.where((o) => o.status.isFinished).toList()
-              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            final active =
+                orders.where((o) => o.status.isRestaurantResponsibility).toList()
+                  ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+            final finished =
+                orders.where((o) => !o.status.isRestaurantResponsibility).toList()
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
             return TabBarView(controller: _tabController, children: [
               _OrdersListView(
@@ -298,8 +341,6 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
   }
 }
 
-/// قائمة عرض بسيطة قابلة لإعادة الاستخدام بين تبويبَي "نشطة" و"منتهية"،
-/// كل واحد برسالة فراغ مختلفة.
 class _OrdersListView extends StatelessWidget {
   final List<Order> orders;
   final FirebaseService service;
@@ -321,21 +362,12 @@ class _OrdersListView extends StatelessWidget {
       itemBuilder: (_, i) => _RestaurantOrderCard(
         order: orders[i],
         service: service,
-        // وميض لخلفية البطاقة يُفعَّل فقط لأول طلب جديد بانتظار التأكيد —
-        // أكثر الحالات إلحاحاً وأولها ظهوراً في القائمة (الأقدم أولاً).
         highlightAsNew: i == 0 && orders[i].status == OrderStatus.restaurantPending,
       ),
     );
   }
 }
 
-/// بطاقة طلب واحد — شارة حالة بارزة أعلى البطاقة، قائمة الأصناف المطلوبة
-/// فعلياً، ثم زر إجراء واحد بلون كامل أسفلها. تدعم وميضاً اختيارياً لخلفية
-/// البطاقة عند تفعيل [highlightAsNew] لجذب الانتباه لطلب وصل للتو.
-///
-/// القيود على صلاحيات المطعم كما هي دون أي تغيير: لا تتبع سائق، لا إلغاء،
-/// لا تأكيد توصيل — تتوقف إجراءات المطعم عند "الطلب جاهز"؛ ما بعدها (بحث
-/// سائق، التوصيل الفعلي) من اختصاص السائق ولوحة المدير العام حصراً.
 class _RestaurantOrderCard extends StatefulWidget {
   final Order order;
   final FirebaseService service;
@@ -353,13 +385,12 @@ class _RestaurantOrderCard extends StatefulWidget {
 class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     with SingleTickerProviderStateMixin {
   AnimationController? _pulseController;
+  bool _actionLoading = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.highlightAsNew) {
-      // AnimationController.repeat() ليس له معامل لعدد التكرارات؛ الإيقاف
-      // بعد 5 دورات (ذهاب وعودة) يُنفَّذ يدوياً هنا عبر عدّاد في المستمع.
       var completedCycles = 0;
       _pulseController = AnimationController(
         vsync: this,
@@ -382,31 +413,29 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     super.dispose();
   }
 
-  /// نص ولون وأيقونة الشارة العلوية حسب حالة الطلب — بلغة موجّهة للمطعم
-  /// بدل النص التقني العام المشترك بين كل الأدوار (order.status.label).
   (String, Color, IconData) get _bannerInfo {
-    final order = widget.order;
-    switch (order.status) {
+    switch (widget.order.status) {
       case OrderStatus.restaurantPending:
         return ('طلب جديد بانتظار التأكيد', AppColors.warning, Icons.fiber_new_rounded);
       case OrderStatus.restaurantAccepted:
-        return ('تم الاستلام — جاري التجهيز', AppColors.primary, Icons.hourglass_top_rounded);
+        return ('تم تأكيد الاستلام', AppColors.primary, Icons.check_circle_outline_rounded);
       case OrderStatus.preparing:
-        return ('قيد التحضير', AppColors.primary, Icons.restaurant_rounded);
+        return ('جاري التحضير', AppColors.primary, Icons.restaurant_rounded);
       case OrderStatus.readyForPickup:
-        return ('جاهز للاستلام', Colors.teal, Icons.shopping_bag_rounded);
+        return ('جاهز — بانتظار استلام السائق', Colors.teal, Icons.shopping_bag_rounded);
+      case OrderStatus.restaurantRejected:
+        return ('تم رفض الطلب', AppColors.error, Icons.block_rounded);
       case OrderStatus.searchingDriver:
-        return ('بانتظار سائق', Colors.deepPurple, Icons.manage_search_rounded);
       case OrderStatus.driverAssigned:
-      case OrderStatus.pickedUp:
       case OrderStatus.onTheWay:
-        return ('في الطريق إلى العميل', Colors.deepPurple, Icons.delivery_dining_rounded);
+        return ('تم التسليم — جاري التوصيل', AppColors.success, Icons.delivery_dining_rounded);
+      case OrderStatus.delivered:
+        return ('تم التوصيل للعميل', AppColors.success, Icons.done_all_rounded);
       default:
-        return (order.status.label, order.status.color, Icons.info_outline_rounded);
+        return (widget.order.status.label, widget.order.status.color, Icons.info_outline_rounded);
     }
   }
 
-  /// نص وقت الانتظار منذ إنشاء الطلب، بصياغة عربية مختصرة (دقائق أو ساعات).
   String _waitingLabel() {
     final elapsed = DateTime.now().difference(widget.order.createdAt);
     if (elapsed.inMinutes < 1) return 'منذ لحظات';
@@ -430,29 +459,130 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     }
   }
 
+  Future<void> _confirmAcceptance(BuildContext context) async {
+    setState(() => _actionLoading = true);
+    try {
+      await widget.service.updateOrderStatus(widget.order.id, OrderStatus.restaurantAccepted);
+      await widget.service.tryAutoAssignOnAcceptance(widget.order);
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  Future<void> _confirmReady(BuildContext context) async {
+    setState(() => _actionLoading = true);
+    try {
+      await widget.service.updateOrderStatus(widget.order.id, OrderStatus.readyForPickup);
+      await widget.service.retryAutoAssignIfNeeded(widget.order);
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  Future<void> _runStatusChange(BuildContext context, OrderStatus to) async {
+    setState(() => _actionLoading = true);
+    try {
+      await widget.service.updateOrderStatus(widget.order.id, to);
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  Future<void> _showRejectDialog(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('رفض الطلب'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: ctrl,
+            autofocus: true,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'سبب الرفض',
+              hintText: 'مثال: نفد أحد الأصناف، المطعم مغلق مؤقتاً...',
+            ),
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'يرجى كتابة سبب الرفض' : null,
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('تراجع')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogCtx, ctrl.text.trim());
+              }
+            },
+            child: const Text('تأكيد الرفض'),
+          ),
+        ],
+      ),
+    );
+    if (reason == null || !context.mounted) return;
+    setState(() => _actionLoading = true);
+    try {
+      await widget.service.rejectOrderByRestaurant(widget.order.id, reason);
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر رفض الطلب');
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
-    final service = widget.service;
     final (bannerLabel, bannerColor, bannerIcon) = _bannerInfo;
+    final auth = context.read<app_auth.AuthProvider>();
 
     final cardContent = Padding(
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // الشارة العلوية البارزة.
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: bannerColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: bannerColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(bannerIcon, size: 16, color: bannerColor),
+              const SizedBox(width: 6),
+              Text(bannerLabel,
+                  style: TextStyle(color: bannerColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
+            ]),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(bannerIcon, size: 16, color: bannerColor),
-            const SizedBox(width: 6),
-            Text(bannerLabel,
-                style: TextStyle(color: bannerColor, fontWeight: FontWeight.w700, fontSize: 12.5)),
-          ]),
-        ),
+          const Spacer(),
+          // ✅ زر الشكوى — المطعم يقدّم شكوى ضد السائق أو العميل من هنا،
+          // ويختفي بعد انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
+          if (order.canSubmitComplaint)
+            IconButton(
+              icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning, size: 20),
+              tooltip: 'تقديم شكوى',
+              visualDensity: VisualDensity.compact,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SubmitComplaintScreen(
+                    order: order,
+                    submittedByUid: auth.user?.uid ?? '',
+                    submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
+                    submittedByRole: UserRole.restaurantManager,
+                  ),
+                ),
+              ),
+            ),
+        ]),
         const SizedBox(height: 10),
         Row(children: [
           Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
@@ -461,7 +591,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 15)),
         ]),
         const SizedBox(height: 4),
-        // اسم العميل + وقت الانتظار + زر اتصال (إن توفّر الرقم).
         Row(children: [
           const Icon(Icons.person_outline, size: 15, color: AppColors.textGray),
           const SizedBox(width: 6),
@@ -483,7 +612,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ),
         ]),
         const Divider(height: 20),
-        // قائمة الأصناف المطلوبة.
         ...order.items.map((item) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -514,8 +642,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                 ),
               ]),
             )),
-        // ملاحظة العميل العامة على الطلب كله (مختلفة عن extras الخاصة بكل
-        // صنف على حدة).
         if (order.notes != null && order.notes!.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
           Container(
@@ -535,33 +661,65 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             ]),
           ),
         ],
-        // ملاحظة: تم إزالة زر "رفض/إلغاء الطلب" نهائياً من شاشة المطعم بناءً على
-        // طلب المنصة — إلغاء الطلب لا يظهر إلا في شاشة الطلبات بلوحة المدير العام.
-        // كذلك تتبع السائق وتأكيد إغلاق/تسليم الطلب ليسا من اختصاص المطعم؛ دور
-        // المطعم يقتصر على تأكيد الاستلام وتجهيز الطلب وتعليمه جاهزاً، ثم يتولى
-        // السائق ولوحة المدير العام بقية دورة الطلب (تتبع الموقع والتسليم).
+        if (order.status == OrderStatus.restaurantRejected &&
+            order.rejectionReason != null &&
+            order.rejectionReason!.trim().isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.error.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.block_rounded, size: 14, color: AppColors.error),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text('سبب الرفض: ${order.rejectionReason}',
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.textDark)),
+              ),
+            ]),
+          ),
+        ],
         if (order.status == OrderStatus.restaurantPending) ...[
           const SizedBox(height: 10),
-          _ActionButton(
-            label: 'تأكيد استلام الطلب',
-            color: AppColors.primary,
-            onPressed: () => service.updateOrderStatus(order.id, OrderStatus.restaurantAccepted),
-          ),
+          Row(children: [
+            Expanded(
+              child: _ActionButton(
+                label: 'تأكيد الاستلام',
+                color: AppColors.primary,
+                loading: _actionLoading,
+                onPressed: () => _confirmAcceptance(context),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ActionButton(
+                label: 'رفض',
+                color: AppColors.error,
+                loading: _actionLoading,
+                onPressed: () => _showRejectDialog(context),
+              ),
+            ),
+          ]),
         ],
         if (order.status == OrderStatus.restaurantAccepted) ...[
           const SizedBox(height: 10),
           _ActionButton(
-            label: 'تجهيز الطلب',
+            label: 'جاري التحضير',
             color: AppColors.primary,
-            onPressed: () => service.updateOrderStatus(order.id, OrderStatus.preparing),
+            loading: _actionLoading,
+            onPressed: () => _runStatusChange(context, OrderStatus.preparing),
           ),
         ],
         if (order.status == OrderStatus.preparing) ...[
           const SizedBox(height: 10),
           _ActionButton(
-            label: 'الطلب جاهز',
+            label: 'جاهز للاستلام',
             color: AppColors.success,
-            onPressed: () => service.updateOrderStatus(order.id, OrderStatus.readyForPickup),
+            loading: _actionLoading,
+            onPressed: () => _confirmReady(context),
           ),
         ],
       ]),
@@ -575,8 +733,6 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       );
     }
 
-    // البطاقة المميَّزة كطلب جديد: وميض لوني خفيف لخلفيتها عبر AnimatedBuilder
-    // بدل تغيير لون الشارة نفسها، حتى لا يتعارض مع لون شارة الحالة.
     return AnimatedBuilder(
       animation: _pulseController!,
       builder: (context, child) => Card(
@@ -593,13 +749,17 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
   }
 }
 
-/// زر إجراء بارز بخلفية ملوّنة كاملة العرض — بديل ElevatedButton الافتراضي
-/// ليطابق الطابع البصري لزر "تأكيد التوصيل" الأخضر في التصميم المرجعي.
 class _ActionButton extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onPressed;
-  const _ActionButton({required this.label, required this.color, required this.onPressed});
+  final bool loading;
+  const _ActionButton({
+    required this.label,
+    required this.color,
+    required this.onPressed,
+    this.loading = false,
+  });
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -612,8 +772,11 @@ class _ActionButton extends StatelessWidget {
             elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          onPressed: onPressed,
-          child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+          onPressed: loading ? null : onPressed,
+          child: loading
+              ? const SizedBox(
+                  width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
         ),
       );
 }

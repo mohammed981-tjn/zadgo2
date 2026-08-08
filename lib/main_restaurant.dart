@@ -80,7 +80,7 @@ class RestaurantApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         title: 'ZadGo مطعم',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.build(palette: FlavorPalette.restaurant),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
           child: child!,

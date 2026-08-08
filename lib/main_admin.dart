@@ -1,7 +1,12 @@
-// نقطة دخول مستقلة تماماً لتطبيق "لوحة تحكم المدير" (flavor: admin) — شجرة
+// نقطة دخول مستقلة تماماً لتطبيق "المدير العام" (flavor: admin) — شجرة
 // الاستيراد هنا تقتصر على AdminHome وشاشات التسجيل العامة؛ لا CustomerHome
 // ولا DriverHome ولا RestaurantHome ولا شاشة التسجيل المفتوح. أي حساب ليس
 // بدور مدير عام يُرفض ويُسجَّل خروجه تلقائياً.
+//
+// [هوية لونية]: يستخدم AppTheme.build(palette: FlavorPalette.admin) بدل
+// AppTheme.light الافتراضي، فتظهر كل عناصر واجهة هذا التطبيق باللون البني
+// الخاص بنكهة المدير — مختلف عمداً عن الذهبي الخاص بنكهة المطعم حتى لا
+// يُخلَط بينهما بصرياً.
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -46,10 +51,10 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   AppFlavorConfig.flavor = AppFlavor.admin;
-  AppFlavorConfig.flavorLabel = 'المدير';
-  AppFlavorConfig.flavorColor = const Color(0xFF6A1B9A);
+  AppFlavorConfig.flavorLabel = 'المدير العام';
+  AppFlavorConfig.flavorColor = const Color(0xFF6D4C41);
   AppFlavorConfig.restrictToRole = UserRole.admin;
-  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات الإدارة فقط';
+  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات المدير العام فقط';
   AppFlavorConfig.allowGuestBrowsing = false;
   AppFlavorConfig.buildHomeForRole = (role) => const AdminHome();
   AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => const LoginScreen();
@@ -76,7 +81,7 @@ class AdminApp extends StatelessWidget {
         navigatorKey: navigatorKey,
         title: 'ZadGo إدارة',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.build(palette: FlavorPalette.admin),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
           child: child!,

@@ -109,20 +109,7 @@ class _PriceTile extends StatelessWidget {
     );
     if (newPrice == null || !context.mounted) return;
     final service = context.read<FirebaseService>();
-    await service.updateMenuItem(MenuItem(
-      id: item.id,
-      restaurantId: item.restaurantId,
-      categoryId: item.categoryId,
-      name: item.name,
-      description: item.description,
-      price: newPrice,
-      emoji: item.emoji,
-      isAvailable: item.isAvailable,
-      stockQuantity: item.stockQuantity,
-      trackStock: item.trackStock,
-      totalSold: item.totalSold,
-      imageUrl: item.imageUrl,
-    ));
+    await service.updateMenuItem(item.copyWith(price: newPrice));
   }
 
   @override

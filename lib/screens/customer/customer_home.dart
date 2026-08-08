@@ -13,6 +13,7 @@ import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
+import 'account_screen.dart';
 
 /// عتبة عدد الطلبات المُنجزة التي تُظهر شارة "الأكثر طلباً" على بطاقة
 /// المطعم — لا تتطلب حقلاً إضافياً في البيانات، تُحسب من [Restaurant.totalOrders].
@@ -74,6 +75,7 @@ class _CustomerHomeState extends State<CustomerHome> {
           child: IndexedStack(index: _tab, children: [
             const _RestaurantsPage(),
             isGuest ? const _GuestOrdersPrompt() : const MyOrdersScreen(),
+            isGuest ? const _GuestOrdersPrompt() : const AccountScreen(),
           ]),
         ),
       ]),
@@ -81,6 +83,7 @@ class _CustomerHomeState extends State<CustomerHome> {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'طلباتي'),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: 'حسابي'),
         ]),
     );
   }
@@ -145,7 +148,8 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
     if (_query.trim().isNotEmpty) {
       final q = _query.trim();
       result = result.where((r) =>
-          r.name.contains(q) || r.description.contains(q) || r.address.contains(q)).toList();
+          r.name.contains(q) || r.branchName.contains(q) ||
+          r.description.contains(q) || r.address.contains(q)).toList();
     }
     return result;
   }
@@ -235,7 +239,7 @@ class _RestaurantCard extends StatelessWidget {
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(
-                  child: Text(r.name,
+                  child: Text(r.displayName,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textDark),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
@@ -252,7 +256,15 @@ class _RestaurantCard extends StatelessWidget {
                 ]),
               const SizedBox(height: 6),
               Wrap(spacing: 10, runSpacing: 4, children: [
-                _MetaChip(icon: Icons.star_rounded, label: r.rating.toStringAsFixed(1), color: AppColors.warning),
+                // مطعم بلا تقييمات يُعرض «جديد» بدل 5.0 وهمية، ومع التقييم
+                // يظهر عدد المقيّمين لأن 4.6 من 128 أصدق من 5.0 من واحد.
+                if (r.isNewlyListed)
+                  const _MetaChip(icon: Icons.fiber_new_rounded, label: 'جديد', color: AppColors.secondary)
+                else
+                  _MetaChip(
+                      icon: Icons.star_rounded,
+                      label: '${r.rating.toStringAsFixed(1)} (${r.ratingCount})',
+                      color: AppColors.warning),
                 _MetaChip(icon: Icons.timer_outlined, label: '${r.estimatedTimeMin} د', color: AppColors.textGray),
                 _MetaChip(icon: Icons.delivery_dining_outlined,
                     label: r.deliveryFee > 0 ? formatCurrency(r.deliveryFee) : 'توصيل مجاني',

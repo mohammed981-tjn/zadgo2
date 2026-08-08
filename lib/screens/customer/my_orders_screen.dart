@@ -10,7 +10,11 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import 'order_map_screen.dart';
 import 'order_chat_screen.dart';
+import 'submit_complaint_screen.dart';
 
+/// شاشة طلبات العميل — مقسّمة إلى تبويبين: «جارية» للطلبات التي تحتاج متابعة
+/// لحظية (خريطة/محادثة)، و«السابقة» كسجلّ للتصفّح. الفصل مقصود لأن غرض كل
+/// مجموعة مختلف تماماً، فلا تُدفن متابعة طلب جارٍ خلف عشرات الطلبات المنتهية.
 class MyOrdersScreen extends StatelessWidget {
   const MyOrdersScreen({super.key});
 
@@ -25,12 +29,57 @@ class MyOrdersScreen extends StatelessWidget {
         if (orders.isEmpty) {
           return const AppEmpty(emoji: '📋', title: 'لا يوجد طلبات');
         }
-        return ListView.builder(
-          padding: const EdgeInsets.all(12),
-          itemCount: orders.length,
-          itemBuilder: (_, i) => _OrderCard(order: orders[i]),
+        final active = orders.where((o) => o.status.isActive).toList();
+        final past = orders.where((o) => !o.status.isActive).toList();
+
+        return DefaultTabController(
+          length: 2,
+          initialIndex: active.isEmpty ? 1 : 0,
+          child: Column(
+            children: [
+              TabBar(
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textGray,
+                indicatorColor: AppColors.primary,
+                tabs: [
+                  Tab(text: active.isEmpty ? 'جارية' : 'جارية (${active.length})'),
+                  const Tab(text: 'السابقة'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _OrdersList(
+                      orders: active,
+                      emptyTitle: 'لا يوجد طلبات جارية',
+                    ),
+                    _OrdersList(
+                      orders: past,
+                      emptyTitle: 'لا يوجد طلبات سابقة',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _OrdersList extends StatelessWidget {
+  final List<Order> orders;
+  final String emptyTitle;
+  const _OrdersList({required this.orders, required this.emptyTitle});
+
+  @override
+  Widget build(BuildContext context) {
+    if (orders.isEmpty) return AppEmpty(emoji: '📋', title: emptyTitle);
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: orders.length,
+      itemBuilder: (_, i) => _OrderCard(order: orders[i]),
     );
   }
 }
@@ -42,6 +91,7 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
+    final auth = context.read<app_auth.AuthProvider>();
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -53,9 +103,16 @@ class _OrderCard extends StatelessWidget {
               Text('#${order.orderNumber}',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               const Spacer(),
-              // ✅ المحادثة والخريطة تظهران فقط أثناء استمرار التوصيل، وتُخفيان
-              // تلقائياً بمجرد انتهاء الطلب (تم التوصيل/ملغى/مرفوض).
-              if (!order.status.isFinished) ...[
+              if (order.status == OrderStatus.pickedUp ||
+                  order.status == OrderStatus.onTheWay) ...[
+                // الاتصال بالسائق — متاح بعد استلامه الطلب من المطعم فقط،
+                // وهي الفترة التي قد يحتاج فيها الطرفان التواصل المباشر.
+                if (order.driverPhone != null && order.driverPhone!.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.phone, color: AppColors.success),
+                    onPressed: () => callPhone(context, order.driverPhone),
+                    tooltip: 'الاتصال بالسائق',
+                  ),
                 if (order.driverId != null)
                   IconButton(
                     icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
@@ -108,7 +165,104 @@ class _OrderCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
                 ]),
               ),
+            // إلغاء الطلب — متاح للعميل فقط قبل أن يبدأ المطعم التحضير؛ بعدها
+            // يصبح الإلغاء إدارياً (المطعم بدأ يتكبّد التكلفة).
+            if (order.canCustomerCancel)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.cancel_outlined, size: 18),
+                    label: const Text('إلغاء الطلب'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: const BorderSide(color: AppColors.error),
+                    ),
+                    onPressed: () => _cancelOrder(context, service),
+                  ),
+                ),
+              )
+            else if (order.status.isActive)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(children: [
+                  const Icon(Icons.info_outline, size: 15, color: AppColors.textGray),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text('بدأ تحضير طلبك — للإلغاء تواصل مع الإدارة',
+                        style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+                  ),
+                ]),
+              ),
+            // الشكوى: زر واضح بدل أيقونة غامضة. تبقى متاحة بعد التسليم خلال
+            // مهلة 24 ساعة (وقت اكتشاف النقص/الخطأ/الجودة)، ثم يُغلق الطلب.
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: order.canSubmitComplaint
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.report_problem_outlined, size: 18),
+                        label: Text(_complaintLabel()),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.warning,
+                          side: const BorderSide(color: AppColors.warning),
+                        ),
+                        onPressed: () => _openComplaint(context, auth),
+                      ),
+                    )
+                  : Row(children: [
+                      const Icon(Icons.lock_outline, size: 15, color: AppColors.textGray),
+                      const SizedBox(width: 6),
+                      const Text('انتهت مهلة تقديم الشكوى',
+                          style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+                    ]),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _cancelOrder(BuildContext context, FirebaseService service) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'إلغاء الطلب',
+      content: 'هل تريد إلغاء طلبك #${order.orderNumber}؟',
+      confirmLabel: 'إلغاء الطلب',
+      confirmColor: AppColors.error,
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await service.cancelOrderByCustomer(order.id);
+      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+    } catch (_) {
+      if (context.mounted) {
+        showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
+      }
+    }
+  }
+
+  /// نص زر الشكوى — يُظهر ما تبقّى من المهلة على الطلبات المنتهية حتى يعرف
+  /// العميل أن الوقت محدود، بدل أن يفاجئه الإغلاق.
+  String _complaintLabel() {
+    final left = order.complaintTimeLeft;
+    if (left == null) return 'تقديم شكوى';
+    final hours = left.inHours;
+    if (hours >= 1) return 'تقديم شكوى (متبقٍ $hours ساعة)';
+    return 'تقديم شكوى (متبقٍ ${left.inMinutes} دقيقة)';
+  }
+
+  void _openComplaint(BuildContext context, app_auth.AuthProvider auth) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SubmitComplaintScreen(
+          order: order,
+          submittedByUid: auth.user?.uid ?? '',
+          submittedByName: auth.user?.name ?? '',
+          submittedByRole: UserRole.customer,
         ),
       ),
     );
@@ -157,6 +311,7 @@ class _OrderCard extends StatelessWidget {
                   orderRating: orderRating,
                   driverRating: driverRating,
                   review: reviewCtrl.text.trim().isEmpty ? null : reviewCtrl.text.trim(),
+                  restaurantId: o.restaurantId,
                 );
                 if (context.mounted) Navigator.pop(ctx);
               },
