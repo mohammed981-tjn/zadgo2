@@ -93,6 +93,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// تحديث النسخة المحلية من بيانات المستخدم بعد تعديل الملف الشخصي —
+  /// بدونها تبقى الشاشات التي تقرأ auth.user (إنشاء الطلب/الشكوى) بالاسم
+  /// القديم حتى إعادة تسجيل الدخول.
+  void applyProfile({required String name, required String phone}) {
+    if (_user == null) return;
+    _user = _user!.copyWith(name: name.trim(), phone: phone.trim());
+    notifyListeners();
+  }
+
   /// تغيير كلمة المرور: إعادة مصادقة بالحالية أولاً (شرط Firebase لعملية
   /// حساسة) ثم التحديث. أخطاء الشبكة والمصادقة تُترجم عربياً في [error].
   Future<bool> changePassword(String currentPassword, String newPassword) async {
