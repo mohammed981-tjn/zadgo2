@@ -201,7 +201,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, collection, query, orderBy, where,
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, query, orderBy, where,
   limit, onSnapshot, getDocs, writeBatch, runTransaction, Timestamp, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
@@ -244,6 +244,7 @@ const PAGES = [
   ['drivers', '🛵', 'السائقون'],
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
+  ['coupons', '🎟️', 'الكوبونات'],
   ['broadcast', '📢', 'رسالة جماعية'],
   ['import', '📥', 'استيراد منيو'],
   ['reports', '📈', 'التقارير'],
@@ -285,10 +286,12 @@ window.closeModal = closeModal;
 
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
-let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [], settings: null };
+let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
+  coupons: [], couponUsages: [], settings: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
+let couponFilter = 'all';
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
@@ -357,6 +360,10 @@ function startListeners() {
   bind(collection(db, 'drivers'), 'drivers');
   bind(query(collection(db, 'complaints'), orderBy('createdAt', 'desc'), limit(150)), 'complaints');
   bind(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(40)), 'broadcasts');
+  // الكوبونات: معرّف المستند هو الكود نفسه، فالترتيب بـcreatedAt يحتاج وجود
+  // الحقل في كل مستند — نرتّب محلياً بدلاً من ذلك تفادياً لسقوط الاستعلام.
+  bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
+  bind(query(collection(db, 'coupon_usages'), limit(500)), 'couponUsages');
   unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'config'),
     (d) => { S.settings = d.exists() ? d.data() : {}; if (page === 'settings') rerender(); },
     () => {}));
@@ -395,8 +402,8 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    broadcast: renderBroadcastPage, import: renderImportPage, reports: renderReportsPage,
-    settings: renderSettingsPage };
+    coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    reports: renderReportsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
 
@@ -890,6 +897,220 @@ function renderComplaintsPage() {
 }
 
 /* ================= رسالة جماعية ================= */
+/* ================= الكوبونات =================
+ *
+ * معرّف المستند هو الكود نفسه (بحروف كبيرة) — هكذا يقرؤه التطبيق مباشرة
+ * بلا استعلام، ويستحيل وجود كودين متطابقين. لذلك «تعديل الكود» غير ممكن:
+ * الكود هوية المستند لا حقلاً فيه، وتغييره يعني كوداً جديداً.
+ *
+ * قواعد Firestore تسمح للعميل بزيادة usedCount بمقدار 1 فقط ولا شيء غيره،
+ * فلا يُخشى من عبثه بالقيمة أو تعطيل الكود.
+ */
+function couponState(c) {
+  const now = new Date();
+  const exp = toDate(c.expiresAt);
+  if (c.isActive === false) return ['موقوف', '#7f8c8d'];
+  if (exp && exp < now) return ['منتهي', '#c0392b'];
+  const limit = Number(c.usageLimit) || 0;
+  if (limit > 0 && (Number(c.usedCount) || 0) >= limit) return ['مستنفد', '#d35400'];
+  return ['فعّال', '#1e8449'];
+}
+
+function couponLabel(c) {
+  const v = Number(c.value) || 0;
+  if (c.type === 'fixed') return `${fmtMoney(v)} ${SAR}`;
+  const cap = Number(c.maxDiscount) || 0;
+  return `${v}%${cap > 0 ? ` حتى ${fmtMoney(cap)} ${SAR}` : ''}`;
+}
+
+function renderCouponsPage() {
+  const filters = [['all', 'الكل'], ['active', 'الفعّالة'], ['inactive', 'الموقوفة/المنتهية']];
+  let list = [...S.coupons].sort((a, b) => {
+    const da = toDate(a.createdAt), dbb = toDate(b.createdAt);
+    return (dbb ? dbb.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+  if (couponFilter === 'active') list = list.filter((c) => couponState(c)[0] === 'فعّال');
+  if (couponFilter === 'inactive') list = list.filter((c) => couponState(c)[0] !== 'فعّال');
+
+  const totalRedeemed = S.coupons.reduce((s, c) => s + (Number(c.usedCount) || 0), 0);
+  const activeCount = S.coupons.filter((c) => couponState(c)[0] === 'فعّال').length;
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <div class="row1" style="margin-bottom:10px">
+        <h3 style="margin:0">أكواد الخصم</h3>
+        <button class="btn" id="newCouponBtn">➕ كوبون جديد</button>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="num">${S.coupons.length}</div><div class="lbl">إجمالي الأكواد</div></div>
+        <div class="kpi"><div class="num">${activeCount}</div><div class="lbl">فعّالة الآن</div></div>
+        <div class="kpi"><div class="num">${totalRedeemed}</div><div class="lbl">مرات الاستخدام</div></div>
+      </div>
+      <div class="toolbar" style="margin-top:12px">${filters.map(([k, l]) =>
+        `<button class="chip ${couponFilter === k ? 'active' : ''}" data-cfilter="${k}">${l}</button>`).join('')}</div>
+    </div>
+    <div class="panel">
+      ${list.map((c) => {
+        const [stTxt, stColor] = couponState(c);
+        const limit = Number(c.usageLimit) || 0;
+        const used = Number(c.usedCount) || 0;
+        const exp = toDate(c.expiresAt);
+        const rest = c.restaurantId
+          ? (S.restaurants.find((r) => r.id === c.restaurantId)?.name || 'مطعم محذوف')
+          : 'كل المطاعم';
+        return `
+          <div class="card">
+            <div class="row1">
+              <span class="title" style="direction:ltr;display:inline-block">${esc(c.id)}</span>
+              ${badge(stTxt, stColor)}
+            </div>
+            <div class="meta">
+              الخصم: <b>${esc(couponLabel(c))}</b>
+              ${Number(c.minOrderTotal) > 0 ? ` · حد أدنى ${fmtMoney(c.minOrderTotal)} ${SAR}` : ''}
+              <br>الاستخدام: ${used}${limit > 0 ? ` من ${limit}` : ' (بلا حد)'}
+              · لكل عميل: ${Number(c.perUserLimit) || 1}
+              <br>النطاق: ${esc(rest)}
+              ${exp ? ` · ينتهي ${esc(fmtTime(c.expiresAt))}` : ' · بلا تاريخ انتهاء'}
+            </div>
+            <div class="row1" style="margin-top:8px;gap:6px">
+              <button class="toggle-btn" data-cusage="${esc(c.id)}">📊 الاستخدامات</button>
+              <button class="toggle-btn ${c.isActive === false ? 'on' : ''}" data-ctoggle="${esc(c.id)}">
+                ${c.isActive === false ? '▶️ تفعيل' : '⏸ إيقاف'}</button>
+              <button class="toggle-btn" data-cdel="${esc(c.id)}">🗑 حذف</button>
+            </div>
+          </div>`;
+      }).join('') || '<div class="empty">لا توجد أكواد خصم بعد — أنشئ أول كوبون</div>'}
+    </div>`;
+
+  document.querySelectorAll('[data-cfilter]').forEach((b) =>
+    b.addEventListener('click', () => { couponFilter = b.dataset.cfilter; renderCouponsPage(); }));
+  document.getElementById('newCouponBtn').addEventListener('click', openCouponForm);
+  document.querySelectorAll('[data-cusage]').forEach((b) =>
+    b.addEventListener('click', () => openCouponUsages(b.dataset.cusage)));
+  document.querySelectorAll('[data-ctoggle]').forEach((b) =>
+    b.addEventListener('click', () => toggleCoupon(b.dataset.ctoggle)));
+  document.querySelectorAll('[data-cdel]').forEach((b) =>
+    b.addEventListener('click', () => deleteCoupon(b.dataset.cdel)));
+}
+
+function openCouponForm() {
+  const restOptions = [...S.restaurants]
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
+    .map((r) => `<option value="${esc(r.id)}">${esc(r.name || r.id)}</option>`).join('');
+  openModal(`
+    <h3>كوبون جديد</h3>
+    <div class="field"><label>الكود</label>
+      <input id="c_code" placeholder="WELCOME10" style="direction:ltr;text-align:left" maxlength="24">
+      <p class="meta">حروف إنجليزية وأرقام فقط. يُحوَّل تلقائياً إلى حروف كبيرة، ولا يمكن تغييره بعد الإنشاء.</p></div>
+    <div class="field"><label>نوع الخصم</label>
+      <select id="c_type"><option value="percentage">نسبة مئوية %</option><option value="fixed">مبلغ ثابت بالريال</option></select></div>
+    <div class="field"><label>القيمة</label><input id="c_value" type="number" min="1" step="1" placeholder="10"></div>
+    <div class="field"><label>سقف الخصم بالريال (للنسبة المئوية — 0 = بلا سقف)</label>
+      <input id="c_max" type="number" min="0" step="1" value="0">
+      <p class="meta">يمنع «20% على طلب 500 ريال» من ابتلاع دخل المنصّة.</p></div>
+    <div class="field"><label>حد أدنى لقيمة الطلب (0 = بلا حد)</label>
+      <input id="c_min" type="number" min="0" step="1" value="0"></div>
+    <div class="field"><label>حد الاستخدام الكلي (0 = بلا حد)</label>
+      <input id="c_limit" type="number" min="0" step="1" value="0"></div>
+    <div class="field"><label>عدد المرات لكل عميل</label>
+      <input id="c_peruser" type="number" min="1" step="1" value="1"></div>
+    <div class="field"><label>مقصور على مطعم</label>
+      <select id="c_rest"><option value="">كل المطاعم</option>${restOptions}</select></div>
+    <div class="field"><label>تاريخ الانتهاء (اختياري)</label><input id="c_exp" type="date"></div>
+    <button class="btn block" id="c_save">إنشاء الكوبون</button>
+    <p class="meta" style="margin-top:8px">تموّل المنصّة الخصم من حصّتها — لا يُخصم من مستحقات المطعم ولا السائق.</p>
+  `);
+  document.getElementById('c_save').addEventListener('click', saveCoupon);
+}
+
+async function saveCoupon() {
+  const code = document.getElementById('c_code').value.trim().toUpperCase();
+  const type = document.getElementById('c_type').value;
+  const value = Number(document.getElementById('c_value').value);
+  const maxDiscount = Number(document.getElementById('c_max').value) || 0;
+  const minOrderTotal = Number(document.getElementById('c_min').value) || 0;
+  const usageLimit = Number(document.getElementById('c_limit').value) || 0;
+  const perUserLimit = Number(document.getElementById('c_peruser').value) || 1;
+  const restaurantId = document.getElementById('c_rest').value;
+  const expRaw = document.getElementById('c_exp').value;
+
+  if (!/^[A-Z0-9]{3,24}$/.test(code)) {
+    alert('الكود يجب أن يكون 3 إلى 24 حرفاً إنجليزياً أو رقماً، بلا مسافات أو رموز'); return;
+  }
+  if (!value || value <= 0) { alert('أدخل قيمة خصم أكبر من صفر'); return; }
+  if (type === 'percentage' && value > 100) { alert('النسبة المئوية لا تتجاوز 100'); return; }
+  if (S.coupons.some((c) => c.id === code)) { alert('هذا الكود موجود بالفعل'); return; }
+
+  // نهاية اليوم المختار لا بدايته: كوبون «ينتهي اليوم» يجب أن يعمل طوال اليوم.
+  let expiresAt = null;
+  if (expRaw) {
+    const d = new Date(expRaw + 'T23:59:59');
+    if (d < new Date()) { alert('تاريخ الانتهاء في الماضي'); return; }
+    expiresAt = Timestamp.fromDate(d);
+  }
+
+  try {
+    await setDoc(doc(db, 'coupons', code), {
+      type, value, minOrderTotal, maxDiscount, usageLimit,
+      usedCount: 0, perUserLimit, restaurantId,
+      ...(expiresAt ? { expiresAt } : {}),
+      isActive: true,
+      createdAt: serverTimestamp(),
+    });
+    toast('أُنشئ الكوبون ' + code); closeModal();
+  } catch (err) {
+    alert('تعذر الإنشاء: ' + (err.code || err.message));
+  }
+}
+
+async function toggleCoupon(code) {
+  const c = S.coupons.find((x) => x.id === code);
+  if (!c) return;
+  const turningOn = c.isActive === false;
+  if (!confirm(`${turningOn ? 'تفعيل' : 'إيقاف'} الكود ${code}؟`)) return;
+  try {
+    await updateDoc(doc(db, 'coupons', code), { isActive: turningOn });
+    toast(turningOn ? 'فُعّل الكوبون' : 'أُوقف الكوبون');
+  } catch (err) { alert('تعذر التغيير: ' + (err.code || err.message)); }
+}
+
+/* الحذف متاح لأن العميل لا يستطيعه (القواعد تقصره على المدير)، لكنه يُفقد
+ * سجلّ الكود من التقارير. الإيقاف أنسب في معظم الحالات، ولهذا يحذّر النص. */
+async function deleteCoupon(code) {
+  const c = S.coupons.find((x) => x.id === code);
+  const used = Number(c?.usedCount) || 0;
+  const warn = used > 0
+    ? `\n\n⚠️ استُخدم هذا الكود ${used} مرة. حذفه يُفقد أثره في التقارير — الإيقاف أفضل.`
+    : '';
+  if (!confirm(`حذف الكود ${code} نهائياً؟${warn}`)) return;
+  try {
+    await deleteDoc(doc(db, 'coupons', code));
+    toast('حُذف الكوبون');
+  } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
+}
+
+function openCouponUsages(code) {
+  const rows = S.couponUsages.filter((u) => u.code === code)
+    .sort((a, b) => {
+      const da = toDate(a.lastUsedAt), dbb = toDate(b.lastUsedAt);
+      return (dbb ? dbb.getTime() : 0) - (da ? da.getTime() : 0);
+    });
+  const total = rows.reduce((s, u) => s + (Number(u.count) || 0), 0);
+  openModal(`
+    <h3>استخدامات <span style="direction:ltr;display:inline-block">${esc(code)}</span></h3>
+    <p class="meta">${rows.length} عميل · ${total} مرة إجمالاً</p>
+    ${rows.map((u) => {
+      const user = S.users.find((x) => x.id === u.userId);
+      return `
+        <div class="card">
+          <div class="row1"><span class="title">${esc(user?.name || 'عميل')}</span>
+            ${badge(`${Number(u.count) || 0}×`, '#2471a3')}</div>
+          <div class="meta">${esc(user?.phone || u.userId)}<br>آخر استخدام: ${esc(fmtTime(u.lastUsedAt))}</div>
+        </div>`;
+    }).join('') || '<div class="empty">لم يُستخدم هذا الكود بعد</div>'}
+  `);
+}
+
 function renderBroadcastPage() {
   $('main').innerHTML = `
     <div class="panel">
