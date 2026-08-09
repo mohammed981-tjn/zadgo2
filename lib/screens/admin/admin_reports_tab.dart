@@ -118,7 +118,7 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
         for (final o in sold) {
           final entry = byRestaurant.putIfAbsent(
             o.restaurantId,
-            () => _RestaurantTotals(name: o.restaurantName),
+            () => _RestaurantTotals(id: o.restaurantId, name: o.restaurantName),
           );
           entry.orders += 1;
           entry.meals += o.itemsTotal;
@@ -430,12 +430,13 @@ class _FilterBar extends StatelessWidget {
 
 /// تجميعة مبيعات مطعم واحد عبر كل طلباته المكتملة.
 class _RestaurantTotals {
+  final String id;
   final String name;
   int orders = 0;
   double meals = 0;
   double commission = 0;
 
-  _RestaurantTotals({required this.name});
+  _RestaurantTotals({required this.id, required this.name});
 
   double get net => meals - commission;
 }
@@ -452,6 +453,55 @@ class _RestaurantReportCard extends StatelessWidget {
     required this.ordersOfRestaurant,
     required this.periodLabel,
   });
+
+  String get restaurantId => totals.id;
+
+  /// تسجيل دفعة سُلّمت للمطعم — تُخصم من مستحقّاته في الدفتر.
+  Future<void> _recordSettlement(BuildContext context) async {
+    final amountCtrl = TextEditingController();
+    final methodCtrl = TextEditingController(text: 'تحويل بنكي');
+    final service = context.read<FirebaseService>();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text('تسجيل دفعة — ${totals.name}'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: amountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'المبلغ المسلَّم (ر.س)'),
+          ),
+          TextField(
+            controller: methodCtrl,
+            decoration: const InputDecoration(labelText: 'طريقة السداد'),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('تسجيل')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await service.recordRestaurantSettlement(
+        restaurantId: restaurantId,
+        restaurantName: totals.name,
+        amount: double.tryParse(amountCtrl.text.trim()) ?? 0,
+        method: methodCtrl.text,
+      );
+      if (context.mounted) showSuccess(context, 'سُجّلت الدفعة في دفتر المطعم');
+    } catch (e) {
+      if (context.mounted) {
+        showError(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -486,20 +536,49 @@ class _RestaurantReportCard extends StatelessWidget {
                 label: 'صافي مستحقّات المطعم',
                 value: formatCurrency(totals.net),
                 bold: true),
+            // الدفتر: المستحق ناقص ما سُلّم فعلاً — الرقم الذي يهم عند
+            // التسوية. يُحسب على كل تاريخ المطعم لا على الفترة المعروضة،
+            // فالدَّين لا يتقيّد بفلتر شاشة.
+            AppStreamBuilder<List<RestaurantSettlement>>(
+              stream: () => context
+                  .read<FirebaseService>()
+                  .streamRestaurantSettlements(restaurantId),
+              loading: const SizedBox.shrink(),
+              builder: (ctx, settlements) {
+                final paid = settlements.fold(0.0, (s, x) => s + x.amount);
+                if (paid == 0) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(children: [
+                    PriceRow(
+                        label: 'سُلّم للمطعم', value: '- ${formatCurrency(paid)}'),
+                    PriceRow(
+                        label: 'المتبقّي (ضمن هذا النطاق)',
+                        value: formatCurrency(totals.net - paid),
+                        bold: true),
+                  ]),
+                );
+              },
+            ),
             const SizedBox(height: 4),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
+            Row(children: [
+              TextButton.icon(
                 onPressed: () => exportRestaurantInvoicePdf(
                   restaurantName: totals.name,
                   periodLabel: periodLabel,
                   orders: ordersOfRestaurant,
                 ),
                 icon: const Icon(Icons.receipt_long_outlined, size: 16),
-                label: const Text('فاتورة مستحقّات PDF',
+                label: const Text('فاتورة PDF',
                     style: TextStyle(fontSize: 12.5)),
               ),
-            ),
+              TextButton.icon(
+                onPressed: () => _recordSettlement(context),
+                icon: const Icon(Icons.price_check_rounded, size: 16),
+                label: const Text('تسجيل دفعة',
+                    style: TextStyle(fontSize: 12.5)),
+              ),
+            ]),
           ],
         ),
       ),

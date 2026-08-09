@@ -75,6 +75,86 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                     style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ]),
             ),
+            const SizedBox(height: 12),
+
+            // دفتر المستحقّات: مبيعاتك − عمولة المنصّة − ما استلمته فعلاً.
+            // شفافية كاملة تُغني عن المراجعة الهاتفية عند كل تسوية.
+            Builder(builder: (ctx) {
+              final commission =
+                  sold.fold(0.0, (s, o) => s + o.effectiveCommission);
+              final net = totalMealsValue - commission;
+              return AppStreamBuilder<List<RestaurantSettlement>>(
+                stream: () =>
+                    service.streamRestaurantSettlements(widget.restaurantId),
+                loading: const SizedBox.shrink(),
+                builder: (ctx, settlements) {
+                  final paid = settlements.fold(0.0, (s, x) => s + x.amount);
+                  final remaining = net - paid;
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(children: [
+                        const Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text('دفتر المستحقّات',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                        ),
+                        const SizedBox(height: 6),
+                        PriceRow(
+                            label: 'مبيعات الوجبات',
+                            value: formatCurrency(totalMealsValue)),
+                        PriceRow(
+                            label: 'عمولة المنصّة (15%)',
+                            value: '- ${formatCurrency(commission)}'),
+                        PriceRow(
+                            label: 'صافي المستحق',
+                            value: formatCurrency(net)),
+                        PriceRow(
+                            label: 'استلمته',
+                            value: '- ${formatCurrency(paid)}'),
+                        const Divider(),
+                        PriceRow(
+                            label: remaining >= 0
+                                ? 'المتبقّي لك'
+                                : 'مدفوع لك زيادةً',
+                            value: formatCurrency(remaining.abs()),
+                            bold: true),
+                        if (settlements.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          const Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Text('آخر الدفعات',
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textGray)),
+                          ),
+                          ...settlements.take(5).map((x) => Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Row(children: [
+                                  const Icon(Icons.south_west_rounded,
+                                      size: 14, color: AppColors.success),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                        '${x.createdAt.year}/${x.createdAt.month}/${x.createdAt.day}'
+                                        '${x.method.isEmpty ? '' : ' — ${x.method}'}',
+                                        style: const TextStyle(fontSize: 12)),
+                                  ),
+                                  Text(formatCurrency(x.amount),
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600)),
+                                ]),
+                              )),
+                        ],
+                      ]),
+                    ),
+                  );
+                },
+              );
+            }),
             const SizedBox(height: 16),
             Row(children: [
               Expanded(

@@ -928,6 +928,58 @@ class Driver {
       };
 }
 
+/// دفعة تسوية سُلّمت لمطعم مقابل مستحقّاته.
+///
+/// دفتر المطعم يُبنى بالطرح لا بالقيد المزدوج: المستحق = صافي طلباته
+/// المكتملة، والمدفوع = مجموع هذه الدفعات، والفرق هو رصيده. هذا يتجنّب
+/// كتابة قيد مع كل توصيل (ومخاطر ازدواجه)، ويبقى قابلاً للمراجعة لأن
+/// طرفَي المعادلة مستندات محفوظة.
+class RestaurantSettlement {
+  final String id;
+  final String restaurantId;
+  final String restaurantName;
+  final double amount;
+
+  /// طريقة السداد: تحويل بنكي، نقداً، شيك...
+  final String method;
+  final String? note;
+  final String performedBy;
+  final DateTime createdAt;
+
+  const RestaurantSettlement({
+    required this.id,
+    required this.restaurantId,
+    required this.restaurantName,
+    required this.amount,
+    this.method = '',
+    this.note,
+    required this.performedBy,
+    required this.createdAt,
+  });
+
+  factory RestaurantSettlement.fromMap(Map<String, dynamic> map, String id) =>
+      RestaurantSettlement(
+        id: id,
+        restaurantId: map['restaurantId'] as String? ?? '',
+        restaurantName: map['restaurantName'] as String? ?? '',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        method: map['method'] as String? ?? '',
+        note: map['note'] as String?,
+        performedBy: map['performedBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'restaurantId': restaurantId,
+        'restaurantName': restaurantName,
+        'amount': amount,
+        'method': method,
+        if (note != null) 'note': note,
+        'performedBy': performedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
 /// نوع خصم الكوبون.
 enum CouponType { percentage, fixed }
 
