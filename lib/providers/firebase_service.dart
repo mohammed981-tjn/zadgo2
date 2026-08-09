@@ -409,7 +409,16 @@ class FirebaseService {
         if (expectedRole != null && current.role != expectedRole) {
           throw Exception('هذا الكود غير مخصص لهذا التطبيق');
         }
-        tx.update(ref, {'isUsed': true, 'usedAt': FieldValue.serverTimestamp()});
+        // ختم الكود باسم صاحبه **داخل المعاملة** لا بعد إنشاء المستخدم:
+        // حارس القواعد الجديد يتحقّق أن مستند المستخدم يحمل كوداً مختوماً
+        // بمعرّفه هو، فلا يُنشئ أحد مستنده بدور admin. ولو تأخّر الختم
+        // لرُفض إنشاء المستخدم لأن الكود لم يُنسب إليه بعد.
+        tx.update(ref, {
+          'isUsed': true,
+          'usedAt': FieldValue.serverTimestamp(),
+          'usedByUid': uid,
+          'usedByName': name.trim(),
+        });
         return current;
       });
 
@@ -423,6 +432,7 @@ class FirebaseService {
         restaurantId: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantId : null,
         restaurantName: claimed.role == models.UserRole.restaurantManager ? claimed.restaurantName : null,
         nationalId: nationalId?.trim().isEmpty ?? true ? null : nationalId!.trim(),
+        registrationCode: ref.id,
       );
       await createUser(newUser);
       if (claimed.role == models.UserRole.driver) {
@@ -443,7 +453,6 @@ class FirebaseService {
           createdAt: DateTime.now(),
         ));
       }
-      await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
       return newUser;
     } catch (e) {
       try {

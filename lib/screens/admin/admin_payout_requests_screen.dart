@@ -115,16 +115,22 @@ class _RequestCard extends StatelessWidget {
               loading: const SizedBox.shrink(),
               builder: (ctx, d) => d == null
                   ? const SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                          'رصيده الحالي: ${formatCurrency(d.balance)}',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: d.balance >= r.amount
-                                  ? AppColors.success
-                                  : AppColors.error)),
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                              'رصيده الحالي: ${formatCurrency(d.balance)}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: d.balance >= r.amount
+                                      ? AppColors.success
+                                      : AppColors.error)),
+                        ),
+                        _BalanceAudit(driver: d),
+                      ],
                     ),
             ),
             const SizedBox(height: 10),
@@ -216,5 +222,61 @@ class _RequestCard extends StatelessWidget {
         showError(context, e.toString().replaceFirst('Exception: ', ''));
       }
     }
+  }
+}
+
+/// مطابقة الرصيد المخزَّن بمجموع دفتر الحركات — عند لحظة الصرف تحديداً.
+///
+/// رصيد السائق يُكتب من جهازه (قيد العُهدة وأجرة التوصيل يُسجَّلان هناك،
+/// ولا Cloud Functions تكتبهما نيابةً)، فقواعد الأمان تسمح له بتعديل
+/// `balance` على مستنده. وهذا يعني نظرياً أن سائقاً بنسخة معدَّلة يرفع
+/// رصيده ثم يطلب صرفه.
+///
+/// الحارس هنا **كشفٌ لا منع**: كل حركة في الدفتر تحمل رصيدها بعدها، فإن
+/// خالف آخرُها الرصيدَ المخزَّن فثمّة تغيير لم يمرّ بالدفتر — يُعرض أحمر
+/// قبل زر الصرف. المنع الحقيقي يحتاج منطقاً على الخادم (المسار د).
+class _BalanceAudit extends StatelessWidget {
+  final Driver driver;
+  const _BalanceAudit({required this.driver});
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    return AppStreamBuilder<List<DriverTransaction>>(
+      stream: () => service.streamDriverTransactions(driver.id),
+      loading: const SizedBox.shrink(),
+      builder: (ctx, txs) {
+        // دفتر فارغ لا يُقارَن: سائق جديد بلا حركات رصيده صفر طبيعياً.
+        if (txs.isEmpty) return const SizedBox.shrink();
+        // السجلّ يصل مرتّباً من الأحدث؛ آخر رصيد مسجَّل هو المرجع.
+        final expected = txs.first.balanceAfter;
+        final gap = driver.balance - expected;
+        if (gap.abs() < 0.01) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.errorLight,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(children: [
+            const Icon(Icons.gpp_maybe_outlined,
+                color: AppColors.error, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  'الرصيد لا يطابق الدفتر: المخزَّن '
+                  '${formatCurrency(driver.balance)} وآخر رصيد في الحركات '
+                  '${formatCurrency(expected)} '
+                  '(فرق ${formatCurrency(gap.abs())}). راجع الدفتر قبل الصرف.',
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.error,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ]),
+        );
+      },
+    );
   }
 }

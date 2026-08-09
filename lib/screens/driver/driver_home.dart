@@ -48,6 +48,15 @@ class _DriverHomeState extends State<DriverHome> {
   /// آخر لقطة لمستند السائق — تغذّي بطاقة العرض بموقعه لحساب مسافة الالتقاط.
   Driver? _driver;
 
+  /// هل بيده طلب جارٍ (أو عرض بانتظار قراره)؟ يحدّد كثافة بثّ الموقع:
+  /// التتبّع اللحظي يخدم عميلاً ينتظر، ومن لا طلب لديه يكفيه نبض متباعد
+  /// يُبقيه مرشّحاً للإسناد بالمسافة.
+  bool _hasActiveOrder = false;
+
+  /// آخر موقع أُرسل فعلاً ووقته — أساس خنق الكتابات.
+  double? _sentLat, _sentLng;
+  DateTime? _sentAt;
+
   final Set<String> _acknowledgedNotified = {};
   final Set<String> _autoAssignedNotified = {};
   OverlayEntry? _bannerEntry;
@@ -85,12 +94,38 @@ class _DriverHomeState extends State<DriverHome> {
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 7),
       );
+      if (!_shouldSendLocation(pos.latitude, pos.longitude)) return;
       await service.updateDriverLocation(driverId, pos.latitude, pos.longitude);
+      _sentLat = pos.latitude;
+      _sentLng = pos.longitude;
+      _sentAt = DateTime.now();
     } catch (_) {
       // فشل قراءة دورية لا يستحق إزعاجاً — الدورة التالية بعد ثوانٍ.
     } finally {
       _pushingLocation = false;
     }
+  }
+
+  /// هل يستحق هذا الموقع كتابةً؟
+  ///
+  /// المؤقّت يقرأ الموقع كل 8 ثوانٍ، وكان **كل** قراءة تُكتب في Firestore:
+  /// 450 كتابة/ساعة لكل سائق متصل — عشرون سائقاً بعشر ساعات يعني نحو 90
+  /// ألف كتابة يومياً، والحصّة المجانية 20 ألفاً. وسائقٌ واقفٌ ينتظر طلباً
+  /// كان يكتب موقعه نفسَه مئات المرات بلا فائدة لأحد.
+  ///
+  /// فتُكتب القراءة فقط إن تحرّك السائق مسافة معتبرة، أو انقضى «نبض»
+  /// يُثبت أنه حيّ. والعتبتان أضيق وهو يحمل طلباً (عميل يتابع الخريطة)
+  /// وأوسع وهو فارغ (الموقع حينها للإسناد بالمسافة لا للتتبّع).
+  bool _shouldSendLocation(double lat, double lng) {
+    if (_sentLat == null || _sentLng == null || _sentAt == null) return true;
+    final minMeters = _hasActiveOrder ? 30.0 : 150.0;
+    final heartbeat = _hasActiveOrder
+        ? const Duration(seconds: 45)
+        : const Duration(minutes: 5);
+    final movedMeters =
+        haversineDistanceKm(_sentLat!, _sentLng!, lat, lng) * 1000;
+    return movedMeters >= minMeters ||
+        DateTime.now().difference(_sentAt!) >= heartbeat;
   }
 
   /// نغمة + اهتزاز مع كل إسناد جديد — الشريط الصامت لا يلفت سائقاً هاتفه
@@ -104,6 +139,9 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _checkForNotifications(List<Order> orders) {
+    // كثافة بثّ الموقع تتبع وجود طلب جارٍ — تُقرأ من نفس التدفّق بلا
+    // استعلام إضافي.
+    _hasActiveOrder = orders.any((o) => o.status.isActive);
     // طلب خرج من قائمته (رُفض/انقضى/أُلغي) يُمحى من «سبق التنبيه» — فلو عاد
     // إليه لاحقاً (لا سائق غيره متاحاً مثلاً) ظهر العرض من جديد بدل أن يظل
     // الطلب غير مرئي له للأبد.

@@ -96,6 +96,29 @@ service cloud.firestore {
               amount <= c.get('maxDiscount', 0));
     }
 
+    /// هل يمنح كودُ التسجيل هذا الدورَ لهذا المستخدم؟
+    ///
+    /// حارس تصعيد الصلاحية: كانت قاعدة إنشاء المستخدم تفحص الرصيد ولا
+    /// تفحص الدور إطلاقاً، و`isAdmin()` تقرأ الدور من المستند نفسه الذي
+    /// يكتبه المستخدم — فمن أنشأ حساباً بالبريد (والتسجيل مفتوح على مستوى
+    /// Firebase) كتب `role: admin` في مستنده فصار مديراً عاماً على كل
+    /// شيء. ومنعُ `admin` وحده لا يكفي: من يدّعي `restaurantManager`
+    /// بمعرّف مطعم قائم ينال طلباته وقائمته.
+    ///
+    /// الدور المميَّز يُمنح بكود تسجيل مختوم باسم صاحبه — والختم يقع في
+    /// نفس معاملة استهلاك الكود، فلا يُنتحل كودُ غيره.
+    function codeGrantsRole(userId, data) {
+      let code = data.get('registrationCode', '');
+      let path = /databases/$(database)/documents/registrationCodes/$(code);
+      let c = exists(path) ? get(path).data : {};
+      return code != '' &&
+          c.get('usedByUid', '') == userId &&
+          c.get('role', '') == data.role &&
+          // كود مطعم لا يفتح مطعماً آخر.
+          (data.role != 'restaurantManager' ||
+              c.get('restaurantId', '') == data.get('restaurantId', ''));
+    }
+
     // ---------------------------------------------------------------------
     // users — كل مستخدم يرى ويعدّل بياناته فقط؛ المدير العام يرى الجميع.
     // إنشاء المستند مسموح فقط لصاحب الـ uid نفسه (تسجيل ذاتي)، ولا يمكن لأي
@@ -110,10 +133,19 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && (currentUid() == userId || isAdmin());
       allow list: if isAdmin();
-      // الإنشاء الذاتي يبدأ برصيد صفر إلزاماً، فلا يُنشئ أحد حسابه برصيد جاهز.
-      allow create: if isSignedIn() && currentUid() == userId &&
+      // الإنشاء الذاتي يبدأ برصيد صفر إلزاماً، فلا يُنشئ أحد حسابه برصيد
+      // جاهز. والدور: `customer` متاح للجميع، وما سواه بكود تسجيل مختوم
+      // باسم المُنشئ — وإلا صنع أي أحد لنفسه حساب «مدير عام».
+      allow create: if isSignedIn() &&
           (!('walletBalance' in request.resource.data) ||
-              request.resource.data.walletBalance == 0);
+              request.resource.data.walletBalance == 0) &&
+          (
+            isAdmin() ||
+            (currentUid() == userId && (
+                request.resource.data.role == 'customer' ||
+                codeGrantsRole(userId, request.resource.data)
+            ))
+          );
       allow update: if isSignedIn() && (
             isAdmin() ||
             (currentUid() == userId &&
@@ -586,7 +618,13 @@ service cloud.firestore {
                       resource.data.expiresAt == null ||
                       request.time < resource.data.expiresAt) &&
                   request.resource.data.isUsed == true &&
-                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isUsed', 'usedAt'])) ||
+                  // الختم باسم المستهلِك يقع في نفس المعاملة (النسخة
+                  // الحالية)، أو في خطوة تالية (نسخ أقدم) — كلاهما مقبول
+                  // أثناء انتشار التحديث، والمعرّف لا يكون لغير الكاتب.
+                  (!('usedByUid' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                      request.resource.data.usedByUid == currentUid()) &&
+                  request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['isUsed', 'usedAt', 'usedByUid', 'usedByName'])) ||
               (resource.data.isUsed == true &&
                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedByUid', 'usedByName']) &&
                   request.resource.data.usedByUid == currentUid() &&

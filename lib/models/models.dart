@@ -429,6 +429,12 @@ class AppUser {
   final double walletBalance;
   final List<SavedAddress> savedAddresses;
 
+  /// كود التسجيل الذي مُنح به هذا الدور — يُكتب لحظة الإنشاء ليتحقّق منه
+  /// حارس القواعد. بدونه كان أي مستخدم يُنشئ مستنده بدور `admin` فيصير
+  /// مديراً عاماً على كل شيء (القاعدة كانت تفحص الرصيد ولا تفحص الدور).
+  /// فارغ لحسابات العملاء — دور العميل لا يحتاج كوداً.
+  final String registrationCode;
+
   const AppUser({
     required this.uid,
     required this.name,
@@ -443,6 +449,7 @@ class AppUser {
     this.nationalId,
     this.walletBalance = 0.0,
     this.savedAddresses = const [],
+    this.registrationCode = '',
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -461,6 +468,7 @@ class AppUser {
         savedAddresses: ((map['savedAddresses'] as List?) ?? [])
             .map((e) => SavedAddress.fromMap((e as Map).cast<String, dynamic>()))
             .toList(),
+        registrationCode: map['registrationCode'] as String? ?? '',
       );
 
   Map<String, dynamic> toMap() => {
@@ -476,6 +484,7 @@ class AppUser {
         'isActive': isActive,
         'walletBalance': walletBalance,
         'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
+        'registrationCode': registrationCode,
       };
 
   AppUser copyWith({
