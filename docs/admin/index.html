@@ -244,6 +244,7 @@ const PAGES = [
   ['drivers', '🛵', 'السائقون'],
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
+  ['payouts', '💸', 'طلبات السحب'],
   ['coupons', '🎟️', 'الكوبونات'],
   ['broadcast', '📢', 'رسالة جماعية'],
   ['import', '📥', 'استيراد منيو'],
@@ -287,11 +288,12 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], settings: null };
+  coupons: [], couponUsages: [], payouts: [], settings: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
 let couponFilter = 'all';
+let payoutFilter = 'pending';
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
@@ -362,6 +364,7 @@ function startListeners() {
   bind(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(40)), 'broadcasts');
   // الكوبونات: معرّف المستند هو الكود نفسه، فالترتيب بـcreatedAt يحتاج وجود
   // الحقل في كل مستند — نرتّب محلياً بدلاً من ذلك تفادياً لسقوط الاستعلام.
+  bind(query(collection(db, 'payout_requests'), orderBy('createdAt', 'desc'), limit(200)), 'payouts');
   bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
   bind(query(collection(db, 'coupon_usages'), limit(500)), 'couponUsages');
   unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'config'),
@@ -370,22 +373,33 @@ function startListeners() {
 }
 
 /* ---------------- التنقل ---------------- */
+/* عدّاد ما ينتظر تدخّل الإدارة على كل صفحة — الشكاوى المفتوحة وطلبات
+ * السحب المعلّقة. طلب سحب لا يراه أحد يعني سائقاً ينتظر ماله بلا ردّ. */
+function navCount(k) {
+  if (k === 'complaints') return S.complaints.filter((c) => c.status === 'open').length;
+  if (k === 'payouts') return S.payouts.filter((p) => (p.status || 'pending') === 'pending').length;
+  return 0;
+}
 function navHtml(withText) {
-  const openC = S.complaints.filter((c) => c.status === 'open').length;
-  return PAGES.map(([k, ico, lbl]) => `
+  return PAGES.map(([k, ico, lbl]) => {
+    const n = navCount(k);
+    return `
     <button class="nav-btn ${k === page ? 'active' : ''}" data-page="${k}">
       <span class="ico">${ico}</span>${withText ? `<span>${lbl}</span>` : `<span>${lbl}</span>`}
-      ${k === 'complaints' && openC ? `<span class="cnt">${openC}</span>` : ''}
-    </button>`).join('');
+      ${n ? `<span class="cnt">${n}</span>` : ''}
+    </button>`;
+  }).join('');
 }
 function renderNav() {
   $('sideNav').innerHTML = navHtml(true);
-  const openC = S.complaints.filter((c) => c.status === 'open').length;
-  $('bottomNav').innerHTML = PAGES.map(([k, ico, lbl]) => `
+  $('bottomNav').innerHTML = PAGES.map(([k, ico, lbl]) => {
+    const n = navCount(k);
+    return `
     <button class="${k === page ? 'active' : ''}" data-page="${k}">
       <span class="ico">${ico}</span>${lbl}
-      ${k === 'complaints' && openC ? `<span class="cnt">${openC}</span>` : ''}
-    </button>`).join('');
+      ${n ? `<span class="cnt">${n}</span>` : ''}
+    </button>`;
+  }).join('');
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest('[data-page]');
@@ -402,7 +416,7 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
     reports: renderReportsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
@@ -685,8 +699,12 @@ function showRestEdit(id) {
 
 /* ================= السائقون (نظام المحفظة — المرحلة صفر) ================= */
 const TXN_TYPE_AR = {
+  // نموذج العُهدة الجديد — كان يظهر بالإنجليزية في السجل قبل إضافته هنا.
+  orderCustody: ['عُهدة استلام', '#ca6f1e'],
+  custodyReversal: ['عكس عُهدة', '#16a085'],
   deliveryCash: ['توصيل نقدي', '#ca6f1e'],
   deliveryOnline: ['توصيل إلكتروني', '#1e8449'],
+  bonus: ['مكافأة', '#d4a017'],
   deposit: ['إيداع نقدي', '#1e8449'],
   payout: ['صرف للسائق', '#2471a3'],
   adjustment: ['تسوية', '#8e44ad'],
@@ -897,6 +915,161 @@ function renderComplaintsPage() {
 }
 
 /* ================= رسالة جماعية ================= */
+/* ================= طلبات سحب المستحقات =================
+ *
+ * السائق يقدّم الطلب من تطبيقه، والبتّ هنا. الصرف عملية مالية مركّبة:
+ * خصم الرصيد + حركة في دفتر السائق + إغلاق الطلب — الثلاثة معاً أو لا شيء.
+ *
+ * تُنفَّذ داخل runTransaction بقراءة طازجة للطلب وللسائق، فتُغلق ثغرتان:
+ *   • الصرف المزدوج (ضغطتان متتاليتان، أو صرف من الويب والتطبيق معاً).
+ *   • الصرف فوق الرصيد إن تراكمت عُهدة على السائق بعد تقديمه الطلب.
+ * وهي تطابق منطق payPayoutRequest في التطبيق حرفياً: نفس نوع الحركة
+ * (payout) ونفس الحقول ونفس تحديث totalEarnings.
+ */
+const PAYOUT_STATUS_AR = {
+  pending: ['معلّق', '#ca6f1e'],
+  paid: ['مصروف', '#1e8449'],
+  rejected: ['مرفوض', '#c0392b'],
+};
+
+function renderPayoutsPage() {
+  const filters = [['pending', 'المعلّقة'], ['all', 'الكل'], ['paid', 'المصروفة'], ['rejected', 'المرفوضة']];
+  let list = [...S.payouts];
+  if (payoutFilter !== 'all') list = list.filter((p) => (p.status || 'pending') === payoutFilter);
+
+  const pending = S.payouts.filter((p) => (p.status || 'pending') === 'pending');
+  const pendingSum = pending.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const paidSum = S.payouts.filter((p) => p.status === 'paid')
+    .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <div class="kpi-grid">
+        <div class="kpi" style="border-color:${pending.length ? '#ca6f1e' : 'var(--green)'}">
+          <div class="num">${pending.length}</div><div class="lbl">طلب معلّق</div></div>
+        <div class="kpi"><div class="num">${fmtMoney(pendingSum)}</div><div class="lbl">مطلوب صرفه (${SAR})</div></div>
+        <div class="kpi"><div class="num">${fmtMoney(paidSum)}</div><div class="lbl">صُرف إجمالاً (${SAR})</div></div>
+      </div>
+      <div class="toolbar" style="margin-top:12px">${filters.map(([k, l]) =>
+        `<button class="chip ${payoutFilter === k ? 'active' : ''}" data-pf="${k}">${l}</button>`).join('')}</div>
+    </div>
+    <div class="panel">
+      ${list.map((p) => {
+        const st = p.status || 'pending';
+        const [stTxt, stColor] = PAYOUT_STATUS_AR[st] || [st, '#7f8c8d'];
+        const drv = S.drivers.find((d) => d.id === p.driverId);
+        const bal = Number(drv?.balance) || 0;
+        const amount = Number(p.amount) || 0;
+        const short = st === 'pending' && amount > bal;
+        return `
+          <div class="card">
+            <div class="row1">
+              <span class="title">${esc(p.driverName || drv?.name || 'سائق')}</span>
+              ${badge(stTxt, stColor)}
+            </div>
+            <div class="meta">
+              المبلغ المطلوب: <b>${fmtMoney(amount)} ${SAR}</b>
+              <br>طريقة الاستلام: ${esc(p.method || '—')}
+              <br>قُدّم: ${esc(fmtTime(p.createdAt))}
+              ${st === 'pending' ? `<br>رصيد السائق الآن: ${balanceBadge(bal)}` : ''}
+              ${p.processedAt ? `<br>تمت المعالجة: ${esc(fmtTime(p.processedAt))}` : ''}
+              ${p.adminNote ? `<br>ملاحظة الإدارة: ${esc(p.adminNote)}` : ''}
+              ${short ? `<br><span style="color:var(--red)">⚠️ المبلغ أكبر من رصيد السائق الحالي — تغيّر بعد تقديم الطلب</span>` : ''}
+            </div>
+            ${st === 'pending' ? `
+              <div class="row1" style="margin-top:8px;gap:6px">
+                <button class="toggle-btn on" data-paypo="${esc(p.id)}">💸 صرف</button>
+                <button class="toggle-btn" data-rejpo="${esc(p.id)}">✖️ رفض</button>
+              </div>` : ''}
+          </div>`;
+      }).join('') || '<div class="empty">لا توجد طلبات في هذا التصنيف</div>'}
+    </div>`;
+
+  document.querySelectorAll('[data-pf]').forEach((b) =>
+    b.addEventListener('click', () => { payoutFilter = b.dataset.pf; renderPayoutsPage(); }));
+  $('main').querySelectorAll('[data-paypo]').forEach((b) =>
+    b.addEventListener('click', () => payPayout(b.dataset.paypo)));
+  $('main').querySelectorAll('[data-rejpo]').forEach((b) =>
+    b.addEventListener('click', () => rejectPayout(b.dataset.rejpo)));
+}
+
+async function payPayout(id) {
+  const p = S.payouts.find((x) => x.id === id);
+  if (!p) return;
+  const amount = Number(p.amount) || 0;
+  const note = prompt(`صرف ${fmtMoney(amount)} ${SAR} إلى ${p.driverName || 'السائق'}؟\n` +
+    `طريقة الاستلام: ${p.method || '—'}\n\nملاحظة اختيارية تظهر للسائق:`, '');
+  if (note === null) return; // ألغى المستخدم
+  try {
+    await runTransaction(db, async (tx) => {
+      const reqRef = doc(db, 'payout_requests', id);
+      const drvRef = doc(db, 'drivers', p.driverId);
+      const reqSnap = await tx.get(reqRef);
+      const drvSnap = await tx.get(drvRef);
+      if (!reqSnap.exists()) throw new Error('الطلب غير موجود');
+      const cur = reqSnap.data();
+      if ((cur.status || 'pending') !== 'pending') {
+        throw new Error('هذا الطلب عولج بالفعل — حدِّث الصفحة');
+      }
+      if (!drvSnap.exists()) throw new Error('السائق غير موجود');
+      const bal = Number(drvSnap.data().balance) || 0;
+      const amt = Number(cur.amount) || 0;
+      if (amt > bal) {
+        throw new Error(`رصيد السائق (${fmtMoney(bal)} ${SAR}) أقل من المبلغ — ` +
+          'تغيّر بعد تقديم الطلب. ارفض الطلب أو انتظر تسويته');
+      }
+      const after = bal - amt;
+      tx.update(drvRef, {
+        balance: after,
+        totalEarnings: (Number(drvSnap.data().totalEarnings) || 0) + amt,
+      });
+      tx.set(doc(collection(db, 'driver_transactions')), {
+        driverId: p.driverId,
+        type: 'payout',
+        amount: -amt,
+        balanceAfter: after,
+        note: `صرف طلب سحب (${cur.method || '—'})`,
+        performedBy: adminUser.uid,
+        createdAt: serverTimestamp(),
+      });
+      tx.update(reqRef, {
+        status: 'paid',
+        processedAt: serverTimestamp(),
+        ...(note.trim() ? { adminNote: note.trim() } : {}),
+      });
+    });
+    toast('صُرف الطلب وسُجّلت الحركة');
+  } catch (err) {
+    alert('تعذر الصرف: ' + (err.message || err.code));
+  }
+}
+
+async function rejectPayout(id) {
+  const p = S.payouts.find((x) => x.id === id);
+  if (!p) return;
+  const reason = prompt('سبب الرفض (يظهر للسائق):', '');
+  if (reason === null) return;
+  if (!reason.trim()) { alert('اكتب سبب الرفض — يراه السائق'); return; }
+  try {
+    await runTransaction(db, async (tx) => {
+      const reqRef = doc(db, 'payout_requests', id);
+      const snap = await tx.get(reqRef);
+      if (!snap.exists()) throw new Error('الطلب غير موجود');
+      if ((snap.data().status || 'pending') !== 'pending') {
+        throw new Error('هذا الطلب عولج بالفعل — حدِّث الصفحة');
+      }
+      tx.update(reqRef, {
+        status: 'rejected',
+        adminNote: reason.trim(),
+        processedAt: serverTimestamp(),
+      });
+    });
+    toast('رُفض الطلب');
+  } catch (err) {
+    alert('تعذر الرفض: ' + (err.message || err.code));
+  }
+}
+
 /* ================= الكوبونات =================
  *
  * معرّف المستند هو الكود نفسه (بحروف كبيرة) — هكذا يقرؤه التطبيق مباشرة
