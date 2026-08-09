@@ -650,11 +650,16 @@ function showOrderModal(id) {
     ${o.notes ? `<div class="kv"><span>ملاحظات العميل</span><b style="font-weight:400">${esc(o.notes)}</b></div>` : ''}
     ${o.rejectionReason ? `<div class="kv"><span>سبب الرفض</span><b style="font-weight:400;color:var(--red)">${esc(o.rejectionReason)}</b></div>` : ''}
     ${o.customerRating ? `<div class="kv"><span>تقييم العميل</span><b>${o.customerRating} ⭐ ${esc(o.customerReview || '')}</b></div>` : ''}
+    <div id="proofBox" style="margin-top:14px">
+      <button class="toggle-btn" id="loadProofBtn">📸 إثباتات الاستلام والتسليم</button>
+    </div>
     ${ACTIVE_STATUSES.includes(o.status) ? `
       <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn danger" id="cancelOrderBtn">إلغاء الطلب</button>
       </div>` : ''}
   `);
+  const pb = document.getElementById('loadProofBtn');
+  if (pb) pb.addEventListener('click', () => loadOrderProof(o.id));
   const cb = document.getElementById('cancelOrderBtn');
   if (cb) cb.addEventListener('click', async () => {
     const wallet = Number(o.walletUsed) || 0;
@@ -1001,6 +1006,70 @@ function renderComplaintsPage() {
 }
 
 /* ================= رسالة جماعية ================= */
+/* ================= إثباتات الطلب =================
+ *
+ * `order_proofs/{orderId}` — أزمنة وإحداثيات محطات السائق الثلاث (وصول
+ * المطعم / الاستلام / التسليم) مع صورتَي الاستلام والتسليم مخزَّنتين
+ * كـBlob داخل المستند نفسه (ينتظر Storage خطة Blaze).
+ *
+ * تُقرأ **عند الطلب فقط** لا مع قائمة الطلبات: كل وثيقة تحمل صورتين بحجم
+ * ~60 كيلوبايت، فتحميلها مع كل طلب يُثقل اللوحة بلا داعٍ — ولا يفتحها أحد
+ * إلا عند نزاع.
+ */
+function proofPhotoTag(blob, label) {
+  // Bytes في Firestore Web SDK: toBase64() جاهزة، وdata: مسموح في CSP.
+  if (!blob || typeof blob.toBase64 !== 'function') return '';
+  return `<div style="margin:10px 0">
+    <div class="meta" style="margin-bottom:4px">${esc(label)}</div>
+    <img src="data:image/jpeg;base64,${blob.toBase64()}" alt="${esc(label)}"
+         style="width:100%;border-radius:12px;border:1px solid #dfe5f0">
+  </div>`;
+}
+
+function proofStop(label, at, lat, lng) {
+  if (!at && lat == null) return '';
+  const coords = (lat != null && lng != null)
+    ? ` · <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" rel="noopener noreferrer">📍 الموقع</a>`
+    : '';
+  return `<div class="kv"><span>${esc(label)}</span><b style="font-weight:400">${esc(fmtTime(at))}${coords}</b></div>`;
+}
+
+async function loadOrderProof(orderId) {
+  const box = document.getElementById('proofBox');
+  if (!box) return;
+  box.innerHTML = '<div class="meta">…جارٍ التحميل</div>';
+  try {
+    const snap = await getDoc(doc(db, 'order_proofs', orderId));
+    if (!snap.exists()) {
+      box.innerHTML = `<div class="meta">لا توجد إثباتات لهذا الطلب.
+        (تُسجَّل من تطبيق السائق عند الاستلام والتسليم — الطلبات القديمة قبل هذه الميزة بلا إثباتات.)</div>`;
+      return;
+    }
+    const d = snap.data();
+    const dist = d.deliveryDistanceMeters;
+    // بُعد كبير لحظة التسليم = بيّنة «سلّم في مكان آخر» عند النزاع.
+    const far = Number.isFinite(Number(dist)) && Number(dist) > 150;
+    box.innerHTML = `
+      <div class="panel" style="background:#f7f9f8;margin:0">
+        <b>إثباتات رحلة السائق</b>
+        ${proofStop('وصل المطعم', d.arrivedAt, d.arrivedLat, d.arrivedLng)}
+        ${proofStop('استلم الطلب', d.pickupAt, d.pickupLat, d.pickupLng)}
+        ${proofStop('سلّم للعميل', d.deliveryAt, d.deliveryLat, d.deliveryLng)}
+        ${Number.isFinite(Number(dist)) ? `
+          <div class="kv"><span>بُعده عن العميل لحظة التسليم</span>
+            <b style="${far ? 'color:var(--red)' : ''}">${Number(dist)} متر${far ? ' ⚠️' : ''}</b></div>` : ''}
+        ${far ? `<p class="meta" style="color:var(--red);margin-top:6px">
+          ⚠️ سُجّل التسليم بعيداً عن موقع العميل المحفوظ — يستحق المراجعة عند أي شكوى.</p>` : ''}
+        ${proofPhotoTag(d.pickupPhoto, '📦 صورة الاستلام من المطعم')}
+        ${proofPhotoTag(d.deliveryPhoto, '🏠 صورة التسليم للعميل')}
+        ${(!d.pickupPhoto && !d.deliveryPhoto)
+          ? '<div class="meta">لا توجد صور مرفقة — الصور اختيارية عند السائق.</div>' : ''}
+      </div>`;
+  } catch (err) {
+    box.innerHTML = `<div class="meta" style="color:var(--red)">تعذّر تحميل الإثباتات: ${esc(err.code || err.message)}</div>`;
+  }
+}
+
 /* ================= تسويات المطاعم =================
  *
  * دفتر المطعم **بالطرح**، لا برصيد مخزَّن:
