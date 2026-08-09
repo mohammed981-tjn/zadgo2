@@ -833,13 +833,18 @@ function showOrderModal(id) {
     <div id="proofBox" style="margin-top:14px">
       <button class="toggle-btn" id="loadProofBtn">📸 إثباتات الاستلام والتسليم</button>
     </div>
-    ${ACTIVE_STATUSES.includes(o.status) ? `
+    ${ACTIVE_STATUSES.includes(o.status) || o.status === 'noDriverFound' ? `
       <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn danger" id="cancelOrderBtn">إلغاء الطلب</button>
-      </div>` : ''}
+        ${assignButtonHtml(o)}
+        ${ACTIVE_STATUSES.includes(o.status)
+          ? '<button class="btn danger" id="cancelOrderBtn">إلغاء الطلب</button>' : ''}
+      </div>
+      ${assignHintHtml(o)}` : ''}
   `);
   const pb = document.getElementById('loadProofBtn');
   if (pb) pb.addEventListener('click', () => loadOrderProof(o.id));
+  const ab = document.getElementById('assignBtn');
+  if (ab) ab.addEventListener('click', () => showAssignModal(o.id));
   const cb = document.getElementById('cancelOrderBtn');
   if (cb) cb.addEventListener('click', async () => {
     const wallet = Number(o.walletUsed) || 0;
@@ -853,6 +858,236 @@ function showOrderModal(id) {
       toast(wallet > 0 ? 'أُلغي الطلب وأُعيد الرصيد للعميل' : 'تم إلغاء الطلب');
       closeModal();
     } catch (err) { alert('تعذر الإلغاء: ' + (err.code || err.message)); }
+  });
+}
+
+/* ---------------- إسناد السائقين وإعادة الإسناد ----------------
+ *
+ * كان الإسناد اليدوي حكراً على تطبيق الإدارة، فإن جاء تنبيه «لا يوجد سائق»
+ * والمالك أمام حاسوبه اضطُر لفتح جوّاله. الآن يتمّ من اللوحة نفسها.
+ *
+ * الخطر هنا أكبر من أي شاشة سبقته: إعادة إسناد طلبٍ **استُلم فعلاً** تنقل
+ * عُهدة النقد من دفتر سائق إلى آخر. لو نُقل الطلب بلا نقل العُهدة لبقي
+ * السائق القديم مطالَباً بمالٍ سلّمه لغيره — وهذه محاسبة على بضاعة ليست
+ * بيده. لذلك يتم كل شيء داخل **معاملة ذرّية واحدة**: الطلب والسائقان
+ * والسجلّ والدفتران معاً، أو لا شيء.
+ *
+ * (التطبيق ينفّذها على ثلاث دفعات متتابعة؛ اللوحة تجمعها في معاملة واحدة —
+ * النتيجة نفس المستندات بالضبط، لكن انقطاع الشبكة في المنتصف لا يترك
+ * الدفترين مفترقين.)
+ */
+const ASSIGNABLE_FROM = ['readyForPickup', 'searchingDriver', 'noDriverFound'];
+let assignSearch = '';
+
+/* قيمة العُهدة محسوبة لا مخزّنة — نسخة حرفية من custodyAmount في models.dart.
+ * أجرة السائق ليست منها (يستوفيها من النقد)، وخصم الكوبون تتحمّله المنصة. */
+function custodyAmount(o) {
+  return itemsTotal(o) + (Number(o.appShare) || 0)
+    - (Number(o.walletUsed) || 0) - (Number(o.discountAmount) || 0);
+}
+function custodyOnDriver(o) {
+  return o.custodyDebited ? custodyAmount(o) : 0;
+}
+function driverActiveOrders(driverId) {
+  return S.orders.filter((o) => o.driverId === driverId && ACTIVE_STATUSES.includes(o.status)).length;
+}
+
+function assignButtonHtml(o) {
+  if (o.driverId) return '<button class="btn" id="assignBtn">🔄 تغيير السائق</button>';
+  if (ASSIGNABLE_FROM.includes(o.status)) return '<button class="btn" id="assignBtn">🛵 إسناد سائق</button>';
+  return '';
+}
+function assignHintHtml(o) {
+  if (o.driverId || ASSIGNABLE_FROM.includes(o.status)) return '';
+  return `<p class="meta" style="margin-top:6px">الإسناد يبدأ حين يجهز الطلب للاستلام —
+    الحالة الآن «${esc((STATUS_AR[o.status] || [o.status])[0])}».</p>`;
+}
+
+function showAssignModal(orderId) {
+  const o = S.orders.find((x) => x.id === orderId);
+  if (!o) return;
+  const isReassign = !!o.driverId;
+  const custody = isReassign ? custodyOnDriver(o) : 0;
+  assignSearch = '';
+  openModal(`
+    <h3>${isReassign ? '🔄 تغيير سائق الطلب' : '🛵 إسناد سائق للطلب'} #${esc(o.orderNumber || '')}
+      <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    ${isReassign ? `<div class="kv"><span>السائق الحالي</span><b>${esc(o.driverName || '—')}</b></div>` : ''}
+    ${custody ? `<div class="card" style="border-inline-start:4px solid var(--orange);margin-top:10px">
+      <b>⚠️ هذا الطلب استُلم من المطعم</b>
+      <div class="meta">ستنتقل عُهدة <b>${fmtMoney(Math.abs(custody))} ${SAR}</b>
+        ${custody >= 0 ? 'من دفتر السائق الحالي إلى دفتر الجديد' : 'المستحقة للسائق من دفتره إلى دفتر الجديد'}،
+        وتُسجَّل حركتان دائمتان في الدفترين.</div></div>` : ''}
+    ${isReassign ? `<div class="field" style="margin-top:10px">
+      <label>سبب التغيير (إلزامي — يُسجَّل في سجل إعادة الإسناد ولا يُحذف)</label>
+      <input type="text" id="asg_reason" maxlength="120" placeholder="مثال: تعطّلت مركبة السائق"></div>` : ''}
+    <input class="search" id="asg_q" placeholder="ابحث باسم السائق أو رقمه" style="margin:10px 0;width:100%">
+    <div id="asgList"></div>
+    <button class="toggle-btn" id="asg_back" style="margin-top:10px">↩︎ رجوع لتفاصيل الطلب</button>
+  `);
+  document.getElementById('asg_back').addEventListener('click', () => showOrderModal(orderId));
+  const q = document.getElementById('asg_q');
+  q.addEventListener('input', () => {
+    assignSearch = q.value.trim().toLowerCase();
+    renderAssignList(o, isReassign);
+  });
+  renderAssignList(o, isReassign);
+}
+
+/* الترتيب: المتصل المتفرّغ أولاً. المدير يبحث عمّن يستلم الآن، لا عمّن
+ * يأتي أولاً في القائمة أبجدياً. */
+function renderAssignList(o, isReassign) {
+  const box = document.getElementById('asgList');
+  if (!box) return;
+  let list = S.drivers.filter((d) => d.id !== o.driverId);
+  if (assignSearch) {
+    list = list.filter((d) => [d.name, d.phone, d.vehiclePlate]
+      .some((v) => String(v || '').toLowerCase().includes(assignSearch)));
+  }
+  const score = (d) => (d.isOnline ? 2 : 0) + (d.isAvailable === false ? 0 : 1);
+  list = list.sort((a, b) => score(b) - score(a)
+    || String(a.name || '').localeCompare(String(b.name || ''), 'ar'));
+
+  box.innerHTML = list.length ? list.map((d) => {
+    const busy = driverActiveOrders(d.id);
+    return `<div class="card">
+      <div class="row1"><span class="title">🛵 ${esc(d.name || '—')}</span>
+        <span>${d.isOnline ? badge('متصل', '#1e8449') : badge('غير متصل', '#7f8c8d')}
+          ${d.isAvailable === false ? badge('مشغول', '#ca6f1e') : ''}</span></div>
+      <div class="meta">📞 ${esc(d.phone || '—')} — ${esc(d.vehicleType || '')} ${esc(d.vehiclePlate || '')}<br>
+        طلبات نشطة الآن: <b>${busy}</b> — الرصيد: ${balanceBadge(Number(d.balance) || 0)}</div>
+      <button class="toggle-btn on" data-asgpick="${esc(d.id)}" style="margin-top:8px">
+        ${isReassign ? 'انقل الطلب إليه' : 'أسنِد إليه'}</button>
+    </div>`;
+  }).join('') : '<div class="empty">لا سائق مطابق</div>';
+
+  box.querySelectorAll('[data-asgpick]').forEach((b) => b.addEventListener('click',
+    () => doAssign(o.id, b.dataset.asgpick, isReassign)));
+}
+
+async function doAssign(orderId, driverId, isReassign) {
+  const o = S.orders.find((x) => x.id === orderId);
+  const d = S.drivers.find((x) => x.id === driverId);
+  if (!o || !d) return;
+
+  let reason = '';
+  if (isReassign) {
+    reason = (document.getElementById('asg_reason')?.value || '').trim();
+    if (reason.length < 3) {
+      alert('اكتب سبب التغيير أولاً — يُسجَّل في سجل إعادة الإسناد ولا يمكن حذفه.');
+      document.getElementById('asg_reason')?.focus();
+      return;
+    }
+  }
+  const custody = isReassign ? custodyOnDriver(o) : 0;
+  const lines = [isReassign
+    ? `نقل الطلب #${o.orderNumber || ''} من «${o.driverName || '—'}» إلى «${d.name || ''}»؟`
+    : `إسناد الطلب #${o.orderNumber || ''} إلى «${d.name || ''}»؟`];
+  if (!d.isOnline) lines.push('⚠️ السائق غير متصل الآن — قد لا يصله الطلب حتى يفتح تطبيقه.');
+  if (custody) lines.push(`⚠️ ستُنقل عُهدة ${fmtMoney(Math.abs(custody))} ${SAR} بين الدفترين.`);
+
+  if (!confirm(lines.join('\n'))) return;
+  try {
+    if (isReassign) await reassignDriverWeb(o, d, reason);
+    else await assignDriverWeb(o, d);
+    toast(isReassign ? 'نُقل الطلب للسائق الجديد' : 'أُسنِد الطلب للسائق');
+    closeModal();
+  } catch (err) {
+    alert('تعذر التنفيذ: ' + (err.code || err.message));
+  }
+}
+
+/* الإسناد الأول. تُقرأ حالة الطلب داخل المعاملة لا من الذاكرة: بين فتح
+ * النافذة والضغط قد يكون سائقٌ قَبِل الطلب من تطبيقه، فلا يُسرق منه. */
+async function assignDriverWeb(order, driver) {
+  await runTransaction(db, async (tx) => {
+    const oRef = doc(db, 'orders', order.id);
+    const snap = await tx.get(oRef);
+    if (!snap.exists()) throw new Error('الطلب لم يعد موجوداً');
+    const cur = snap.data();
+    if (cur.driverId) throw new Error('أُسنِد هذا الطلب لسائق آخر قبل ثوانٍ');
+    if (!ASSIGNABLE_FROM.includes(cur.status)) {
+      throw new Error('تغيّرت حالة الطلب إلى «'
+        + (STATUS_AR[cur.status] || [cur.status])[0] + '» فلم يعد الإسناد ممكناً');
+    }
+    tx.update(oRef, {
+      driverId: driver.id,
+      driverName: driver.name || '',
+      driverPhone: driver.phone ?? null,
+      status: 'driverAssigned',
+      updatedAt: serverTimestamp(),
+      statusChangedAt: serverTimestamp(),
+      // السائق المتصل يُعتبر مُقرّاً فوراً — نفس شرط assignDriver في التطبيق.
+      driverAcknowledged: !!driver.isOnline,
+    });
+    tx.update(doc(db, 'drivers', driver.id), { isAvailable: false });
+  });
+}
+
+/* إعادة الإسناد: الطلب + السائقان + سجلّ الإسناد + حركتا العُهدة في معاملة
+ * واحدة. القراءات كلها قبل أي كتابة — شرط معاملات Firestore. */
+async function reassignDriverWeb(order, driver, reason) {
+  await runTransaction(db, async (tx) => {
+    const oldId = order.driverId || '';
+    const oRef = doc(db, 'orders', order.id);
+    const newRef = doc(db, 'drivers', driver.id);
+    const oldRef = oldId ? doc(db, 'drivers', oldId) : null;
+
+    const oSnap = await tx.get(oRef);
+    if (!oSnap.exists()) throw new Error('الطلب لم يعد موجوداً');
+    const cur = oSnap.data();
+    if ((cur.driverId || '') !== oldId) {
+      throw new Error('تغيّر سائق الطلب قبل ثوانٍ — أغلق النافذة وأعد المحاولة');
+    }
+    const newSnap = await tx.get(newRef);
+    const oldSnap = oldRef ? await tx.get(oldRef) : null;
+
+    // العُهدة تُحسب من نسخة الخادم لا من الذاكرة — الأرقام المالية تُقرأ طازجة.
+    const custody = cur.custodyDebited ? custodyAmount(cur) : 0;
+
+    const newUpd = { isAvailable: false };
+    const oldUpd = { isAvailable: true };
+    if (custody) {
+      const oldBal = Number(oldSnap?.data()?.balance) || 0;
+      const newBal = Number(newSnap.data()?.balance) || 0;
+      oldUpd.balance = oldBal + custody;
+      newUpd.balance = newBal - custody;
+      const common = { orderId: order.id, orderNumber: cur.orderNumber ?? null,
+        performedBy: adminUser.uid || '', createdAt: serverTimestamp() };
+      if (oldRef) {
+        tx.set(doc(collection(db, 'driver_transactions')), {
+          ...common, driverId: oldId, type: 'custodyReversal',
+          amount: custody, balanceAfter: oldBal + custody,
+          note: 'ردّ العُهدة — نُقل الطلب لسائق آخر',
+        });
+      }
+      tx.set(doc(collection(db, 'driver_transactions')), {
+        ...common, driverId: driver.id, type: 'orderCustody',
+        amount: -custody, balanceAfter: newBal - custody,
+        note: 'إعادة إسناد بعد الاستلام',
+      });
+    }
+
+    tx.update(oRef, {
+      driverId: driver.id,
+      driverName: driver.name || '',
+      driverPhone: driver.phone ?? null,
+      updatedAt: serverTimestamp(),
+    });
+    tx.update(newRef, newUpd);
+    if (oldRef) tx.update(oldRef, oldUpd);
+
+    tx.set(doc(collection(db, 'reassignments')), {
+      orderId: order.id,
+      orderNumber: cur.orderNumber || '',
+      ...(oldId ? { oldDriverId: oldId } : {}),
+      ...(order.driverName ? { oldDriverName: order.driverName } : {}),
+      newDriverId: driver.id,
+      newDriverName: driver.name || '',
+      reason,
+      performedBy: adminUser.uid || '',
+      createdAt: serverTimestamp(),
+    });
   });
 }
 
