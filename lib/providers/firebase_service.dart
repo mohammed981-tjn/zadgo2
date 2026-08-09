@@ -27,6 +27,8 @@ class FirebaseService {
       _db.collection('registrationCodes');
   CollectionReference<Map<String, dynamic>> get _deliverySettings =>
       _db.collection('delivery_settings');
+  CollectionReference<Map<String, dynamic>> get _driverApplications =>
+      _db.collection('driver_applications');
   CollectionReference<Map<String, dynamic>> get _driverTransactions =>
       _db.collection('driver_transactions');
   CollectionReference<Map<String, dynamic>> get _walletTransactions =>
@@ -316,6 +318,7 @@ class FirebaseService {
     String restaurantId = '',
     String restaurantName = '',
     Duration? validity,
+    String referredByCode = '',
   }) async {
     for (var attempt = 0; attempt < 5; attempt++) {
       final code = _randomCode();
@@ -329,6 +332,7 @@ class FirebaseService {
         restaurantName: restaurantName,
         createdAt: DateTime.now(),
         expiresAt: validity == null ? null : DateTime.now().add(validity),
+        referredByCode: referredByCode.trim().toUpperCase(),
       );
       await ref.set(entry.toMap());
       return entry;
@@ -430,8 +434,12 @@ class FirebaseService {
           // كود الداعي يُثبَّت لحظة التسجيل ولا يُعدَّل بعدها: إتاحة
           // إضافته لاحقاً تعني إحالات تُدّعى بأثر رجعي لسائقين عملوا
           // شهوراً. وتاريخ الانضمام أساس نافذة شرط التوصيلات.
-          referredByCode:
-              (referredByCode ?? '').trim().toUpperCase(),
+          // كود الداعي: ما كتبه المتقدّم، وإلا ما حمله كود التسجيل نفسه
+          // (يضعه المدير عند قبول طلب انضمام جاء عبر رابط إحالة) — فلا
+          // تضيع الإحالة لأنه نسي نقل الكود بيده.
+          referredByCode: (referredByCode ?? '').trim().isNotEmpty
+              ? referredByCode!.trim().toUpperCase()
+              : claimed.referredByCode,
           createdAt: DateTime.now(),
         ));
       }
@@ -1698,6 +1706,60 @@ class FirebaseService {
     final doc = await _deliverySettings.doc('config').get();
     return doc.data() ?? {};
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // طلبات انضمام الكباتن — تصل من صفحة التسجيل على الويب
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// طلبات الانضمام مرتّبةً: المعلّقة أولاً ثم الأحدث. الترتيب في الذاكرة
+  /// لا في الاستعلام حتى لا يلزم فهرس مركّب لمجموعة صغيرة كهذه.
+  Stream<List<models.DriverApplication>> streamDriverApplications() =>
+      _driverApplications.snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.DriverApplication.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) {
+          final ap = a.status == models.DriverApplicationStatus.pending;
+          final bp = b.status == models.DriverApplicationStatus.pending;
+          if (ap != bp) return ap ? -1 : 1;
+          return b.createdAt.compareTo(a.createdAt);
+        });
+        return list;
+      });
+
+  /// قبول طلب انضمام: يولّد كود تسجيل للسائق محمّلاً بكود الداعي، ثم يختم
+  /// الطلب بالكود الصادر. الكود يُولَّد أولاً — لو فشل الختم بقي الكود
+  /// صالحاً ويراه المدير في شاشة الأكواد، بينما ختمٌ بلا كود يترك المتقدّم
+  /// «مقبولاً» بلا وسيلة تسجيل.
+  Future<models.RegistrationCode> approveDriverApplication({
+    required models.DriverApplication application,
+    Duration? validity,
+  }) async {
+    final entry = await generateRegistrationCode(
+      role: models.UserRole.driver,
+      validity: validity,
+      referredByCode: application.referredByCode,
+    );
+    await _driverApplications.doc(application.id).update({
+      'status': models.DriverApplicationStatus.approved.name,
+      'issuedCode': entry.code,
+      'reviewedAt': FieldValue.serverTimestamp(),
+    });
+    return entry;
+  }
+
+  Future<void> rejectDriverApplication({
+    required String applicationId,
+    required String note,
+  }) =>
+      _driverApplications.doc(applicationId).update({
+        'status': models.DriverApplicationStatus.rejected.name,
+        'reviewNote': note,
+        'reviewedAt': FieldValue.serverTimestamp(),
+      });
+
+  Future<void> deleteDriverApplication(String applicationId) =>
+      _driverApplications.doc(applicationId).delete();
 
   // ═══════════════════════════════════════════════════════════════════
   // الحوافز: الإحالة وتحدي نهاية الأسبوع

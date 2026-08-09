@@ -2382,6 +2382,11 @@ class RegistrationCode {
   /// المولّدة قبل هذه الميزة).
   final DateTime? expiresAt;
 
+  /// كود الكابتن الداعي، يُحمَّل على كود التسجيل حين يُولَّد من طلب انضمام
+  /// جاء عبر رابط إحالة. يلتقطه التطبيق تلقائياً عند التسجيل، فلا تضيع
+  /// الإحالة لأن المتقدّم نسي نقل كود الداعي بيده.
+  final String referredByCode;
+
   const RegistrationCode({
     required this.code,
     required this.role,
@@ -2393,6 +2398,7 @@ class RegistrationCode {
     this.usedByUid,
     this.usedByName,
     this.expiresAt,
+    this.referredByCode = '',
   });
 
   bool get isExpired =>
@@ -2413,6 +2419,7 @@ class RegistrationCode {
         usedByUid: map['usedByUid'] as String?,
         usedByName: map['usedByName'] as String?,
         expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
+        referredByCode: map['referredByCode'] as String? ?? '',
       );
 
   Map<String, dynamic> toMap() => {
@@ -2426,8 +2433,138 @@ class RegistrationCode {
         'usedByUid': usedByUid,
         'usedByName': usedByName,
         if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
+        'referredByCode': referredByCode,
       };
 }
+
+/// طلب انضمام كابتن — يُملأ في صفحة التسجيل على الويب (zadgo.co/join)
+/// وتُرفع فيه المستندات، ويراجعه المدير من تطبيقه قبل إصدار كود التسجيل.
+///
+/// لماذا مجموعة مستقلة لا حساب مباشر: القبول قرار إداري بعد فحص مستندات
+/// نظامية (هيئة النقل)، لا تسجيل ذاتي. ولماذا الرفع على الويب: رفع
+/// الملفات يتطلّب Firebase Storage الموقوف على ترقية Blaze، بينما
+/// الاستضافة على zadgo.co تقبله اليوم — والتطبيق يعرض الصور بروابطها.
+class DriverApplication {
+  final String id;
+  final String name;
+  final String phone;
+  final String email;
+  final String nationalId;
+  final String vehicleType;
+  final String vehiclePlate;
+  final String referredByCode;
+
+  /// المستندات: المفتاح اسمه المعياري أدناه، والقيمة رابط الصورة.
+  final Map<String, String> documents;
+
+  /// صور المركبة (أربع جهات) — قائمة مستقلة لأنها متعددة.
+  final List<String> vehiclePhotos;
+
+  final DriverApplicationStatus status;
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+  final String reviewNote;
+
+  /// كود التسجيل الصادر عند القبول — يبقى ظاهراً للمدير ليعيد إرساله.
+  final String issuedCode;
+
+  const DriverApplication({
+    required this.id,
+    required this.name,
+    this.phone = '',
+    this.email = '',
+    this.nationalId = '',
+    this.vehicleType = '',
+    this.vehiclePlate = '',
+    this.referredByCode = '',
+    this.documents = const {},
+    this.vehiclePhotos = const [],
+    this.status = DriverApplicationStatus.pending,
+    required this.createdAt,
+    this.reviewedAt,
+    this.reviewNote = '',
+    this.issuedCode = '',
+  });
+
+  /// المستندات المطلوبة نظاميّاً بأسمائها المعروضة — الترتيب هو ترتيب
+  /// المراجعة. وثيقة العمل الحر للسعوديين، وتفويض القيادة لمن ليست
+  /// المركبة باسمه، فقد يغيبان بلا خلل.
+  static const docLabels = <String, String>{
+    'id': 'الهوية / الإقامة',
+    'license': 'رخصة القيادة',
+    'registration': 'الاستمارة (رخصة السير)',
+    'insurance': 'وثيقة التأمين',
+    'freelanceDoc': 'وثيقة العمل الحر',
+    'criminalRecord': 'شهادة خلو السوابق',
+    'drivingAuth': 'تفويض القيادة',
+  };
+
+  /// المستندات الإلزامية على الجميع — نقصها يُعرض تحذيراً للمدير قبل
+  /// القبول، ولا يمنعه (قد يقبل بمستند وصل عبر واتساب).
+  static const requiredDocs = ['id', 'license', 'registration', 'insurance'];
+
+  List<String> get missingRequired => requiredDocs
+      .where((k) => (documents[k] ?? '').trim().isEmpty)
+      .toList();
+
+  factory DriverApplication.fromMap(Map<String, dynamic> map, String id) {
+    final rawDocs = map['documents'];
+    final rawPhotos = map['vehiclePhotos'];
+    return DriverApplication(
+      id: id,
+      name: map['name'] as String? ?? '',
+      phone: map['phone'] as String? ?? '',
+      email: map['email'] as String? ?? '',
+      nationalId: map['nationalId'] as String? ?? '',
+      vehicleType: map['vehicleType'] as String? ?? '',
+      vehiclePlate: map['vehiclePlate'] as String? ?? '',
+      referredByCode:
+          (map['referredByCode'] as String? ?? '').trim().toUpperCase(),
+      documents: rawDocs is Map
+          ? {
+              for (final e in rawDocs.entries)
+                if (e.value is String && (e.value as String).trim().isNotEmpty)
+                  e.key.toString(): (e.value as String).trim(),
+            }
+          : const {},
+      vehiclePhotos: rawPhotos is List
+          ? rawPhotos
+              .whereType<String>()
+              .where((u) => u.trim().isNotEmpty)
+              .toList()
+          : const [],
+      status: _applicationStatusFromString(map['status'] as String?),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      reviewedAt: (map['reviewedAt'] as Timestamp?)?.toDate(),
+      reviewNote: map['reviewNote'] as String? ?? '',
+      issuedCode: map['issuedCode'] as String? ?? '',
+    );
+  }
+}
+
+enum DriverApplicationStatus { pending, approved, rejected }
+
+extension DriverApplicationStatusX on DriverApplicationStatus {
+  String get label => switch (this) {
+        DriverApplicationStatus.pending => 'بانتظار المراجعة',
+        DriverApplicationStatus.approved => 'مقبول',
+        DriverApplicationStatus.rejected => 'مرفوض',
+      };
+
+  Color get color => switch (this) {
+        DriverApplicationStatus.pending => const Color(0xFFFF9800),
+        DriverApplicationStatus.approved => const Color(0xFF4CAF50),
+        DriverApplicationStatus.rejected => const Color(0xFFE53935),
+      };
+}
+
+DriverApplicationStatus _applicationStatusFromString(String? raw) =>
+    _enumValueFromString<DriverApplicationStatus>(
+      raw,
+      DriverApplicationStatus.values,
+      DriverApplicationStatus.pending,
+      'DriverApplicationStatus',
+    );
 /// بنر ترويجي أعلى شاشة مطاعم العميل — عروض، مطاعم جديدة، إعلانات موسمية.
 ///
 /// الصورة رابط خارجي (المكان الطبيعي: zadgo.co/images — استبدال الملف
