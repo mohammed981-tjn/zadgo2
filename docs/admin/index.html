@@ -261,8 +261,72 @@ const PAGES = [
   ['broadcast', '📢', 'رسالة جماعية'],
   ['import', '📥', 'استيراد منيو'],
   ['reports', '📈', 'التقارير'],
+  ['audit', '🕵️', 'سجل التدقيق'],
   ['settings', '⚙️', 'الإعدادات'],
 ];
+
+/* ---------------- سجل التدقيق الإداري ----------------
+ * كل فعل إداري يُكتب هنا باسم فاعله ووقته. الغرض ليس الشكّ في أحد، بل أن
+ * يكون لكل تغيير مصدرٌ معروف: «من ألغى هذا الطلب؟» سؤالٌ بلا جواب اليوم.
+ *
+ * قاعدتان تحكمان التنفيذ:
+ * ١. **التسجيل لا يُفشل الفعل أبداً.** لو تعذّرت كتابة السجل (قواعد لم
+ *    تُنشر، انقطاع شبكة) يمضي الإلغاء والصرف كما هما. سجلٌّ ناقص أهون من
+ *    صرفٍ لسائق فشل لأن التوثيق فشل.
+ * ٢. **يُكتب بعد نجاح الفعل لا قبله**، فلا يُوثَّق ما لم يقع.
+ */
+const AUDIT_ACTIONS = {
+  'order.cancel':       ['إلغاء طلب', 'orders', '#c0392b'],
+  'order.assign':       ['إسناد سائق', 'orders', '#2471a3'],
+  'order.reassign':     ['تغيير سائق', 'orders', '#ca6f1e'],
+  'driver.deposit':     ['إيداع نقدي', 'money', '#1e8449'],
+  'driver.payout':      ['صرف لسائق', 'money', '#c0392b'],
+  'driver.adjustment':  ['تسوية دفتر سائق', 'money', '#8e44ad'],
+  'payout.paid':        ['صرف طلب سحب', 'money', '#1e8449'],
+  'payout.rejected':    ['رفض طلب سحب', 'money', '#c0392b'],
+  'settlement.create':  ['تسوية مطعم', 'money', '#16a085'],
+  'wallet.adjust':      ['تعديل محفظة عميل', 'money', '#2471a3'],
+  'restaurant.toggle':  ['فتح/إغلاق مطعم', 'content', '#ca6f1e'],
+  'restaurant.edit':    ['تعديل بيانات مطعم', 'content', '#2471a3'],
+  'menu.category':      ['تصنيف منيو', 'content', '#8e44ad'],
+  'menu.item':          ['صنف منيو', 'content', '#8e44ad'],
+  'menu.import':        ['استيراد منيو', 'content', '#16a085'],
+  'banner.create':      ['إضافة بنر', 'content', '#1e8449'],
+  'banner.toggle':      ['تفعيل/إيقاف بنر', 'content', '#ca6f1e'],
+  'banner.delete':      ['حذف بنر', 'content', '#c0392b'],
+  'banner.reorder':     ['ترتيب البنرات', 'content', '#7f8c8d'],
+  'coupon.create':      ['إنشاء كوبون', 'content', '#1e8449'],
+  'coupon.toggle':      ['تفعيل/إيقاف كوبون', 'content', '#ca6f1e'],
+  'coupon.delete':      ['حذف كوبون', 'content', '#c0392b'],
+  'code.create':        ['إصدار كود تسجيل', 'users', '#1e8449'],
+  'code.delete':        ['حذف كود تسجيل', 'users', '#c0392b'],
+  'user.toggle':        ['تفعيل/إيقاف مستخدم', 'users', '#ca6f1e'],
+  'complaint.status':   ['تغيير حالة شكوى', 'users', '#2471a3'],
+  'complaint.note':     ['ملاحظة على شكوى', 'users', '#7f8c8d'],
+  'complaint.reply':    ['ردّ على شكوى', 'users', '#2471a3'],
+  'broadcast.send':     ['رسالة جماعية', 'users', '#8e44ad'],
+  'settings.save':      ['حفظ الإعدادات', 'settings', '#ca6f1e'],
+};
+const AUDIT_CATS = { orders: '🧾 الطلبات', money: '💰 المال', content: '🍽️ المحتوى',
+  users: '👥 المستخدمون', settings: '⚙️ الإعدادات' };
+
+async function audit(action, summary, extra = {}) {
+  try {
+    await addDoc(collection(db, 'admin_audit'), {
+      action,
+      summary: String(summary || '').slice(0, 300),
+      by: adminUser.uid || '',
+      byName: adminUser.name || '',
+      byEmail: adminUser.email || '',
+      ...extra,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    // لا نُزعج المالك برسالة: الفعل نفسه نجح. صفحة السجل تُظهر الخلل.
+    auditBroken = err.code || err.message || 'unknown';
+    console.warn('audit write failed:', action, err);
+  }
+}
 
 /* ---------------- أدوات ---------------- */
 function esc(s) {
@@ -385,6 +449,8 @@ let menuUnsub = [];
 /* مستمع محادثة الشكوى المفتوح حالياً — يُلغى عند إغلاق النافذة. */
 let chatUnsub = null;
 let alertsTimer = null;
+let auditBroken = null;
+let auditRows = null, auditCat = 'all', auditSearch = '', auditErr = null, auditLoading = false;
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
@@ -527,7 +593,7 @@ function rerender() {
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
     menu: renderMenuPage, codes: renderCodesPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
-    reports: renderReportsPage, settings: renderSettingsPage };
+    reports: renderReportsPage, audit: renderAuditPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
 
@@ -855,6 +921,9 @@ function showOrderModal(id) {
     try {
       await updateDoc(doc(db, 'orders', o.id), { status: 'cancelled', statusChangedAt: serverTimestamp() });
       await refundWalletOnCancel(o);
+      audit('order.cancel', `ألغى الطلب #${o.orderNumber || o.id.slice(0, 6)} — ${o.restaurantName || ''}`
+        + (wallet > 0 ? ` (أُعيد ${fmtMoney(wallet)} ${SAR} للمحفظة)` : ''),
+        { target: 'orders/' + o.id, amount: wallet });
       toast(wallet > 0 ? 'أُلغي الطلب وأُعيد الرصيد للعميل' : 'تم إلغاء الطلب');
       closeModal();
     } catch (err) { alert('تعذر الإلغاء: ' + (err.code || err.message)); }
@@ -988,8 +1057,17 @@ async function doAssign(orderId, driverId, isReassign) {
 
   if (!confirm(lines.join('\n'))) return;
   try {
-    if (isReassign) await reassignDriverWeb(o, d, reason);
-    else await assignDriverWeb(o, d);
+    if (isReassign) {
+      await reassignDriverWeb(o, d, reason);
+      audit('order.reassign',
+        `نقل الطلب #${o.orderNumber || ''} من «${o.driverName || '—'}» إلى «${d.name || ''}» — ${reason}`
+        + (custody ? ` (نُقلت عُهدة ${fmtMoney(Math.abs(custody))} ${SAR})` : ''),
+        { target: 'orders/' + o.id, amount: custody });
+    } else {
+      await assignDriverWeb(o, d);
+      audit('order.assign', `أسنَد الطلب #${o.orderNumber || ''} إلى «${d.name || ''}»`,
+        { target: 'orders/' + o.id });
+    }
     toast(isReassign ? 'نُقل الطلب للسائق الجديد' : 'أُسنِد الطلب للسائق');
     closeModal();
   } catch (err) {
@@ -1150,7 +1228,12 @@ function renderRestaurantsPage() {
   $('main').querySelectorAll('[data-rtoggle]').forEach((b) => b.addEventListener('click', async () => {
     const opening = b.dataset.open !== '1';
     if (!confirm(opening ? 'فتح المطعم لاستقبال الطلبات؟' : 'إغلاق المطعم وإيقاف استقبال الطلبات؟')) return;
-    try { await updateDoc(doc(db, 'restaurants', b.dataset.rtoggle), { isOpen: opening }); toast('تم التحديث'); }
+    try {
+      await updateDoc(doc(db, 'restaurants', b.dataset.rtoggle), { isOpen: opening });
+      audit('restaurant.toggle', `${opening ? 'فتح' : 'أغلق'} مطعم «${restName(S.restaurants.find((x) => x.id === b.dataset.rtoggle) || {})}»`,
+        { target: 'restaurants/' + b.dataset.rtoggle });
+      toast('تم التحديث');
+    }
     catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
   }));
   $('main').querySelectorAll('[data-redit]').forEach((b) => b.addEventListener('click', () => showRestEdit(b.dataset.redit)));
@@ -1198,6 +1281,7 @@ function showRestEdit(id) {
         phone: v('phone').trim(), address: v('address').trim(),
         minOrder: num('minOrder'), estimatedTimeMin: Math.round(num('estimatedTimeMin')),
       });
+      audit('restaurant.edit', `عدّل بيانات مطعم «${restName(r)}»`, { target: 'restaurants/' + id });
       toast('تم حفظ التعديلات'); closeModal();
     } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
   });
@@ -1301,6 +1385,8 @@ function showWalletModal(driverId, kind) {
           createdAt: serverTimestamp(),
         });
       });
+      audit('driver.' + kind, `${meta[2]} ${fmtMoney(Math.abs(delta))} ${SAR} — السائق «${d.name || ''}»`
+        + (note ? ` (${note})` : ''), { target: 'drivers/' + driverId, amount: delta });
       toast('سُجّلت الحركة بنجاح'); closeModal();
     } catch (err) {
       alert('تعذر التسجيل: ' + (err.code || err.message) +
@@ -1376,7 +1462,13 @@ function renderUsersPage() {
   $('main').querySelectorAll('[data-utoggle]').forEach((b) => b.addEventListener('click', async () => {
     const activating = b.dataset.active !== '1';
     if (!confirm(activating ? 'تفعيل هذا الحساب؟' : 'إيقاف هذا الحساب عن استخدام التطبيق؟')) return;
-    try { await updateDoc(doc(db, 'users', b.dataset.utoggle), { isActive: activating }); toast('تم التحديث'); }
+    try {
+      await updateDoc(doc(db, 'users', b.dataset.utoggle), { isActive: activating });
+      const u = S.users.find((x) => x.id === b.dataset.utoggle) || {};
+      audit('user.toggle', `${activating ? 'فعّل' : 'أوقف'} المستخدم «${u.name || u.phone || b.dataset.utoggle}»`,
+        { target: 'users/' + b.dataset.utoggle });
+      toast('تم التحديث');
+    }
     catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
   }));
 }
@@ -1409,14 +1501,25 @@ function renderComplaintsPage() {
 
   $('main').querySelectorAll('[data-cstatus]').forEach((s) => s.addEventListener('change', async () => {
     if (!confirm('تغيير حالة الشكوى إلى «' + COMPLAINT_STATUS_AR[s.value] + '»؟')) { renderComplaintsPage(); return; }
-    try { await updateDoc(doc(db, 'complaints', s.dataset.cstatus), { status: s.value }); toast('تم التحديث'); }
+    try {
+      await updateDoc(doc(db, 'complaints', s.dataset.cstatus), { status: s.value });
+      const c = S.complaints.find((x) => x.id === s.dataset.cstatus) || {};
+      audit('complaint.status', `حوّل شكوى الطلب #${c.orderNumber || ''} إلى «${COMPLAINT_STATUS_AR[s.value] || s.value}»`,
+        { target: 'complaints/' + s.dataset.cstatus });
+      toast('تم التحديث');
+    }
     catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
   }));
   $('main').querySelectorAll('[data-cnote]').forEach((b) => b.addEventListener('click', async () => {
     const c = S.complaints.find((x) => x.id === b.dataset.cnote);
     const note = prompt('ملاحظة الإدارة على الشكوى:', c?.adminNote || '');
     if (note === null) return;
-    try { await updateDoc(doc(db, 'complaints', b.dataset.cnote), { adminNote: note.trim() }); toast('حُفظت الملاحظة'); }
+    try {
+      await updateDoc(doc(db, 'complaints', b.dataset.cnote), { adminNote: note.trim() });
+      audit('complaint.note', `كتب ملاحظة على شكوى الطلب #${c?.orderNumber || ''}: ${note.trim()}`,
+        { target: 'complaints/' + b.dataset.cnote });
+      toast('حُفظت الملاحظة');
+    }
     catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
   }));
   $('main').querySelectorAll('[data-cchat]').forEach((b) =>
@@ -1488,6 +1591,8 @@ function openComplaintChat(complaintId) {
         createdAt: serverTimestamp(),
       });
       ta.value = '';
+      audit('complaint.reply', `ردّ على شكوى الطلب #${c?.orderNumber || ''}: ${text}`,
+        { target: 'complaints/' + complaintId });
       // الرد يعني أن الشكوى قيد المعالجة فعلاً — نرفعها من «مفتوحة» تلقائياً.
       if (c && c.status === 'open') {
         await updateDoc(doc(db, 'complaints', complaintId), { status: 'inProgress' });
@@ -1598,6 +1703,13 @@ function renderMenuPage() {
     b.addEventListener('click', () => openCatForm(b.dataset.catedit)));
 }
 
+/* اسم المطعم المفتوح في صفحة المنيو — يُذكر في سجل التدقيق حتى لا يصير
+ * القيد «أضاف صنف جبن» بلا معرفة أي مطعم. */
+function menuRestName() {
+  const r = S.restaurants.find((x) => x.id === menuRid);
+  return r ? restName(r) : menuRid;
+}
+
 function openCatForm(catId) {
   const c = catId ? menuCats.find((x) => x.id === catId) : null;
   openModal(`
@@ -1620,6 +1732,8 @@ function openCatForm(catId) {
         await addDoc(collection(db, 'restaurants', menuRid, 'categories'),
           { name, restaurantId: menuRid, sortOrder });
       }
+      audit('menu.category', `${c ? 'عدّل' : 'أضاف'} قسم «${name}» في ${menuRestName()}`,
+        { target: 'restaurants/' + menuRid });
       toast('حُفظ القسم'); closeModal();
     } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
   });
@@ -1630,6 +1744,7 @@ function openCatForm(catId) {
     if (!confirm(`حذف القسم «${c.name}»؟`)) return;
     try {
       await deleteDoc(doc(db, 'restaurants', menuRid, 'categories', c.id));
+      audit('menu.category', `حذف قسم «${c.name}» من ${menuRestName()}`, { target: 'restaurants/' + menuRid });
       toast('حُذف القسم'); closeModal();
     } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
   });
@@ -1685,6 +1800,8 @@ function openItemForm(itemId) {
         await addDoc(collection(db, 'restaurants', menuRid, 'items'),
           { ...payload, isAvailable: true, trackStock: false, totalSold: 0 });
       }
+      audit('menu.item', `${i ? 'عدّل' : 'أضاف'} صنف «${name}» بسعر ${fmtMoney(price)} ${SAR} في ${menuRestName()}`,
+        { target: 'restaurants/' + menuRid, amount: price });
       toast('حُفظ الصنف'); closeModal();
     } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
   });
@@ -1698,6 +1815,8 @@ async function toggleItem(itemId) {
   try {
     await updateDoc(doc(db, 'restaurants', menuRid, 'items', itemId),
       { isAvailable: i.isAvailable === false });
+    audit('menu.item', `${i.isAvailable === false ? 'أعاد توفّر' : 'أخفى'} صنف «${i.name || ''}» في ${menuRestName()}`,
+      { target: 'restaurants/' + menuRid });
     toast(i.isAvailable === false ? 'عاد الصنف للتوفر' : 'أُخفي الصنف عن العملاء');
   } catch (err) { alert('تعذر التغيير: ' + (err.code || err.message)); }
 }
@@ -1707,6 +1826,7 @@ async function deleteItem(itemId) {
   if (!confirm(`حذف «${i?.name}» نهائياً؟\n(«نفد الصنف» يخفيه مؤقتاً دون فقدانه — وهو الأنسب غالباً)`)) return;
   try {
     await deleteDoc(doc(db, 'restaurants', menuRid, 'items', itemId));
+    audit('menu.item', `حذف صنف «${i?.name || itemId}» من ${menuRestName()}`, { target: 'restaurants/' + menuRid });
     toast('حُذف الصنف');
   } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
 }
@@ -1856,6 +1976,9 @@ async function saveCode() {
       ...(expiresAt ? { expiresAt } : {}),
       ...(ref ? { referredByCode: ref } : {}),
     });
+    audit('code.create', `أصدر كود تسجيل ${code} لـ${role === 'restaurantManager' ? 'مدير مطعم' : 'كابتن'}`
+      + (r ? ` — ${restName(r)}` : '') + (days > 0 ? ` (صالح ${days} يوماً)` : ' (بلا انتهاء)'),
+      { target: 'registrationCodes/' + code });
     closeModal();
     toast('أُنشئ الكود ' + code);
     setTimeout(() => shareCode(code), 200);
@@ -1892,6 +2015,7 @@ async function deleteCode(code) {
   if (!confirm(`حذف الكود ${code}؟\n(إن كنتَ أرسلته لأحد فلن يعمل بعد الحذف)`)) return;
   try {
     await deleteDoc(doc(db, 'registrationCodes', code));
+    audit('code.delete', `حذف كود التسجيل ${code}`, { target: 'registrationCodes/' + code });
     toast('حُذف الكود');
   } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
 }
@@ -2057,6 +2181,8 @@ function openWalletAdjust(userId) {
           note, createdAt: serverTimestamp(),
         });
       });
+      audit('wallet.adjust', `${amount > 0 ? 'أضاف' : 'خصم'} ${fmtMoney(Math.abs(amount))} ${SAR} `
+        + `من محفظة «${u.name || u.phone || userId}» — ${note}`, { target: 'users/' + userId, amount });
       toast('سُجّلت التسوية'); closeModal();
     } catch (err) { alert('تعذر التسجيل: ' + (err.message || err.code)); }
   });
@@ -2240,6 +2366,8 @@ function openSettlementForm(restaurantId) {
         performedBy: adminUser.uid,
         createdAt: serverTimestamp(),
       });
+      audit('settlement.create', `تسوية ${fmtMoney(amount)} ${SAR} لمطعم «${restName(r)}»` + (method ? ` — ${method}` : ''),
+        { target: 'restaurants/' + restaurantId, amount });
       toast('سُجّلت الدفعة'); closeModal();
     } catch (err) { alert('تعذر التسجيل: ' + (err.code || err.message)); }
   });
@@ -2382,6 +2510,9 @@ async function saveBanner() {
       isActive: true, sortOrder,
       createdAt: serverTimestamp(),
     });
+    audit('banner.create', `أضاف بنر «${title || '—'}»`
+      + (restaurantId ? ` — ${restName(S.restaurants.find((x) => x.id === restaurantId) || {})}` : ''),
+      { target: 'banners' });
     toast('أُضيف البنر'); closeModal();
   } catch (err) { alert('تعذرت الإضافة: ' + (err.code || err.message)); }
 }
@@ -2391,6 +2522,8 @@ async function toggleBanner(id) {
   if (!b) return;
   try {
     await updateDoc(doc(db, 'banners', id), { isActive: b.isActive === false });
+    audit('banner.toggle', `${b.isActive === false ? 'فعّل' : 'أوقف'} بنر «${b.title || id}»`,
+      { target: 'banners/' + id });
     toast(b.isActive === false ? 'أصبح ظاهراً للعملاء' : 'أُوقف عن الظهور');
   } catch (err) { alert('تعذر التغيير: ' + (err.code || err.message)); }
 }
@@ -2399,6 +2532,8 @@ async function deleteBanner(id) {
   if (!confirm('حذف هذا البنر نهائياً؟\n(الإيقاف يخفيه عن العملاء دون فقدانه)')) return;
   try {
     await deleteDoc(doc(db, 'banners', id));
+    audit('banner.delete', `حذف بنر «${(S.banners.find((x) => x.id === id) || {}).title || id}»`,
+      { target: 'banners/' + id });
     toast('حُذف البنر');
   } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
 }
@@ -2417,6 +2552,8 @@ async function moveBanner(id, dir) {
     batch.update(doc(db, 'banners', a.id), { sortOrder: Number(b.sortOrder) || 0 });
     batch.update(doc(db, 'banners', b.id), { sortOrder: Number(a.sortOrder) || 0 });
     await batch.commit();
+    audit('banner.reorder', `نقل بنر «${a.title || a.id}» ${dir < 0 ? 'للأعلى' : 'للأسفل'}`,
+      { target: 'banners/' + a.id });
   } catch (err) { alert('تعذر الترتيب: ' + (err.code || err.message)); }
 }
 
@@ -2543,6 +2680,8 @@ async function payPayout(id) {
         ...(note.trim() ? { adminNote: note.trim() } : {}),
       });
     });
+    audit('payout.paid', `صرف طلب سحب ${fmtMoney(amount)} ${SAR} للسائق «${p.driverName || ''}» (${p.method || '—'})`,
+      { target: 'payout_requests/' + id, amount: -amount });
     toast('صُرف الطلب وسُجّلت الحركة');
   } catch (err) {
     alert('تعذر الصرف: ' + (err.message || err.code));
@@ -2569,6 +2708,8 @@ async function rejectPayout(id) {
         processedAt: serverTimestamp(),
       });
     });
+    audit('payout.rejected', `رفض طلب سحب ${fmtMoney(p.amount)} ${SAR} للسائق «${p.driverName || ''}» — ${reason.trim()}`,
+      { target: 'payout_requests/' + id, amount: Number(p.amount) || 0 });
     toast('رُفض الطلب');
   } catch (err) {
     alert('تعذر الرفض: ' + (err.message || err.code));
@@ -2735,6 +2876,8 @@ async function saveCoupon() {
       isActive: true,
       createdAt: serverTimestamp(),
     });
+    audit('coupon.create', `أنشأ كوبون ${code} — ${type === 'percentage' ? value + '%' : fmtMoney(value) + ' ' + SAR}`
+      + (usageLimit > 0 ? ` (حد ${usageLimit} استخدام)` : ''), { target: 'coupons/' + code, amount: value });
     toast('أُنشئ الكوبون ' + code); closeModal();
   } catch (err) {
     alert('تعذر الإنشاء: ' + (err.code || err.message));
@@ -2748,6 +2891,7 @@ async function toggleCoupon(code) {
   if (!confirm(`${turningOn ? 'تفعيل' : 'إيقاف'} الكود ${code}؟`)) return;
   try {
     await updateDoc(doc(db, 'coupons', code), { isActive: turningOn });
+    audit('coupon.toggle', `${turningOn ? 'فعّل' : 'أوقف'} كوبون ${code}`, { target: 'coupons/' + code });
     toast(turningOn ? 'فُعّل الكوبون' : 'أُوقف الكوبون');
   } catch (err) { alert('تعذر التغيير: ' + (err.code || err.message)); }
 }
@@ -2763,6 +2907,8 @@ async function deleteCoupon(code) {
   if (!confirm(`حذف الكود ${code} نهائياً؟${warn}`)) return;
   try {
     await deleteDoc(doc(db, 'coupons', code));
+    audit('coupon.delete', `حذف كوبون ${code}` + (used > 0 ? ` (كان مستخدماً ${used} مرة)` : ''),
+      { target: 'coupons/' + code });
     toast('حُذف الكوبون');
   } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
 }
@@ -2820,6 +2966,7 @@ function renderBroadcastPage() {
         sentBy: adminUser.name || adminUser.email,
         createdAt: serverTimestamp(),
       });
+      audit('broadcast.send', `أرسل رسالة إلى ${target}: «${title}»`, { target: 'broadcasts' });
       toast('أُرسلت الرسالة'); renderBroadcastPage();
     } catch (err) { alert('تعذر الإرسال: ' + (err.code || err.message)); }
   });
@@ -2935,6 +3082,9 @@ async function runImport() {
       }
     }
     if (ops > 0) await batch.commit();
+    audit('menu.import', `استورد منيو «${restName(S.restaurants.find((x) => x.id === rid) || {})}» — `
+      + `${newCats} قسماً جديداً، ${newItems} صنفاً جديداً، ${updItems} صنفاً محدَّثاً`,
+      { target: 'restaurants/' + rid });
     say(`✅ <b>اكتمل الاستيراد بنجاح</b><br>
       أقسام جديدة: ${newCats} — أصناف جديدة: ${newItems} — أصناف حُدّثت: ${updItems}<br>
       <span class="meta">افتح التطبيق الآن — الأصناف وصورها ستظهر مباشرة.</span>`);
@@ -3057,6 +3207,93 @@ function exportCsv() {
   a.click();
 }
 
+/* ================= سجل التدقيق ================= */
+/* يُقرأ عند الطلب لا بمستمع دائم: صفحة تُفتح عند السؤال «من فعل هذا؟»
+ * ولا معنى لبقائها تقرأ في الخلفية طوال اليوم. */
+const AUDIT_LIMIT = 400;
+
+async function loadAudit() {
+  if (auditLoading) return;      // لقطة واردة أثناء التحميل لا تُطلق جلبة ثانية
+  auditLoading = true;
+  auditErr = null;
+  try {
+    const qs = await getDocs(query(collection(db, 'admin_audit'),
+      orderBy('createdAt', 'desc'), limit(AUDIT_LIMIT)));
+    auditRows = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    auditErr = err.code || err.message;
+    auditRows = [];
+  }
+  auditLoading = false;
+  if (page === 'audit') renderAuditPage();
+}
+
+function renderAuditPage() {
+  if (auditRows === null) {
+    $('main').innerHTML = '<div class="loading">جارٍ تحميل السجل…</div>';
+    loadAudit();
+    return;
+  }
+  const cats = [['all', 'الكل'], ...Object.entries(AUDIT_CATS)];
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <p class="meta" style="margin-bottom:10px">كل فعل إداري من هذه اللوحة يُسجَّل هنا باسم فاعله ووقته.
+        السجل <b>لا يُعدَّل ولا يُحذف</b> — وآخر ${AUDIT_LIMIT} حركة هي المعروضة.</p>
+      ${auditErr ? `<div class="card" style="border-inline-start:4px solid var(--red)">
+        <b>⚠️ تعذّرت قراءة السجل</b>
+        <div class="meta">${esc(auditErr)}${auditErr === 'permission-denied'
+          ? '<br>قواعد Firestore لمجموعة <code>admin_audit</code> لم تُنشر بعد — أبلغ مساعد التطبيق.' : ''}</div>
+      </div>` : ''}
+      ${auditBroken ? `<div class="card" style="border-inline-start:4px solid var(--orange)">
+        <b>⚠️ فشلت كتابة حركة في السجل خلال هذه الجلسة</b>
+        <div class="meta">${esc(auditBroken)} — الأفعال نفسها نُفِّذت، لكن توثيقها لم يُكتب.</div>
+      </div>` : ''}
+      <div class="toolbar">${cats.map(([k, l]) =>
+        `<button class="chip ${auditCat === k ? 'active' : ''}" data-af="${k}">${l}</button>`).join('')}
+        <button class="toggle-btn" id="auditReload">↻ تحديث</button></div>
+      <input class="search" id="auditQ" placeholder="ابحث في الوصف أو باسم المدير"
+        value="${esc(auditSearch)}" style="width:100%">
+    </div>
+    <div id="auditList"></div>`;
+
+  $('main').querySelectorAll('[data-af]').forEach((b) => b.addEventListener('click', () => {
+    auditCat = b.dataset.af;
+    $('main').querySelectorAll('[data-af]').forEach((x) => x.classList.toggle('active', x === b));
+    renderAuditRows();
+  }));
+  $('main').querySelector('#auditReload').addEventListener('click', () => {
+    auditRows = null; renderAuditPage();
+  });
+  // التصفية تُعيد رسم القائمة وحدها لا الصفحة: لو أُعيد بناء حقل البحث مع
+  // كل حرف لضاع تركيز المؤشّر منه وتعذّرت الكتابة أصلاً.
+  const q = $('main').querySelector('#auditQ');
+  q.addEventListener('input', () => { auditSearch = q.value.trim(); renderAuditRows(); });
+  renderAuditRows();
+}
+
+function renderAuditRows() {
+  const box = document.getElementById('auditList');
+  if (!box) return;
+  let list = auditRows || [];
+  if (auditCat !== 'all') list = list.filter((r) => (AUDIT_ACTIONS[r.action] || [])[1] === auditCat);
+  if (auditSearch) {
+    const q2 = auditSearch.toLowerCase();
+    list = list.filter((r) => [r.summary, r.byName, r.byEmail, (AUDIT_ACTIONS[r.action] || [])[0]]
+      .some((v) => String(v || '').toLowerCase().includes(q2)));
+  }
+  box.innerHTML = list.map((r) => {
+    const [lbl, , color] = AUDIT_ACTIONS[r.action] || [r.action, '', '#7f8c8d'];
+    const amt = Number(r.amount);
+    return `<div class="card">
+      <div class="row1"><span class="title">${esc(r.summary || lbl)}</span>${badge(lbl, color)}</div>
+      <div class="meta">👤 ${esc(r.byName || r.byEmail || 'مدير')} — ${esc(fmtTime(r.createdAt))}
+        ${Number.isFinite(amt) && amt !== 0 ? `<br>المبلغ: <b>${fmtMoney(Math.abs(amt))} ${SAR}</b>` : ''}
+      </div>
+    </div>`;
+  }).join('') || `<div class="empty">${auditErr ? '' : 'لا حركات مسجَّلة في هذا التصنيف'}</div>`;
+}
+
 /* ================= الإعدادات ================= */
 function renderSettingsPage() {
   const s = S.settings || {};
@@ -3090,6 +3327,10 @@ function renderSettingsPage() {
         lateDeliveryThresholdMinutes: Math.max(1, Number(document.getElementById('s_late').value) || 15),
         complaintResponseMinutes: Math.max(1, Number(document.getElementById('s_comp').value) || 120),
       }, { merge: true });
+      audit('settings.save', 'حفظ مُهل المعالجة: '
+        + `مطعم ${document.getElementById('s_rest').value} د · سائق ${document.getElementById('s_driver').value} د · `
+        + `تأخير ${document.getElementById('s_late').value} د · شكوى ${document.getElementById('s_comp').value} د`,
+        { target: 'delivery_settings/config' });
       toast('حُفظت الإعدادات');
     } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
   });
