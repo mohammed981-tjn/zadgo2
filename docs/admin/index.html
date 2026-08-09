@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://firebasestorage.googleapis.com https://*.firebasestorage.app; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0e3a2c">
 <link rel="icon" href="../images/zadgo-logo-gold.png">
@@ -125,6 +125,7 @@
   .toggle-btn { border: 1px solid #cfd9d5; background: #fff; border-radius: 8px; padding: 7px 14px;
     cursor: pointer; font-size: .84rem; }
   .toggle-btn.on { background: #e8f6ef; border-color: #27ae60; color: var(--ok); }
+  .toggle-btn[disabled] { opacity: .4; cursor: default; }
   .toggle-btn.off { background: #fdecea; border-color: var(--red); color: var(--red); }
   select.inline-sel { padding: 7px 10px; border-radius: 8px; border: 1px solid #cfd9d5; font-size: .84rem; background: #fff; }
   .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
@@ -244,6 +245,7 @@ const PAGES = [
   ['drivers', '🛵', 'السائقون'],
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
+  ['banners', '🖼️', 'البنرات'],
   ['payouts', '💸', 'طلبات السحب'],
   ['coupons', '🎟️', 'الكوبونات'],
   ['broadcast', '📢', 'رسالة جماعية'],
@@ -350,7 +352,7 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], payouts: [], settings: null };
+  coupons: [], couponUsages: [], payouts: [], banners: [], settings: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
@@ -426,6 +428,7 @@ function startListeners() {
   bind(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(40)), 'broadcasts');
   // الكوبونات: معرّف المستند هو الكود نفسه، فالترتيب بـcreatedAt يحتاج وجود
   // الحقل في كل مستند — نرتّب محلياً بدلاً من ذلك تفادياً لسقوط الاستعلام.
+  bind(query(collection(db, 'banners'), limit(60)), 'banners');
   bind(query(collection(db, 'payout_requests'), orderBy('createdAt', 'desc'), limit(200)), 'payouts');
   bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
   bind(query(collection(db, 'coupon_usages'), limit(500)), 'couponUsages');
@@ -478,7 +481,7 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
     reports: renderReportsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
@@ -992,6 +995,160 @@ function renderComplaintsPage() {
 }
 
 /* ================= رسالة جماعية ================= */
+/* ================= البنرات الترويجية =================
+ *
+ * تظهر شريطاً متحرّكاً أعلى شاشة مطاعم العميل. الترتيب بـsortOrder تصاعدياً،
+ * والبنر غير الفعّال لا يظهر للعميل إطلاقاً.
+ *
+ * الصورة تُشار برابط لا تُرفع من هنا: الاستضافة على zadgo.co/images/ مجانية
+ * ومباشرة، ورفع الملفات يحتاج Firebase Storage (خطة Blaze). المعاينة داخل
+ * الصفحة تكشف الرابط المكسور قبل أن يراه العميل.
+ */
+function renderBannersPage() {
+  const list = [...S.banners].sort((a, b) =>
+    (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+  const activeCount = list.filter((b) => b.isActive !== false).length;
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <div class="row1" style="margin-bottom:10px">
+        <h3 style="margin:0">البنرات الترويجية</h3>
+        <button class="btn" id="newBannerBtn">➕ بنر جديد</button>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="num">${list.length}</div><div class="lbl">إجمالي البنرات</div></div>
+        <div class="kpi"><div class="num">${activeCount}</div><div class="lbl">ظاهرة للعميل</div></div>
+      </div>
+      <p class="meta" style="margin-top:10px">تظهر شريطاً أعلى شاشة المطاعم في تطبيق العميل، بالترتيب أدناه. البنر الموقوف لا يراه أحد.</p>
+    </div>
+    <div class="panel">
+      ${list.map((b, i) => {
+        const rest = b.restaurantId
+          ? (restName(S.restaurants.find((r) => r.id === b.restaurantId)) || 'مطعم محذوف')
+          : null;
+        return `
+          <div class="card">
+            <div class="row1">
+              <span class="title">${esc(b.title || '(بلا عنوان — النص داخل الصورة)')}</span>
+              ${b.isActive === false ? badge('موقوف', '#7f8c8d') : badge('ظاهر', '#1e8449')}
+            </div>
+            <img src="${esc(b.imageUrl || '')}" alt=""
+                 style="width:100%;max-height:150px;object-fit:cover;border-radius:12px;margin:8px 0;background:#eef2f0"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+            <div class="meta" style="display:none;color:var(--red)">⚠️ تعذّر تحميل الصورة — راجع الرابط</div>
+            <div class="meta">
+              الترتيب: ${Number(b.sortOrder) || 0}
+              ${rest ? `<br>الضغط يفتح: ${esc(rest)}` : '<br>الضغط لا يفتح مطعماً بعينه'}
+              <br><span style="direction:ltr;display:inline-block;font-size:.75rem">${esc(b.imageUrl || '—')}</span>
+            </div>
+            <div class="row1" style="margin-top:8px;gap:6px">
+              <button class="toggle-btn" data-bup="${esc(b.id)}" ${i === 0 ? 'disabled' : ''}>⬆️ لأعلى</button>
+              <button class="toggle-btn" data-bdown="${esc(b.id)}" ${i === list.length - 1 ? 'disabled' : ''}>⬇️ لأسفل</button>
+              <button class="toggle-btn ${b.isActive === false ? 'on' : ''}" data-btoggle="${esc(b.id)}">
+                ${b.isActive === false ? '▶️ إظهار' : '⏸ إيقاف'}</button>
+              <button class="toggle-btn" data-bdel="${esc(b.id)}">🗑 حذف</button>
+            </div>
+          </div>`;
+      }).join('') || '<div class="empty">لا توجد بنرات — أضف أول بنر</div>'}
+    </div>`;
+
+  document.getElementById('newBannerBtn').addEventListener('click', openBannerForm);
+  $('main').querySelectorAll('[data-btoggle]').forEach((b) =>
+    b.addEventListener('click', () => toggleBanner(b.dataset.btoggle)));
+  $('main').querySelectorAll('[data-bdel]').forEach((b) =>
+    b.addEventListener('click', () => deleteBanner(b.dataset.bdel)));
+  $('main').querySelectorAll('[data-bup]').forEach((b) =>
+    b.addEventListener('click', () => moveBanner(b.dataset.bup, -1)));
+  $('main').querySelectorAll('[data-bdown]').forEach((b) =>
+    b.addEventListener('click', () => moveBanner(b.dataset.bdown, +1)));
+}
+
+function openBannerForm() {
+  const restOptions = [...S.restaurants]
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
+    .map((r) => `<option value="${esc(r.id)}">${esc(restName(r))}</option>`).join('');
+  const nextOrder = S.banners.reduce((m, b) => Math.max(m, Number(b.sortOrder) || 0), 0) + 1;
+  openModal(`
+    <h3>بنر جديد</h3>
+    <div class="field"><label>رابط الصورة</label>
+      <input id="b_url" placeholder="https://zadgo.co/images/promo.jpg" style="direction:ltr;text-align:left">
+      <p class="meta">ارفع الصورة على مجلد صور الموقع ليصبح رابطها بهذا الشكل. المقاس المناسب عريض (مثل 1200×500).</p></div>
+    <div class="field"><label>العنوان (اختياري)</label>
+      <input id="b_title" maxlength="60" placeholder="خصم 20% على الفطائر">
+      <p class="meta">اتركه فارغاً إن كان النص مرسوماً داخل الصورة.</p></div>
+    <div class="field"><label>الضغط يفتح مطعماً (اختياري)</label>
+      <select id="b_rest"><option value="">لا شيء</option>${restOptions}</select></div>
+    <div class="field"><label>الترتيب (الأصغر يظهر أولاً)</label>
+      <input id="b_order" type="number" step="1" value="${nextOrder}"></div>
+    <div id="b_preview_wrap" style="display:none;margin:10px 0">
+      <img id="b_preview" alt="" style="width:100%;max-height:160px;object-fit:cover;border-radius:12px">
+    </div>
+    <button class="btn block" id="b_save">إضافة البنر</button>
+  `);
+  const urlInput = document.getElementById('b_url');
+  urlInput.addEventListener('change', () => {
+    const wrap = document.getElementById('b_preview_wrap');
+    const img = document.getElementById('b_preview');
+    if (!urlInput.value.trim()) { wrap.style.display = 'none'; return; }
+    img.src = urlInput.value.trim();
+    wrap.style.display = 'block';
+  });
+  document.getElementById('b_save').addEventListener('click', saveBanner);
+}
+
+async function saveBanner() {
+  const imageUrl = document.getElementById('b_url').value.trim();
+  const title = document.getElementById('b_title').value.trim();
+  const restaurantId = document.getElementById('b_rest').value;
+  const sortOrder = Math.round(Number(document.getElementById('b_order').value) || 0);
+  if (!/^https:\/\/\S+$/i.test(imageUrl)) {
+    alert('أدخل رابط صورة صحيحاً يبدأ بـ https://'); return;
+  }
+  try {
+    await addDoc(collection(db, 'banners'), {
+      imageUrl, title,
+      ...(restaurantId ? { restaurantId } : {}),
+      isActive: true, sortOrder,
+      createdAt: serverTimestamp(),
+    });
+    toast('أُضيف البنر'); closeModal();
+  } catch (err) { alert('تعذرت الإضافة: ' + (err.code || err.message)); }
+}
+
+async function toggleBanner(id) {
+  const b = S.banners.find((x) => x.id === id);
+  if (!b) return;
+  try {
+    await updateDoc(doc(db, 'banners', id), { isActive: b.isActive === false });
+    toast(b.isActive === false ? 'أصبح ظاهراً للعملاء' : 'أُوقف عن الظهور');
+  } catch (err) { alert('تعذر التغيير: ' + (err.code || err.message)); }
+}
+
+async function deleteBanner(id) {
+  if (!confirm('حذف هذا البنر نهائياً؟\n(الإيقاف يخفيه عن العملاء دون فقدانه)')) return;
+  try {
+    await deleteDoc(doc(db, 'banners', id));
+    toast('حُذف البنر');
+  } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
+}
+
+/* التحريك يبادل قيمة sortOrder مع الجار — أبسط من إعادة ترقيم القائمة كلها،
+ * ويكتب مستندين فقط في كل نقلة. */
+async function moveBanner(id, dir) {
+  const list = [...S.banners].sort((a, b) =>
+    (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+  const i = list.findIndex((b) => b.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return;
+  const a = list[i], b = list[j];
+  try {
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'banners', a.id), { sortOrder: Number(b.sortOrder) || 0 });
+    batch.update(doc(db, 'banners', b.id), { sortOrder: Number(a.sortOrder) || 0 });
+    await batch.commit();
+  } catch (err) { alert('تعذر الترتيب: ' + (err.code || err.message)); }
+}
+
 /* ================= طلبات سحب المستحقات =================
  *
  * السائق يقدّم الطلب من تطبيقه، والبتّ هنا. الصرف عملية مالية مركّبة:
