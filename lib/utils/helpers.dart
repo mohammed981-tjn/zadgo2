@@ -5,12 +5,19 @@ import '../utils/theme.dart';
 
 String formatCurrency(double amount) => '${amount.toStringAsFixed(2)} ر.س';
 
+// ScaffoldMessenger الجذري (الذي يوفّره MaterialApp) يبقي الرسالة ظاهرة
+// عبر أي تنقّل بين الشاشات لا يُغلقها صراحة — فمن أخطأ كود كوبون عدّة مرات
+// متتالية (كل خطأ يُضيف 4 ثوانٍ للطابور) ثم انتقل فوراً لشاشة أخرى تماماً
+// كان يرى رسالة الخطأ القديمة تظهر فوق شاشته الجديدة بلا صلة. مسح الطابور
+// أولاً يضمن أن كل رسالة تخصّ شاشتها الحالية فقط.
 void showSuccess(BuildContext context, String msg) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.success));
+  final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+  messenger.showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.success));
 }
 
 void showError(BuildContext context, String msg) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.error));
+  final messenger = ScaffoldMessenger.of(context)..clearSnackBars();
+  messenger.showSnackBar(SnackBar(content: Text(msg), backgroundColor: AppColors.error));
 }
 
 Future<bool?> showConfirmDialog(BuildContext context, {required String title, required String content,
