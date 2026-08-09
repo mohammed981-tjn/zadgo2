@@ -69,10 +69,18 @@ jobs:
       # نسخة برقم أقدم، وكان الرقم مثبَّتاً على 1 في كل بناء فلا يميّز
       # النظام جديداً من قديم — ومتجر جوجل يرفض رفع نسخة برقم مكرّر.
       - name: Create android/local.properties
+        shell: bash
         run: |
+          # اسم الإصدار من pubspec لا رقماً مكرّراً هنا — مصدر واحد للحقيقة،
+          # فلا يتخلّف الرقم المعروض للمستخدم عن الرقم المعلَن في المشروع.
+          VER=$(grep '^version:' pubspec.yaml | head -1 | sed 's/version:[[:space:]]*//' | cut -d'+' -f1 | tr -d '[:space:]')
+          [ -z "$VER" ] && VER=4.0.0
           echo "flutter.versionCode=${{ github.run_number }}" > android/local.properties
-          echo "flutter.versionName=4.0.0" >> android/local.properties
+          echo "flutter.versionName=$VER" >> android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
+          # يُحقن في الشيفرة أيضاً لتقارن به بوابة الحدّ الأدنى للإصدار.
+          echo "APP_VERSION=$VER" >> "$GITHUB_ENV"
+          echo "إصدار البناء: $VER (رمز ${{ github.run_number }})"
 
       # بصمة التوقيع الثابتة — سببُ رفض التحديثات سابقاً.
       #
@@ -138,6 +146,7 @@ jobs:
           -t lib/main_${{ matrix.flavor }}.dart
           --dart-define=MOYASAR_PUBLISHABLE_KEY=${{ secrets.MOYASAR_PUBLISHABLE_KEY }}
           --dart-define=ZADGO_NOTIFY_URL=${{ vars.ZADGO_NOTIFY_URL }}
+          --dart-define=APP_VERSION=${{ env.APP_VERSION }}
         env:
           # build.gradle يقرأ هذه المتغيّرات حين لا يوجد key.properties،
           # فيوقّع بمفتاح الإصدار الثابت. ZADGO_KEYSTORE_FILE تضبطه خطوة
