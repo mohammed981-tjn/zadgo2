@@ -164,6 +164,57 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     }
   }
 
+  /// حل تذكرة عامة: نص قرار يظهر لمقدّمها في «شكاواي» — أي أثر مالي
+  /// (صرف/تسوية) يُنفَّذ من شاشته المختصة (طلبات السحب/دفتر السائق) لا هنا.
+  Future<void> _showResolveTicketDialog(BuildContext context) async {
+    final resolutionCtrl = TextEditingController();
+    final service = context.read<FirebaseService>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('حل التذكرة'),
+        content: TextField(
+          controller: resolutionCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'القرار (يظهر لمقدّم التذكرة)',
+            hintText: 'مثال: حُدّث الآيبان في ملفك — تأكد منه في حسابك',
+            alignLabelWithHint: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('حل التذكرة')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    if (resolutionCtrl.text.trim().isEmpty) {
+      showError(context, 'اكتب القرار — مقدّم التذكرة يستحق جواباً');
+      return;
+    }
+    setState(() => _resolving = true);
+    try {
+      await service.updateComplaintStatus(
+        widget.complaint.id,
+        ComplaintStatus.resolved,
+        resolution: resolutionCtrl.text.trim(),
+      );
+      if (mounted) {
+        showSuccess(context, 'حُلّت التذكرة وأُبلغ صاحبها');
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted) showError(context, 'تعذّر حل التذكرة، حاول مرة أخرى');
+    } finally {
+      if (mounted) setState(() => _resolving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.complaint;
@@ -171,9 +222,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     final auth = context.read<app_auth.AuthProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: Text('شكوى #${c.orderNumber}')),
+      appBar: AppBar(
+          title: Text(c.isGeneralTicket
+              ? 'تذكرة ${c.displayNumber}'
+              : 'شكوى #${c.orderNumber}')),
+      // التذكرة العامة بلا طلب أصلاً — تدفّق ثابت null بدل استعلام مستند
+      // بمعرّف فارغ (مسار غير صالح في Firestore يرمي استثناءً).
       body: StreamBuilder<Order?>(
-        stream: service.streamOrder(c.orderId),
+        stream: c.isGeneralTicket
+            ? Stream<Order?>.value(null)
+            : service.streamOrder(c.orderId),
         builder: (ctx, orderSnap) {
           final order = orderSnap.data;
           return Column(children: [
@@ -226,9 +284,11 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 const SizedBox(height: 12),
                 // خط الإثبات الزمني: وصول السائق وصورتا الاستلام والتسليم —
                 // يحسم «الطلب ناقص» و«لم يصلني» و«من أخّر» في دقيقة بدل
-                // مكالمات متضاربة.
-                _ProofTimeline(orderId: c.orderId),
-                const SizedBox(height: 12),
+                // مكالمات متضاربة. (لا معنى له في تذكرة بلا طلب.)
+                if (!c.isGeneralTicket) ...[
+                  _ProofTimeline(orderId: c.orderId),
+                  const SizedBox(height: 12),
+                ],
                 const Text('محادثة مع مقدّم الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 8),
                 StreamBuilder<List<ChatMessage>>(
@@ -290,7 +350,15 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: (order == null || _resolving) ? null : () => _showResolveDialog(context, order),
+                    // التذكرة العامة تُحل بنص قرار فقط (لا استرداد ولا إنذار
+                    // طرف — لا طلب أصلاً)؛ شكوى الطلب تحتاج الطلب حاضراً.
+                    onPressed: _resolving
+                        ? null
+                        : c.isGeneralTicket
+                            ? () => _showResolveTicketDialog(context)
+                            : (order == null
+                                ? null
+                                : () => _showResolveDialog(context, order)),
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
                     icon: _resolving
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

@@ -53,6 +53,11 @@ enum ComplaintType {
   customerCancelledAfterPrep,
   driverBehaviorAtRestaurant,
 
+  // أنواع التذاكر العامة (بلا ارتباط بطلب — لكل الأدوار)
+  financial,
+  dataUpdate,
+  generalInquiry,
+
   other,
 }
 
@@ -253,11 +258,23 @@ extension ComplaintTypeExt on ComplaintType {
       ComplaintType.driverLateForPickup: 'سائق تأخر عن الاستلام رغم الجاهزية',
       ComplaintType.customerCancelledAfterPrep: 'عميل ألغى بعد التحضير',
       ComplaintType.driverBehaviorAtRestaurant: 'سلوك السائق داخل المطعم',
+      // التذاكر العامة
+      ComplaintType.financial: 'مالية — مستحقّات/محفظة',
+      ComplaintType.dataUpdate: 'تحديث بيانات',
+      ComplaintType.generalInquiry: 'استفسار عام',
       ComplaintType.other: 'أخرى',
     };
     return map[this] ?? '';
   }
 }
+
+/// أنواع التذاكر العامة — تُفتح بلا ارتباط بطلب، ومتاحة لكل الأدوار.
+const List<ComplaintType> generalTicketTypes = [
+  ComplaintType.financial,
+  ComplaintType.dataUpdate,
+  ComplaintType.generalInquiry,
+  ComplaintType.other,
+];
 
 /// يربط كل دور بأنواع الشكاوى التي يحق له رفعها، ومصدرٌ واحدٌ للحقيقة تعتمده
 /// شاشة تقديم الشكوى لبناء قائمة الأنواع ديناميكياً حسب دور المُقدِّم — بدل
@@ -1566,6 +1583,10 @@ class Complaint {
   /// هل الشكوى ما تزال بانتظار معالجة الإدارة؟
   bool get isAwaitingAction =>
       status == ComplaintStatus.open || status == ComplaintStatus.inProgress;
+
+  /// تذكرة عامة: فُتحت بلا ارتباط بطلب (مالية/تحديث بيانات/استفسار...) —
+  /// تُعرض وتُحل بلا حقول الطلب (لا استرداد نسبة، لا خط إثبات).
+  bool get isGeneralTicket => orderId.trim().isEmpty;
 
   const Complaint({
     required this.id,
