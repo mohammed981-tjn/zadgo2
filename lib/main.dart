@@ -91,6 +91,9 @@ class ZadGoApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
+        scaffoldMessengerKey: messengerKey,
+        // رسائل الشاشة السابقة تُمسح عند الدخول لشاشة جديدة.
+        navigatorObservers: [ClearMessagesOnPush()],
         title: 'ZadGo',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
