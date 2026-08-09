@@ -245,6 +245,7 @@ const PAGES = [
   ['drivers', '🛵', 'السائقون'],
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
+  ['wallets', '👛', 'محافظ العملاء'],
   ['settlements', '💰', 'تسويات المطاعم'],
   ['banners', '🖼️', 'البنرات'],
   ['payouts', '💸', 'طلبات السحب'],
@@ -353,13 +354,14 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], settings: null };
+  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], settings: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
 const ORDERS_LIMIT = 400;
 let couponFilter = 'all';
 let payoutFilter = 'pending';
+let walletSearch = '';
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
@@ -434,6 +436,8 @@ function startListeners() {
   // الكوبونات: معرّف المستند هو الكود نفسه، فالترتيب بـcreatedAt يحتاج وجود
   // الحقل في كل مستند — نرتّب محلياً بدلاً من ذلك تفادياً لسقوط الاستعلام.
   bind(query(collection(db, 'restaurant_settlements'), limit(500)), 'settlements');
+  bind(query(collection(db, 'wallet_transactions'), limit(500)), 'walletTxns');
+  bind(query(collection(db, 'reassignments'), limit(200)), 'reassignments');
   bind(query(collection(db, 'banners'), limit(60)), 'banners');
   bind(query(collection(db, 'payout_requests'), orderBy('createdAt', 'desc'), limit(200)), 'payouts');
   bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
@@ -487,7 +491,7 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
     reports: renderReportsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
@@ -650,6 +654,7 @@ function showOrderModal(id) {
     ${o.notes ? `<div class="kv"><span>ملاحظات العميل</span><b style="font-weight:400">${esc(o.notes)}</b></div>` : ''}
     ${o.rejectionReason ? `<div class="kv"><span>سبب الرفض</span><b style="font-weight:400;color:var(--red)">${esc(o.rejectionReason)}</b></div>` : ''}
     ${o.customerRating ? `<div class="kv"><span>تقييم العميل</span><b>${o.customerRating} ⭐ ${esc(o.customerReview || '')}</b></div>` : ''}
+    ${reassignHtml(o.id)}
     <div id="proofBox" style="margin-top:14px">
       <button class="toggle-btn" id="loadProofBtn">📸 إثباتات الاستلام والتسليم</button>
     </div>
@@ -1006,6 +1011,172 @@ function renderComplaintsPage() {
 }
 
 /* ================= رسالة جماعية ================= */
+/* سجل إعادة إسناد الطلب — من أُخذ منه ولمن ذهب ولماذا ومتى.
+ * يظهر داخل تفاصيل الطلب لا في صفحة مستقلة: السؤال «لماذا تغيّر سائق هذا
+ * الطلب؟» يُطرح دائماً وأنت تنظر إلى الطلب نفسه. طلب تكرّر إسناده مرات
+ * كثيرة إشارة على مشكلة تستحق النظر (مطعم بطيء أو عنوان صعب). */
+function reassignHtml(orderId) {
+  const rows = S.reassignments.filter((r) => r.orderId === orderId)
+    .sort((a, b) => {
+      const da = toDate(a.createdAt), dbb = toDate(b.createdAt);
+      return (da ? da.getTime() : 0) - (dbb ? dbb.getTime() : 0);
+    });
+  if (!rows.length) return '';
+  return `
+    <div class="panel" style="background:#f7f9f8;margin:14px 0 0">
+      <b>🔄 إعادة الإسناد (${rows.length} مرة)</b>
+      ${rows.map((r) => `
+        <div class="meta" style="margin-top:8px;border-top:1px solid #e5eae8;padding-top:8px">
+          <b>${esc(r.oldDriverName || 'بلا سائق')}</b> ← <b>${esc(r.newDriverName || 'بلا سائق')}</b>
+          ${r.reason ? `<br>السبب: ${esc(r.reason)}` : ''}
+          <br>${esc(fmtTime(r.createdAt))}
+        </div>`).join('')}
+      ${rows.length >= 3 ? `<p class="meta" style="color:var(--orange);margin-top:8px">
+        ⚠️ أُعيد إسناد هذا الطلب ${rows.length} مرات — يستحق النظر في سببه.</p>` : ''}
+    </div>`;
+}
+
+/* ================= محافظ العملاء =================
+ *
+ * رصيد العميل في `users.walletBalance`، ودفتره في `wallet_transactions`.
+ * القاعدة نفسها المطبَّقة على دفتر السائق: **لا رصيد بلا حركة تفسّره** —
+ * فالتسوية اليدوية هنا تُنفَّذ داخل معاملة ذرّية تكتب الاثنين معاً.
+ */
+const WALLET_TYPE_AR = {
+  refund: ['استرداد شكوى', '#1e8449'],
+  orderPayment: ['دفع طلب', '#ca6f1e'],
+  orderReversal: ['إعادة رصيد (إلغاء)', '#2471a3'],
+  adjustment: ['تسوية يدوية', '#8e44ad'],
+};
+
+function renderWalletsPage() {
+  const q = walletSearch.trim();
+  let list = S.users.filter((u) => (u.role || 'customer') === 'customer');
+  if (q) {
+    list = list.filter((u) => [u.name, u.email, u.phone]
+      .some((v) => String(v || '').toLowerCase().includes(q.toLowerCase())));
+  }
+  // الأصحاب رصيداً أولاً — هم من يحتاجون النظر.
+  list = list.sort((a, b) => (Number(b.walletBalance) || 0) - (Number(a.walletBalance) || 0));
+
+  const totalHeld = S.users.reduce((s, u) => s + (Number(u.walletBalance) || 0), 0);
+  const withBalance = S.users.filter((u) => (Number(u.walletBalance) || 0) > 0.009).length;
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <div class="kpi-grid">
+        <div class="kpi"><div class="num">${fmtMoney(totalHeld)}</div>
+          <div class="lbl">إجمالي أرصدة العملاء (${SAR})</div></div>
+        <div class="kpi"><div class="num">${withBalance}</div><div class="lbl">عميل له رصيد</div></div>
+      </div>
+      <p class="meta" style="margin-top:10px">إجمالي الأرصدة <b>التزام عليك</b> — مال للعملاء عندك يُنفَق على طلبات قادمة.</p>
+      <div class="toolbar" style="margin-top:10px">
+        <input class="search" id="walletSearch" placeholder="🔍 بحث بالاسم أو الجوال أو البريد…" value="${esc(walletSearch)}">
+      </div>
+    </div>
+    <div class="panel">
+      ${list.slice(0, 60).map((u) => {
+        const bal = Number(u.walletBalance) || 0;
+        const count = S.walletTxns.filter((t) => t.userId === u.id).length;
+        return `
+          <div class="card">
+            <div class="row1">
+              <span class="title">${esc(u.name || 'عميل')}</span>
+              ${bal > 0.009 ? badge(`${fmtMoney(bal)} ${SAR}`, '#1e8449') : badge('بلا رصيد', '#7f8c8d')}
+            </div>
+            <div class="meta">${esc(u.phone || u.email || '')}${count ? ` · ${count} حركة` : ''}</div>
+            <div class="row1" style="margin-top:8px;gap:6px">
+              <button class="toggle-btn" data-wtxns="${esc(u.id)}">📒 دفتر المحفظة</button>
+              <button class="toggle-btn" data-wadjust="${esc(u.id)}">⚖️ تسوية يدوية</button>
+            </div>
+          </div>`;
+      }).join('') || '<div class="empty">لا توجد نتائج</div>'}
+      ${list.length > 60 ? `<div class="meta" style="text-align:center">تُعرض أول 60 من ${list.length} — استخدم البحث</div>` : ''}
+    </div>`;
+
+  const si = document.getElementById('walletSearch');
+  si.addEventListener('input', () => {
+    walletSearch = si.value;
+    renderWalletsPage();
+    const n = document.getElementById('walletSearch');
+    n.focus(); n.setSelectionRange(n.value.length, n.value.length);
+  });
+  $('main').querySelectorAll('[data-wtxns]').forEach((b) =>
+    b.addEventListener('click', () => openWalletLedger(b.dataset.wtxns)));
+  $('main').querySelectorAll('[data-wadjust]').forEach((b) =>
+    b.addEventListener('click', () => openWalletAdjust(b.dataset.wadjust)));
+}
+
+function openWalletLedger(userId) {
+  const u = S.users.find((x) => x.id === userId);
+  const rows = S.walletTxns.filter((t) => t.userId === userId)
+    .sort((a, b) => {
+      const da = toDate(a.createdAt), dbb = toDate(b.createdAt);
+      return (dbb ? dbb.getTime() : 0) - (da ? da.getTime() : 0);
+    });
+  openModal(`
+    <h3>دفتر محفظة ${esc(u?.name || 'عميل')}</h3>
+    <div class="kv"><span>الرصيد الحالي</span><b class="money">${fmtMoney(u?.walletBalance)} ${SAR}</b></div>
+    ${rows.map((t) => {
+      const [lbl, color] = WALLET_TYPE_AR[t.type] || [t.type, '#7f8c8d'];
+      const amt = Number(t.amount) || 0;
+      return `
+        <div class="card">
+          <div class="row1">
+            <span class="title" style="color:${amt >= 0 ? 'var(--ok)' : 'var(--orange)'}">
+              ${amt >= 0 ? '+' : '−'} ${fmtMoney(Math.abs(amt))} ${SAR}</span>
+            ${badge(lbl, color)}
+          </div>
+          <div class="meta">
+            الرصيد بعدها: ${fmtMoney(t.balanceAfter)} ${SAR}
+            ${t.orderNumber ? ` · طلب #${esc(t.orderNumber)}` : ''}
+            <br>${esc(fmtTime(t.createdAt))}${t.note ? ' — ' + esc(t.note) : ''}
+          </div>
+        </div>`;
+    }).join('') || '<div class="empty">لا توجد حركات</div>'}
+  `);
+}
+
+function openWalletAdjust(userId) {
+  const u = S.users.find((x) => x.id === userId);
+  if (!u) return;
+  const bal = Number(u.walletBalance) || 0;
+  openModal(`
+    <h3>تسوية محفظة ${esc(u.name || 'عميل')}</h3>
+    <div class="kv"><span>الرصيد الحالي</span><b class="money">${fmtMoney(bal)} ${SAR}</b></div>
+    <div class="field"><label>المبلغ (موجب يزيد، سالب ينقص)</label>
+      <input id="wa_amount" type="number" step="any" placeholder="25 أو -10"></div>
+    <div class="field"><label>السبب (إلزامي — يبقى في الدفتر)</label>
+      <input id="wa_note" placeholder="تعويض عن تأخر طلب #1042"></div>
+    <button class="btn block" id="wa_save">تسجيل التسوية</button>
+    <p class="meta" style="margin-top:8px">تُكتب حركة دائمة لا تُعدَّل ولا تُحذف — التصحيح بتسوية جديدة.</p>
+  `);
+  document.getElementById('wa_save').addEventListener('click', async () => {
+    const amount = Number(document.getElementById('wa_amount').value);
+    const note = document.getElementById('wa_note').value.trim();
+    if (!amount) { alert('أدخل مبلغاً غير صفري'); return; }
+    if (!note) { alert('اكتب سبب التسوية — يبقى في الدفتر للمراجعة'); return; }
+    const after = bal + amount;
+    if (after < -0.009) { alert('التسوية تجعل الرصيد سالباً — غير مسموح'); return; }
+    if (!confirm(`${amount > 0 ? 'إضافة' : 'خصم'} ${fmtMoney(Math.abs(amount))} ${SAR}؟\nالرصيد بعدها: ${fmtMoney(after)} ${SAR}`)) return;
+    try {
+      await runTransaction(db, async (tx) => {
+        const ref = doc(db, 'users', userId);
+        const snap = await tx.get(ref);
+        const cur = Number(snap.data()?.walletBalance) || 0;
+        const nb = cur + amount;
+        if (nb < -0.009) throw new Error('تغيّر الرصيد — أعد المحاولة');
+        tx.update(ref, { walletBalance: nb });
+        tx.set(doc(collection(db, 'wallet_transactions')), {
+          userId, type: 'adjustment', amount, balanceAfter: nb,
+          note, createdAt: serverTimestamp(),
+        });
+      });
+      toast('سُجّلت التسوية'); closeModal();
+    } catch (err) { alert('تعذر التسجيل: ' + (err.message || err.code)); }
+  });
+}
+
 /* ================= إثباتات الطلب =================
  *
  * `order_proofs/{orderId}` — أزمنة وإحداثيات محطات السائق الثلاث (وصول
