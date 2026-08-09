@@ -1473,6 +1473,11 @@ class FirebaseService {
         );
   }
 
+  /// هل الكود مستخدَم مسبقاً؟ يُفحص قبل إنشاء كوبون جديد — الحفظ بالدمج على
+  /// معرّف = الكود، فبلا هذا الفحص يندمج «الجديد» في القائم صامتاً.
+  Future<bool> couponExists(String code) async =>
+      (await _coupons.doc(code.trim().toUpperCase()).get()).exists;
+
   Future<void> setCouponActive(String code, bool isActive) =>
       _coupons.doc(code).update({'isActive': isActive});
 
