@@ -89,7 +89,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    'سيُضاف ${(order.grandTotal * (refundPercentage! / 100)).toStringAsFixed(2)} ر.س لمحفظة العميل',
+                    'سيُضاف ${(refundPercentage! >= 100 ? order.payableTotal : order.itemsTotal * (refundPercentage! / 100)).toStringAsFixed(2)} ر.س لمحفظة العميل',
                     style: const TextStyle(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -267,7 +267,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                       ],
                       if (order != null) ...[
                         const Divider(height: 20),
-                        InfoRow(icon: Icons.receipt_long_outlined, text: 'قيمة الطلب: ${formatCurrency(order.grandTotal)}'),
+                        InfoRow(icon: Icons.receipt_long_outlined, text: 'قيمة الطلب: ${formatCurrency(order.payableTotal)}'),
                         if (order.customerPhone.trim().isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 6),

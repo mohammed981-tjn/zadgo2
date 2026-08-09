@@ -157,7 +157,7 @@ class _OrderCard extends StatelessWidget {
                     '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}'),
             OrderTrackingTimeline(status: order.status),
             const Divider(),
-            Text(formatCurrency(order.grandTotal),
+            Text(formatCurrency(order.payableTotal),
                 style: const TextStyle(
                     fontWeight: FontWeight.bold, color: AppColors.primary)),
             // إعادة الطلب بضغطة — أرخص ميزة تزيد تكرار الشراء (معيار جاهز/

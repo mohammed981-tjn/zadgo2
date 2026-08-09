@@ -52,7 +52,7 @@ class PickupDocketScreen extends StatelessWidget {
 
           // «نقدي» يستحق شريط التحصيل فقط إن بقي على العميل ما يُحصَّل —
           // محفظته قد تكون غطّت المبلغ كله فيُعامل كالمدفوع إلكترونياً.
-          final collectAmount = o.grandTotal - o.walletUsed;
+          final collectAmount = o.payableTotal - o.walletUsed;
           final isCash =
               o.paymentMethod == PaymentMethod.cash && collectAmount > 0;
           final prePickup = o.status == OrderStatus.readyForPickup ||

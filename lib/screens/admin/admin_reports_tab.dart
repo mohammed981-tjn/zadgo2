@@ -51,14 +51,17 @@ class AdminReportsTab extends StatelessWidget {
         // الدورة المالية الكاملة: كل ريال دفعه العميل يذهب لأحد ثلاثة —
         // المطعم أو السائق أو المنصّة. عرضها معادلةً واحدة يجعل أي خلل
         // (عمولة ناقصة، أجرة مكررة) ظاهراً فوراً بدل أرقام متناثرة.
-        final totalRevenue = sold.fold(0.0, (s, o) => s + o.grandTotal);
+        final totalRevenue = sold.fold(0.0, (s, o) => s + o.payableTotal);
         final restaurantsNet = totalMeals - mealsCommission;
         final totalWalletUsed = sold.fold(0.0, (s, o) => s + o.walletUsed);
+        // خصومات الكوبونات — تسويقٌ تتحمّله المنصّة وحدها، فتُطرح من دخلها.
+        final totalDiscounts = sold.fold(0.0, (s, o) => s + o.discountAmount);
+        final platformNet = totalCommission - totalDiscounts;
         // مسار التحصيل: النقدي حصّله السائقون من العملاء مباشرة، والباقي
         // قبضته المنصّة (بطاقات + ما خُصم من أرصدة المحافظ).
         final cashCollected = sold
             .where((o) => o.paymentMethod == PaymentMethod.cash)
-            .fold(0.0, (s, o) => s + (o.grandTotal - o.walletUsed));
+            .fold(0.0, (s, o) => s + (o.payableTotal - o.walletUsed));
 
         // تجميع المبيعات لكل مطعم على حدة.
         final byRestaurant = <String, _RestaurantTotals>{};
@@ -121,9 +124,21 @@ class AdminReportsTab extends StatelessWidget {
                   PriceRow(
                       label: '← أجرة السائقين',
                       value: formatCurrency(totalDelivery)),
-                  PriceRow(
-                      label: '← دخل المنصّة (عمولة 15% + الرسم الثابت)',
-                      value: formatCurrency(totalCommission)),
+                  if (totalDiscounts > 0) ...[
+                    PriceRow(
+                        label: '← دخل المنصّة قبل الخصومات',
+                        value: formatCurrency(totalCommission)),
+                    PriceRow(
+                        label: '← خصومات الكوبونات (تتحمّلها المنصّة)',
+                        value: '- ${formatCurrency(totalDiscounts)}'),
+                    PriceRow(
+                        label: '← صافي دخل المنصّة',
+                        value: formatCurrency(platformNet),
+                        bold: true),
+                  ] else
+                    PriceRow(
+                        label: '← دخل المنصّة (عمولة 15% + الرسم الثابت)',
+                        value: formatCurrency(totalCommission)),
                   const Divider(),
                   PriceRow(
                       label: 'حصّله السائقون نقداً من العملاء',

@@ -503,7 +503,7 @@ class _OfferBannerState extends State<_OfferBanner> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                    'نقدي — ستحصّل ${formatCurrency(o.grandTotal - o.walletUsed)} من العميل',
+                    'نقدي — ستحصّل ${formatCurrency(o.payableTotal - o.walletUsed)} من العميل',
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -734,7 +734,7 @@ class _OrderCard extends StatelessWidget {
           InfoRow(icon: Icons.location_on_outlined, text: order.deliveryAddress),
           const Divider(height: 16),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(formatCurrency(order.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            Text(formatCurrency(order.payableTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             Text(order.paymentMethod.label, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
           ]),
           const SizedBox(height: 12),
