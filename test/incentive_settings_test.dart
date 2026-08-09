@@ -94,6 +94,29 @@ void main() {
     });
   });
 
+  group('رابط الدعوة', () {
+    test('يُلحق ref بالرابط', () {
+      expect(const IncentiveSettings().inviteLinkFor('A1B2C3'),
+          'https://zadgo.co/join?ref=A1B2C3');
+    });
+
+    test('رابط فيه معاملات مسبقة يستخدم & لا ?', () {
+      expect(
+          const IncentiveSettings(joinUrl: 'https://x.co/j?src=app')
+              .inviteLinkFor('ZZ99'),
+          'https://x.co/j?src=app&ref=ZZ99');
+    });
+
+    test('رابط فارغ يعطي نصاً فارغاً فتُعرض رسالة الكود بدله', () {
+      expect(const IncentiveSettings(joinUrl: '  ').inviteLinkFor('A1'), '');
+    });
+  });
+
+  test('مفتاح النافذة بصيغة موحّدة قابلة للمقارنة', () {
+    expect(IncentiveSettings.windowKey(DateTime(2026, 8, 13)), '2026-08-13');
+    expect(IncentiveSettings.windowKey(DateTime(2026, 12, 3)), '2026-12-03');
+  });
+
   test('كود الإحالة مشتقّ من المعرّف وثابت', () {
     const d = Driver(
         id: 'aB3xY9zQwErT', name: 'سعد', phone: '05', vehicleType: 'دراجة');
