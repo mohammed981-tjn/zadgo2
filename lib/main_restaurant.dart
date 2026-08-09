@@ -83,6 +83,9 @@ class RestaurantApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
+        scaffoldMessengerKey: messengerKey,
+        // رسائل الشاشة السابقة تُمسح عند الدخول لشاشة جديدة.
+        navigatorObservers: [ClearMessagesOnPush()],
         title: 'ZadGo مطعم',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.build(palette: FlavorPalette.restaurant),

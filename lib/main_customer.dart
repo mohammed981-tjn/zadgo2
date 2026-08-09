@@ -83,6 +83,9 @@ class CustomerApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
+        scaffoldMessengerKey: messengerKey,
+        // رسائل الشاشة السابقة تُمسح عند الدخول لشاشة جديدة.
+        navigatorObservers: [ClearMessagesOnPush()],
         title: 'ZadGo عميل',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.build(palette: FlavorPalette.customer),
