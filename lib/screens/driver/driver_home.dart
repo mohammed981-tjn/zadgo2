@@ -953,25 +953,9 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
           );
         },
       ),
-      if (Pricing.isDriverDebtWarning(d.balance))
-        Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(children: [
-              const Icon(Icons.info_outline, size: 18, color: AppColors.warning),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text('يُفضّل تسليم المبلغ للإدارة قريباً',
-                    style: TextStyle(fontSize: 12, color: AppColors.warning)),
-              ),
-            ]),
-          ),
-        ),
+      // لا تنبيه دَين هنا: كفاية رصيد السائق لتغطية عُهد طلباته اتفاقٌ
+      // تشغيلي بينه وبين الإدارة خارج التطبيق (قرار المالك) — فالتطبيق
+      // يعرض رصيده وحركاته بشفافية ولا يُملي عليه قاعدة ولا يطالبه.
       const SizedBox(height: 14),
       // دخل اليوم والأسبوع (نمط مركز دخل تويو) — من الطلبات المُسلَّمة لا من
       // دفتر الحركات: أجرة الطلب النقدي تبقى بيد السائق ولا تمرّ بالدفتر
