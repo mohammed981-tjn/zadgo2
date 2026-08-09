@@ -1249,6 +1249,60 @@ class FirebaseService {
   }
 
   // -------------------------------------------------------------------------
+  // تسويات المطاعم — دفتر المطعم بالطرح: المستحق (صافي طلباته المكتملة)
+  // ناقص المدفوع (هذه الدفعات).
+  // -------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _restaurantSettlements =>
+      _db.collection('restaurant_settlements');
+
+  Future<void> recordRestaurantSettlement({
+    required String restaurantId,
+    required String restaurantName,
+    required double amount,
+    String method = '',
+    String? note,
+  }) async {
+    if (amount <= 0) throw Exception('أدخل مبلغاً أكبر من صفر');
+    final ref = _restaurantSettlements.doc();
+    await ref.set(models.RestaurantSettlement(
+      id: ref.id,
+      restaurantId: restaurantId,
+      restaurantName: restaurantName,
+      amount: amount,
+      method: method.trim(),
+      note: note?.trim(),
+      performedBy: _auth.currentUser?.uid ?? '',
+      createdAt: DateTime.now(),
+    ).toMap());
+  }
+
+  /// تسويات مطعم واحد، الأحدث أولاً (ترتيب محلي — لا فهرس مركّب).
+  Stream<List<models.RestaurantSettlement>> streamRestaurantSettlements(
+          String restaurantId) =>
+      _restaurantSettlements
+          .where('restaurantId', isEqualTo: restaurantId)
+          .limit(200)
+          .snapshots()
+          .map((s) {
+        final list = s.docs
+            .map((d) => models.RestaurantSettlement.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// كل التسويات للوحة الإدارة.
+  Stream<List<models.RestaurantSettlement>> streamAllRestaurantSettlements() =>
+      _restaurantSettlements.limit(500).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.RestaurantSettlement.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  // -------------------------------------------------------------------------
   // أكواد الخصم — التحقق عند العميل، والتقييد عند إنشاء الطلب.
   // -------------------------------------------------------------------------
 
