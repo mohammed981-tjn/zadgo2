@@ -245,6 +245,7 @@ const PAGES = [
   ['drivers', '🛵', 'السائقون'],
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
+  ['settlements', '💰', 'تسويات المطاعم'],
   ['banners', '🖼️', 'البنرات'],
   ['payouts', '💸', 'طلبات السحب'],
   ['coupons', '🎟️', 'الكوبونات'],
@@ -352,10 +353,11 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], payouts: [], banners: [], settings: null };
+  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], settings: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
+const ORDERS_LIMIT = 400;
 let couponFilter = 'all';
 let payoutFilter = 'pending';
 let adminUser = { name: '', email: '' };
@@ -420,7 +422,10 @@ function startListeners() {
     rerender();
   }, (err) => { console.error(key, err); }));
 
-  bind(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(400)), 'orders');
+  // حدّ الطلبات المحمَّلة. تسويات المطاعم تُحسب من هذه الطلبات، فبلوغ الحدّ
+  // يعني أن المستحق محسوب على فترة جزئية لا على كامل التاريخ — تُعلنه صفحة
+  // التسويات صراحةً بدل أن تعرض رقماً ناقصاً كأنه كامل.
+  bind(query(collection(db, 'orders'), orderBy('createdAt', 'desc'), limit(ORDERS_LIMIT)), 'orders');
   bind(collection(db, 'restaurants'), 'restaurants');
   bind(query(collection(db, 'users'), limit(400)), 'users');
   bind(collection(db, 'drivers'), 'drivers');
@@ -428,6 +433,7 @@ function startListeners() {
   bind(query(collection(db, 'broadcasts'), orderBy('createdAt', 'desc'), limit(40)), 'broadcasts');
   // الكوبونات: معرّف المستند هو الكود نفسه، فالترتيب بـcreatedAt يحتاج وجود
   // الحقل في كل مستند — نرتّب محلياً بدلاً من ذلك تفادياً لسقوط الاستعلام.
+  bind(query(collection(db, 'restaurant_settlements'), limit(500)), 'settlements');
   bind(query(collection(db, 'banners'), limit(60)), 'banners');
   bind(query(collection(db, 'payout_requests'), orderBy('createdAt', 'desc'), limit(200)), 'payouts');
   bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
@@ -481,7 +487,7 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
     reports: renderReportsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
@@ -995,6 +1001,146 @@ function renderComplaintsPage() {
 }
 
 /* ================= رسالة جماعية ================= */
+/* ================= تسويات المطاعم =================
+ *
+ * دفتر المطعم **بالطرح**، لا برصيد مخزَّن:
+ *     المتبقي = المستحق (صافي الطلبات المسلَّمة) − المدفوع (مجموع التسويات)
+ *
+ * لماذا بالطرح لا برصيد محفوظ؟ لأن الرصيد المخزَّن يمكن أن ينحرف عن الواقع
+ * إن فشلت كتابة، بينما الطرح يُعيد حسابه من المصدر في كل مرة فلا ينحرف أبداً.
+ *
+ * صافي المطعم من الطلب = قيمة الوجبات − عمولة المنصة. خصم الكوبون لا يمسّه
+ * (تتحمّله المنصة وحدها)، ورسوم التوصيل ليست له أصلاً.
+ */
+function restaurantDue(restaurantId) {
+  return S.orders
+    .filter((o) => o.restaurantId === restaurantId && o.status === 'delivered')
+    .reduce((sum, o) => sum + (itemsTotal(o) - commission(o)), 0);
+}
+function restaurantPaid(restaurantId) {
+  return S.settlements
+    .filter((x) => x.restaurantId === restaurantId)
+    .reduce((sum, x) => sum + (Number(x.amount) || 0), 0);
+}
+
+function renderSettlementsPage() {
+  const rows = [...S.restaurants].map((r) => {
+    const due = restaurantDue(r.id);
+    const paid = restaurantPaid(r.id);
+    return { r, due, paid, left: due - paid };
+  }).sort((a, b) => b.left - a.left);
+
+  const totalLeft = rows.reduce((s, x) => s + x.left, 0);
+  const totalDue = rows.reduce((s, x) => s + x.due, 0);
+  const totalPaid = rows.reduce((s, x) => s + x.paid, 0);
+
+  // أقدم طلب محمَّل — يحدّد الفترة التي حُسب عليها المستحق.
+  const oldest = S.orders.length
+    ? toDate(S.orders[S.orders.length - 1].createdAt) : null;
+  const atCap = S.orders.length >= ORDERS_LIMIT;
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <h3 style="margin:0 0 10px">تسويات المطاعم</h3>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="num">${fmtMoney(totalDue)}</div><div class="lbl">إجمالي المستحق (${SAR})</div></div>
+        <div class="kpi"><div class="num">${fmtMoney(totalPaid)}</div><div class="lbl">إجمالي المدفوع (${SAR})</div></div>
+        <div class="kpi" style="border-color:${totalLeft > 0.009 ? '#ca6f1e' : 'var(--green)'}">
+          <div class="num">${fmtMoney(totalLeft)}</div><div class="lbl">المتبقي عليك (${SAR})</div></div>
+      </div>
+      ${atCap ? `
+        <p class="meta" style="margin-top:10px;color:var(--orange)">
+          ⚠️ المستحق محسوب من آخر ${ORDERS_LIMIT} طلب فقط${oldest ? ` (منذ ${esc(fmtTime(S.orders[S.orders.length - 1].createdAt))})` : ''}
+          — الطلبات الأقدم غير محتسبة. راجع الأرقام قبل أي دفعة كبيرة.
+        </p>` : `
+        <p class="meta" style="margin-top:10px">
+          محسوب من كل الطلبات المسلَّمة${oldest ? ` منذ ${esc(fmtTime(S.orders[S.orders.length - 1].createdAt))}` : ''}.
+        </p>`}
+    </div>
+    <div class="panel">
+      ${rows.map(({ r, due, paid, left }) => `
+        <div class="card">
+          <div class="row1">
+            <span class="title">${esc(r.emoji || '🍽️')} ${esc(restName(r))}</span>
+            ${left > 0.009 ? badge(`متبقٍّ ${fmtMoney(left)} ${SAR}`, '#ca6f1e')
+              : left < -0.009 ? badge(`زائد ${fmtMoney(-left)} ${SAR}`, '#8e44ad')
+              : badge('مسوّى', '#1e8449')}
+          </div>
+          <div class="meta">
+            المستحق: <b>${fmtMoney(due)} ${SAR}</b>
+            · المدفوع: <b>${fmtMoney(paid)} ${SAR}</b><br>
+            من ${deliveredCountFor(r.id)} طلب مسلَّم
+          </div>
+          <div class="row1" style="margin-top:8px;gap:6px">
+            <button class="toggle-btn on" data-paysettle="${esc(r.id)}">💰 تسجيل دفعة</button>
+            <button class="toggle-btn" data-settlelog="${esc(r.id)}">📒 سجل الدفعات</button>
+          </div>
+        </div>`).join('') || '<div class="empty">لا توجد مطاعم بعد</div>'}
+    </div>`;
+
+  $('main').querySelectorAll('[data-paysettle]').forEach((b) =>
+    b.addEventListener('click', () => openSettlementForm(b.dataset.paysettle)));
+  $('main').querySelectorAll('[data-settlelog]').forEach((b) =>
+    b.addEventListener('click', () => openSettlementLog(b.dataset.settlelog)));
+}
+
+function openSettlementForm(restaurantId) {
+  const r = S.restaurants.find((x) => x.id === restaurantId);
+  if (!r) return;
+  const left = restaurantDue(restaurantId) - restaurantPaid(restaurantId);
+  openModal(`
+    <h3>تسجيل دفعة — ${esc(restName(r))}</h3>
+    <div class="kv"><span>المتبقي عليك</span><b class="money">${fmtMoney(left)} ${SAR}</b></div>
+    <div class="field"><label>المبلغ المدفوع (${SAR})</label>
+      <input id="st_amount" type="number" min="0" step="any" value="${left > 0 ? left.toFixed(2) : ''}"></div>
+    <div class="field"><label>طريقة السداد</label>
+      <input id="st_method" placeholder="تحويل بنكي / نقداً / شيك"></div>
+    <div class="field"><label>ملاحظة (اختياري)</label>
+      <input id="st_note" placeholder="رقم الحوالة أو فترة التسوية"></div>
+    <button class="btn block" id="st_save">تسجيل الدفعة</button>
+    <p class="meta" style="margin-top:8px">تُسجَّل الدفعة في سجل دائم لا يُعدَّل ولا يُحذف — التصحيح بدفعة جديدة (يُقبل مبلغ سالب للتصحيح).</p>
+  `);
+  document.getElementById('st_save').addEventListener('click', async () => {
+    const amount = Number(document.getElementById('st_amount').value);
+    const method = document.getElementById('st_method').value.trim();
+    const note = document.getElementById('st_note').value.trim();
+    if (!amount) { alert('أدخل مبلغاً'); return; }
+    if (amount > left + 0.009 && amount > 0) {
+      if (!confirm(`المبلغ (${fmtMoney(amount)} ${SAR}) أكبر من المتبقي (${fmtMoney(left)} ${SAR}).\nتأكيد على أي حال؟`)) return;
+    } else if (!confirm(`تسجيل دفعة ${fmtMoney(amount)} ${SAR} لـ«${restName(r)}»؟`)) return;
+    try {
+      await addDoc(collection(db, 'restaurant_settlements'), {
+        restaurantId, restaurantName: restName(r),
+        amount, method, ...(note ? { note } : {}),
+        performedBy: adminUser.uid,
+        createdAt: serverTimestamp(),
+      });
+      toast('سُجّلت الدفعة'); closeModal();
+    } catch (err) { alert('تعذر التسجيل: ' + (err.code || err.message)); }
+  });
+}
+
+function openSettlementLog(restaurantId) {
+  const r = S.restaurants.find((x) => x.id === restaurantId);
+  const rows = S.settlements.filter((x) => x.restaurantId === restaurantId)
+    .sort((a, b) => {
+      const da = toDate(a.createdAt), dbb = toDate(b.createdAt);
+      return (dbb ? dbb.getTime() : 0) - (da ? da.getTime() : 0);
+    });
+  openModal(`
+    <h3>سجل دفعات ${esc(restName(r))}</h3>
+    <p class="meta">${rows.length} دفعة · إجمالي ${fmtMoney(restaurantPaid(restaurantId))} ${SAR}</p>
+    ${rows.map((x) => `
+      <div class="card">
+        <div class="row1">
+          <span class="title">${fmtMoney(x.amount)} ${SAR}</span>
+          ${badge(x.method || 'بلا طريقة', '#2471a3')}
+        </div>
+        <div class="meta">${esc(fmtTime(x.createdAt))}${x.note ? '<br>' + esc(x.note) : ''}</div>
+      </div>`).join('') || '<div class="empty">لا توجد دفعات مسجّلة</div>'}
+  `);
+}
+
 /* ================= البنرات الترويجية =================
  *
  * تظهر شريطاً متحرّكاً أعلى شاشة مطاعم العميل. الترتيب بـsortOrder تصاعدياً،
