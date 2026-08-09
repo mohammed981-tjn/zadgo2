@@ -1042,9 +1042,22 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               Padding(
                 padding: const EdgeInsetsDirectional.only(end: 8),
                 child: ChoiceChip(
-                  label: Text(label, style: const TextStyle(fontSize: 12)),
+                  label: Text(label),
                   selected: _filter == f,
                   onSelected: (_) => setState(() => _filter = f),
+                  selectedColor:
+                      context.flavorColors.primary.withOpacity(0.15),
+                  backgroundColor: Colors.white,
+                  // chipTheme العام بلا لون نص — بدون لون صريح ورثت التسميات
+                  // أبيض فاختفت على الخلفية البيضاء (ملاحظة المالك بالصورة).
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    color: _filter == f
+                        ? context.flavorColors.primaryDark
+                        : AppColors.textDark,
+                    fontWeight:
+                        _filter == f ? FontWeight.bold : FontWeight.w600,
+                  ),
                 ),
               ),
           ],
