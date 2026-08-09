@@ -98,10 +98,9 @@ class OrderReceiptScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Column(children: [
               PriceRow(label: 'الوجبات', value: formatCurrency(o.itemsTotal)),
-              PriceRow(label: 'التوصيل', value: formatCurrency(o.driverShare)),
-              PriceRow(
-                  label: 'رسوم توصيل ثابتة',
-                  value: formatCurrency(o.appShare)),
+              // التوصيل سطر واحد شامل (أجرة السائق + الرسم الثابت) — قاعدة
+              // المالك، ومطابق حرفياً لسطر ملخص الدفع فلا مفاجأة في الفاتورة.
+              PriceRow(label: 'التوصيل', value: formatCurrency(o.deliveryFee)),
               if (o.discountAmount > 0)
                 PriceRow(
                     label: 'خصم الكود ${o.couponCode ?? ''}'.trim(),

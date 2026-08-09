@@ -640,13 +640,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: Column(
               children: [
                 PriceRow(label: 'الوجبات', value: formatCurrency(itemsTotal)),
+                // قاعدة المالك: «إجمالي التوصيل = التوصيل + العمولة الثابتة»
+                // سطراً واحداً للعميل — الرسم الثابت (3 ر.س) حصّة المنصّة
+                // تُضاف داخل التوصيل لا بنداً مستقلاً يستدعي التساؤل.
+                // التقسيم الداخلي (أجرة السائق/حصّة المنصّة) باقٍ في الطلب
+                // والتقارير كما هو.
                 PriceRow(
                   label: 'التوصيل',
                   value: locationSet
-                      ? formatCurrency(delivery)
+                      ? formatCurrency(delivery + fixedFee)
                       : 'يُحسب بعد تحديد الموقع',
                 ),
-                PriceRow(label: 'رسوم توصيل ثابتة', value: formatCurrency(fixedFee)),
                 if (discount > 0)
                   PriceRow(
                       label: 'خصم الكود ${_coupon!.code}',
