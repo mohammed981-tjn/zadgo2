@@ -101,6 +101,23 @@ class AdminDriverLedgerScreen extends StatelessWidget {
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.emoji_events_outlined, size: 18),
+                  label: const Text('منح مكافأة 🎉'),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary),
+                  onPressed: () => _showEntryDialog(
+                    context,
+                    title: 'منح مكافأة',
+                    hint: 'المبلغ — واذكر السبب في الملاحظة (تحدٍّ/إحالة/تميّز)',
+                    onConfirm: (amount, note) => service.recordDriverBonus(
+                        driverId: d.id, amount: amount, note: note),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.tune_rounded, size: 18),
                   label: const Text('تسوية يدوية'),
