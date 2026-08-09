@@ -17,6 +17,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
 
@@ -78,6 +79,23 @@ class AccountScreen extends StatelessWidget {
                     builder: (_) => MyComplaintsScreen(
                         uid: uid, role: UserRole.customer),
                   ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading:
+                    const Icon(Icons.lock_outline, color: AppColors.primary),
+                title: const Text('تغيير كلمة المرور',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ChangePasswordScreen()),
                 ),
               ),
             ),

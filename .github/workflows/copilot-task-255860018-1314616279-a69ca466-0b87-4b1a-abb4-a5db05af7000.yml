@@ -89,6 +89,12 @@ jobs:
           set -o pipefail
           flutter analyze --no-fatal-warnings --no-fatal-infos | tee flutter_analyze.log
 
+      # الاختبارات الآلية — أول حارس فعلي للمسارات المالية (مدقق البطاقة).
+      # فشل أي اختبار يوقف البناء قبل إنتاج APK معطوب.
+      - name: Flutter test
+        shell: bash
+        run: flutter test
+
       - name: Build APK (${{ matrix.flavor }} flavor)
         # مفتاح بوابة الدفع يُحقن وقت البناء من أسرار المستودع، فلا يُخزَّن في
         # الشيفرة. إن لم يُضبط السرّ يبقى فارغاً، فيختفي خيار الدفع بالبطاقة

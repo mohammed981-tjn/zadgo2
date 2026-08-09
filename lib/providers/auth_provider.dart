@@ -93,6 +93,40 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// تغيير كلمة المرور: إعادة مصادقة بالحالية أولاً (شرط Firebase لعملية
+  /// حساسة) ثم التحديث. أخطاء الشبكة والمصادقة تُترجم عربياً في [error].
+  Future<bool> changePassword(String currentPassword, String newPassword) async {
+    _loading = true; _error = null; notifyListeners();
+    try {
+      final fbUser = FirebaseAuth.instance.currentUser;
+      final email = fbUser?.email;
+      if (fbUser == null || email == null) {
+        _error = 'سجّل الدخول أولاً';
+        _loading = false; notifyListeners();
+        return false;
+      }
+      final credential = EmailAuthProvider.credential(
+          email: email, password: currentPassword);
+      await fbUser.reauthenticateWithCredential(credential);
+      await fbUser.updatePassword(newPassword);
+      _loading = false; notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _error = switch (e.code) {
+        'wrong-password' || 'invalid-credential' =>
+          'كلمة المرور الحالية غير صحيحة',
+        'weak-password' => 'كلمة المرور الجديدة ضعيفة (٦ أحرف فأكثر)',
+        'requires-recent-login' => 'أعد تسجيل الدخول ثم حاول مجدداً',
+        _ => _mapError(e.code),
+      };
+      _loading = false; notifyListeners();
+      return false;
+    } catch (_) {
+      _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> register({
     required String name, required String email, required String password,
     required String phone, required UserRole role,

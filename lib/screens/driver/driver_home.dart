@@ -12,6 +12,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
 import '../customer/submit_complaint_screen.dart';
@@ -1033,6 +1034,20 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               'انضم لكباتن ZadGo وابدأ التوصيل باشتراطات مرنة وأجرة واضحة '
               'لكل طلب. للتسجيل تواصل مع الإدارة واذكر أن ${d.name} دعاك '
               '(تُحسب لي مكافأة الإحالة 😉).'),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Card(
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.lock_outline, size: 20),
+          title: const Text('تغيير كلمة المرور',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+          trailing: const Icon(Icons.chevron_left_rounded, size: 20),
+          onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ChangePasswordScreen())),
         ),
       ),
       const SizedBox(height: 12),
