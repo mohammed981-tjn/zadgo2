@@ -273,7 +273,69 @@ function itemsTotal(o) {
   return (o.items || []).reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.quantity) || 1), 0);
 }
 function orderTotal(o) { return itemsTotal(o) + (Number(o.driverShare) || 0) + (Number(o.appShare) || 0); }
-function commission(o) { return itemsTotal(o) * 0.15; }
+
+/* ما حُصّل فعلاً نقداً أو بالبطاقة = الإجمالي − خصم الكوبون − ما دُفع من
+ * المحفظة. بدون هذا الطرح تبدو تقارير التحصيل أكبر من الواقع. يطابق
+ * payableTotal − walletUsed في نموذج التطبيق. */
+function collectedTotal(o) {
+  return orderTotal(o) - (Number(o.discountAmount) || 0) - (Number(o.walletUsed) || 0);
+}
+/* التسعير الموحّد — نسخة طبق الأصل من Pricing في lib/utils/helpers.dart.
+ * يُعرض في اللوحة للاطّلاع فقط؛ مصدر الحقيقة كود التطبيق، وأي تغيير هنا
+ * لا يغيّر شيئاً في الطلبات. */
+const PRICING = {
+  appCommissionRate: 0.15,
+  baseDeliveryFee: 9,
+  baseDeliveryKm: 7,
+  perExtraKmFee: 1,
+  fixedDeliveryCommission: 3,
+  maxDeliveryDistanceKm: 25,
+};
+
+/* عمولة المنصة على الطلب: تُقرأ من الطلب نفسه لا تُعاد حسابها.
+ * إعادة الحساب بـ15% كانت تعطي رقماً مختلفاً عن المحتسب فعلاً متى تغيّرت
+ * النسبة أو خُصم كوبون، فتظهر تقارير لا تطابق ما جرى. */
+function commission(o) {
+  const stored = Number(o.platformCommission);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  return itemsTotal(o) * PRICING.appCommissionRate; // طلبات قديمة قبل الحقل
+}
+
+/* سطر إثبات الدفع بالبطاقة. وجود paymentId من بوابة «ميسر» هو الدليل الوحيد
+ * على تحصيل فعلي؛ طلب مُعلَّم مدفوعاً بالبطاقة بلا معرّف عملية حالة تستحق
+ * التدقيق (قد يكون عُلّم يدوياً أو فشل تسجيل الدفع). */
+function paymentProofRow(o) {
+  const method = String(o.paymentMethod || '');
+  const isCard = method.includes('card') || method.includes('بطاقة');
+  if (!isCard) return '';
+  if (o.paymentId) {
+    return `<div class="kv"><span>مرجع الدفع (ميسر)</span><b style="direction:ltr;font-size:.8rem">${esc(o.paymentId)}</b></div>`;
+  }
+  return `<div class="kv"><span>مرجع الدفع (ميسر)</span>
+    <b style="color:var(--red)">⚠️ غير موجود — يستحق التدقيق</b></div>`;
+}
+
+/* المطعم بلا تقييمات يُعرض «جديد» لا «5.0 ⭐» — الأخيرة تكذب على المدير
+ * وعلى العميل بتقييم ممتاز لم يمنحه أحد. */
+function ratingText(r) {
+  const n = Number(r.ratingCount) || 0;
+  if (n === 0) return '🆕 جديد (بلا تقييمات)';
+  return `⭐ ${(Number(r.rating) || 0).toFixed(1)} (${n} تقييم)`;
+}
+
+/* عدد الطلبات المسلَّمة للمطعم — يُحسب من الطلبات لأن حقل totalOrders
+ * في مستند المطعم لا يُكتب إطلاقاً فيظهر صفراً دائماً. */
+function deliveredCountFor(restaurantId) {
+  return S.orders.filter((o) => o.restaurantId === restaurantId && o.status === 'delivered').length;
+}
+
+/* الاسم المعروض = اسم المطعم + الفرع. بدون الفرع يستحيل التفريق بين
+ * فرعين لنفس المطعم في كل شاشات اللوحة. */
+function restName(r) {
+  if (!r) return 'مطعم';
+  const base = r.name || 'مطعم';
+  return r.branchName ? `${base} — ${r.branchName}` : base;
+}
 function toast(msg) {
   const t = document.createElement('div');
   t.className = 'toast'; t.textContent = msg;
@@ -563,12 +625,17 @@ function showOrderModal(id) {
     </div>
     <div class="kv"><span>قيمة الوجبات</span><b>${fmtMoney(it)} ${SAR}</b></div>
     <div class="kv"><span>أجرة التوصيل (سائق + منصة)</span><b>${fmtMoney(o.driverShare)} + ${fmtMoney(o.appShare)} ${SAR}</b></div>
-    <div class="kv"><span>عمولة المنصة من المطعم (١٥٪)</span><b>${fmtMoney(commission(o))} ${SAR}</b></div>
+    <div class="kv"><span>عمولة المنصة من المطعم</span><b>${fmtMoney(commission(o))} ${SAR}</b></div>
+    ${Number(o.discountAmount) > 0 ? `<div class="kv"><span>خصم الكوبون${o.couponCode ? ' (' + esc(o.couponCode) + ')' : ''}</span><b style="color:var(--ok)">− ${fmtMoney(o.discountAmount)} ${SAR}</b></div>` : ''}
+    ${Number(o.walletUsed) > 0 ? `<div class="kv"><span>مدفوع من المحفظة</span><b style="color:var(--blue)">${fmtMoney(o.walletUsed)} ${SAR}</b></div>` : ''}
     <div class="kv"><span>الإجمالي</span><b class="money">${fmtMoney(orderTotal(o))} ${SAR}</b></div>
+    ${(Number(o.walletUsed) > 0 || Number(o.discountAmount) > 0)
+      ? `<div class="kv"><span>المُحصَّل فعلياً (نقد/بطاقة)</span><b class="money">${fmtMoney(collectedTotal(o))} ${SAR}</b></div>` : ''}
+    ${paymentProofRow(o)}
     <div class="kv"><span>المطعم</span><b>${esc(o.restaurantName || '—')}</b></div>
     <div class="kv"><span>العميل</span><b>${esc(o.customerName || '—')} — ${esc(o.customerPhone || '')}</b></div>
     <div class="kv"><span>العنوان</span><b style="font-weight:400">${esc(o.deliveryAddress || '—')}</b></div>
-    <div class="kv"><span>السائق</span><b>${esc(o.driverName || 'لم يُسنَد بعد')}</b></div>
+    <div class="kv"><span>السائق</span><b>${esc(o.driverName || 'لم يُسنَد بعد')}${o.driverPhone ? ' — 📞 ' + esc(o.driverPhone) : ''}</b></div>
     <div class="kv"><span>أُنشئ</span><b>${esc(fmtTime(o.createdAt))}</b></div>
     <div class="kv"><span>آخر تغيير حالة</span><b>${esc(fmtTime(o.statusChangedAt || o.updatedAt))}</b></div>
     ${o.notes ? `<div class="kv"><span>ملاحظات العميل</span><b style="font-weight:400">${esc(o.notes)}</b></div>` : ''}
@@ -636,7 +703,7 @@ function renderRestaurantsPage() {
     </div>` + list.map((r) => `
     <div class="card">
       <div class="row1">
-        <span class="title">${esc(r.emoji || '🍽️')} ${esc(r.name || '')}</span>
+        <span class="title">${esc(r.emoji || '🍽️')} ${esc(restName(r))}</span>
         <span>
           <button class="toggle-btn ${r.isOpen ? 'on' : 'off'}" data-rtoggle="${r.id}" data-open="${r.isOpen ? 1 : 0}">
             ${r.isOpen ? 'مفتوح ✓' : 'مغلق ✕'}</button>
@@ -645,10 +712,9 @@ function renderRestaurantsPage() {
       </div>
       <div class="meta">
         ${esc(r.address || '')}${r.phone ? ' — 📞 ' + esc(r.phone) : ''}<br>
-        الحد الأدنى: ${Number(r.minOrder) || 0} ${SAR} — التوصيل: سائق ${Number(r.driverShareFee) || 0} + منصة ${Number(r.appShareFee) || 0} ${SAR}
-        — كم إضافي: ${Number(r.perKmFee) || 0} ${SAR} (مجاني حتى ${Number(r.freeKm) || 0} كم)<br>
-        ⭐ ${(Number(r.rating) || 0).toFixed(1)} — الطلبات الكلية: ${Number(r.totalOrders) || 0}
-        — التحضير: ~${Number(r.estimatedTimeMin) || 0} د
+        الحد الأدنى: ${Number(r.minOrder) || 0} ${SAR}
+        — التحضير: ~${Number(r.estimatedTimeMin) || 0} د<br>
+        ${ratingText(r)} — الطلبات المسلَّمة: ${deliveredCountFor(r.id)}
       </div>
     </div>`).join('') || '<div class="empty">لا توجد مطاعم بعد</div>';
 
@@ -668,17 +734,29 @@ function showRestEdit(id) {
     <div class="field"><label>${lbl}</label>
       <input id="rf_${k}" type="${type}" step="any" value="${esc(val ?? '')}"></div>`;
   openModal(`
-    <h3>تعديل: ${esc(r.name)} <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    <h3>تعديل: ${esc(restName(r))} <button class="x-btn" onclick="closeModal()">✕</button></h3>
     ${F('name', 'اسم المطعم', r.name, 'text')}
     ${F('phone', 'الجوال', r.phone, 'text')}
     ${F('address', 'العنوان', r.address, 'text')}
+    ${F('branchName', 'اسم الفرع (العزيزية، الخالدية…)', r.branchName, 'text')}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
       ${F('minOrder', 'الحد الأدنى للطلب (' + SAR + ')', r.minOrder)}
       ${F('estimatedTimeMin', 'زمن التحضير (دقيقة)', r.estimatedTimeMin)}
-      ${F('driverShareFee', 'أجرة التوصيل — نصيب السائق', r.driverShareFee)}
-      ${F('appShareFee', 'أجرة التوصيل — نصيب المنصة', r.appShareFee)}
-      ${F('perKmFee', 'رسوم الكيلومتر الإضافي', r.perKmFee)}
-      ${F('freeKm', 'كيلومترات مجانية', r.freeKm)}
+    </div>
+    <div class="panel" style="background:#f7f9f8;margin:12px 0 0">
+      <b>التسعير — موحّد لكل المطاعم (للعرض فقط)</b>
+      <div class="meta" style="margin-top:6px">
+        أجرة التوصيل: <b>${PRICING.baseDeliveryFee} ${SAR}</b> لأول ${PRICING.baseDeliveryKm} كم
+        + <b>${PRICING.perExtraKmFee} ${SAR}</b> لكل كم إضافي<br>
+        رسم المنصة الثابت على العميل: <b>${PRICING.fixedDeliveryCommission} ${SAR}</b><br>
+        عمولة المنصة من المطعم: <b>${(PRICING.appCommissionRate * 100).toFixed(0)}%</b> من قيمة الوجبات<br>
+        أقصى مسافة توصيل: <b>${PRICING.maxDeliveryDistanceKm} كم</b>
+      </div>
+      <p class="meta" style="margin-top:8px;color:var(--orange)">
+        ⚠️ هذه القيم ثابتة في كود التطبيق ولا تُقرأ من مستند المطعم. كانت اللوحة
+        تعرضها هنا حقولاً قابلة للتعديل، فتوهم المدير أنه ضبط تسعير هذا المطعم
+        بينما لا أثر لما يُدخله على أي طلب. تغييرها يتطلب تحديث التطبيق.
+      </p>
     </div>
     <button class="btn block" id="saveRest">حفظ التعديلات</button>`);
   document.getElementById('saveRest').addEventListener('click', async () => {
@@ -687,10 +765,9 @@ function showRestEdit(id) {
     if (!confirm('حفظ التعديلات على «' + r.name + '»؟')) return;
     try {
       await updateDoc(doc(db, 'restaurants', id), {
-        name: v('name').trim() || r.name, phone: v('phone').trim(), address: v('address').trim(),
+        name: v('name').trim() || r.name, branchName: v('branchName').trim(),
+        phone: v('phone').trim(), address: v('address').trim(),
         minOrder: num('minOrder'), estimatedTimeMin: Math.round(num('estimatedTimeMin')),
-        driverShareFee: num('driverShareFee'), appShareFee: num('appShareFee'),
-        perKmFee: num('perKmFee'), freeKm: num('freeKm'),
       });
       toast('تم حفظ التعديلات'); closeModal();
     } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
