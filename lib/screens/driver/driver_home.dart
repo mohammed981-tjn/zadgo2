@@ -4,6 +4,7 @@ import 'package:flutter/services.dart'
     show HapticFeedback, SystemSound, SystemSoundType;
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -797,7 +798,7 @@ class _DriverEarningsTab extends StatefulWidget {
 
 /// مجموعات فلترة سجلّ الحركات — قائمة مسطحة واحدة كانت تخلط عُهدة الطلبات
 /// بإيداعات الإدارة فيضيع تتبّع أي خانة (نمط فلاتر تويو: طلبات/مكافآت/...).
-enum _TxFilter { all, orders, settlements, adjustments }
+enum _TxFilter { all, orders, bonuses, settlements, adjustments }
 
 class _DriverEarningsTabState extends State<_DriverEarningsTab> {
   _TxFilter _filter = _TxFilter.all;
@@ -810,6 +811,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             DriverTransactionType.deliveryCash,
             DriverTransactionType.deliveryOnline,
           }.contains(tx.type),
+        _TxFilter.bonuses => tx.type == DriverTransactionType.bonus,
         _TxFilter.settlements => tx.type == DriverTransactionType.deposit ||
             tx.type == DriverTransactionType.payout,
         _TxFilter.adjustments => tx.type == DriverTransactionType.adjustment,
@@ -1010,7 +1012,30 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                 ? AppColors.success
                 : AppColors.warning),
       ]),
-      const SizedBox(height: 16),
+      const SizedBox(height: 12),
+      // برنامج التوصية (ب2): السائق يدعو زميلاً، والإدارة تمنح «مكافأة
+      // إحالة» من دفتره عند اكتمال تسجيل المُحال وأول توصيلاته — بلا
+      // أكواد آلية في هذه المرحلة؛ الاسم في نص الدعوة هو مرجع الإحالة.
+      Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: context.flavorColors.primary.withOpacity(0.12),
+            child: Icon(Icons.group_add_outlined,
+                color: context.flavorColors.primaryDark),
+          ),
+          title: const Text('ادعُ سائقاً واكسب مكافأة',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          subtitle: const Text(
+              'عند انضمامه وذكر اسمك تُضاف مكافأة الإحالة لمحفظتك',
+              style: TextStyle(fontSize: 11.5)),
+          trailing: const Icon(Icons.share_outlined, size: 20),
+          onTap: () => Share.share(
+              'انضم لكباتن ZadGo وابدأ التوصيل باشتراطات مرنة وأجرة واضحة '
+              'لكل طلب. للتسجيل تواصل مع الإدارة واذكر أن ${d.name} دعاك '
+              '(تُحسب لي مكافأة الإحالة 😉).'),
+        ),
+      ),
+      const SizedBox(height: 12),
       const SectionHeader(title: 'سجلّ الحركات'),
       // فلاتر السجلّ — تصفية محلية على التدفّق القائم بلا استعلامات إضافية.
       SingleChildScrollView(
@@ -1020,6 +1045,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             for (final (f, label) in const [
               (_TxFilter.all, 'الكل'),
               (_TxFilter.orders, 'الطلبات'),
+              (_TxFilter.bonuses, 'مكافآت'),
               (_TxFilter.settlements, 'إيداع وصرف'),
               (_TxFilter.adjustments, 'تسويات'),
             ])

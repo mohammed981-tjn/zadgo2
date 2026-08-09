@@ -1197,7 +1197,21 @@ class FirebaseService {
         note: note,
       );
 
-  /// تسوية يدوية بإشارة موجبة أو سالبة (تصحيح خطأ، مكافأة، خصم).
+  /// مكافأة من الإدارة: تحدٍّ، إحالة سائق جديد، تميّز — تزيد رصيده وتُصرف
+  /// له لاحقاً مع مستحقّاته.
+  Future<void> recordDriverBonus({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: amount.abs(),
+        type: models.DriverTransactionType.bonus,
+        note: note,
+      );
+
+  /// تسوية يدوية بإشارة موجبة أو سالبة (تصحيح خطأ، خصم).
   Future<void> recordDriverAdjustment({
     required String driverId,
     required double amount,

@@ -1278,6 +1278,10 @@ enum DriverTransactionType {
   /// توصيل طلب مدفوع إلكترونياً: التطبيق قبض المبلغ، فتُقيَّد أجرة السائق له.
   deliveryOnline,
 
+  /// مكافأة تمنحها الإدارة (تحدٍّ، إحالة سائق جديد، تميّز...) — أقوى أداة
+  /// استبقاء سائقين في تطبيقات التوصيل (توصية تقريرَي تويو ونينجا).
+  bonus,
+
   /// إيداع: السائق سلّم نقداً للإدارة.
   deposit,
 
@@ -1303,6 +1307,7 @@ extension DriverTransactionTypeExt on DriverTransactionType {
       DriverTransactionType.custodyReversal: 'ردّ عُهدة (إلغاء)',
       DriverTransactionType.deliveryCash: 'توصيل نقدي',
       DriverTransactionType.deliveryOnline: 'توصيل إلكتروني',
+      DriverTransactionType.bonus: 'مكافأة 🎉',
       DriverTransactionType.deposit: 'شحن / إيداع',
       DriverTransactionType.payout: 'صرف مستحقّات',
       DriverTransactionType.adjustment: 'تسوية يدوية',
@@ -1316,6 +1321,7 @@ extension DriverTransactionTypeExt on DriverTransactionType {
       DriverTransactionType.custodyReversal: Icons.replay_rounded,
       DriverTransactionType.deliveryCash: Icons.payments_outlined,
       DriverTransactionType.deliveryOnline: Icons.credit_card,
+      DriverTransactionType.bonus: Icons.emoji_events_outlined,
       DriverTransactionType.deposit: Icons.south_west_rounded,
       DriverTransactionType.payout: Icons.north_east_rounded,
       DriverTransactionType.adjustment: Icons.tune_rounded,
