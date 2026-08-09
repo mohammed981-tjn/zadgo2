@@ -99,16 +99,58 @@ class _SplashScreenState extends State<SplashScreen>
     // الكتابي على «ليل» هويتها — أسرع وأقل تشتيتاً لمن يفتحها عشرات
     // المرات يومياً.
     if (AppFlavorConfig.flavor == AppFlavor.customer) {
+      // البوستر يحمل الشعار مخبوزاً في أعلاه والدرّاج في أسفله. عرضه بـcover
+      // على نسبة الجوال كان يقصّ الطرفين معاً: الشعار يُبتر من أعلى وعجلة
+      // الدرّاجة من أسفل. الحل طبقتان:
+      //   • البوستر بـcover لكن مُحاذى للأسفل، فيبقى الدرّاج كاملاً ويُقتطع
+      //     الفراغ العلوي وحده — وهو الجزء الذي لا معلومة فيه.
+      //   • الشعار الكتابي يُرسم فوقه من أصل شفاف مستقل، فلا يُقصّ أبداً
+      //     مهما اختلفت نسبة الشاشة.
+      // والخلفية صارت «ليل» هوية العميل الأخضر بدل الكحلي الثابت الذي كان
+      // يخالف بقية التطبيق في أول شاشة يراها المستخدم.
       return Scaffold(
         body: FadeTransition(
           opacity: _fade,
           child: Container(
             width: double.infinity,
             height: double.infinity,
-            color: const Color(0xFF0E1B33),
-            child: Image.asset(
-              'assets/images/splash_customer.jpg',
-              fit: BoxFit.cover,
+            color: fc.bgDarker,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/images/splash_customer.jpg',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.bottomCenter,
+                ),
+                // تعتيم متدرّج أعلى الصورة: يضمن قراءة الشعار فوق أي جزء
+                // من البوستر يقع خلفه بعد القصّ.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        fc.bgDarker.withOpacity(0.92),
+                        fc.bgDarker.withOpacity(0.55),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.18, 0.42],
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: const Alignment(0, -0.72),
+                  child: ScaleTransition(
+                    scale: _scale,
+                    child: Image.asset(
+                      'assets/images/logo_wordmark.png',
+                      width: screenWidth * 0.58,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

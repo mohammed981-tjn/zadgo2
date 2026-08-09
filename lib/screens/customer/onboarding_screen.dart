@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/theme.dart';
+import '../../widgets/ambient_background.dart';
 import '../../widgets/common_widgets.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -35,6 +36,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _controller = PageController();
   int _page = 0;
 
+  /// موضع التمرير المتصل (0.0 … عدد الشرائح-1). `_page` ينتقل قفزاً عند
+  /// اكتمال الانتقال، وهذا يتغيّر مع الإصبع — فتتحرّك الخلفية بسلاسة.
+  double _scroll = 0;
+
   static const _slides = [
     (
       Icons.restaurant_menu_rounded,
@@ -54,6 +59,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      final p = _controller.hasClients ? (_controller.page ?? 0) : 0.0;
+      if ((p - _scroll).abs() > 0.004) setState(() => _scroll = p);
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -70,16 +84,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isLast = _page == _slides.length - 1;
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0, -0.4),
-            radius: 1.4,
-            colors: [fc.bgDark, fc.bgDarker],
-          ),
-        ),
+      body: AmbientBackground(
+        bgDark: fc.bgDark,
+        bgDarker: fc.bgDarker,
+        accent: fc.primary,
+        // الخلفية تتحرّك بثلث سرعة المحتوى: عمق بصري عند السحب بين الشرائح.
+        glowShift: (_scroll / (_slides.length - 1)) * 2 - 1,
         child: SafeArea(
           child: Column(children: [
             Align(
@@ -99,43 +109,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: (i) => setState(() => _page = i),
                 itemBuilder: (_, i) {
                   final (icon, title, text) = _slides[i];
+                  // بُعد الشريحة عن مركز الشاشة (0 = في المنتصف تماماً).
+                  // يقود حركةَ دخولٍ للأيقونة: تصغر وتخفت وهي تغادر، وتكبر
+                  // وتتضح وهي تصل — بدل انزلاق مسطّح للكتلة كلها.
+                  final d = (_scroll - i).abs().clamp(0.0, 1.0);
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 36),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // أيقونة متوهجة بأسلوب شعار شاشة الدخول نفسه —
-                        // لغة بصرية واحدة عبر التطبيق.
-                        Container(
-                          width: 150,
-                          height: 150,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(colors: [
-                              fc.primary.withOpacity(0.25),
-                              fc.primary.withOpacity(0.0),
-                            ]),
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 104,
-                              height: 104,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [fc.primaryLight, fc.primary],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: fc.primary.withOpacity(0.5),
-                                    blurRadius: 26,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
+                        Transform.translate(
+                          offset: Offset(0, d * 26),
+                          child: Transform.scale(
+                            scale: 1 - d * 0.18,
+                            child: Opacity(
+                              opacity: 1 - d * 0.65,
+                              child: GlowOrb(
+                                primary: fc.primary,
+                                primaryLight: fc.primaryLight,
+                                child: Icon(icon, color: fc.bgDarker, size: 52),
                               ),
-                              child: Icon(icon, color: fc.bgDarker, size: 52),
                             ),
                           ),
                         ),
