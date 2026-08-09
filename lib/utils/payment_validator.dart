@@ -11,9 +11,12 @@ class CreditCardValidationResult {
 }
 
 String? validateCreditCardHolderName(String value) {
-  final trimmed = _normalizeSpaces(value);
+  // ملاحظة: لا تستخدم [_normalizeSpaces] هنا — تلك تحذف المسافات كلها
+  // (مناسبة لرقم البطاقة والتاريخ) فتحوّل «John Doe» إلى كلمة واحدة
+  // وتُرفض كل الأسماء. كشفها أول اختبار يعمل في CI.
+  final trimmed = value.trim().replaceAll(RegExp(r'\s+'), ' ');
   if (trimmed.isEmpty) return 'أدخل اسم حامل البطاقة';
-  if (trimmed.split(RegExp(r'\s+')).length < 2) {
+  if (trimmed.split(' ').length < 2) {
     return 'أدخل الاسم كما يظهر على البطاقة';
   }
   return null;
