@@ -18,6 +18,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import '../auth/change_password_screen.dart';
+import '../auth/edit_profile_screen.dart';
 import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
 
@@ -191,6 +192,15 @@ class _ProfileCard extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 12, color: AppColors.textGray)),
               ],
+            ),
+          ),
+          // تعديل الاسم والجوال — البطاقة كانت عرضاً فقط (ملاحظة المالك).
+          IconButton(
+            tooltip: 'تعديل الملف الشخصي',
+            icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EditProfileScreen()),
             ),
           ),
         ]),

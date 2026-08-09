@@ -115,6 +115,29 @@ class FirebaseService {
 
   Future<void> updateUser(models.AppUser user) => _users.doc(user.uid).update(user.toMap());
 
+  /// تعديل الملف الشخصي (الاسم والجوال) — حقلان محددان لا مستند كامل، فلا
+  /// خطر على الحقول المحمية. [alsoDriver]: مستند السائق يحمل نسخة من
+  /// الاسم والجوال (يقرؤها العميل في التتبّع) فتُحدَّث معه في نفس الدفعة.
+  Future<void> updateUserProfile({
+    required String uid,
+    required String name,
+    required String phone,
+    bool alsoDriver = false,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_users.doc(uid), {
+      'name': name.trim(),
+      'phone': phone.trim(),
+    });
+    if (alsoDriver) {
+      batch.update(_drivers.doc(uid), {
+        'name': name.trim(),
+        'phone': phone.trim(),
+      });
+    }
+    await batch.commit();
+  }
+
   Future<void> setUserActive(String uid, bool isActive) =>
       _users.doc(uid).update({'isActive': isActive});
 
