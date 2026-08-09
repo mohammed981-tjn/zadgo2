@@ -117,6 +117,12 @@
     box-shadow: 0 1px 4px rgba(0,0,0,.05); cursor: default; }
   .card.click { cursor: pointer; }
   .card.click:hover { outline: 2px solid var(--green-light); }
+  .alert-card { border-inline-start: 4px solid var(--orange); padding: 11px 14px; margin-bottom: 8px; }
+  .alert-card.sev-red { border-inline-start-color: var(--red); background: #fffafa; }
+  .alert-card .title { font-size: .92rem; }
+  .alert-mins { font-weight: 800; white-space: nowrap; font-size: .84rem; }
+  .alert-head { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    flex-wrap: wrap; margin-bottom: 12px; }
   .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
   .title { font-weight: 700; }
   .meta { color: var(--muted); font-size: .84rem; margin-top: 4px; line-height: 1.75; }
@@ -378,6 +384,7 @@ let menuItems = [];
 let menuUnsub = [];
 /* مستمع محادثة الشكوى المفتوح حالياً — يُلغى عند إغلاق النافذة. */
 let chatUnsub = null;
+let alertsTimer = null;
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
@@ -407,6 +414,7 @@ $('logoutBtn').addEventListener('click', () => signOut(auth));
 onAuthStateChanged(auth, async (user) => {
   clearListeners();
   if (!user) {
+    if (alertsTimer) { clearInterval(alertsTimer); alertsTimer = null; }
     $('appView').classList.add('hidden');
     $('loginView').classList.remove('hidden');
     return;
@@ -425,6 +433,13 @@ onAuthStateChanged(auth, async (user) => {
     $('appView').classList.remove('hidden');
     startListeners();
     go('dashboard');
+    // أعمار التنبيهات تتقادم بمرور الوقت لا بوصول بيانات جديدة: طلب عالق
+    // منذ أربع دقائق لا يُطلق أي لقطة (snapshot) حين يبلغ الخامسة. فبلا هذا
+    // المؤقّت يبقى التنبيه غائباً حتى يتحرّك شيء آخر في اللوحة.
+    if (!alertsTimer) alertsTimer = setInterval(() => {
+      renderNav();
+      if (page === 'dashboard') renderDashboard();
+    }, 60000);
   } catch (err) {
     await signOut(auth);
     $('loginError').textContent = 'تعذر التحقق من الصلاحية: ' + (err.code || err.message);
@@ -468,6 +483,7 @@ function startListeners() {
 /* عدّاد ما ينتظر تدخّل الإدارة على كل صفحة — الشكاوى المفتوحة وطلبات
  * السحب المعلّقة. طلب سحب لا يراه أحد يعني سائقاً ينتظر ماله بلا ردّ. */
 function navCount(k) {
+  if (k === 'dashboard') return computeAlerts().filter((a) => a.sev === 'red').length;
   if (k === 'complaints') return S.complaints.filter((c) => c.status === 'open').length;
   if (k === 'payouts') return S.payouts.filter((p) => (p.status || 'pending') === 'pending').length;
   return 0;
@@ -515,6 +531,145 @@ function rerender() {
   (R[page] || renderDashboard)();
 }
 
+/* ---------------- لوحة التنبيهات التشغيلية ----------------
+ * تُجيب عن سؤال واحد: ما الذي يحتاج تدخّلاً منّي الآن؟
+ *
+ * العتبات هي نفسها التي يقرؤها التطبيق من `delivery_settings/config`،
+ * والحساب يطابق حرفياً منطق `order_tracking_tab.dart` في تطبيق الإدارة —
+ * لو اختلفا لظهر الطلب متأخراً في شاشة وسليماً في الأخرى، وهذا أسوأ من
+ * غياب التنبيه أصلاً لأنه يُفقد الثقة بالاثنتين.
+ *
+ * مرجع العمر: `statusChangedAt` (لحظة دخول الحالة الراهنة) لا `createdAt`،
+ * إلا في تنبيه التأخير العام فمرجعه عمر الطلب كاملاً.
+ */
+const BASELINE_DELIVERY_MIN = 30;   // تقدير خام لزمن التوصيل — يطابق _baselineExpectedDeliveryMinutes
+const DEFAULT_COMPLAINT_WINDOW_MIN = 120;
+const PAYOUT_WINDOW_MIN = 24 * 60;  // طلب سحب لم يُبتّ خلال يوم = سائق ينتظر ماله
+const ALERTS_SHOWN = 12;
+
+function timeoutSettings() {
+  const s = S.settings || {};
+  return {
+    restaurant: Math.max(1, Number(s.restaurantResponseTimeoutMinutes) || 5),
+    driver: Math.max(1, Number(s.driverSearchTimeoutMinutes) || 10),
+    lateGrace: Math.max(1, Number(s.lateDeliveryThresholdMinutes) || 15),
+    complaint: Math.max(1, Number(s.complaintResponseMinutes) || DEFAULT_COMPLAINT_WINDOW_MIN),
+  };
+}
+function minutesSince(v) {
+  const d = toDate(v);
+  return d ? Math.floor((Date.now() - d.getTime()) / 60000) : null;
+}
+function durAr(m) {
+  if (m == null) return '—';
+  if (m < 60) return `${m} د`;
+  const h = Math.floor(m / 60); const r = m % 60;
+  if (h < 24) return r ? `${h} س ${r} د` : `${h} س`;
+  const dd = Math.floor(h / 24); const hr = h % 24;
+  return hr ? `${dd} ي ${hr} س` : `${dd} ي`;
+}
+
+/* كل طلب يُنتج تنبيهاً واحداً على الأكثر — التنبيه الأخصّ يفوز، فلا يظهر
+ * الطلب العالق عند المطعم مرتين (مرة «لم يستجب» ومرة «متأخر»). */
+function computeAlerts() {
+  const t = timeoutSettings();
+  const out = [];
+
+  S.orders.forEach((o) => {
+    const label = `#${o.orderNumber || o.id.slice(0, 6)} — ${o.restaurantName || 'مطعم'}`;
+
+    if (o.status === 'noDriverFound') {
+      out.push({ sev: 'red', mins: minutesSince(o.statusChangedAt || o.createdAt) || 0, icon: '🛑',
+        title: `لا يوجد سائق — ${label}`,
+        detail: 'انتهت مهلة البحث ولم يقبله أي سائق — يحتاج إسناداً يدوياً أو إلغاءً.',
+        orderId: o.id });
+      return;
+    }
+    if (!ACTIVE_STATUSES.includes(o.status)) return;
+
+    if (o.status === 'restaurantPending' || o.status === 'pending') {
+      const m = minutesSince(o.statusChangedAt || o.createdAt);
+      if (m != null && m >= t.restaurant) {
+        out.push({ sev: m >= t.restaurant * 3 ? 'red' : 'orange', mins: m, icon: '🍽️',
+          title: `المطعم لم يستجب — ${label}`,
+          detail: `مضى ${durAr(m)} والمهلة ${t.restaurant} د — اتصل بالمطعم أو ألغِ الطلب.`,
+          orderId: o.id });
+        return;
+      }
+    }
+    if (o.status === 'searchingDriver') {
+      const m = minutesSince(o.statusChangedAt || o.createdAt);
+      if (m != null && m >= t.driver) {
+        out.push({ sev: 'red', mins: m, icon: '🛵',
+          title: `البحث عن سائق تجاوز المهلة — ${label}`,
+          detail: `مضى ${durAr(m)} والمهلة ${t.driver} د — أسنِد سائقاً يدوياً.`,
+          orderId: o.id });
+        return;
+      }
+    }
+    const age = minutesSince(o.createdAt);
+    const limit = BASELINE_DELIVERY_MIN + t.lateGrace;
+    if (age != null && age > limit) {
+      const st = (STATUS_AR[o.status] || [o.status])[0];
+      out.push({ sev: 'orange', mins: age, icon: '⏰',
+        title: `طلب متأخر — ${label}`,
+        detail: `مضى ${durAr(age)} على إنشائه (الحدّ ${limit} د) — الحالة الآن: ${st}.`,
+        orderId: o.id });
+    }
+  });
+
+  S.complaints.forEach((c) => {
+    if (c.status !== 'open') return;
+    const m = minutesSince(c.createdAt);
+    if (m == null || m < t.complaint) return;
+    out.push({ sev: m >= t.complaint * 2 ? 'red' : 'orange', mins: m, icon: '⚠️',
+      title: `شكوى بلا معالجة — ${COMPLAINT_TYPE_AR[c.type] || c.type || 'شكوى'}`,
+      detail: `${c.customerName || 'عميل'} — مضى ${durAr(m)} والنافذة ${durAr(t.complaint)}.`,
+      goPage: 'complaints' });
+  });
+
+  S.payouts.forEach((p) => {
+    if ((p.status || 'pending') !== 'pending') return;
+    const m = minutesSince(p.createdAt || p.requestedAt);
+    if (m == null || m < PAYOUT_WINDOW_MIN) return;
+    out.push({ sev: 'orange', mins: m, icon: '💸',
+      title: `طلب سحب معلّق — ${p.driverName || 'سائق'}`,
+      detail: `${fmtMoney(p.amount)} ${SAR} — مضى ${durAr(m)} بلا بتّ.`,
+      goPage: 'payouts' });
+  });
+
+  const rank = (a) => (a.sev === 'red' ? 0 : 1);
+  return out.sort((a, b) => rank(a) - rank(b) || (b.mins || 0) - (a.mins || 0));
+}
+
+function alertRow(a) {
+  const attr = a.orderId ? `data-order="${esc(a.orderId)}"` : `data-page="${esc(a.goPage)}"`;
+  const col = a.sev === 'red' ? 'var(--red)' : 'var(--orange)';
+  return `<div class="card click alert-card sev-${a.sev}" ${attr}>
+    <div class="row1"><span class="title">${a.icon} ${esc(a.title)}</span>
+      <span class="alert-mins" style="color:${col}">${esc(durAr(a.mins))}</span></div>
+    <div class="meta">${esc(a.detail)}</div>
+  </div>`;
+}
+function alertsPanelHtml() {
+  const alerts = computeAlerts();
+  if (!alerts.length) {
+    return `<div class="panel">
+      <div class="alert-head"><h3 style="margin:0">🔔 التنبيهات التشغيلية</h3>
+        ${badge('لا شيء يحتاج تدخّلاً', '#1e8449')}</div>
+      <div class="empty" style="padding:16px">كل شيء يسير ضمن المُهل ✅</div></div>`;
+  }
+  const red = alerts.filter((a) => a.sev === 'red').length;
+  const shown = alerts.slice(0, ALERTS_SHOWN);
+  const rest = alerts.length - shown.length;
+  return `<div class="panel">
+    <div class="alert-head"><h3 style="margin:0">🔔 التنبيهات التشغيلية</h3>
+      <span>${red ? badge(`${red} عاجل`, '#c0392b') + ' ' : ''}${badge(`${alerts.length} تنبيه`, '#ca6f1e')}</span></div>
+    ${shown.map(alertRow).join('')}
+    ${rest ? `<div class="meta" style="text-align:center;margin-top:8px">و${rest} تنبيهاً آخر — تابعها من صفحة الطلبات النشطة</div>` : ''}
+  </div>`;
+}
+
 /* ================= نظرة عامة ================= */
 function renderDashboard() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -552,6 +707,7 @@ function renderDashboard() {
   const topRest = Object.entries(perRest).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   $('main').innerHTML = `
+    ${alertsPanelHtml()}
     <div class="kpi-grid">
       <div class="kpi"><div class="num">${todays.length}</div><div class="lbl">طلبات اليوم</div></div>
       <div class="kpi"><div class="num">${deliveredToday.length}</div><div class="lbl">مُوصَّلة اليوم</div></div>
@@ -2680,6 +2836,8 @@ function renderSettingsPage() {
         <input type="number" id="s_driver" min="1" value="${Number(s.driverSearchTimeoutMinutes) || 10}"></div>
       <div class="field"><label>السماحية فوق وقت التوصيل المتوقع قبل اعتبار الطلب متأخراً</label>
         <input type="number" id="s_late" min="1" value="${Number(s.lateDeliveryThresholdMinutes) || 15}"></div>
+      <div class="field"><label>نافذة الردّ على الشكوى قبل ظهورها في التنبيهات (لوحة الويب فقط)</label>
+        <input type="number" id="s_comp" min="1" value="${Number(s.complaintResponseMinutes) || 120}"></div>
       <button class="btn" id="saveSettings">حفظ الإعدادات</button>
     </div>
     <div class="panel">
@@ -2695,6 +2853,7 @@ function renderSettingsPage() {
         restaurantResponseTimeoutMinutes: Math.max(1, Number(document.getElementById('s_rest').value) || 5),
         driverSearchTimeoutMinutes: Math.max(1, Number(document.getElementById('s_driver').value) || 10),
         lateDeliveryThresholdMinutes: Math.max(1, Number(document.getElementById('s_late').value) || 15),
+        complaintResponseMinutes: Math.max(1, Number(document.getElementById('s_comp').value) || 120),
       }, { merge: true });
       toast('حُفظت الإعدادات');
     } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
