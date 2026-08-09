@@ -1,0 +1,132 @@
+/* ZadGo — الصفحات النظامية (الخصوصية، الشروط، حذف الحساب، التواصل)
+   الهوية الرسمية: كحلي داكن + ذهبي #FFC107، خط Tajawal — مطابقة لصفحة الهبوط. */
+
+:root {
+  --navy: #0b1631;
+  --navy-deep: #061024;
+  --gold: #FFC107;
+  --paper: #f2f5fb;
+  --ink: #101a2e;
+  --muted: #5b6880;
+  --line: #dfe5f0;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', Tahoma, Arial, sans-serif; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.95;
+  -webkit-text-size-adjust: 100%;
+}
+
+a { color: #12508f; }
+a:hover { color: var(--navy); }
+
+/* ترويسة */
+.site-header {
+  background: linear-gradient(135deg, var(--navy-deep), var(--navy));
+  padding: 18px 20px;
+}
+.header-inner {
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-inner img { height: 30px; width: auto; }
+
+/* المتن */
+main {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 26px 20px 40px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 18px;
+  font-size: .92rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.back-link:hover { color: var(--navy); }
+
+h1 {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--navy);
+  line-height: 1.5;
+}
+h1::after {
+  content: "";
+  display: block;
+  width: 54px;
+  height: 4px;
+  background: var(--gold);
+  border-radius: 4px;
+  margin-top: 10px;
+}
+
+.updated {
+  color: var(--muted);
+  font-size: .86rem;
+  margin: 12px 0 22px;
+}
+
+h2 {
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 28px 0 8px;
+  padding-right: 12px;
+  border-right: 4px solid var(--gold);
+}
+
+p { margin: 10px 0; }
+ol, ul { margin: 10px 0; padding-right: 22px; }
+li { margin: 6px 0; }
+
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin: 18px 0;
+}
+.card h2 { margin-top: 0; }
+
+.contact-item {
+  display: block;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: .98rem;
+}
+.contact-item:last-child { border-bottom: 0; }
+
+.note {
+  background: #fff8e1;
+  border-right: 4px solid var(--gold);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 18px 0;
+  font-size: .94rem;
+}
+
+/* التذييل */
+.site-footer {
+  background: var(--navy-deep);
+  color: #9aa7bd;
+  padding: 24px 20px;
+  text-align: center;
+  font-size: .88rem;
+}
+.site-footer nav { margin-bottom: 10px; line-height: 2.4 }
+.site-footer a { color: #c9d4e8; text-decoration: none; padding: 0 8px; }
+.site-footer a:hover { color: var(--gold); }
+
+@media (max-width: 520px) {
+  h1 { font-size: 1.42rem; }
+  main { padding: 20px 16px 32px; }
+}
