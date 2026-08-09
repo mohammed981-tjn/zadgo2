@@ -641,6 +641,55 @@ class MenuCategory {
       };
 }
 
+/// خيار واحد داخل مجموعة خيارات صنف (مثال: «كبير» بفرق سعر +5).
+class ItemOption {
+  final String name;
+
+  /// فرق السعر عن سعر الصنف الأساسي — صفر أو موجب غالباً، ويقبل السالب
+  /// (حجم أصغر مثلاً).
+  final double priceDelta;
+
+  const ItemOption({required this.name, this.priceDelta = 0});
+
+  factory ItemOption.fromMap(Map<String, dynamic> map) => ItemOption(
+        name: map['name'] as String? ?? '',
+        priceDelta: (map['priceDelta'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toMap() => {'name': name, 'priceDelta': priceDelta};
+}
+
+/// مجموعة خيارات لصنف — نمط جاهز/كيتا المبسّط بنوعين يغطيان واقع المطاعم:
+///   • اختيار واحد إلزامي (multiSelect=false): الحجم، نوع العجين... العميل
+///     لا يضيف الصنف دون تحديده.
+///   • إضافات اختيارية (multiSelect=true): جبن إضافي، عسل... صفر أو أكثر.
+class ItemOptionGroup {
+  final String name;
+  final bool multiSelect;
+  final List<ItemOption> options;
+
+  const ItemOptionGroup({
+    required this.name,
+    this.multiSelect = false,
+    this.options = const [],
+  });
+
+  factory ItemOptionGroup.fromMap(Map<String, dynamic> map) => ItemOptionGroup(
+        name: map['name'] as String? ?? '',
+        multiSelect: map['multiSelect'] as bool? ?? false,
+        options: ((map['options'] as List?) ?? [])
+            .whereType<Map>()
+            .map((m) => ItemOption.fromMap(m.cast<String, dynamic>()))
+            .toList(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'multiSelect': multiSelect,
+        'options': options.map((o) => o.toMap()).toList(),
+      };
+}
+
 class MenuItem {
   final String id;
   final String restaurantId;
@@ -660,6 +709,10 @@ class MenuItem {
   /// وترشيحه لاحقاً بدل أن يكون نصاً حرّاً داخل جملة.
   final int? kcal;
 
+  /// مجموعات خيارات الصنف (حجم/إضافات...) — قائمة فارغة = صنف بسيط يُضاف
+  /// مباشرة كما كان دائماً، فالحقل متوافق خلفياً مع كل الأصناف القائمة.
+  final List<ItemOptionGroup> optionGroups;
+
   const MenuItem({
     required this.id,
     required this.restaurantId,
@@ -674,7 +727,10 @@ class MenuItem {
     this.totalSold = 0,
     this.imageUrl,
     this.kcal,
+    this.optionGroups = const [],
   });
+
+  bool get hasOptions => optionGroups.isNotEmpty;
 
   /// نسخة معدَّلة مع الإبقاء على بقية الحقول كما هي. تُستخدم في كل موضع يعدّل
   /// حقلاً واحداً (السعر مثلاً)؛ بدونها كان كل موضع يعيد بناء الكائن كاملاً،
@@ -691,6 +747,7 @@ class MenuItem {
     int? totalSold,
     String? imageUrl,
     int? kcal,
+    List<ItemOptionGroup>? optionGroups,
   }) =>
       MenuItem(
         id: id,
@@ -706,6 +763,7 @@ class MenuItem {
         totalSold: totalSold ?? this.totalSold,
         imageUrl: imageUrl ?? this.imageUrl,
         kcal: kcal ?? this.kcal,
+        optionGroups: optionGroups ?? this.optionGroups,
       );
 
   bool get canOrder =>
@@ -734,6 +792,10 @@ class MenuItem {
       totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
       imageUrl: imageUrl,
       kcal: (map['kcal'] as num?)?.toInt(),
+      optionGroups: ((map['optionGroups'] as List?) ?? [])
+          .whereType<Map>()
+          .map((m) => ItemOptionGroup.fromMap(m.cast<String, dynamic>()))
+          .toList(),
     );
   }
 
@@ -750,6 +812,7 @@ class MenuItem {
         'totalSold': totalSold,
         'imageUrl': imageUrl,
         'kcal': kcal,
+        'optionGroups': optionGroups.map((g) => g.toMap()).toList(),
       };
 }
 
@@ -1708,8 +1771,29 @@ class CartItem {
   final MenuItem item;
   int quantity;
   String? extras;
-  CartItem({required this.item, this.quantity = 1, this.extras});
-  double get subtotal => item.price * quantity;
+
+  /// الخيارات المنتقاة لهذه التشكيلة (حجم/إضافات) — القائمة الفارغة تعني
+  /// الصنف البسيط، وكل تشكيلة مختلفة سطرٌ مستقل في السلة.
+  final List<ItemOption> selectedOptions;
+
+  CartItem({
+    required this.item,
+    this.quantity = 1,
+    this.extras,
+    this.selectedOptions = const [],
+  });
+
+  /// سعر الوحدة بعد فروق الخيارات.
+  double get unitPrice =>
+      item.price + selectedOptions.fold(0.0, (s, o) => s + o.priceDelta);
+
+  /// نص الخيارات للعرض والمفتاح: «كبير • جبن إضافي».
+  String get optionsLabel => selectedOptions.map((o) => o.name).join(' • ');
+
+  /// مفتاح التشكيلة: الصنف نفسه بخيارات مختلفة = سطران مستقلان.
+  String get variantKey => '${item.id}|$optionsLabel';
+
+  double get subtotal => unitPrice * quantity;
 }
 
 class DriverReassignment {

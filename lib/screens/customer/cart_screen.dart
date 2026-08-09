@@ -54,6 +54,8 @@ class CartScreen extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      // الأزرار تستهدف التشكيلة بعينها (مفتاح الصنف+خياراته)
+                      // لا الصنف وحده — وإلا اختلطت «كبير» بـ«صغير».
                       ...cart.items.map(
                         (ci) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -61,21 +63,29 @@ class CartScreen extends StatelessWidget {
                             children: [
                               Text(ci.item.emoji, style: const TextStyle(fontSize: 26)),
                               const SizedBox(width: 10),
-                              Expanded(child: Text(ci.item.name)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(ci.item.name),
+                                    if (ci.optionsLabel.isNotEmpty)
+                                      Text(ci.optionsLabel,
+                                          style: const TextStyle(
+                                              fontSize: 11.5,
+                                              color: AppColors.textGray)),
+                                  ],
+                                ),
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () => context.read<CartProvider>().remove(ci.item.id),
+                                onPressed: () => context.read<CartProvider>().remove(ci.variantKey),
                               ),
                               Text('${ci.quantity}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () => context.read<CartProvider>().add(
-                                  ci.item,
-                                  cart.restaurantId!,
-                                  cart.restaurantName!,
-                                  cart.restaurantEmoji ?? '🍽️',
-                                  cart.deliveryFee,
-                                ),
+                                onPressed: () => context
+                                    .read<CartProvider>()
+                                    .incrementVariant(ci.variantKey),
                               ),
                               Text(
                                 formatCurrency(ci.subtotal),

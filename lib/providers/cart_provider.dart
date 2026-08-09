@@ -34,26 +34,45 @@ class CartProvider extends ChangeNotifier {
   double get grandTotalWithVat => grandTotal + vat;
   double get platformCommission => itemsTotal * 0.15;
 
-  int quantityOf(String itemId) {
-    try { return _items.firstWhere((i) => i.item.id == itemId).quantity; }
-    catch (_) { return 0; }
-  }
+  /// إجمالي كمية صنفٍ عبر كل تشكيلاته — عدّاد بطاقة الصنف في القائمة.
+  int quantityOf(String itemId) => _items
+      .where((i) => i.item.id == itemId)
+      .fold(0, (s, i) => s + i.quantity);
 
-  void add(MenuItem item, String rId, String rName, String rEmoji, double driverShare, [double appShare = 0.0]) {
+  /// [selectedOptions]: خيارات التشكيلة (حجم/إضافات). الصنف نفسه بخيارات
+  /// مختلفة يُحفظ سطرين مستقلين — مطابقة السطر بمفتاح التشكيلة لا بمعرّف
+  /// الصنف وحده.
+  void add(MenuItem item, String rId, String rName, String rEmoji, double driverShare,
+      [double appShare = 0.0, List<ItemOption> selectedOptions = const []]) {
     if (_restaurantId != null && _restaurantId != rId) _items.clear();
     _restaurantId = rId; _restaurantName = rName; _restaurantEmoji = rEmoji;
     _driverShare = driverShare; _appShare = appShare;
-    final idx = _items.indexWhere((i) => i.item.id == item.id);
-    if (idx >= 0) { _items[idx].quantity++; } else { _items.add(CartItem(item: item)); }
+    final candidate = CartItem(item: item, selectedOptions: selectedOptions);
+    final idx = _items.indexWhere((i) => i.variantKey == candidate.variantKey);
+    if (idx >= 0) { _items[idx].quantity++; } else { _items.add(candidate); }
     _persist();
     notifyListeners();
   }
 
-  void remove(String itemId) {
-    final idx = _items.indexWhere((i) => i.item.id == itemId);
+  /// إنقاص تشكيلةٍ بعينها بمفتاحها، أو — لتوافق النداءات القديمة بمعرّف
+  /// الصنف فقط — آخر تشكيلة لهذا الصنف.
+  void remove(String itemIdOrVariantKey) {
+    var idx = _items.indexWhere((i) => i.variantKey == itemIdOrVariantKey);
+    if (idx < 0) {
+      idx = _items.lastIndexWhere((i) => i.item.id == itemIdOrVariantKey);
+    }
     if (idx < 0) return;
     if (_items[idx].quantity > 1) { _items[idx].quantity--; }
     else { _items.removeAt(idx); if (_items.isEmpty) _clearRestaurant(); }
+    _persist();
+    notifyListeners();
+  }
+
+  /// زيادة تشكيلة قائمة بمفتاحها (زر + في السلة).
+  void incrementVariant(String variantKey) {
+    final idx = _items.indexWhere((i) => i.variantKey == variantKey);
+    if (idx < 0) return;
+    _items[idx].quantity++;
     _persist();
     notifyListeners();
   }
@@ -68,8 +87,11 @@ class CartProvider extends ChangeNotifier {
   void _clearRestaurant() { _restaurantId = null; _restaurantName = null; _restaurantEmoji = null; }
 
   List<OrderItem> toOrderItems() => _items.map((ci) => OrderItem(
-        menuItemId: ci.item.id, name: ci.item.name, price: ci.item.price,
+        menuItemId: ci.item.id, name: ci.item.name,
+        // سعر الوحدة بعد فروق الخيارات — هو ما يُحاسَب عليه الطلب فعلاً.
+        price: ci.unitPrice,
         emoji: ci.item.emoji, quantity: ci.quantity,
+        extras: ci.optionsLabel.isEmpty ? null : ci.optionsLabel,
       )).toList();
 
   // ---------------------------------------------------------------------
@@ -94,7 +116,14 @@ class CartProvider extends ChangeNotifier {
           final entry = e as Map<String, dynamic>;
           final itemMap = (entry['item'] as Map).cast<String, dynamic>();
           final item = MenuItem.fromMap(itemMap, itemMap['id'] as String? ?? '');
-          return CartItem(item: item, quantity: (entry['quantity'] as num?)?.toInt() ?? 1);
+          return CartItem(
+            item: item,
+            quantity: (entry['quantity'] as num?)?.toInt() ?? 1,
+            selectedOptions: ((entry['selectedOptions'] as List?) ?? [])
+                .whereType<Map>()
+                .map((m) => ItemOption.fromMap(m.cast<String, dynamic>()))
+                .toList(),
+          );
         }));
       _restored = true;
       notifyListeners();
@@ -120,7 +149,12 @@ class CartProvider extends ChangeNotifier {
         'items': _items.map((ci) {
           final itemMap = ci.item.toMap();
           itemMap['id'] = ci.item.id;
-          return {'item': itemMap, 'quantity': ci.quantity};
+          return {
+            'item': itemMap,
+            'quantity': ci.quantity,
+            'selectedOptions':
+                ci.selectedOptions.map((o) => o.toMap()).toList(),
+          };
         }).toList(),
       };
       await prefs.setString(_prefsKey, jsonEncode(map));
