@@ -335,7 +335,22 @@ class _AddOrCounter extends StatelessWidget {
   Widget build(BuildContext context) {
     // صنف بخيارات: الإضافة تمر دائماً بنافذة الاختيار (الحجم إلزامي مثلاً)،
     // وكل ضغطة + تفتح النافذة لتشكيلة جديدة — نمط جاهز/كيتا نفسه.
-    void addToCart() {
+    Future<void> addToCart() async {
+      // سلة من مطعم آخر كانت تُفرَّغ **صامتةً** هنا، فتختفي اختيارات العميل
+      // الأولى بلا تفسير ويظن أن عليه الدفع لكل صنف على حدة (ملاحظة
+      // المالك بالصور). الآن استئذان صريح قبل الإفراغ.
+      final cart = context.read<CartProvider>();
+      if (!cart.isEmpty && cart.restaurantId != restaurant.id) {
+        final ok = await showConfirmDialog(
+          context,
+          title: 'سلة من مطعم آخر',
+          content: 'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} '
+              '— الطلب الواحد من مطعم واحد.\nإفراغها والبدء من '
+              '${restaurant.name}؟',
+          confirmLabel: 'إفراغ والبدء هنا',
+        );
+        if (ok != true || !context.mounted) return;
+      }
       if (item.hasOptions) {
         _showOptionsSheet(context, item, restaurant);
       } else {
