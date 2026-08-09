@@ -27,6 +27,8 @@
 ## وثائق مرجعية أخرى
 
 - `dev-docs/store-distribution.md` — استراتيجية النشر على المتاجر.
+- `dev-docs/app-signing.md` — بصمة التوقيع وأسرار البناء (سبب رفض
+  التحديثات وحلّه).
 - `dev-docs/join-page-handoff.md` — مواصفات صفحة تسجيل الكباتن (لمساعد
   الويب على zadgo.co).
 - `dev-docs/menu-imports/` — ملفات استيراد المنيوهات الجاهزة.
