@@ -19,9 +19,22 @@ import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import 'admin_reports_export.dart';
 
-class AdminReportsTab extends StatelessWidget {
+class AdminReportsTab extends StatefulWidget {
   const AdminReportsTab({super.key});
+
+  @override
+  State<AdminReportsTab> createState() => _AdminReportsTabState();
+}
+
+class _AdminReportsTabState extends State<AdminReportsTab> {
+  /// مطعم مُنتقى للتقرير — فارغ = كل المطاعم. مع نمو عدد المطاعم صار
+  /// التمرير بحثاً عن مطعم واحد متعباً (ملاحظة المالك).
+  String _restaurantFilter = '';
+
+  /// نطاق زمني: null = منذ البداية.
+  int? _periodDays;
 
   @override
   Widget build(BuildContext context) {
@@ -32,19 +45,56 @@ class AdminReportsTab extends StatelessWidget {
       builder: (ctx, orders) {
         // التقارير المالية تُبنى على الطلبات المكتملة فقط — الطلبات الجارية
         // أو الملغاة لم تتحقّق إيراداً بعد.
-        final sold =
+        final all =
             orders.where((o) => o.status == OrderStatus.delivered).toList();
 
+        // أسماء المطاعم للمُنتقي تُبنى من كل الطلبات لا من المفلترة، وإلا
+        // اختفى بقية المطاعم من القائمة بمجرد اختيار واحد.
+        final restaurantNames = <String, String>{
+          for (final o in all) o.restaurantId: o.restaurantName
+        };
+
+        final cutoff = _periodDays == null
+            ? null
+            : DateTime.now().subtract(Duration(days: _periodDays!));
+        final sold = all.where((o) {
+          if (_restaurantFilter.isNotEmpty &&
+              o.restaurantId != _restaurantFilter) {
+            return false;
+          }
+          if (cutoff != null) {
+            final t = o.statusChangedAt ?? o.updatedAt ?? o.createdAt;
+            if (t.isBefore(cutoff)) return false;
+          }
+          return true;
+        }).toList();
+
+        final filters = _FilterBar(
+          restaurantNames: restaurantNames,
+          selectedRestaurant: _restaurantFilter,
+          periodDays: _periodDays,
+          onRestaurant: (v) => setState(() => _restaurantFilter = v),
+          onPeriod: (v) => setState(() => _periodDays = v),
+        );
+
         if (sold.isEmpty) {
-          return const AppEmpty(
-              emoji: '📊', title: 'لا توجد طلبات مكتملة لعرض تقاريرها بعد');
+          return Column(children: [
+            filters,
+            const Expanded(
+              child: AppEmpty(
+                  emoji: '📊', title: 'لا توجد طلبات مكتملة ضمن هذا النطاق'),
+            ),
+          ]);
         }
 
         final totalMeals = sold.fold(0.0, (s, o) => s + o.itemsTotal);
         final totalDelivery = sold.fold(0.0, (s, o) => s + o.driverShare);
+        // العمولة والرسم الثابت بالمشتقّ «الفعّال» لا بالمخزَّن وحده: الطلبات
+        // القديمة تحمل صفراً فكانت تُظهر دخل المنصّة شبه معدوم.
         final mealsCommission =
-            sold.fold(0.0, (s, o) => s + o.platformCommission);
-        final deliveryCommission = sold.fold(0.0, (s, o) => s + o.appShare);
+            sold.fold(0.0, (s, o) => s + o.effectiveCommission);
+        final deliveryCommission =
+            sold.fold(0.0, (s, o) => s + o.effectiveAppShare);
         final totalCommission = mealsCommission + deliveryCommission;
         final vatInMeals = Pricing.vatIncludedIn(totalMeals);
 
@@ -72,12 +122,22 @@ class AdminReportsTab extends StatelessWidget {
           );
           entry.orders += 1;
           entry.meals += o.itemsTotal;
-          entry.commission += o.platformCommission;
+          entry.commission += o.effectiveCommission;
         }
         final restaurants = byRestaurant.values.toList()
           ..sort((a, b) => b.meals.compareTo(a.meals));
 
-        return ListView(
+        final scopeLabel = _restaurantFilter.isEmpty
+            ? 'كل المطاعم'
+            : (restaurantNames[_restaurantFilter] ?? 'مطعم');
+        final periodLabel = _periodDays == null
+            ? 'منذ البداية'
+            : 'آخر $_periodDays يوم';
+
+        return Column(children: [
+          filters,
+          Expanded(
+            child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             // بطاقة الإجماليات العامة
@@ -91,21 +151,56 @@ class AdminReportsTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('إجمالي مبيعات الوجبات — كل المطاعم',
-                      style: TextStyle(color: Colors.white70)),
+                  Text('إجمالي مبيعات الوجبات — $scopeLabel',
+                      style: const TextStyle(color: Colors.white70)),
                   Text(formatCurrency(totalMeals),
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 30,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  Text('${sold.length} طلب مكتمل • ${restaurants.length} مطعم',
+                  Text(
+                      '${sold.length} طلب مكتمل • ${restaurants.length} مطعم • $periodLabel',
                       style:
                           const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
+
+            // تصدير التقرير المعروض (بنفس الفلاتر) — PDF للعرض والأرشفة،
+            // Excel للمعالجة المحاسبية.
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => exportAdminReportPdf(
+                    scopeLabel: scopeLabel,
+                    periodLabel: periodLabel,
+                    orders: sold,
+                    restaurants: restaurants
+                        .map((r) => (r.name, r.orders, r.meals, r.commission, r.net))
+                        .toList(),
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: const Text('تقرير PDF'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => exportAdminReportExcel(
+                    scopeLabel: scopeLabel,
+                    orders: sold,
+                    restaurants: restaurants
+                        .map((r) => (r.name, r.orders, r.meals, r.commission, r.net))
+                        .toList(),
+                  ),
+                  icon: const Icon(Icons.table_view_outlined, size: 18),
+                  label: const Text('Excel'),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
 
             // معادلة الدورة المالية — من دفع العميل حتى استقرار كل ريال.
             const SectionHeader(title: 'الدورة المالية الكاملة'),
@@ -246,10 +341,89 @@ class AdminReportsTab extends StatelessWidget {
             const SizedBox(height: 16),
 
             const SectionHeader(title: 'تفصيل المبيعات لكل مطعم'),
-            ...restaurants.map((r) => _RestaurantReportCard(totals: r)),
+            ...restaurants.map((r) => _RestaurantReportCard(
+                  totals: r,
+                  ordersOfRestaurant:
+                      sold.where((o) => o.restaurantName == r.name).toList(),
+                  periodLabel: periodLabel,
+                )),
           ],
-        );
+            ),
+          ),
+        ]);
       },
+    );
+  }
+}
+
+/// شريط الفلاتر: مطعم + نطاق زمني — يعملان على التقرير والتصدير معاً.
+class _FilterBar extends StatelessWidget {
+  final Map<String, String> restaurantNames;
+  final String selectedRestaurant;
+  final int? periodDays;
+  final ValueChanged<String> onRestaurant;
+  final ValueChanged<int?> onPeriod;
+
+  const _FilterBar({
+    required this.restaurantNames,
+    required this.selectedRestaurant,
+    required this.periodDays,
+    required this.onRestaurant,
+    required this.onPeriod,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = context.flavorColors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      color: Colors.white,
+      child: Column(children: [
+        DropdownButtonFormField<String>(
+          value: selectedRestaurant.isEmpty ? '' : selectedRestaurant,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'المطعم',
+            prefixIcon: Icon(Icons.storefront_outlined),
+            isDense: true,
+          ),
+          items: [
+            const DropdownMenuItem(value: '', child: Text('كل المطاعم')),
+            ...restaurantNames.entries.map(
+                (e) => DropdownMenuItem(value: e.key, child: Text(e.value))),
+          ],
+          onChanged: (v) => onRestaurant(v ?? ''),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (final (label, days) in const [
+              ('اليوم', 1),
+              ('٧ أيام', 7),
+              ('٣٠ يوماً', 30),
+              ('الكل', 0),
+            ])
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ChoiceChip(
+                  label: Text(label),
+                  selected: (days == 0 ? null : days) == periodDays,
+                  onSelected: (_) => onPeriod(days == 0 ? null : days),
+                  backgroundColor: Colors.white,
+                  selectedColor: fc.primary.withOpacity(0.15),
+                  labelStyle: TextStyle(
+                    fontSize: 12.5,
+                    color: (days == 0 ? null : days) == periodDays
+                        ? fc.primaryDark
+                        : AppColors.textDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ]),
+        ),
+      ]),
     );
   }
 }
@@ -268,7 +442,16 @@ class _RestaurantTotals {
 
 class _RestaurantReportCard extends StatelessWidget {
   final _RestaurantTotals totals;
-  const _RestaurantReportCard({required this.totals});
+
+  /// طلبات هذا المطعم ضمن النطاق المعروض — أساس فاتورة مستحقّاته.
+  final List<Order> ordersOfRestaurant;
+  final String periodLabel;
+
+  const _RestaurantReportCard({
+    required this.totals,
+    required this.ordersOfRestaurant,
+    required this.periodLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -303,6 +486,20 @@ class _RestaurantReportCard extends StatelessWidget {
                 label: 'صافي مستحقّات المطعم',
                 value: formatCurrency(totals.net),
                 bold: true),
+            const SizedBox(height: 4),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                onPressed: () => exportRestaurantInvoicePdf(
+                  restaurantName: totals.name,
+                  periodLabel: periodLabel,
+                  orders: ordersOfRestaurant,
+                ),
+                icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                label: const Text('فاتورة مستحقّات PDF',
+                    style: TextStyle(fontSize: 12.5)),
+              ),
+            ),
           ],
         ),
       ),

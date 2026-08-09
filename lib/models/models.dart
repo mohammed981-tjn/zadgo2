@@ -3,6 +3,9 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
+// قواعد التسعير المعتمدة — يستعملها النموذج في المشتقّات المالية للتقارير.
+// helpers لا يستورد models، فلا دورة استيراد.
+import '../utils/helpers.dart' show Pricing;
 
 enum UserRole { admin, customer, driver, restaurantManager }
 
@@ -1498,14 +1501,28 @@ class Order {
 
   double get calculatedCommission => itemsTotal * 0.15;
 
+  /// عمولة الوجبات **للتقارير**: المخزَّنة إن وُجدت، وإلا محسوبةً بالقاعدة
+  /// المعتمدة (15%). الطلبات التي أُنشئت قبل تثبيت قاعدة التسعير (أو من
+  /// لوحة الويب) تحمل platformCommission = 0، فكان تقرير الإدارة يجمعها
+  /// أصفاراً ويُظهر دخل المنصّة شبه معدوم (37 ر.س على مبيعات 1370).
+  double get effectiveCommission =>
+      platformCommission > 0 ? platformCommission : calculatedCommission;
+
+  /// رسم التوصيل الثابت **للتقارير**: المخزَّن إن وُجد، وإلا القيمة المعتمدة
+  /// حالياً — لنفس سبب [effectiveCommission] (طلبات قديمة بـ appShare = 0
+  /// كانت تُظهر «عمولة التوصيل: 0.00»).
+  double get effectiveAppShare =>
+      appShare > 0 ? appShare : Pricing.fixedDeliveryCommission;
+
   /// صافي مستحقّات المطعم = قيمة الوجبات بعد خصم عمولة التطبيق (15%). قيمة
   /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.
   /// خصم الكوبون لا يمسّه — تتحمّله المنصّة وحدها.
-  double get restaurantNet => itemsTotal - platformCommission;
+  double get restaurantNet => itemsTotal - effectiveCommission;
 
   /// دخل المنصّة من هذا الطلب: عمولة الوجبات + رسم التوصيل الثابت، ناقصاً
   /// خصم الكوبون الذي موّلته.
-  double get platformNet => platformCommission + appShare - discountAmount;
+  double get platformNet =>
+      effectiveCommission + effectiveAppShare - discountAmount;
 
   /// مهلة تقديم الشكوى بعد انتهاء الطلب — 24 ساعة، وهي النافذة المعتمدة في
   /// تطبيقات التوصيل الكبرى: تكفي لاكتشاف النقص/الخطأ/الجودة بعد فتح الطلب،
