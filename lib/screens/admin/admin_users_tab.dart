@@ -82,6 +82,9 @@ class AdminUsersTab extends StatelessWidget {
     String? selectedRestaurantName;
     bool loading = false;
     RegistrationCode? generated;
+    // صلاحية الكود — الافتراضي ٧ أيام: تكفي المرسَل إليه وتمنع بقاء أكواد
+    // حيّة منسية للأبد. 0 = بلا انتهاء.
+    int validityDays = 7;
 
     String roleLabel(UserRole r) => switch (r) {
           UserRole.restaurantManager => 'مدير مطعم',
@@ -166,6 +169,18 @@ class AdminUsersTab extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 10),
+                DropdownButtonFormField<int>(
+                  value: validityDays,
+                  decoration: const InputDecoration(labelText: 'صلاحية الكود'),
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text('٢٤ ساعة')),
+                    DropdownMenuItem(value: 7, child: Text('٧ أيام')),
+                    DropdownMenuItem(value: 30, child: Text('٣٠ يوماً')),
+                    DropdownMenuItem(value: 0, child: Text('بلا انتهاء')),
+                  ],
+                  onChanged: (v) => setState(() => validityDays = v ?? 7),
+                ),
+                const SizedBox(height: 10),
                 TextField(
                   controller: phoneCtrl,
                   keyboardType: TextInputType.phone,
@@ -248,6 +263,9 @@ class AdminUsersTab extends StatelessWidget {
                             restaurantId: selectedRole == UserRole.restaurantManager ? selectedRestaurantId! : '',
                             restaurantName:
                                 selectedRole == UserRole.restaurantManager ? selectedRestaurantName! : '',
+                            validity: validityDays == 0
+                                ? null
+                                : Duration(days: validityDays),
                           );
                           setState(() {
                             generated = code;

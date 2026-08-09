@@ -93,7 +93,7 @@ class _RestaurantCard extends StatelessWidget {
                 InfoRow(
                   icon: Icons.delivery_dining_outlined,
                   text:
-                      'أجرة التوصيل: نصيب السائق ${formatCurrency(restaurant.driverShareFee)} + نصيب التطبيق ${formatCurrency(restaurant.appShareFee)}',
+                      'التوصيل (موحّد للمنصة): ${formatCurrency(Pricing.baseDeliveryFee)} لأول ${Pricing.baseDeliveryKm.toStringAsFixed(0)} كم + ${formatCurrency(Pricing.perExtraKmFee)}/كم إضافي',
                 ),
                 InfoRow(
                   icon: Icons.timer_outlined,
@@ -160,7 +160,7 @@ class _RestaurantForm extends StatefulWidget {
 class _RestaurantFormState extends State<_RestaurantForm> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _name, _branch, _desc, _phone, _addr,
-      _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji;
+      _min, _time, _emoji;
   bool _loading = false;
   double? _lat, _lng;
   String? _imageUrl;
@@ -177,10 +177,6 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _desc  = TextEditingController(text: r?.description ?? '');
     _phone = TextEditingController(text: r?.phone ?? '');
     _addr  = TextEditingController(text: r?.address ?? '');
-    _driverFee = TextEditingController(text: r?.driverShareFee.toString() ?? '5');
-    _appFee    = TextEditingController(text: r?.appShareFee.toString() ?? '0');
-    _perKm = TextEditingController(text: r?.perKmFee.toString() ?? '0');
-    _freeKm = TextEditingController(text: r?.freeKm.toString() ?? '3');
     _min   = TextEditingController(text: r?.minOrder.toString() ?? '20');
     _time  = TextEditingController(text: r?.estimatedTimeMin.toString() ?? '30');
     _emoji = TextEditingController(text: r?.emoji ?? '🍽️');
@@ -191,7 +187,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _branch, _desc, _phone, _addr, _driverFee, _appFee, _perKm, _freeKm, _min, _time, _emoji]) {
+    for (final c in [_name, _branch, _desc, _phone, _addr, _min, _time, _emoji]) {
       c.dispose();
     }
     super.dispose();
@@ -226,10 +222,13 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       emoji: _emoji.text.trim(),
       phone: _phone.text.trim(),
       address: _addr.text.trim(),
-      driverShareFee: double.tryParse(_driverFee.text) ?? 5,
-      appShareFee: double.tryParse(_appFee.text) ?? 0,
-      perKmFee: double.tryParse(_perKm.text) ?? 0,
-      freeKm: double.tryParse(_freeKm.text) ?? 3,
+      // حقول التسعير القديمة تُمرَّر كما كانت محفوظة (لا حقول إدخال لها):
+      // التسعير الموحّد في Pricing لا يقرؤها، وعرضُها للمدير كان يوهمه أن
+      // تعديلها يغيّر شيئاً — بينما لا أثر لها إطلاقاً.
+      driverShareFee: widget.existing?.driverShareFee ?? 0,
+      appShareFee: widget.existing?.appShareFee ?? 0,
+      perKmFee: widget.existing?.perKmFee ?? 0,
+      freeKm: widget.existing?.freeKm ?? 0,
       minOrder: double.tryParse(_min.text) ?? 20,
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
@@ -290,16 +289,6 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 _f(_desc, 'وصف المطعم'),
                 _f(_phone, 'رقم الهاتف', type: TextInputType.phone),
                 _f(_addr, 'العنوان'),
-                Row(children: [
-                  Expanded(child: _f(_driverFee, 'نصيب السائق', type: TextInputType.number, validator: validatePrice)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _f(_appFee, 'نصيب التطبيق', type: TextInputType.number, validator: validatePrice)),
-                ]),
-                Row(children: [
-                  Expanded(child: _f(_perKm, 'أجرة الكيلومتر الإضافي', type: TextInputType.number, isReq: false)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _f(_freeKm, 'الكيلومترات المجانية', type: TextInputType.number, isReq: false)),
-                ]),
                 Row(children: [
                   Expanded(child: _f(_min, 'الحد الأدنى', type: TextInputType.number, validator: validatePrice)),
                   const SizedBox(width: 10),
@@ -585,6 +574,10 @@ class _ItemFormState extends State<_ItemForm> {
   bool _trackStock = false;
   late String? _categoryId;
   String? _imageUrl;
+
+  /// مجموعات خيارات الصنف (حجم/إضافات) — تُحرَّر محلياً وتُحفظ مع الصنف.
+  late List<ItemOptionGroup> _optionGroups =
+      List.of(widget.existing?.optionGroups ?? const []);
   // معرّف ثابت للصنف حتى تُرفع صورته تحت مساره الصحيح قبل الحفظ الأول.
   late final String _itemId = widget.existing?.id ?? const Uuid().v4();
 
@@ -613,6 +606,128 @@ class _ItemFormState extends State<_ItemForm> {
     super.dispose();
   }
 
+  /// حوار إنشاء/تعديل مجموعة خيارات: الاسم، النوع، وقائمة الخيارات بفروق
+  /// أسعارها. [index] فارغ = مجموعة جديدة.
+  Future<void> _editGroup(int? index) async {
+    final existing = index == null ? null : _optionGroups[index];
+    final nameCtrl = TextEditingController(text: existing?.name ?? '');
+    final optNameCtrl = TextEditingController();
+    final optDeltaCtrl = TextEditingController();
+    bool multi = existing?.multiSelect ?? false;
+    final options = List<ItemOption>.of(existing?.options ?? const []);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, setDialogState) => AlertDialog(
+          title: Text(index == null ? 'مجموعة خيارات جديدة' : 'تعديل المجموعة'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'اسم المجموعة',
+                      hintText: 'الحجم / الإضافات / نوع العجين'),
+                ),
+                SwitchListTile(
+                  value: multi,
+                  onChanged: (v) => setDialogState(() => multi = v),
+                  title: const Text('إضافات اختيارية (تحديد متعدد)',
+                      style: TextStyle(fontSize: 13.5)),
+                  subtitle: const Text(
+                      'مطفأ = اختيار واحد إلزامي كالحجم',
+                      style: TextStyle(fontSize: 11.5)),
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: AppColors.primary,
+                ),
+                ...options.asMap().entries.map((e) => Row(children: [
+                      Expanded(
+                        child: Text(
+                            e.value.priceDelta == 0
+                                ? e.value.name
+                                : '${e.value.name} (${e.value.priceDelta > 0 ? '+' : ''}${e.value.priceDelta.toStringAsFixed(0)} ر.س)',
+                            style: const TextStyle(fontSize: 13)),
+                      ),
+                      IconButton(
+                        iconSize: 17,
+                        icon: const Icon(Icons.close, color: AppColors.error),
+                        onPressed: () =>
+                            setDialogState(() => options.removeAt(e.key)),
+                      ),
+                    ])),
+                Row(children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextField(
+                      controller: optNameCtrl,
+                      decoration: const InputDecoration(
+                          labelText: 'خيار', hintText: 'كبير'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: optDeltaCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true, signed: true),
+                      decoration: const InputDecoration(
+                          labelText: '± سعر', hintText: '5'),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline,
+                        color: AppColors.primary),
+                    onPressed: () {
+                      final n = optNameCtrl.text.trim();
+                      if (n.isEmpty) return;
+                      setDialogState(() {
+                        options.add(ItemOption(
+                            name: n,
+                            priceDelta:
+                                double.tryParse(optDeltaCtrl.text.trim()) ?? 0));
+                        optNameCtrl.clear();
+                        optDeltaCtrl.clear();
+                      });
+                    },
+                  ),
+                ]),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dCtx, false),
+                child: const Text('إلغاء')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(dCtx, true),
+                child: const Text('حفظ المجموعة')),
+          ],
+        ),
+      ),
+    );
+
+    if (saved != true) return;
+    final name = nameCtrl.text.trim();
+    if (name.isEmpty || options.isEmpty) {
+      if (mounted) {
+        showError(context, 'المجموعة تحتاج اسماً وخياراً واحداً على الأقل');
+      }
+      return;
+    }
+    setState(() {
+      final group =
+          ItemOptionGroup(name: name, multiSelect: multi, options: options);
+      if (index == null) {
+        _optionGroups.add(group);
+      } else {
+        _optionGroups[index] = group;
+      }
+    });
+  }
+
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     if (_categoryId == null) return;
@@ -633,6 +748,7 @@ class _ItemFormState extends State<_ItemForm> {
       imageUrl: _imageUrl,
       totalSold: widget.existing?.totalSold ?? 0,
       kcal: int.tryParse(_kcal.text.trim()),
+      optionGroups: _optionGroups,
     );
     if (widget.existing == null) {
       await service.addMenuItem(item);
@@ -694,6 +810,56 @@ class _ItemFormState extends State<_ItemForm> {
                 ),
                 if (_trackStock)
                   _f(_stock, 'الكمية المتاحة', type: TextInputType.number),
+                const SizedBox(height: 10),
+                // مجموعات الخيارات — الفجوة الكبرى أمام جاهز/كيتا: حجم
+                // إلزامي (اختيار واحد) أو إضافات اختيارية بفروق أسعار.
+                Row(children: [
+                  const Text('خيارات الصنف',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () => _editGroup(null),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('مجموعة', style: TextStyle(fontSize: 12.5)),
+                  ),
+                ]),
+                if (_optionGroups.isEmpty)
+                  const Text('بلا خيارات — يُضاف الصنف مباشرة بسعره.',
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.textGray)),
+                ..._optionGroups.asMap().entries.map((e) => Card(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      child: ListTile(
+                        dense: true,
+                        title: Text(
+                            '${e.value.name} — ${e.value.multiSelect ? 'إضافات اختيارية' : 'اختيار واحد إلزامي'}',
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700)),
+                        subtitle: Text(
+                          e.value.options
+                              .map((o) => o.priceDelta == 0
+                                  ? o.name
+                                  : '${o.name} (${o.priceDelta > 0 ? '+' : ''}${o.priceDelta.toStringAsFixed(0)})')
+                              .join('، '),
+                          style: const TextStyle(fontSize: 11.5),
+                        ),
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          IconButton(
+                            iconSize: 18,
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => _editGroup(e.key),
+                          ),
+                          IconButton(
+                            iconSize: 18,
+                            icon: const Icon(Icons.delete_outline,
+                                color: AppColors.error),
+                            onPressed: () => setState(
+                                () => _optionGroups.removeAt(e.key)),
+                          ),
+                        ]),
+                      ),
+                    )),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity, height: 50,

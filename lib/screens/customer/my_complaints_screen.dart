@@ -17,6 +17,7 @@ import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
+import 'submit_ticket_screen.dart';
 
 class MyComplaintsScreen extends StatelessWidget {
   final String uid;
@@ -39,6 +40,26 @@ class MyComplaintsScreen extends StatelessWidget {
       (role == UserRole.restaurantManager &&
           (restaurantId ?? '').isNotEmpty);
 
+  /// فتح تذكرة عامة (مالية/تحديث بيانات/استفسار) — بلا ارتباط بطلب.
+  Widget _newTicketFab(BuildContext context) => FloatingActionButton.extended(
+        icon: const Icon(Icons.add_comment_outlined),
+        label: const Text('تذكرة جديدة'),
+        onPressed: () {
+          final auth = context.read<app_auth.AuthProvider>();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SubmitTicketScreen(
+                submittedByUid: uid,
+                submittedByName: auth.user?.name ?? '',
+                submittedByRole: role,
+                restaurantId: restaurantId,
+              ),
+            ),
+          );
+        },
+      );
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
@@ -46,6 +67,7 @@ class MyComplaintsScreen extends StatelessWidget {
     if (!_showAgainstTab) {
       return Scaffold(
         appBar: AppBar(title: const Text('شكاواي')),
+        floatingActionButton: _newTicketFab(context),
         body: _ComplaintsList(
           stream: () => service.streamComplaintsSubmittedBy(uid),
           emptyTitle: 'لا شكاوى مقدَّمة',
@@ -70,6 +92,7 @@ class MyComplaintsScreen extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        floatingActionButton: _newTicketFab(context),
         appBar: AppBar(
           title: const Text('الشكاوى'),
           bottom: const TabBar(
@@ -172,7 +195,9 @@ class _ComplaintCard extends StatelessWidget {
             const SizedBox(height: 8),
             InfoRow(
               icon: Icons.tag_rounded,
-              text: 'شكوى #${c.displayNumber} — طلب #${c.orderNumber}',
+              text: c.isGeneralTicket
+                  ? 'تذكرة #${c.displayNumber}'
+                  : 'شكوى #${c.displayNumber} — طلب #${c.orderNumber}',
             ),
             InfoRow(
               icon: Icons.schedule_rounded,
@@ -286,7 +311,10 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
                         Expanded(
-                          child: Text('شكوى #${c.displayNumber}',
+                          child: Text(
+                              c.isGeneralTicket
+                                  ? 'تذكرة #${c.displayNumber}'
+                                  : 'شكوى #${c.displayNumber}',
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 16)),
                         ),
@@ -294,10 +322,12 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                       ]),
                       const Divider(height: 20),
                       InfoRow(icon: Icons.category_outlined, text: c.type.label, bold: true),
-                      InfoRow(icon: Icons.receipt_long_outlined, text: 'الطلب #${c.orderNumber}'),
-                      InfoRow(
-                          icon: Icons.storefront_outlined,
-                          text: c.restaurantName.isEmpty ? '—' : c.restaurantName),
+                      if (!c.isGeneralTicket) ...[
+                        InfoRow(icon: Icons.receipt_long_outlined, text: 'الطلب #${c.orderNumber}'),
+                        InfoRow(
+                            icon: Icons.storefront_outlined,
+                            text: c.restaurantName.isEmpty ? '—' : c.restaurantName),
+                      ],
                       InfoRow(
                           icon: Icons.access_time_rounded,
                           text: 'قُدّمت في ${_fmtDate(c.createdAt)}'),

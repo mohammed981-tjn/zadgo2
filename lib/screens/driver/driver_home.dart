@@ -4,6 +4,7 @@ import 'package:flutter/services.dart'
     show HapticFeedback, SystemSound, SystemSoundType;
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -11,11 +12,15 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
+import '../auth/edit_profile_screen.dart';
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
 import '../customer/submit_complaint_screen.dart';
 import '../customer/my_complaints_screen.dart';
 import '../../utils/driver_proof_flow.dart';
+import 'pickup_docket_screen.dart';
+import 'captain_guide_screen.dart';
 import '../../utils/location_guard.dart';
 import '../../navigator_key.dart';
 
@@ -33,6 +38,14 @@ class _DriverHomeState extends State<DriverHome> {
   /// هل يجري بثّ موقعٍ الآن؟ يمنع تراكم قراءات GPS متوازية إن تأخرت واحدة
   /// أكثر من دورة المؤقّت.
   bool _pushingLocation = false;
+
+  /// آخر حالة اتصال معروفة للسائق — تُحدَّث من تدفّق مستنده في build. البثّ
+  /// يتوقف كلياً وهو «غير متصل»: بلا هذا الشرط كان الجهاز يكتب موقعاً كل
+  /// 8 ثوانٍ حتى خارج الدوام (~10 آلاف كتابة/سائق/يوم + استنزاف بطارية).
+  bool _isOnline = false;
+
+  /// آخر لقطة لمستند السائق — تغذّي بطاقة العرض بموقعه لحساب مسافة الالتقاط.
+  Driver? _driver;
 
   final Set<String> _acknowledgedNotified = {};
   final Set<String> _autoAssignedNotified = {};
@@ -60,7 +73,7 @@ class _DriverHomeState extends State<DriverHome> {
   /// كان الكود السابق يبثّ موقعاً **محاكى** (نقطة وسط الرياض تهتز عشوائياً)
   /// — بقية من التطوير المبكر جعلت خريطة العميل والإسناد بالمسافة بلا معنى.
   Future<void> _pushLocation() async {
-    if (_pushingLocation || !mounted) return;
+    if (_pushingLocation || !mounted || !_isOnline) return;
     final auth = context.read<app_auth.AuthProvider>();
     final service = context.read<FirebaseService>();
     final driverId = auth.user?.uid;
@@ -90,6 +103,12 @@ class _DriverHomeState extends State<DriverHome> {
   }
 
   void _checkForNotifications(List<Order> orders) {
+    // طلب خرج من قائمته (رُفض/انقضى/أُلغي) يُمحى من «سبق التنبيه» — فلو عاد
+    // إليه لاحقاً (لا سائق غيره متاحاً مثلاً) ظهر العرض من جديد بدل أن يظل
+    // الطلب غير مرئي له للأبد.
+    final currentIds = orders.map((o) => o.id).toSet();
+    _acknowledgedNotified.removeWhere((id) => !currentIds.contains(id));
+    _autoAssignedNotified.removeWhere((id) => !currentIds.contains(id));
     for (final o in orders) {
       if (o.needsDriverAcknowledgement) {
         if (!_acknowledgedNotified.contains(o.id)) {
@@ -115,74 +134,52 @@ class _DriverHomeState extends State<DriverHome> {
     final service = context.read<FirebaseService>();
     late OverlayEntry entry;
 
+    void dismiss() {
+      if (_bannerEntry == entry) {
+        entry.remove();
+        _bannerEntry = null;
+      }
+    }
+
     entry = OverlayEntry(
       builder: (ctx) => Positioned(
         top: MediaQuery.of(ctx).padding.top + 8,
         left: 16,
         right: 16,
-        child: Material(
-          color: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.warning,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.local_shipping_rounded, color: Colors.white),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'طلب #${order.orderNumber} أُسند إليك — بانتظار قرارك',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 4),
-              Text(
-                '${order.restaurantName} ← ${order.deliveryAddress}',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white),
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () async {
-                      entry.remove();
-                      _bannerEntry = null;
-                      await service.rejectAssignedOrder(order.id);
-                    },
-                    child: const Text('رفض'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.warning,
-                    ),
-                    onPressed: () async {
-                      entry.remove();
-                      _bannerEntry = null;
-                      await service.acceptAssignedOrder(order.id);
-                    },
-                    child: const Text('قبول'),
-                  ),
-                ),
-              ]),
-            ]),
-          ),
+        child: _OfferBanner(
+          order: order,
+          driver: _driver,
+          onAccept: () async {
+            dismiss();
+            try {
+              await service.acceptAssignedOrder(order.id);
+            } catch (_) {
+              if (mounted) showError(context, 'تعذّر قبول الطلب — ربما أُلغي أو أُعيد إسناده');
+              return;
+            }
+            // بعد القبول تُفتح مذكرة الاستلام مباشرةً — هي وجهة السائق
+            // التالية بلا بحث في القوائم.
+            navigatorKey.currentState?.push(MaterialPageRoute(
+                builder: (_) => PickupDocketScreen(orderId: order.id)));
+          },
+          onReject: () async {
+            dismiss();
+            try {
+              await service.rejectAssignedOrder(order.id);
+            } catch (_) {
+              if (mounted) showError(context, 'تعذّر رفض الطلب — ربما تغيّرت حالته');
+            }
+          },
+          onExpired: () async {
+            // انقضت مهلة القرار: يُمرَّر الطلب لأقرب سائق آخر تلقائياً —
+            // بصمت، فقد يكون الهاتف في الجيب أصلاً.
+            dismiss();
+            try {
+              await service.rejectAssignedOrder(order.id);
+            } catch (_) {
+              // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
+            }
+          },
         ),
       ),
     );
@@ -211,16 +208,25 @@ class _DriverHomeState extends State<DriverHome> {
                 BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4)),
               ],
             ),
-            child: Row(children: [
-              const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'طلب جديد #${order.orderNumber} أُسند إليك',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+            child: GestureDetector(
+              onTap: () {
+                entry.remove();
+                _bannerEntry = null;
+                navigatorKey.currentState?.push(MaterialPageRoute(
+                    builder: (_) => PickupDocketScreen(orderId: order.id)));
+              },
+              child: Row(children: [
+                const Icon(Icons.check_circle_outline_rounded, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'طلب جديد #${order.orderNumber} أُسند إليك — اضغط لمذكرة الاستلام',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                  ),
                 ),
-              ),
-            ]),
+                const Icon(Icons.chevron_left_rounded, color: Colors.white),
+              ]),
+            ),
           ),
         ),
       ),
@@ -254,6 +260,10 @@ class _DriverHomeState extends State<DriverHome> {
           );
         }
         final driver = snap.data;
+        // تحديث حالة الاتصال لبثّ الموقع — بلا setState: البثّ الدوري وحده
+        // من يقرؤها، وbuild هذا سيُعاد أصلاً مع كل تغيّر في المستند.
+        _isOnline = driver?.isOnline ?? false;
+        _driver = driver;
         return Scaffold(
           appBar: AppBar(
             title: Text('مرحباً ${auth.user?.name ?? ""}'),
@@ -262,9 +272,27 @@ class _DriverHomeState extends State<DriverHome> {
                 Row(children: [
                   Text(driver.isOnline ? 'متصل' : 'غير متصل',
                       style: TextStyle(color: driver.isOnline ? Colors.greenAccent : Colors.white54, fontSize: 12)),
-                  Switch(value: driver.isOnline, onChanged: (v) => service.setDriverOnline(driverId, v),
+                  Switch(value: driver.isOnline, onChanged: (v) async {
+                      await service.setDriverOnline(driverId, v);
+                      if (context.mounted) {
+                        showSuccess(
+                            context,
+                            v
+                                ? 'أنت الآن متاح لاستقبال الطلبات — بالتوفيق! 🚀'
+                                : 'أصبحت غير متصل — لن تصلك طلبات جديدة');
+                      }
+                    },
                       activeColor: Colors.greenAccent),
                 ]),
+              IconButton(
+                tooltip: 'دليل الكابتن',
+                icon: const Icon(Icons.school_outlined),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const CaptainGuideScreen()),
+                ),
+              ),
               IconButton(
                 tooltip: 'الشكاوى',
                 icon: const Icon(Icons.support_agent_rounded),
@@ -321,42 +349,324 @@ class _DriverHomeState extends State<DriverHome> {
   }
 }
 
+/// بطاقة «عرض توصيل» مكتملة القرار (نمط تويو/جاهز/أوبر): الأجرة المتوقعة،
+/// مسافتا الالتقاط والتوصيل، مبلغ التحصيل النقدي إن وُجد، وعدّاد تنازلي —
+/// السائق يقرّر بمعلومة كاملة، وانقضاء المهلة يمرّر الطلب للسائق التالي بدل
+/// أن يبقى معلّقاً على غافلٍ عن هاتفه.
+class _OfferBanner extends StatefulWidget {
+  final Order order;
+  final Driver? driver;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+  final VoidCallback onExpired;
+  const _OfferBanner({
+    required this.order,
+    required this.driver,
+    required this.onAccept,
+    required this.onReject,
+    required this.onExpired,
+  });
+
+  @override
+  State<_OfferBanner> createState() => _OfferBannerState();
+}
+
+class _OfferBannerState extends State<_OfferBanner> {
+  /// مهلة القرار — 45 ثانية توازن بين سائقٍ يقود لحظتها وطلبٍ ساخن لا
+  /// يحتمل الانتظار (تويو وجاهز في نطاق 30–60 ثانية).
+  static const int _offerSeconds = 45;
+  int _secondsLeft = _offerSeconds;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _secondsLeft--);
+      if (_secondsLeft <= 0) {
+        _timer?.cancel();
+        widget.onExpired();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    final d = widget.driver;
+    final isCash = o.paymentMethod == PaymentMethod.cash;
+
+    // المسافتان — إن توفرت الإحداثيات؛ غيابها يحجب السطر لا يعرض صفراً.
+    double? pickupKm, dropKm;
+    if (d?.lat != null && d?.lng != null &&
+        o.restaurantLat != null && o.restaurantLng != null) {
+      pickupKm = haversineDistanceKm(
+          d!.lat!, d.lng!, o.restaurantLat!, o.restaurantLng!);
+    }
+    if (o.restaurantLat != null && o.restaurantLng != null &&
+        o.deliveryLat != null && o.deliveryLng != null) {
+      dropKm = haversineDistanceKm(
+          o.restaurantLat!, o.restaurantLng!, o.deliveryLat!, o.deliveryLng!);
+    }
+
+    final urgent = _secondsLeft <= 10;
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.warning,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 4)),
+          ],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.local_shipping_rounded, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text('عرض توصيل — طلب #${o.orderNumber}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14.5)),
+            ),
+            // العدّاد: يحمرّ في الثواني الأخيرة — إلحاح مرئي بلا صوت إضافي.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: urgent ? AppColors.error : Colors.white.withOpacity(0.22),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('${_secondsLeft}ث',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: _secondsLeft / _offerSeconds,
+              minHeight: 4,
+              backgroundColor: Colors.white24,
+              valueColor: AlwaysStoppedAnimation(
+                  urgent ? AppColors.error : Colors.white),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // سطر القرار: الأجرة أولاً — أهم رقم عند السائق.
+          Row(children: [
+            const Icon(Icons.payments_rounded, color: Colors.white, size: 17),
+            const SizedBox(width: 6),
+            Text('أجرتك ${formatCurrency(o.driverShare)}',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15)),
+            if (pickupKm != null || dropKm != null) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  [
+                    if (pickupKm != null)
+                      'الالتقاط ${pickupKm.toStringAsFixed(1)} كم',
+                    if (dropKm != null)
+                      'التوصيل ${dropKm.toStringAsFixed(1)} كم',
+                  ].join(' • '),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ]),
+          if (isCash)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                    'نقدي — ستحصّل ${formatCurrency(o.payableTotal - o.walletUsed)} من العميل',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+          const SizedBox(height: 6),
+          Text('${o.restaurantName} ← ${o.deliveryAddress}',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: widget.onReject,
+                child: const Text('رفض'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppColors.warning,
+                ),
+                onPressed: widget.onAccept,
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('قبول العرض',
+                    style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
 class _MyOrdersTab extends StatelessWidget {
   final String driverId;
   final Driver? driver;
   final void Function(List<Order> orders) onOrdersChanged;
   const _MyOrdersTab({required this.driverId, this.driver, required this.onOrdersChanged});
 
+  /// تبديل الاتصال برسالة صريحة (نمط نينجا): «متاح — بالتوفيق» أو «لن تصلك
+  /// طلبات» — تأكيدٌ يقطع الشك بدل مفتاح صامت قد لا يلحظ أثره.
+  Future<void> _toggleOnline(
+      BuildContext context, FirebaseService service, bool goOnline) async {
+    HapticFeedback.mediumImpact();
+    await service.setDriverOnline(driverId, goOnline);
+    if (context.mounted) {
+      showSuccess(
+          context,
+          goOnline
+              ? 'أنت الآن متاح لاستقبال الطلبات — بالتوفيق! 🚀'
+              : 'أصبحت غير متصل — لن تصلك طلبات جديدة');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
+    final isOnline = driver?.isOnline ?? false;
 
-    return AppStreamBuilder<List<Order>>(
-      stream: () => service.streamDriverOrders(driverId),
-      builder: (ctx, all) {
-        final active = all.where((o) => o.status.isActive).toList();
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          onOrdersChanged(active);
-        });
-
-        final confirmedActive =
-            active.where((o) => !o.needsDriverAcknowledgement).toList();
-
-        if (confirmedActive.isEmpty) {
-          return AppEmpty(
-            emoji: (driver?.isOnline ?? false) ? '📦' : '🔌',
-            title: 'لا توجد طلبات نشطة حالياً',
-            subtitle: 'سيُسند إليك أي طلب جديد تلقائياً فور توفره',
-          );
-        }
-
-        return ListView(padding: const EdgeInsets.all(12), children: [
-          const SectionHeader(title: 'طلباتي'),
-          ...confirmedActive.map((o) => _OrderCard(order: o)),
-        ]);
-      },
+    // زر الحالة البارز (نمط تويو): مفتاح شريط العنوان الصغير يفوت سائقاً
+    // مستعجلاً، وهذه البطاقة أول ما تقع عليه عينه — بلونٍ حاسم ونص يشرح
+    // أثر الحالة لا اسمها فقط.
+    final statusCard = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: driver == null
+              ? null
+              : () => _toggleOnline(context, service, !isOnline),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isOnline
+                    ? [AppColors.success, const Color(0xFF1B7A43)]
+                    : [const Color(0xFF616E7C), const Color(0xFF3E4C59)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(children: [
+              Icon(isOnline ? Icons.wifi_tethering_rounded : Icons.power_settings_new_rounded,
+                  color: Colors.white),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(isOnline ? 'متاح لاستقبال الطلبات' : 'غير متصل',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15)),
+                      Text(
+                          isOnline
+                              ? 'تصلك العروض تلقائياً — اضغط للتوقف'
+                              : 'لن تصلك طلبات — اضغط للاتصال',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 11.5)),
+                    ]),
+              ),
+              Switch(
+                value: isOnline,
+                onChanged: driver == null
+                    ? null
+                    : (v) => _toggleOnline(context, service, v),
+                activeColor: Colors.white,
+                activeTrackColor: Colors.white38,
+              ),
+            ]),
+          ),
+        ),
+      ),
     );
+
+    return Column(children: [
+      statusCard,
+      Expanded(
+        child: AppStreamBuilder<List<Order>>(
+          stream: () => service.streamDriverOrders(driverId),
+          builder: (ctx, all) {
+            final active = all.where((o) => o.status.isActive).toList();
+
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onOrdersChanged(active);
+            });
+
+            final confirmedActive =
+                active.where((o) => !o.needsDriverAcknowledgement).toList();
+
+            if (confirmedActive.isEmpty) {
+              return AppEmpty(
+                emoji: isOnline ? '📦' : '🔌',
+                title: 'لا توجد طلبات نشطة حالياً',
+                subtitle: isOnline
+                    ? 'سيصلك عرض بأي طلب جديد فور توفره'
+                    : 'اتصل أولاً ليصلك أي عرض',
+              );
+            }
+
+            return ListView(padding: const EdgeInsets.all(12), children: [
+              const SectionHeader(title: 'طلباتي'),
+              ...confirmedActive.map((o) => _OrderCard(order: o)),
+            ]);
+          },
+        ),
+      ),
+    ]);
   }
 }
 
@@ -427,7 +737,7 @@ class _OrderCard extends StatelessWidget {
           InfoRow(icon: Icons.location_on_outlined, text: order.deliveryAddress),
           const Divider(height: 16),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(formatCurrency(order.grandTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            Text(formatCurrency(order.payableTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             Text(order.paymentMethod.label, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
           ]),
           const SizedBox(height: 12),
@@ -447,40 +757,15 @@ class _OrderCard extends StatelessWidget {
     if (order.status == OrderStatus.readyForPickup ||
         order.status == OrderStatus.searchingDriver ||
         order.status == OrderStatus.driverAssigned) {
-      return Column(children: [
-        // تسجيل الوصول أولاً — يوثّق زمنياً أن السائق حاضر وينتظر، فيحسم
-        // نزاع «من أخّر الطلب» لصالح الحقيقة. يختفي بعد تسجيله.
-        if (order.arrivedAtRestaurantAt == null) ...[
-          SizedBox(width: double.infinity, child: OutlinedButton.icon(
-            onPressed: () => DriverProofFlow.recordArrival(ctx, service, order),
-            icon: const Icon(Icons.where_to_vote_outlined),
-            label: const Text('وصلتُ المطعم'),
-          )),
-          const SizedBox(height: 8),
-        ],
-        SizedBox(width: double.infinity, child: ElevatedButton.icon(
-          onPressed: () async {
-            // التدفّق الكامل: نطاق ١٠٠م ← صورة إلزامية ← عُهدة ← حالة.
-            final done = await DriverProofFlow.confirmPickup(ctx, service, order);
-            if (!done) return;
-            final now = DateTime.now();
-            navigatorKey.currentState?.push(
-              MaterialPageRoute(
-                builder: (_) => OrderMapScreen(
-                  order: order.copyWith(
-                    status: OrderStatus.onTheWay,
-                    updatedAt: now,
-                    statusChangedAt: now,
-                  ),
-                  readOnly: false,
-                ),
-              ),
-            );
-          },
-          icon: const Icon(Icons.delivery_dining),
-          label: const Text('استلمت الطلب — في الطريق'),
-        )),
-      ]);
+      // مذكرة الاستلام هي مركز ما قبل الاستلام كله: رقم الطلب الضخم
+      // للمطابقة أمام المطعم، الأصناف، شريط الدفع، وأزرار «وصلتُ» و«استلمت»
+      // بحارس النطاق والعُهدة — بدل توزيعها أزراراً متفرقة على البطاقة.
+      return SizedBox(width: double.infinity, child: ElevatedButton.icon(
+        onPressed: () => navigatorKey.currentState?.push(MaterialPageRoute(
+            builder: (_) => PickupDocketScreen(orderId: order.id))),
+        icon: const Icon(Icons.receipt_long_rounded),
+        label: const Text('مذكرة الاستلام — اعرضها للمطعم'),
+      ));
     }
     if (order.status == OrderStatus.onTheWay) {
       return SizedBox(width: double.infinity, child: ElevatedButton.icon(
@@ -505,14 +790,39 @@ class _OrderCard extends StatelessWidget {
   }
 }
 
-class _DriverEarningsTab extends StatelessWidget {
+class _DriverEarningsTab extends StatefulWidget {
   final Driver? driver;
   const _DriverEarningsTab({this.driver});
 
   @override
+  State<_DriverEarningsTab> createState() => _DriverEarningsTabState();
+}
+
+/// مجموعات فلترة سجلّ الحركات — قائمة مسطحة واحدة كانت تخلط عُهدة الطلبات
+/// بإيداعات الإدارة فيضيع تتبّع أي خانة (نمط فلاتر تويو: طلبات/مكافآت/...).
+enum _TxFilter { all, orders, bonuses, settlements, adjustments }
+
+class _DriverEarningsTabState extends State<_DriverEarningsTab> {
+  _TxFilter _filter = _TxFilter.all;
+
+  bool _txMatches(DriverTransaction tx) => switch (_filter) {
+        _TxFilter.all => true,
+        _TxFilter.orders => const {
+            DriverTransactionType.orderCustody,
+            DriverTransactionType.custodyReversal,
+            DriverTransactionType.deliveryCash,
+            DriverTransactionType.deliveryOnline,
+          }.contains(tx.type),
+        _TxFilter.bonuses => tx.type == DriverTransactionType.bonus,
+        _TxFilter.settlements => tx.type == DriverTransactionType.deposit ||
+            tx.type == DriverTransactionType.payout,
+        _TxFilter.adjustments => tx.type == DriverTransactionType.adjustment,
+      };
+
+  @override
   Widget build(BuildContext context) {
-    if (driver == null) return const AppLoading();
-    final d = driver!;
+    if (widget.driver == null) return const AppLoading();
+    final d = widget.driver!;
     // الرصيد بإشارة: سالب يعني أن بيد السائق مالاً ليس له (حصيلة الطلبات
     // النقدية)، وموجب يعني أن للتطبيق مستحقّات عليه للسائق. عرضه برقم مجرّد
     // كان سيوهم السائق بأن الدَّين ربح.
@@ -551,19 +861,32 @@ class _DriverEarningsTab extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Row(children: [
+            // الفعل يتبع إشارة الرصيد: مدينٌ للتطبيق → يشحن؛ دائنٌ له →
+            // يسحب مستحقّاته بنفسه (نمط نينجا/تويو) بدل انتظار الإدارة.
             Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _showTopUpSheet(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: owesPlatform
-                      ? AppColors.error
-                      : context.flavorColors.primaryDark,
-                ),
-                icon: const Icon(Icons.add_card_rounded, size: 18),
-                label: const Text('شحن المحفظة',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
+              child: d.balance > 0
+                  ? ElevatedButton.icon(
+                      onPressed: () => _showWithdrawSheet(context, d),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: context.flavorColors.primaryDark,
+                      ),
+                      icon: const Icon(Icons.savings_rounded, size: 18),
+                      label: const Text('اسحب أموالي',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: () => _showTopUpSheet(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: owesPlatform
+                            ? AppColors.error
+                            : context.flavorColors.primaryDark,
+                      ),
+                      icon: const Icon(Icons.add_card_rounded, size: 18),
+                      label: const Text('شحن المحفظة',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
             ),
             const SizedBox(width: 8),
             IconButton(
@@ -574,53 +897,255 @@ class _DriverEarningsTab extends StatelessWidget {
           ]),
         ]),
       ),
-      if (Pricing.isDriverDebtWarning(d.balance))
-        Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(children: [
-              const Icon(Icons.info_outline, size: 18, color: AppColors.warning),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text('يُفضّل تسليم المبلغ للإدارة قريباً',
-                    style: TextStyle(fontSize: 12, color: AppColors.warning)),
+      // حالة آخر طلب سحب — يظهر ما دام قيد المعالجة، وبعد البتّ لأسبوع
+      // (ليقرأ السائق سبب الرفض أو تأكيد الصرف) ثم يختفي تلقائياً.
+      AppStreamBuilder<List<PayoutRequest>>(
+        stream: () =>
+            context.read<FirebaseService>().streamMyPayoutRequests(d.id),
+        loading: const SizedBox.shrink(),
+        builder: (ctx, requests) {
+          if (requests.isEmpty) return const SizedBox.shrink();
+          final r = requests.first;
+          final recent = r.processedAt == null ||
+              DateTime.now().difference(r.processedAt!).inDays < 7;
+          if (r.status != PayoutRequestStatus.pending && !recent) {
+            return const SizedBox.shrink();
+          }
+          final (color, icon) = switch (r.status) {
+            PayoutRequestStatus.pending => (
+                AppColors.warning,
+                Icons.hourglass_top_rounded
               ),
-            ]),
-          ),
-        ),
-      const SizedBox(height: 20),
+            PayoutRequestStatus.paid => (
+                AppColors.success,
+                Icons.check_circle_outline_rounded
+              ),
+            PayoutRequestStatus.rejected => (
+                AppColors.error,
+                Icons.cancel_outlined
+              ),
+          };
+          return Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: color.withOpacity(0.4)),
+              ),
+              child: Row(children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                            'طلب سحب ${formatCurrency(r.amount)} — ${r.status.label}',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: color)),
+                        if ((r.adminNote ?? '').isNotEmpty)
+                          Text(r.adminNote!,
+                              style: const TextStyle(fontSize: 11.5)),
+                      ]),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+      // لا تنبيه دَين هنا: كفاية رصيد السائق لتغطية عُهد طلباته اتفاقٌ
+      // تشغيلي بينه وبين الإدارة خارج التطبيق (قرار المالك) — فالتطبيق
+      // يعرض رصيده وحركاته بشفافية ولا يُملي عليه قاعدة ولا يطالبه.
+      const SizedBox(height: 14),
+      // دخل اليوم والأسبوع (نمط مركز دخل تويو) — من الطلبات المُسلَّمة لا من
+      // دفتر الحركات: أجرة الطلب النقدي تبقى بيد السائق ولا تمرّ بالدفتر
+      // أصلاً، فجمع الدفتر وحده كان سيُظهر دخلاً أنقص من الحقيقة.
+      AppStreamBuilder<List<Order>>(
+        stream: () =>
+            context.read<FirebaseService>().streamDriverOrders(d.id),
+        builder: (ctx, orders) {
+          final now = DateTime.now();
+          final todayStart = DateTime(now.year, now.month, now.day);
+          final weekStart = todayStart.subtract(const Duration(days: 6));
+          double today = 0, week = 0;
+          int todayCount = 0, weekCount = 0;
+          for (final o in orders) {
+            if (o.status != OrderStatus.delivered) continue;
+            final t = o.statusChangedAt ?? o.updatedAt ?? o.createdAt;
+            if (!t.isBefore(weekStart)) {
+              week += o.driverShare;
+              weekCount++;
+              if (!t.isBefore(todayStart)) {
+                today += o.driverShare;
+                todayCount++;
+              }
+            }
+          }
+          return Row(children: [
+            Expanded(
+                child: _incomeCard('دخل اليوم', today, todayCount,
+                    Icons.today_rounded, context.flavorColors.primary)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _incomeCard('آخر ٧ أيام', week, weekCount,
+                    Icons.date_range_rounded, AppColors.success)),
+          ]);
+        },
+      ),
+      const SizedBox(height: 14),
       GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
         _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, context.flavorColors.primary),
         _stat('استلمته فعلياً', formatCurrency(d.totalEarnings), Icons.savings_outlined, AppColors.success),
         _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
-        _stat('الحالة', d.isOnline ? 'متصل' : 'غير متصل', d.isOnline ? Icons.wifi : Icons.wifi_off,
-            d.isOnline ? AppColors.success : AppColors.textGray),
+        // معدل القبول (نمط تويو) — من عدّادات المستند الدائمة، و«—» قبل
+        // أول عرض حتى لا يظهر صفر ظالم.
+        _stat(
+            'معدل القبول',
+            d.acceptanceRate == null
+                ? '—'
+                : '${(d.acceptanceRate! * 100).round()}٪',
+            Icons.thumb_up_alt_outlined,
+            (d.acceptanceRate ?? 1) >= 0.8
+                ? AppColors.success
+                : AppColors.warning),
       ]),
-      const SizedBox(height: 16),
+      const SizedBox(height: 12),
+      // برنامج التوصية (ب2): السائق يدعو زميلاً، والإدارة تمنح «مكافأة
+      // إحالة» من دفتره عند اكتمال تسجيل المُحال وأول توصيلاته — بلا
+      // أكواد آلية في هذه المرحلة؛ الاسم في نص الدعوة هو مرجع الإحالة.
+      Card(
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: context.flavorColors.primary.withOpacity(0.12),
+            child: Icon(Icons.group_add_outlined,
+                color: context.flavorColors.primaryDark),
+          ),
+          title: const Text('ادعُ سائقاً واكسب مكافأة',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          subtitle: const Text(
+              'عند انضمامه وذكر اسمك تُضاف مكافأة الإحالة لمحفظتك',
+              style: TextStyle(fontSize: 11.5)),
+          trailing: const Icon(Icons.share_outlined, size: 20),
+          onTap: () => Share.share(
+              'انضم لكباتن ZadGo وابدأ التوصيل باشتراطات مرنة وأجرة واضحة '
+              'لكل طلب. للتسجيل تواصل مع الإدارة واذكر أن ${d.name} دعاك '
+              '(تُحسب لي مكافأة الإحالة 😉).'),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Card(
+        child: Column(children: [
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.person_outline, size: 20),
+            title: const Text('الملف الشخصي — الاسم والجوال',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+            trailing: const Icon(Icons.chevron_left_rounded, size: 20),
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const EditProfileScreen())),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            dense: true,
+            leading: const Icon(Icons.lock_outline, size: 20),
+            title: const Text('تغيير كلمة المرور',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+            trailing: const Icon(Icons.chevron_left_rounded, size: 20),
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ChangePasswordScreen())),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 12),
       const SectionHeader(title: 'سجلّ الحركات'),
+      // فلاتر السجلّ — تصفية محلية على التدفّق القائم بلا استعلامات إضافية.
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final (f, label) in const [
+              (_TxFilter.all, 'الكل'),
+              (_TxFilter.orders, 'الطلبات'),
+              (_TxFilter.bonuses, 'مكافآت'),
+              (_TxFilter.settlements, 'إيداع وصرف'),
+              (_TxFilter.adjustments, 'تسويات'),
+            ])
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ChoiceChip(
+                  label: Text(label),
+                  selected: _filter == f,
+                  onSelected: (_) => setState(() => _filter = f),
+                  selectedColor:
+                      context.flavorColors.primary.withOpacity(0.15),
+                  backgroundColor: Colors.white,
+                  // chipTheme العام بلا لون نص — بدون لون صريح ورثت التسميات
+                  // أبيض فاختفت على الخلفية البيضاء (ملاحظة المالك بالصورة).
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    color: _filter == f
+                        ? context.flavorColors.primaryDark
+                        : AppColors.textDark,
+                    fontWeight:
+                        _filter == f ? FontWeight.bold : FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 6),
       SizedBox(
         height: 320,
         child: AppStreamBuilder<List<DriverTransaction>>(
           stream: () => context.read<FirebaseService>().streamDriverTransactions(d.id),
           builder: (ctx, txs) {
-            if (txs.isEmpty) {
-              return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات بعد');
+            final filtered = txs.where(_txMatches).toList();
+            if (filtered.isEmpty) {
+              return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات هنا');
             }
             return ListView.builder(
-              itemCount: txs.length,
-              itemBuilder: (_, i) => _TransactionTile(tx: txs[i]),
+              itemCount: filtered.length,
+              itemBuilder: (_, i) => _TransactionTile(tx: filtered[i]),
             );
           },
         ),
       ),
     ]);
   }
+
+  Widget _incomeCard(
+          String label, double amount, int count, IconData icon, Color color) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textGray)),
+            ]),
+            const SizedBox(height: 6),
+            Text(formatCurrency(amount),
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+            Text('$count توصيلة',
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.textGray)),
+          ]),
+        ),
+      );
 
   Widget _stat(String label, String value, IconData icon, Color color) => Card(child: Padding(
     padding: const EdgeInsets.all(16),
@@ -629,6 +1154,104 @@ class _DriverEarningsTab extends StatelessWidget {
       Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
       Text(label, style: const TextStyle(fontSize: 12)),
     ])));
+
+  /// طلب سحب المستحقّات — السائق يحدّد المبلغ (حتى رصيده) وطريقة الاستلام،
+  /// والإدارة تبتّ فيه من شاشتها. الخصم الفعلي يحدث عند الصرف لا هنا.
+  void _showWithdrawSheet(BuildContext context, Driver d) {
+    final amountCtrl =
+        TextEditingController(text: d.balance.toStringAsFixed(2));
+    final methodCtrl = TextEditingController();
+    final service = context.read<FirebaseService>();
+    bool submitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 20),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('طلب سحب المستحقّات',
+                    style:
+                        TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('رصيدك المتاح: ${formatCurrency(d.balance)}',
+                    style: const TextStyle(
+                        fontSize: 12.5, color: AppColors.textGray)),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'المبلغ (ر.س)',
+                    prefixIcon: Icon(Icons.payments_outlined),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: methodCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'طريقة الاستلام',
+                    hintText: 'آيبان للتحويل، أو «نقداً من الإدارة»',
+                    prefixIcon: Icon(Icons.account_balance_outlined),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            final amount =
+                                double.tryParse(amountCtrl.text.trim()) ?? 0;
+                            if (methodCtrl.text.trim().isEmpty) {
+                              showError(sheetCtx, 'اكتب طريقة الاستلام');
+                              return;
+                            }
+                            setSheetState(() => submitting = true);
+                            try {
+                              await service.submitPayoutRequest(
+                                driverId: d.id,
+                                driverName: d.name,
+                                amount: amount,
+                                method: methodCtrl.text,
+                              );
+                              if (sheetCtx.mounted) {
+                                Navigator.pop(sheetCtx);
+                                showSuccess(context,
+                                    'أُرسل طلب السحب — ستجد نتيجته هنا في محفظتك');
+                              }
+                            } catch (e) {
+                              setSheetState(() => submitting = false);
+                              if (sheetCtx.mounted) {
+                                showError(
+                                    sheetCtx,
+                                    e
+                                        .toString()
+                                        .replaceFirst('Exception: ', ''));
+                              }
+                            }
+                          },
+                    icon: const Icon(Icons.send_rounded, size: 18),
+                    label: Text(submitting ? 'جارٍ الإرسال…' : 'إرسال الطلب'),
+                  ),
+                ),
+              ]),
+        ),
+      ),
+    );
+  }
 
   /// قنوات شحن المحفظة في المرحلة الحالية: تسليم نقدي أو تحويل بنكي تقيّده
   /// الإدارة. الشحن الذاتي بالبطاقة يُبنى لاحقاً على الخادم الموثوق —

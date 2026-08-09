@@ -24,6 +24,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 import '../customer/submit_complaint_screen.dart';
 import '../customer/my_complaints_screen.dart';
 import 'restaurant_reports_tab.dart';
@@ -189,6 +190,14 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           _ => 'أسعار القائمة',
         }),
         actions: [
+          IconButton(
+            tooltip: 'تغيير كلمة المرور',
+            icon: const Icon(Icons.lock_outline),
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const ChangePasswordScreen())),
+          ),
           IconButton(
             tooltip: 'الشكاوى',
             icon: const Icon(Icons.support_agent_rounded),

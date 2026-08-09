@@ -333,6 +333,38 @@ class _AddOrCounter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // صنف بخيارات: الإضافة تمر دائماً بنافذة الاختيار (الحجم إلزامي مثلاً)،
+    // وكل ضغطة + تفتح النافذة لتشكيلة جديدة — نمط جاهز/كيتا نفسه.
+    Future<void> addToCart() async {
+      // سلة من مطعم آخر كانت تُفرَّغ **صامتةً** هنا، فتختفي اختيارات العميل
+      // الأولى بلا تفسير ويظن أن عليه الدفع لكل صنف على حدة (ملاحظة
+      // المالك بالصور). الآن استئذان صريح قبل الإفراغ.
+      final cart = context.read<CartProvider>();
+      if (!cart.isEmpty && cart.restaurantId != restaurant.id) {
+        final ok = await showConfirmDialog(
+          context,
+          title: 'سلة من مطعم آخر',
+          content: 'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} '
+              '— الطلب الواحد من مطعم واحد.\nإفراغها والبدء من '
+              '${restaurant.name}؟',
+          confirmLabel: 'إفراغ والبدء هنا',
+        );
+        if (ok != true || !context.mounted) return;
+      }
+      if (item.hasOptions) {
+        _showOptionsSheet(context, item, restaurant);
+      } else {
+        context.read<CartProvider>().add(
+              item,
+              restaurant.id,
+              restaurant.name,
+              restaurant.emoji,
+              restaurant.driverShareFee,
+              restaurant.appShareFee,
+            );
+      }
+    }
+
     if (qty == 0) {
       return SizedBox(
         height: 32,
@@ -344,15 +376,9 @@ class _AddOrCounter extends StatelessWidget {
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          onPressed: () => context.read<CartProvider>().add(
-                item,
-                restaurant.id,
-                restaurant.name,
-                restaurant.emoji,
-                restaurant.driverShareFee,
-                restaurant.appShareFee,
-              ),
-          child: const Text('أضف', style: TextStyle(fontSize: 13)),
+          onPressed: addToCart,
+          child: Text(item.hasOptions ? 'أضف +' : 'أضف',
+              style: const TextStyle(fontSize: 13)),
         ),
       );
     }
@@ -385,16 +411,168 @@ class _AddOrCounter extends StatelessWidget {
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           iconSize: 18,
           icon: const Icon(Icons.add, color: AppColors.primary),
-          onPressed: () => context.read<CartProvider>().add(
-                item,
-                restaurant.id,
-                restaurant.name,
-                restaurant.emoji,
-                restaurant.driverShareFee,
-                restaurant.appShareFee,
-              ),
+          onPressed: addToCart,
         ),
       ]),
     );
   }
 }
+
+/// نافذة اختيار خيارات الصنف قبل إضافته — مجموعات الاختيار الواحد الإلزامي
+/// (حجم...) كأزرار انتقاء، والإضافات الاختيارية كخانات تحديد، مع سعر حيّ
+/// يتحدث مع كل تغيير.
+void _showOptionsSheet(
+    BuildContext context, MenuItem item, Restaurant restaurant) {
+  // اختيار مبدئي: أول خيار في كل مجموعة إلزامية — نفس ما تفعله كيتا/جاهز.
+  final singleChoice = <int, int>{
+    for (var g = 0; g < item.optionGroups.length; g++)
+      if (!item.optionGroups[g].multiSelect && item.optionGroups[g].options.isNotEmpty)
+        g: 0
+  };
+  final multiChoice = <int, Set<int>>{
+    for (var g = 0; g < item.optionGroups.length; g++)
+      if (item.optionGroups[g].multiSelect) g: <int>{}
+  };
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+    builder: (sheetCtx) => StatefulBuilder(
+      builder: (sheetCtx, setSheetState) {
+        final selections = <ItemOption>[];
+        for (var g = 0; g < item.optionGroups.length; g++) {
+          final group = item.optionGroups[g];
+          if (group.multiSelect) {
+            for (final i in (multiChoice[g] ?? const <int>{}).toList()..sort()) {
+              selections.add(group.options[i]);
+            }
+          } else if (singleChoice.containsKey(g)) {
+            selections.add(group.options[singleChoice[g]!]);
+          }
+        }
+        final unitPrice = item.price +
+            selections.fold(0.0, (s, o) => s + o.priceDelta);
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Text(item.emoji, style: const TextStyle(fontSize: 26)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(item.name,
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                  Text(formatCurrency(unitPrice),
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary)),
+                ]),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var g = 0; g < item.optionGroups.length; g++) ...[
+                          const SizedBox(height: 10),
+                          Row(children: [
+                            Text(item.optionGroups[g].name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13.5)),
+                            const SizedBox(width: 6),
+                            Text(
+                                item.optionGroups[g].multiSelect
+                                    ? 'اختياري'
+                                    : 'إلزامي',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: item.optionGroups[g].multiSelect
+                                        ? AppColors.textGray
+                                        : AppColors.warning)),
+                          ]),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              for (var i = 0;
+                                  i < item.optionGroups[g].options.length;
+                                  i++)
+                                _optionChip(
+                                  item.optionGroups[g].options[i],
+                                  item.optionGroups[g].multiSelect
+                                      ? (multiChoice[g] ?? const <int>{})
+                                          .contains(i)
+                                      : singleChoice[g] == i,
+                                  () => setSheetState(() {
+                                    if (item.optionGroups[g].multiSelect) {
+                                      final set = multiChoice[g]!;
+                                      set.contains(i)
+                                          ? set.remove(i)
+                                          : set.add(i);
+                                    } else {
+                                      singleChoice[g] = i;
+                                    }
+                                  }),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      context.read<CartProvider>().add(
+                            item,
+                            restaurant.id,
+                            restaurant.name,
+                            restaurant.emoji,
+                            restaurant.driverShareFee,
+                            restaurant.appShareFee,
+                            selections,
+                          );
+                      Navigator.pop(sheetCtx);
+                    },
+                    child: Text('أضف للسلة — ${formatCurrency(unitPrice)}'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
+Widget _optionChip(ItemOption option, bool selected, VoidCallback onTap) =>
+    FilterChip(
+      label: Text(option.priceDelta == 0
+          ? option.name
+          : '${option.name} (${option.priceDelta > 0 ? '+' : ''}${option.priceDelta.toStringAsFixed(option.priceDelta.truncateToDouble() == option.priceDelta ? 0 : 2)})'),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      selectedColor: AppColors.primary.withOpacity(0.15),
+      checkmarkColor: AppColors.primary,
+      labelStyle: TextStyle(
+        fontSize: 12.5,
+        color: selected ? AppColors.primary : AppColors.textDark,
+        fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+      ),
+    );

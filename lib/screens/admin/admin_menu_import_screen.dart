@@ -33,6 +33,7 @@ class AdminMenuImportScreen extends StatefulWidget {
 class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   final _jsonCtrl = TextEditingController();
   bool _importing = false;
+  bool _replaceExisting = false;
 
   /// نتيجة التحليل: تصنيفات وأصناف جاهزة للكتابة، أو رسالة خطأ مفهومة.
   List<MenuCategory>? _categories;
@@ -135,10 +136,15 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
     final ok = await showConfirmDialog(
       context,
-      title: 'تأكيد الاستيراد',
-      content: 'سيُضاف ${cats.length} تصنيفاً و${items.length} صنفاً إلى '
-          '«${widget.restaurantName}». الأصناف الحالية لن تُحذف.',
-      confirmLabel: 'استيراد',
+      title: _replaceExisting ? 'تأكيد الاستبدال' : 'تأكيد الاستيراد',
+      content: _replaceExisting
+          ? 'سيُحذف منيو «${widget.restaurantName}» الحالي كاملاً ثم يُستورد '
+              '${cats.length} تصنيفاً و${items.length} صنفاً مكانه. '
+              'الحذف نهائي لا رجعة فيه.'
+          : 'سيُضاف ${cats.length} تصنيفاً و${items.length} صنفاً إلى '
+              '«${widget.restaurantName}». الأصناف الحالية لن تُحذف.',
+      confirmLabel: _replaceExisting ? 'استبدال' : 'استيراد',
+      confirmColor: _replaceExisting ? AppColors.error : null,
     );
     if (ok != true || !mounted) return;
 
@@ -148,6 +154,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
             restaurantId: widget.restaurantId,
             categories: cats,
             items: items,
+            replaceExisting: _replaceExisting,
           );
       if (mounted) {
         showSuccess(context, 'تم استيراد ${items.length} صنفاً بنجاح');
@@ -204,7 +211,30 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
+          // وضع الاستبدال — لإعادة استيراد منيو استُورد سابقاً (من لوحة
+          // الويب مثلاً) دون تكرار الأصناف: يُحذف القائم ثم يُكتب الجديد.
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _replaceExisting,
+            onChanged: _importing
+                ? null
+                : (v) => setState(() => _replaceExisting = v),
+            title: const Text('استبدال المنيو الحالي',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+            subtitle: Text(
+              _replaceExisting
+                  ? 'سيُحذف المنيو القائم كاملاً ثم يُستورد الجديد مكانه'
+                  : 'مطفأ: الاستيراد يضيف فوق الأصناف الحالية دون حذف',
+              style: TextStyle(
+                  fontSize: 11.5,
+                  color: _replaceExisting
+                      ? AppColors.error
+                      : AppColors.textGray),
+            ),
+            activeColor: AppColors.error,
+          ),
+          const SizedBox(height: 4),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -270,7 +300,9 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
                     : const Icon(Icons.cloud_upload_outlined),
                 label: Text(_importing
                     ? 'جاري الاستيراد...'
-                    : 'استيراد ${items.length} صنفاً'),
+                    : _replaceExisting
+                        ? 'استبدال المنيو بـ${items.length} صنفاً'
+                        : 'استيراد ${items.length} صنفاً'),
                 onPressed: _importing ? null : _import,
               ),
             ),

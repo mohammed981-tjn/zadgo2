@@ -54,6 +54,8 @@ class CartScreen extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
+                      // الأزرار تستهدف التشكيلة بعينها (مفتاح الصنف+خياراته)
+                      // لا الصنف وحده — وإلا اختلطت «كبير» بـ«صغير».
                       ...cart.items.map(
                         (ci) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -61,21 +63,29 @@ class CartScreen extends StatelessWidget {
                             children: [
                               Text(ci.item.emoji, style: const TextStyle(fontSize: 26)),
                               const SizedBox(width: 10),
-                              Expanded(child: Text(ci.item.name)),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(ci.item.name),
+                                    if (ci.optionsLabel.isNotEmpty)
+                                      Text(ci.optionsLabel,
+                                          style: const TextStyle(
+                                              fontSize: 11.5,
+                                              color: AppColors.textGray)),
+                                  ],
+                                ),
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.remove),
-                                onPressed: () => context.read<CartProvider>().remove(ci.item.id),
+                                onPressed: () => context.read<CartProvider>().remove(ci.variantKey),
                               ),
                               Text('${ci.quantity}'),
                               IconButton(
                                 icon: const Icon(Icons.add),
-                                onPressed: () => context.read<CartProvider>().add(
-                                  ci.item,
-                                  cart.restaurantId!,
-                                  cart.restaurantName!,
-                                  cart.restaurantEmoji ?? '🍽️',
-                                  cart.deliveryFee,
-                                ),
+                                onPressed: () => context
+                                    .read<CartProvider>()
+                                    .incrementVariant(ci.variantKey),
                               ),
                               Text(
                                 formatCurrency(ci.subtotal),
@@ -141,6 +151,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _loadRestaurant();
   }
 
+  @override
+  void dispose() {
+    _addrCtrl.dispose();
+    _couponCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadRestaurant() async {
     final cart = context.read<CartProvider>();
     final service = context.read<FirebaseService>();
@@ -174,11 +191,55 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double get _deliveryFee =>
       Pricing.deliveryFee(_distanceKm ?? 0);
 
+  /// الكوبون المطبَّق (بعد تحقّق ناجح) وقيمة خصمه.
+  Coupon? _coupon;
+  final _couponCtrl = TextEditingController();
+  bool _checkingCoupon = false;
+
+  /// قيمة خصم الكوبون على قيمة الوجبات (لا على التوصيل) — التوصيل حق
+  /// السائق ولا يُخصم منه، والخصم تتحمّله المنصّة من حصّتها.
+  double get _discount =>
+      _coupon?.discountFor(context.read<CartProvider>().itemsTotal) ?? 0;
+
   /// إجمالي ما يدفعه العميل — مصدر واحد يستخدمه العرض وشحن البطاقة معاً، حتى
   /// لا يُشحن مبلغ يخالف ما رآه العميل على الشاشة.
   double _orderTotal() {
     final itemsTotal = context.read<CartProvider>().itemsTotal;
-    return itemsTotal + _deliveryFee + Pricing.fixedDeliveryCommission;
+    final total =
+        itemsTotal + _deliveryFee + Pricing.fixedDeliveryCommission - _discount;
+    return total < 0 ? 0 : total;
+  }
+
+  Future<void> _applyCoupon() async {
+    final auth = context.read<app_auth.AuthProvider>();
+    final cart = context.read<CartProvider>();
+    final service = context.read<FirebaseService>();
+    if (!auth.isLoggedIn) {
+      showError(context, 'سجّل الدخول أولاً لتطبيق كود الخصم');
+      return;
+    }
+    setState(() => _checkingCoupon = true);
+    try {
+      final coupon = await service.validateCoupon(
+        rawCode: _couponCtrl.text,
+        userId: auth.user!.uid,
+        itemsTotal: cart.itemsTotal,
+        restaurantId: cart.restaurantId ?? '',
+      );
+      if (!mounted) return;
+      setState(() {
+        _coupon = coupon;
+        _checkingCoupon = false;
+      });
+      showSuccess(context, 'طُبّق الخصم: ${formatCurrency(_discount)}');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _coupon = null;
+        _checkingCoupon = false;
+      });
+      showError(context, e.toString().replaceFirst('Exception: ', ''));
+    }
   }
 
   /// رصيد محفظة العميل المتاح.
@@ -345,6 +406,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       isPaid: paymentId != null || amountDue <= 0,
       paymentId: paymentId,
       walletUsed: walletApplied,
+      // قيمة الخصم تُعاد كتابتها من الكوبون نفسه هنا (لا من نص على الشاشة)،
+      // وتُحفظ محسوبةً فتبقى الفاتورة صحيحة لو عُدّل الكوبون أو حُذف.
+      couponCode: _coupon?.code,
+      discountAmount: _discount,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,
@@ -386,6 +451,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // العميل يدفع الوجبات + التوصيل + الرسم الثابت، ناقصاً ما يُخصم من رصيد
     // محفظته (عمولة 15% تُخصم من المطعم ولا تظهر للعميل).
     final walletBalance = _walletBalance;
+    final discount = _discount;
     final walletApplied = _walletApplied();
     final amountDue = _amountDue();
     final outOfRange = _distanceKm != null && Pricing.isOutOfRange(_distanceKm!);
@@ -528,6 +594,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           const SizedBox(height: 20),
           // ملخّص المبلغ — يطمئن العميل لما سيدفعه قبل التأكيد. التوصيل يظهر
           // فعلياً بعد تحديد الموقع (لأنه يعتمد على المسافة).
+          // كود الخصم — يُطبَّق قبل ملخص الدفع ليرى العميل أثره فوراً.
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _couponCtrl,
+                textCapitalization: TextCapitalization.characters,
+                enabled: _coupon == null,
+                decoration: InputDecoration(
+                  labelText: 'كود الخصم (اختياري)',
+                  prefixIcon: const Icon(Icons.local_offer_outlined),
+                  suffixIcon: _coupon == null
+                      ? null
+                      : IconButton(
+                          tooltip: 'إزالة الكود',
+                          icon: const Icon(Icons.close, color: AppColors.error),
+                          onPressed: () => setState(() {
+                            _coupon = null;
+                            _couponCtrl.clear();
+                          }),
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed:
+                    (_checkingCoupon || _coupon != null) ? null : _applyCoupon,
+                child: Text(_checkingCoupon
+                    ? '...'
+                    : (_coupon == null ? 'تطبيق' : 'مُطبَّق ✓')),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -537,13 +640,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: Column(
               children: [
                 PriceRow(label: 'الوجبات', value: formatCurrency(itemsTotal)),
+                // قاعدة المالك: «إجمالي التوصيل = التوصيل + العمولة الثابتة»
+                // سطراً واحداً للعميل — الرسم الثابت (3 ر.س) حصّة المنصّة
+                // تُضاف داخل التوصيل لا بنداً مستقلاً يستدعي التساؤل.
+                // التقسيم الداخلي (أجرة السائق/حصّة المنصّة) باقٍ في الطلب
+                // والتقارير كما هو.
                 PriceRow(
                   label: 'التوصيل',
                   value: locationSet
-                      ? formatCurrency(delivery)
+                      ? formatCurrency(delivery + fixedFee)
                       : 'يُحسب بعد تحديد الموقع',
                 ),
-                PriceRow(label: 'رسوم توصيل ثابتة', value: formatCurrency(fixedFee)),
+                if (discount > 0)
+                  PriceRow(
+                      label: 'خصم الكود ${_coupon!.code}',
+                      value: '- ${formatCurrency(discount)}'),
                 if (walletApplied > 0)
                   PriceRow(
                       label: 'خصم من المحفظة',
@@ -554,6 +665,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   value: locationSet ? formatCurrency(amountDue) : '—',
                   bold: true,
                 ),
+                // سطر الضريبة المتضمَّنة — متطلب فوترة (ZATCA): الأسعار
+                // شاملة الضريبة، وقيمتها تُستخرج بمعادلة المبلغ × 15 ÷ 115
+                // (لا تُضاف فوق الإجمالي). إظهارها إفصاح لا رسوم جديدة.
+                if (locationSet)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('شامل ضريبة القيمة المضافة (15٪)',
+                            style: TextStyle(
+                                fontSize: 11.5, color: AppColors.textGray)),
+                        Text(
+                          formatCurrency(Pricing.vatIncludedIn(
+                              itemsTotal + delivery + fixedFee - discount)),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),

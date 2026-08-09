@@ -2,6 +2,7 @@
 // هوية ZadGo، أيقونات رمزية حسب فئة الصنف، وشارات معلومات بارزة (وقت
 // التوصيل، التقييم، رسوم التوصيل، "الأكثر طلباً"). تُستخدم بدل الاعتماد على
 // صور مطاعم/أصناف قد لا تتوفر أو تكون مكسورة.
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'theme.dart';
 
@@ -83,14 +84,16 @@ class RestaurantAvatar extends StatelessWidget {
     if (url == null || url.trim().isEmpty) return _fallback();
     return ClipRRect(
       borderRadius: borderRadius ?? BorderRadius.circular(16),
-      child: Image.network(
-        url,
+      // تخزين على القرص: صورة المطعم تُنزَّل مرة وتُعرض من الجهاز بعدها —
+      // كانت تُعاد من الشبكة مع كل فتح للتطبيق.
+      child: CachedNetworkImage(
+        imageUrl: url,
         width: size,
         height: size,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _fallback(),
-        loadingBuilder: (ctx, child, progress) =>
-            progress == null ? child : _fallback(),
+        memCacheWidth: (size * 3).round(),
+        errorWidget: (_, __, ___) => _fallback(),
+        placeholder: (_, __) => _fallback(),
       ),
     );
   }
@@ -117,14 +120,18 @@ class MenuItemVisual extends StatelessWidget {
     if (url != null && url.trim().isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          url,
+        child: CachedNetworkImage(
+          imageUrl: url,
           width: size,
           height: size,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _iconFallback(),
-          loadingBuilder: (ctx, child, progress) =>
-              progress == null ? child : _iconFallback(),
+          // فكّ الترميز بحجم العرض لا بحجم الملف: صورة 2000 بكسل كانت تُفك
+          // في الذاكرة كاملة (~16MB) لعرضها في 60 بكسل. الضرب في 3 يغطي
+          // أعلى كثافات الشاشات دون فرق بصري. والتخزين على القرص يمنع
+          // إعادة تنزيل قوائم كاملة مع كل فتح.
+          memCacheWidth: (size * 3).round(),
+          errorWidget: (_, __, ___) => _iconFallback(),
+          placeholder: (_, __) => _iconFallback(),
         ),
       );
     }

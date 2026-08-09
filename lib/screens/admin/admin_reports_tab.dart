@@ -19,9 +19,22 @@ import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import 'admin_reports_export.dart';
 
-class AdminReportsTab extends StatelessWidget {
+class AdminReportsTab extends StatefulWidget {
   const AdminReportsTab({super.key});
+
+  @override
+  State<AdminReportsTab> createState() => _AdminReportsTabState();
+}
+
+class _AdminReportsTabState extends State<AdminReportsTab> {
+  /// مطعم مُنتقى للتقرير — فارغ = كل المطاعم. مع نمو عدد المطاعم صار
+  /// التمرير بحثاً عن مطعم واحد متعباً (ملاحظة المالك).
+  String _restaurantFilter = '';
+
+  /// نطاق زمني: null = منذ البداية.
+  int? _periodDays;
 
   @override
   Widget build(BuildContext context) {
@@ -32,37 +45,99 @@ class AdminReportsTab extends StatelessWidget {
       builder: (ctx, orders) {
         // التقارير المالية تُبنى على الطلبات المكتملة فقط — الطلبات الجارية
         // أو الملغاة لم تتحقّق إيراداً بعد.
-        final sold =
+        final all =
             orders.where((o) => o.status == OrderStatus.delivered).toList();
 
+        // أسماء المطاعم للمُنتقي تُبنى من كل الطلبات لا من المفلترة، وإلا
+        // اختفى بقية المطاعم من القائمة بمجرد اختيار واحد.
+        final restaurantNames = <String, String>{
+          for (final o in all) o.restaurantId: o.restaurantName
+        };
+
+        final cutoff = _periodDays == null
+            ? null
+            : DateTime.now().subtract(Duration(days: _periodDays!));
+        final sold = all.where((o) {
+          if (_restaurantFilter.isNotEmpty &&
+              o.restaurantId != _restaurantFilter) {
+            return false;
+          }
+          if (cutoff != null) {
+            final t = o.statusChangedAt ?? o.updatedAt ?? o.createdAt;
+            if (t.isBefore(cutoff)) return false;
+          }
+          return true;
+        }).toList();
+
+        final filters = _FilterBar(
+          restaurantNames: restaurantNames,
+          selectedRestaurant: _restaurantFilter,
+          periodDays: _periodDays,
+          onRestaurant: (v) => setState(() => _restaurantFilter = v),
+          onPeriod: (v) => setState(() => _periodDays = v),
+        );
+
         if (sold.isEmpty) {
-          return const AppEmpty(
-              emoji: '📊', title: 'لا توجد طلبات مكتملة لعرض تقاريرها بعد');
+          return Column(children: [
+            filters,
+            const Expanded(
+              child: AppEmpty(
+                  emoji: '📊', title: 'لا توجد طلبات مكتملة ضمن هذا النطاق'),
+            ),
+          ]);
         }
 
         final totalMeals = sold.fold(0.0, (s, o) => s + o.itemsTotal);
         final totalDelivery = sold.fold(0.0, (s, o) => s + o.driverShare);
+        // العمولة والرسم الثابت بالمشتقّ «الفعّال» لا بالمخزَّن وحده: الطلبات
+        // القديمة تحمل صفراً فكانت تُظهر دخل المنصّة شبه معدوم.
         final mealsCommission =
-            sold.fold(0.0, (s, o) => s + o.platformCommission);
-        final deliveryCommission = sold.fold(0.0, (s, o) => s + o.appShare);
+            sold.fold(0.0, (s, o) => s + o.effectiveCommission);
+        final deliveryCommission =
+            sold.fold(0.0, (s, o) => s + o.effectiveAppShare);
         final totalCommission = mealsCommission + deliveryCommission;
         final vatInMeals = Pricing.vatIncludedIn(totalMeals);
+
+        // الدورة المالية الكاملة: كل ريال دفعه العميل يذهب لأحد ثلاثة —
+        // المطعم أو السائق أو المنصّة. عرضها معادلةً واحدة يجعل أي خلل
+        // (عمولة ناقصة، أجرة مكررة) ظاهراً فوراً بدل أرقام متناثرة.
+        final totalRevenue = sold.fold(0.0, (s, o) => s + o.payableTotal);
+        final restaurantsNet = totalMeals - mealsCommission;
+        final totalWalletUsed = sold.fold(0.0, (s, o) => s + o.walletUsed);
+        // خصومات الكوبونات — تسويقٌ تتحمّله المنصّة وحدها، فتُطرح من دخلها.
+        final totalDiscounts = sold.fold(0.0, (s, o) => s + o.discountAmount);
+        final platformNet = totalCommission - totalDiscounts;
+        // مسار التحصيل: النقدي حصّله السائقون من العملاء مباشرة، والباقي
+        // قبضته المنصّة (بطاقات + ما خُصم من أرصدة المحافظ).
+        final cashCollected = sold
+            .where((o) => o.paymentMethod == PaymentMethod.cash)
+            .fold(0.0, (s, o) => s + (o.payableTotal - o.walletUsed));
 
         // تجميع المبيعات لكل مطعم على حدة.
         final byRestaurant = <String, _RestaurantTotals>{};
         for (final o in sold) {
           final entry = byRestaurant.putIfAbsent(
             o.restaurantId,
-            () => _RestaurantTotals(name: o.restaurantName),
+            () => _RestaurantTotals(id: o.restaurantId, name: o.restaurantName),
           );
           entry.orders += 1;
           entry.meals += o.itemsTotal;
-          entry.commission += o.platformCommission;
+          entry.commission += o.effectiveCommission;
         }
         final restaurants = byRestaurant.values.toList()
           ..sort((a, b) => b.meals.compareTo(a.meals));
 
-        return ListView(
+        final scopeLabel = _restaurantFilter.isEmpty
+            ? 'كل المطاعم'
+            : (restaurantNames[_restaurantFilter] ?? 'مطعم');
+        final periodLabel = _periodDays == null
+            ? 'منذ البداية'
+            : 'آخر $_periodDays يوم';
+
+        return Column(children: [
+          filters,
+          Expanded(
+            child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             // بطاقة الإجماليات العامة
@@ -76,19 +151,141 @@ class AdminReportsTab extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('إجمالي مبيعات الوجبات — كل المطاعم',
-                      style: TextStyle(color: Colors.white70)),
+                  Text('إجمالي مبيعات الوجبات — $scopeLabel',
+                      style: const TextStyle(color: Colors.white70)),
                   Text(formatCurrency(totalMeals),
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 30,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  Text('${sold.length} طلب مكتمل • ${restaurants.length} مطعم',
+                  Text(
+                      '${sold.length} طلب مكتمل • ${restaurants.length} مطعم • $periodLabel',
                       style:
                           const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
+            ),
+            const SizedBox(height: 10),
+
+            // تصدير التقرير المعروض (بنفس الفلاتر) — PDF للعرض والأرشفة،
+            // Excel للمعالجة المحاسبية.
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => exportAdminReportPdf(
+                    scopeLabel: scopeLabel,
+                    periodLabel: periodLabel,
+                    orders: sold,
+                    restaurants: restaurants
+                        .map((r) => (r.name, r.orders, r.meals, r.commission, r.net))
+                        .toList(),
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: const Text('تقرير PDF'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => exportAdminReportExcel(
+                    scopeLabel: scopeLabel,
+                    orders: sold,
+                    restaurants: restaurants
+                        .map((r) => (r.name, r.orders, r.meals, r.commission, r.net))
+                        .toList(),
+                  ),
+                  icon: const Icon(Icons.table_view_outlined, size: 18),
+                  label: const Text('Excel'),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // معادلة الدورة المالية — من دفع العميل حتى استقرار كل ريال.
+            const SectionHeader(title: 'الدورة المالية الكاملة'),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(children: [
+                  PriceRow(
+                      label: 'دفعه العملاء (شامل التوصيل والرسوم)',
+                      value: formatCurrency(totalRevenue),
+                      bold: true),
+                  const Divider(),
+                  PriceRow(
+                      label: '← صافي مستحقّات المطاعم',
+                      value: formatCurrency(restaurantsNet)),
+                  PriceRow(
+                      label: '← أجرة السائقين',
+                      value: formatCurrency(totalDelivery)),
+                  if (totalDiscounts > 0) ...[
+                    PriceRow(
+                        label: '← دخل المنصّة قبل الخصومات',
+                        value: formatCurrency(totalCommission)),
+                    PriceRow(
+                        label: '← خصومات الكوبونات (تتحمّلها المنصّة)',
+                        value: '- ${formatCurrency(totalDiscounts)}'),
+                    PriceRow(
+                        label: '← صافي دخل المنصّة',
+                        value: formatCurrency(platformNet),
+                        bold: true),
+                  ] else
+                    PriceRow(
+                        label: '← دخل المنصّة (عمولة 15% + الرسم الثابت)',
+                        value: formatCurrency(totalCommission)),
+                  const Divider(),
+                  PriceRow(
+                      label: 'حصّله السائقون نقداً من العملاء',
+                      value: formatCurrency(cashCollected)),
+                  PriceRow(
+                      label: 'قبضته المنصّة (بطاقات + محافظ)',
+                      value: formatCurrency(totalRevenue - cashCollected)),
+                  if (totalWalletUsed > 0)
+                    PriceRow(
+                        label: 'منها مدفوع من أرصدة المحافظ',
+                        value: formatCurrency(totalWalletUsed)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // أين المال الآن؟ أرصدة السائقين الحيّة: السالب نقدٌ بأيديهم
+            // (عُهد لم تُسوَّ بعد)، والموجب مستحقّات عليهم للمنصّة صرفها.
+            AppStreamBuilder<List<Driver>>(
+              stream: () => service.streamDrivers(),
+              loading: const SizedBox.shrink(),
+              builder: (ctx, drivers) {
+                final custodyHeld = drivers
+                    .where((d) => d.balance < 0)
+                    .fold(0.0, (s, d) => s + d.balance.abs());
+                final duesToDrivers = drivers
+                    .where((d) => d.balance > 0)
+                    .fold(0.0, (s, d) => s + d.balance);
+                if (custodyHeld == 0 && duesToDrivers == 0) {
+                  return const SizedBox.shrink();
+                }
+                return Card(
+                  color: AppColors.primary.withOpacity(0.05),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('أرصدة السائقين الآن',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13.5)),
+                          const SizedBox(height: 6),
+                          PriceRow(
+                              label: 'نقد بيد السائقين (عُهد لم تُسوَّ)',
+                              value: formatCurrency(custodyHeld)),
+                          PriceRow(
+                              label: 'مستحقّات للسائقين على المنصّة',
+                              value: formatCurrency(duesToDrivers)),
+                        ]),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
 
@@ -144,29 +341,167 @@ class AdminReportsTab extends StatelessWidget {
             const SizedBox(height: 16),
 
             const SectionHeader(title: 'تفصيل المبيعات لكل مطعم'),
-            ...restaurants.map((r) => _RestaurantReportCard(totals: r)),
+            ...restaurants.map((r) => _RestaurantReportCard(
+                  totals: r,
+                  ordersOfRestaurant:
+                      sold.where((o) => o.restaurantName == r.name).toList(),
+                  periodLabel: periodLabel,
+                )),
           ],
-        );
+            ),
+          ),
+        ]);
       },
+    );
+  }
+}
+
+/// شريط الفلاتر: مطعم + نطاق زمني — يعملان على التقرير والتصدير معاً.
+class _FilterBar extends StatelessWidget {
+  final Map<String, String> restaurantNames;
+  final String selectedRestaurant;
+  final int? periodDays;
+  final ValueChanged<String> onRestaurant;
+  final ValueChanged<int?> onPeriod;
+
+  const _FilterBar({
+    required this.restaurantNames,
+    required this.selectedRestaurant,
+    required this.periodDays,
+    required this.onRestaurant,
+    required this.onPeriod,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = context.flavorColors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      color: Colors.white,
+      child: Column(children: [
+        DropdownButtonFormField<String>(
+          value: selectedRestaurant.isEmpty ? '' : selectedRestaurant,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'المطعم',
+            prefixIcon: Icon(Icons.storefront_outlined),
+            isDense: true,
+          ),
+          items: [
+            const DropdownMenuItem(value: '', child: Text('كل المطاعم')),
+            ...restaurantNames.entries.map(
+                (e) => DropdownMenuItem(value: e.key, child: Text(e.value))),
+          ],
+          onChanged: (v) => onRestaurant(v ?? ''),
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (final (label, days) in const [
+              ('اليوم', 1),
+              ('٧ أيام', 7),
+              ('٣٠ يوماً', 30),
+              ('الكل', 0),
+            ])
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: ChoiceChip(
+                  label: Text(label),
+                  selected: (days == 0 ? null : days) == periodDays,
+                  onSelected: (_) => onPeriod(days == 0 ? null : days),
+                  backgroundColor: Colors.white,
+                  selectedColor: fc.primary.withOpacity(0.15),
+                  labelStyle: TextStyle(
+                    fontSize: 12.5,
+                    color: (days == 0 ? null : days) == periodDays
+                        ? fc.primaryDark
+                        : AppColors.textDark,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ]),
+        ),
+      ]),
     );
   }
 }
 
 /// تجميعة مبيعات مطعم واحد عبر كل طلباته المكتملة.
 class _RestaurantTotals {
+  final String id;
   final String name;
   int orders = 0;
   double meals = 0;
   double commission = 0;
 
-  _RestaurantTotals({required this.name});
+  _RestaurantTotals({required this.id, required this.name});
 
   double get net => meals - commission;
 }
 
 class _RestaurantReportCard extends StatelessWidget {
   final _RestaurantTotals totals;
-  const _RestaurantReportCard({required this.totals});
+
+  /// طلبات هذا المطعم ضمن النطاق المعروض — أساس فاتورة مستحقّاته.
+  final List<Order> ordersOfRestaurant;
+  final String periodLabel;
+
+  const _RestaurantReportCard({
+    required this.totals,
+    required this.ordersOfRestaurant,
+    required this.periodLabel,
+  });
+
+  String get restaurantId => totals.id;
+
+  /// تسجيل دفعة سُلّمت للمطعم — تُخصم من مستحقّاته في الدفتر.
+  Future<void> _recordSettlement(BuildContext context) async {
+    final amountCtrl = TextEditingController();
+    final methodCtrl = TextEditingController(text: 'تحويل بنكي');
+    final service = context.read<FirebaseService>();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text('تسجيل دفعة — ${totals.name}'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: amountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'المبلغ المسلَّم (ر.س)'),
+          ),
+          TextField(
+            controller: methodCtrl,
+            decoration: const InputDecoration(labelText: 'طريقة السداد'),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: const Text('تسجيل')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await service.recordRestaurantSettlement(
+        restaurantId: restaurantId,
+        restaurantName: totals.name,
+        amount: double.tryParse(amountCtrl.text.trim()) ?? 0,
+        method: methodCtrl.text,
+      );
+      if (context.mounted) showSuccess(context, 'سُجّلت الدفعة في دفتر المطعم');
+    } catch (e) {
+      if (context.mounted) {
+        showError(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -201,6 +536,49 @@ class _RestaurantReportCard extends StatelessWidget {
                 label: 'صافي مستحقّات المطعم',
                 value: formatCurrency(totals.net),
                 bold: true),
+            // الدفتر: المستحق ناقص ما سُلّم فعلاً — الرقم الذي يهم عند
+            // التسوية. يُحسب على كل تاريخ المطعم لا على الفترة المعروضة،
+            // فالدَّين لا يتقيّد بفلتر شاشة.
+            AppStreamBuilder<List<RestaurantSettlement>>(
+              stream: () => context
+                  .read<FirebaseService>()
+                  .streamRestaurantSettlements(restaurantId),
+              loading: const SizedBox.shrink(),
+              builder: (ctx, settlements) {
+                final paid = settlements.fold(0.0, (s, x) => s + x.amount);
+                if (paid == 0) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(children: [
+                    PriceRow(
+                        label: 'سُلّم للمطعم', value: '- ${formatCurrency(paid)}'),
+                    PriceRow(
+                        label: 'المتبقّي (ضمن هذا النطاق)',
+                        value: formatCurrency(totals.net - paid),
+                        bold: true),
+                  ]),
+                );
+              },
+            ),
+            const SizedBox(height: 4),
+            Row(children: [
+              TextButton.icon(
+                onPressed: () => exportRestaurantInvoicePdf(
+                  restaurantName: totals.name,
+                  periodLabel: periodLabel,
+                  orders: ordersOfRestaurant,
+                ),
+                icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                label: const Text('فاتورة PDF',
+                    style: TextStyle(fontSize: 12.5)),
+              ),
+              TextButton.icon(
+                onPressed: () => _recordSettlement(context),
+                icon: const Icon(Icons.price_check_rounded, size: 16),
+                label: const Text('تسجيل دفعة',
+                    style: TextStyle(fontSize: 12.5)),
+              ),
+            ]),
           ],
         ),
       ),

@@ -1,6 +1,7 @@
 // lib/providers/firebase_service.dart
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -113,6 +114,29 @@ class FirebaseService {
       .map((s) => s.docs.map((d) => models.AppUser.fromMap(d.data(), d.id)).toList());
 
   Future<void> updateUser(models.AppUser user) => _users.doc(user.uid).update(user.toMap());
+
+  /// تعديل الملف الشخصي (الاسم والجوال) — حقلان محددان لا مستند كامل، فلا
+  /// خطر على الحقول المحمية. [alsoDriver]: مستند السائق يحمل نسخة من
+  /// الاسم والجوال (يقرؤها العميل في التتبّع) فتُحدَّث معه في نفس الدفعة.
+  Future<void> updateUserProfile({
+    required String uid,
+    required String name,
+    required String phone,
+    bool alsoDriver = false,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_users.doc(uid), {
+      'name': name.trim(),
+      'phone': phone.trim(),
+    });
+    if (alsoDriver) {
+      batch.update(_drivers.doc(uid), {
+        'name': name.trim(),
+        'phone': phone.trim(),
+      });
+    }
+    await batch.commit();
+  }
 
   Future<void> setUserActive(String uid, bool isActive) =>
       _users.doc(uid).update({'isActive': isActive});
@@ -291,6 +315,7 @@ class FirebaseService {
     required models.UserRole role,
     String restaurantId = '',
     String restaurantName = '',
+    Duration? validity,
   }) async {
     for (var attempt = 0; attempt < 5; attempt++) {
       final code = _randomCode();
@@ -303,6 +328,7 @@ class FirebaseService {
         restaurantId: restaurantId,
         restaurantName: restaurantName,
         createdAt: DateTime.now(),
+        expiresAt: validity == null ? null : DateTime.now().add(validity),
       );
       await ref.set(entry.toMap());
       return entry;
@@ -319,6 +345,16 @@ class FirebaseService {
               .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
               .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// كل أكواد التسجيل لشاشة إدارتها — الأحدث أولاً.
+  Stream<List<models.RegistrationCode>> streamAllRegistrationCodes() =>
+      _registrationCodes.limit(200).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
 
   Future<void> revokeRegistrationCode(String code) =>
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
@@ -342,6 +378,9 @@ class FirebaseService {
     if (initial.isUsed) {
       throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
     }
+    if (initial.isExpired) {
+      throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
+    }
     if (expectedRole != null && initial.role != expectedRole) {
       throw Exception('هذا الكود غير مخصص لهذا التطبيق');
     }
@@ -358,6 +397,9 @@ class FirebaseService {
         final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
         if (current.isUsed) {
           throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+        }
+        if (current.isExpired) {
+          throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
         }
         if (expectedRole != null && current.role != expectedRole) {
           throw Exception('هذا الكود غير مخصص لهذا التطبيق');
@@ -419,6 +461,15 @@ class FirebaseService {
   Future<void> addCategory(models.MenuCategory cat) =>
       _categories(cat.restaurantId).doc(cat.id).set(cat.toMap());
 
+  /// جلب أصناف مطعم مرة واحدة — لإعادة الطلب: تُطابَق أصناف الطلب القديم مع
+  /// القائمة الحالية (أسعارها وتوفرها اليوم، لا كما كانت وقت الطلب).
+  Future<List<models.MenuItem>> getMenuItemsOnce(String rId) async {
+    final snap = await _items(rId).get();
+    return snap.docs
+        .map((d) => models.MenuItem.fromMap(d.data(), d.id))
+        .toList();
+  }
+
   Stream<List<models.MenuItem>> streamMenuItems(String rId) => _items(rId)
       .snapshots()
       .map((s) => s.docs.map((d) => models.MenuItem.fromMap(d.data(), d.id)).toList());
@@ -438,9 +489,24 @@ class FirebaseService {
     required String restaurantId,
     required List<models.MenuCategory> categories,
     required List<models.MenuItem> items,
+    bool replaceExisting = false,
   }) async {
     const maxOps = 450; // هامش أمان تحت حدّ 500
     final ops = <void Function(WriteBatch)>[];
+
+    // وضع الاستبدال: يُحذف المنيو القائم (تصنيفاته وأصنافه) قبل كتابة
+    // الجديد — لإعادة استيراد منيو استُورد سابقاً (من لوحة الويب مثلاً)
+    // دون تكرار الأصناف. الحذف يتقدّم الكتابة في نفس تسلسل الدفعات.
+    if (replaceExisting) {
+      final oldCats = await _categories(restaurantId).get();
+      final oldItems = await _items(restaurantId).get();
+      for (final d in oldCats.docs) {
+        ops.add((b) => b.delete(d.reference));
+      }
+      for (final d in oldItems.docs) {
+        ops.add((b) => b.delete(d.reference));
+      }
+    }
 
     for (final c in categories) {
       ops.add((b) => b.set(_categories(restaurantId).doc(c.id), c.toMap()));
@@ -507,19 +573,40 @@ class FirebaseService {
       ...order.toMap(),
       if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
     });
+    // تقييد استخدام الكوبون بعد ثبوت الطلب لا قبله — فلا يُستهلك كودٌ على
+    // طلب لم يُنشأ. وفشل التقييد لا يُسقط الطلب: الخصم محفوظ داخله أصلاً.
+    final code = order.couponCode;
+    if (code != null && code.isNotEmpty && order.discountAmount > 0) {
+      try {
+        await _recordCouponUse(
+            code: code, userId: order.customerId, orderId: order.id);
+      } catch (e) {
+        debugPrint('⚠️ تعذّر تقييد استخدام الكوبون $code: $e');
+      }
+    }
     // إشعار فوري لمديري المطعم بالطلب الجديد عبر الخادم المرافق — بدونه لا
     // يعلم المطعم بالطلب إلا حين يكون تطبيقه مفتوحاً على الشاشة.
     NotifyRelay.orderEvent(order.id, OrderEvent.created);
     return order.id;
   }
 
+  // ---------------------------------------------------------------------
+  // حدود التدفقات: كانت كل تدفقات الطلبات بلا limit، أي أن فتح أي شاشة
+  // يُنزّل تاريخ الطلبات كاملاً منذ إنشاء المنصة ويعيد تنزيله مع كل تعديل —
+  // كلفة قراءات تنمو خطياً مع العمر، وذاكرة قد تُسقط التطبيق. الحدود أدناه
+  // تغطي كل استخدام واقعي للشاشات؛ التقارير التاريخية الكاملة مكانها تصدير
+  // مخصص لاحقاً لا تدفقاً حياً.
+  // ---------------------------------------------------------------------
+
   Stream<List<models.Order>> streamAllOrders() => _orders
       .orderBy('createdAt', descending: true)
+      .limit(500)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   Stream<List<models.Order>> streamActiveOrders() => _orders
       .orderBy('createdAt', descending: true)
+      .limit(300)
       .snapshots()
       .map((s) => s.docs
           .map((d) => models.Order.fromMap(d.data(), d.id))
@@ -529,18 +616,21 @@ class FirebaseService {
   Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
       .where('restaurantId', isEqualTo: restaurantId)
       .orderBy('createdAt', descending: true)
+      .limit(200)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   Stream<List<models.Order>> streamCustomerOrders(String customerId) => _orders
       .where('customerId', isEqualTo: customerId)
       .orderBy('createdAt', descending: true)
+      .limit(100)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   Stream<List<models.Order>> streamDriverOrders(String driverId) => _orders
       .where('driverId', isEqualTo: driverId)
       .orderBy('createdAt', descending: true)
+      .limit(100)
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
@@ -634,7 +724,9 @@ class FirebaseService {
       if (needsCustody) 'custodyDebited': true,
     });
 
-    if (needsCustody) {
+    // عُهدة صفرية (محفظة العميل غطّت حصّتَي المطعم والمنصّة بالضبط) لا
+    // تستحق قيداً — يبقى custodyDebited=true فلا يُعاد القيد عند التسليم.
+    if (needsCustody && current.custodyAmount != 0) {
       final custody = current.custodyAmount;
       final driverDoc = await _drivers.doc(driverId).get();
       final balance = driverDoc.exists && driverDoc.data() != null
@@ -666,6 +758,40 @@ class FirebaseService {
 
   CollectionReference<Map<String, dynamic>> get _orderProofs =>
       _db.collection('order_proofs');
+
+  CollectionReference<Map<String, dynamic>> get _banners =>
+      _db.collection('banners');
+
+  /// البنرات الفعّالة لشاشة العميل — الترتيب محلياً (sortOrder ثم الأحدث)
+  /// فلا حاجة لفهرس مركّب.
+  Stream<List<models.PromoBanner>> streamActiveBanners() => _banners
+      .where('isActive', isEqualTo: true)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.PromoBanner.fromMap(d.data(), d.id))
+          .toList()
+        ..sort((a, b) {
+          final c = a.sortOrder.compareTo(b.sortOrder);
+          return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
+        }));
+
+  /// كل البنرات لإدارة المدير.
+  Stream<List<models.PromoBanner>> streamAllBanners() =>
+      _banners.snapshots().map((s) => s.docs
+          .map((d) => models.PromoBanner.fromMap(d.data(), d.id))
+          .toList()
+        ..sort((a, b) {
+          final c = a.sortOrder.compareTo(b.sortOrder);
+          return c != 0 ? c : b.createdAt.compareTo(a.createdAt);
+        }));
+
+  Future<void> saveBanner(models.PromoBanner banner) =>
+      _banners.doc(banner.id).set(banner.toMap());
+
+  Future<void> setBannerActive(String id, bool active) =>
+      _banners.doc(id).update({'isActive': active});
+
+  Future<void> deleteBanner(String id) => _banners.doc(id).delete();
 
   /// تسجيل وصول السائق إلى المطعم: طابع زمني على الطلب (يقرؤه الجميع في
   /// نزاع «من أخّر؟») + الإحداثيات في وثيقة الإثبات.
@@ -746,7 +872,9 @@ class FirebaseService {
   /// السائق لطلب لن يحصّل قيمته من أحد.
   Future<void> _reverseCustodyIfNeeded(models.Order order) async {
     final driverId = order.driverId ?? '';
-    if (!order.custodyDebited || driverId.isEmpty) return;
+    if (!order.custodyDebited || driverId.isEmpty || order.custodyAmount == 0) {
+      return;
+    }
     final driverDoc = await _drivers.doc(driverId).get();
     if (!driverDoc.exists || driverDoc.data() == null) return;
     final balance = models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance;
@@ -817,7 +945,11 @@ class FirebaseService {
 
   static const int _driverCandidatesCount = 3;
 
-  Future<bool> autoAssignNearestDriver(models.Order order) async {
+  /// [excludeDriverId]: سائق يُستبعد من الترشيح — يُمرَّر عند إعادة الإسناد
+  /// بعد رفضه للطلب، وإلا اختير «الأقرب» وهو الرافض نفسه فعاد إليه الطلب
+  /// فوراً وبعلم إقرار مسبق فلا يظهر له شيء أصلاً.
+  Future<bool> autoAssignNearestDriver(models.Order order,
+      {String? excludeDriverId}) async {
     if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
 
@@ -825,6 +957,7 @@ class FirebaseService {
     final candidateDistances = <double>[];
     for (final doc in driversSnap.docs) {
       final d = models.Driver.fromMap(doc.data(), doc.id);
+      if (d.id == excludeDriverId) continue;
       if (!d.isOnline || !d.isAvailable) continue;
       if (d.lat == null || d.lng == null) continue;
       final distance =
@@ -849,10 +982,16 @@ class FirebaseService {
       'driverName': chosen.name,
       'driverPhone': chosen.phone,
       'updatedAt': FieldValue.serverTimestamp(),
-      'driverAcknowledged': true,
+      // عرض حقيقي لا إسناد صامت: كان يُكتب true هنا فيتجاوز المسارُ الأكثر
+      // شيوعاً (الإسناد التلقائي) موافقةَ السائق كلياً — لا قبول ولا رفض ولا
+      // حتى علمٌ مؤكَّد. الآن يظهر له عرض بالأجرة والمسافتين وعدّاد، وانقضاء
+      // المهلة أو الرفض يمرّران الطلب لغيره.
+      'driverAcknowledged': false,
     });
     batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
     await batch.commit();
+    // إشعار السائق المرشَّح — تطبيقه قد يكون بالخلفية لحظة العرض.
+    NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
     return true;
   }
 
@@ -873,10 +1012,20 @@ class FirebaseService {
     if (!current.needsDriverAcknowledgement) {
       return;
     }
-    await ref.update({
+    final batch = _db.batch();
+    batch.update(ref, {
       'driverAcknowledged': true,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    // معدل القبول يُحسب من المستند لا من ذاكرة الجلسة — عدّاد الجلسة كان
+    // يُصفَّر مع كل إعادة تشغيل فلا يتراكم معدل حقيقي.
+    if (current.driverId != null && current.driverId!.isNotEmpty) {
+      batch.update(_drivers.doc(current.driverId!), {
+        'offersTotal': FieldValue.increment(1),
+        'offersAccepted': FieldValue.increment(1),
+      });
+    }
+    await batch.commit();
   }
 
   Future<void> rejectAssignedOrder(String orderId) async {
@@ -899,14 +1048,20 @@ class FirebaseService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
     if (current.driverId != null && current.driverId!.isNotEmpty) {
-      batch.update(_drivers.doc(current.driverId!), {'isAvailable': true});
+      batch.update(_drivers.doc(current.driverId!), {
+        'isAvailable': true,
+        // الرفض (أو انقضاء مهلة العرض) عرضٌ وصل ولم يُقبل — يدخل المقام
+        // دون البسط في معدل القبول.
+        'offersTotal': FieldValue.increment(1),
+      });
     }
     await batch.commit();
 
     final refreshedDoc = await ref.get();
     if (refreshedDoc.exists && refreshedDoc.data() != null) {
       final refreshedOrder = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
-      await autoAssignNearestDriver(refreshedOrder);
+      await autoAssignNearestDriver(refreshedOrder,
+          excludeDriverId: current.driverId);
     }
   }
 
@@ -954,7 +1109,7 @@ class FirebaseService {
     // إعادة إسناد طلبٍ استُلم فعلاً (عُهدته مقيّدة على السائق القديم):
     // تُردّ العُهدة للقديم وتُقيَّد على الجديد — البضاعة انتقلت من يدٍ ليد،
     // والدفتران يجب أن يعكسا ذلك وإلا حُوسب سائق على طلب ليس بيده.
-    if (order.custodyDebited) {
+    if (order.custodyDebited && order.custodyAmount != 0) {
       await _reverseCustodyIfNeeded(order);
       final custody = order.custodyAmount;
       final newDoc = await _drivers.doc(newDriverId).get();
@@ -1009,8 +1164,6 @@ class FirebaseService {
     }
     final commission = order.calculatedCommission;
     final driverPayout = order.driverShare;
-    final itemsTotal = order.itemsTotal;
-    final appShare = order.appShare;
     final paymentMethod = order.paymentMethod;
     final orderNumber = order.orderNumber;
     // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
@@ -1023,7 +1176,9 @@ class FirebaseService {
     // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
     final isCash = paymentMethod == models.PaymentMethod.cash;
     final delta = isCash
-        ? (order.custodyDebited ? 0.0 : -(itemsTotal + appShare))
+        // المسار القديم (استلام بنسخة لا تعرف العُهدة): نفس معادلة العُهدة
+        // بخصم المدفوع من المحفظة — لا -(itemsTotal+appShare) الخام.
+        ? (order.custodyDebited ? 0.0 : -order.custodyAmount)
         : driverPayout;
 
     final driverDoc = await _drivers.doc(driverId).get();
@@ -1098,7 +1253,21 @@ class FirebaseService {
         note: note,
       );
 
-  /// تسوية يدوية بإشارة موجبة أو سالبة (تصحيح خطأ، مكافأة، خصم).
+  /// مكافأة من الإدارة: تحدٍّ، إحالة سائق جديد، تميّز — تزيد رصيده وتُصرف
+  /// له لاحقاً مع مستحقّاته.
+  Future<void> recordDriverBonus({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) =>
+      _recordDriverLedgerEntry(
+        driverId: driverId,
+        amount: amount.abs(),
+        type: models.DriverTransactionType.bonus,
+        note: note,
+      );
+
+  /// تسوية يدوية بإشارة موجبة أو سالبة (تصحيح خطأ، خصم).
   Future<void> recordDriverAdjustment({
     required String driverId,
     required double amount,
@@ -1147,6 +1316,296 @@ class FirebaseService {
       ).toMap(),
     );
     await batch.commit();
+  }
+
+  // -------------------------------------------------------------------------
+  // تسويات المطاعم — دفتر المطعم بالطرح: المستحق (صافي طلباته المكتملة)
+  // ناقص المدفوع (هذه الدفعات).
+  // -------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _restaurantSettlements =>
+      _db.collection('restaurant_settlements');
+
+  Future<void> recordRestaurantSettlement({
+    required String restaurantId,
+    required String restaurantName,
+    required double amount,
+    String method = '',
+    String? note,
+  }) async {
+    if (amount <= 0) throw Exception('أدخل مبلغاً أكبر من صفر');
+    final ref = _restaurantSettlements.doc();
+    await ref.set(models.RestaurantSettlement(
+      id: ref.id,
+      restaurantId: restaurantId,
+      restaurantName: restaurantName,
+      amount: amount,
+      method: method.trim(),
+      note: note?.trim(),
+      performedBy: _auth.currentUser?.uid ?? '',
+      createdAt: DateTime.now(),
+    ).toMap());
+  }
+
+  /// تسويات مطعم واحد، الأحدث أولاً (ترتيب محلي — لا فهرس مركّب).
+  Stream<List<models.RestaurantSettlement>> streamRestaurantSettlements(
+          String restaurantId) =>
+      _restaurantSettlements
+          .where('restaurantId', isEqualTo: restaurantId)
+          .limit(200)
+          .snapshots()
+          .map((s) {
+        final list = s.docs
+            .map((d) => models.RestaurantSettlement.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// كل التسويات للوحة الإدارة.
+  Stream<List<models.RestaurantSettlement>> streamAllRestaurantSettlements() =>
+      _restaurantSettlements.limit(500).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.RestaurantSettlement.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  // -------------------------------------------------------------------------
+  // أكواد الخصم — التحقق عند العميل، والتقييد عند إنشاء الطلب.
+  // -------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _coupons =>
+      _db.collection('coupons');
+
+  /// سجلّ استخدام الكوبونات: معرّف المستند `CODE_uid` فيمنع تكرار المستخدم
+  /// نفسه بلا استعلام، ويُحصى منه عدد مرّاته.
+  CollectionReference<Map<String, dynamic>> get _couponUsages =>
+      _db.collection('coupon_usages');
+
+  String _usageId(String code, String uid) => '${code}_$uid';
+
+  /// التحقق من كود خصم قبل تطبيقه. يرمي رسالة عربية مفهومة عند كل سبب رفض،
+  /// ويعيد الكوبون صالحاً.
+  ///
+  /// ملاحظة أمنية: هذا تحقّق واجهة لتجربة المستخدم؛ الحارس النهائي أن قيمة
+  /// الخصم تُعاد كتابتها من الكوبون نفسه لحظة إنشاء الطلب (لا من الشاشة)،
+  /// وأن القواعد تمنع أي عبث بعدّاد الاستخدام.
+  Future<models.Coupon> validateCoupon({
+    required String rawCode,
+    required String userId,
+    required double itemsTotal,
+    required String restaurantId,
+  }) async {
+    final code = rawCode.trim().toUpperCase();
+    if (code.isEmpty) throw Exception('اكتب كود الخصم');
+    final doc = await _coupons.doc(code).get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('كود الخصم غير صحيح');
+    }
+    final coupon = models.Coupon.fromMap(doc.data()!, doc.id);
+    if (!coupon.isActive) throw Exception('هذا الكود موقوف');
+    if (coupon.isExpired) throw Exception('انتهت صلاحية هذا الكود');
+    if (coupon.isExhausted) throw Exception('استُنفد هذا الكود');
+    if (coupon.restaurantId.isNotEmpty && coupon.restaurantId != restaurantId) {
+      throw Exception('هذا الكود لا يسري على هذا المطعم');
+    }
+    if (itemsTotal < coupon.minOrderTotal) {
+      throw Exception(
+          'الكود يبدأ من ${coupon.minOrderTotal.toStringAsFixed(0)} ر.س للوجبات');
+    }
+    if (coupon.perUserLimit > 0) {
+      final usageDoc = await _couponUsages.doc(_usageId(code, userId)).get();
+      final used = (usageDoc.data()?['count'] as num?)?.toInt() ?? 0;
+      if (used >= coupon.perUserLimit) {
+        throw Exception('استخدمت هذا الكود من قبل');
+      }
+    }
+    return coupon;
+  }
+
+  /// تقييد استخدام الكوبون بعد نجاح الطلب — عدّاد كلي + عدّاد لكل مستخدم.
+  /// يُستدعى بعد [placeOrder]؛ فشله لا يُلغي الطلب (الخصم مسجَّل في الطلب
+  /// نفسه) لكنه يُسجَّل في السجلّ.
+  Future<void> _recordCouponUse({
+    required String code,
+    required String userId,
+    required String orderId,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(1)});
+    batch.set(
+      _couponUsages.doc(_usageId(code, userId)),
+      {
+        'code': code,
+        'userId': userId,
+        'count': FieldValue.increment(1),
+        'lastOrderId': orderId,
+        'lastUsedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+  }
+
+  Stream<List<models.Coupon>> streamCoupons() =>
+      _coupons.limit(200).snapshots().map((s) {
+        final list =
+            s.docs.map((d) => models.Coupon.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// إنشاء/تعديل كوبون من لوحة الإدارة. `merge` يحفظ عدّاد الاستخدام
+  /// القائم فلا يُصفَّر بتعديل قيمة الخصم.
+  Future<void> saveCoupon(models.Coupon coupon) =>
+      _coupons.doc(coupon.code.trim().toUpperCase()).set(
+            coupon.toMap()..remove('usedCount'),
+            SetOptions(merge: true),
+          );
+
+  Future<void> setCouponActive(String code, bool isActive) =>
+      _coupons.doc(code).update({'isActive': isActive});
+
+  Future<void> deleteCoupon(String code) => _coupons.doc(code).delete();
+
+  // -------------------------------------------------------------------------
+  // طلبات سحب المستحقّات — السائق يطلب، والإدارة تصرف أو ترفض.
+  // -------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _payoutRequests =>
+      _db.collection('payout_requests');
+
+  /// تقديم طلب سحب من السائق نفسه. الحارسان هنا خط الدفاع الأول للتجربة
+  /// (رسالة عربية مفهومة)؛ التسوية النهائية تظل عند الصرف حيث يُعاد فحص
+  /// الرصيد لحظتها.
+  Future<void> submitPayoutRequest({
+    required String driverId,
+    required String driverName,
+    required double amount,
+    required String method,
+  }) async {
+    if (amount <= 0) throw Exception('أدخل مبلغاً أكبر من صفر');
+    final driverDoc = await _drivers.doc(driverId).get();
+    final balance = driverDoc.exists && driverDoc.data() != null
+        ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
+        : 0.0;
+    if (amount > balance) {
+      throw Exception(
+          'المبلغ أكبر من رصيدك المتاح (${balance.toStringAsFixed(2)} ر.س)');
+    }
+    final existing = await _payoutRequests
+        .where('driverId', isEqualTo: driverId)
+        .get();
+    final hasPending = existing.docs
+        .map((d) => models.PayoutRequest.fromMap(d.data(), d.id))
+        .any((r) => r.status == models.PayoutRequestStatus.pending);
+    if (hasPending) {
+      throw Exception('لديك طلب سحب قيد المعالجة بالفعل — انتظر بتّه أولاً');
+    }
+    final ref = _payoutRequests.doc();
+    await ref.set(models.PayoutRequest(
+      id: ref.id,
+      driverId: driverId,
+      driverName: driverName,
+      amount: amount,
+      method: method.trim(),
+      createdAt: DateTime.now(),
+    ).toMap());
+  }
+
+  /// طلبات سحب سائق واحد، الأحدث أولاً (ترتيب محلي — لا فهرس مركّب).
+  Stream<List<models.PayoutRequest>> streamMyPayoutRequests(String driverId) =>
+      _payoutRequests
+          .where('driverId', isEqualTo: driverId)
+          .limit(50)
+          .snapshots()
+          .map((s) {
+        final list = s.docs
+            .map((d) => models.PayoutRequest.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// كل طلبات السحب للوحة الإدارة، الأحدث أولاً.
+  Stream<List<models.PayoutRequest>> streamAllPayoutRequests() =>
+      _payoutRequests.limit(200).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.PayoutRequest.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// صرف طلب سحب: خصم الرصيد + حركة payout + إغلاق الطلب — دفعة واحدة.
+  /// فحص الحالة والرصيد من قراءة طازجة يمنع الصرف المزدوج (نفس درس
+  /// resolveComplaint) والصرف فوق الرصيد إن تراكمت عُهدة بعد التقديم.
+  Future<void> payPayoutRequest(models.PayoutRequest request,
+      {String? adminNote}) async {
+    final freshReq = await _payoutRequests.doc(request.id).get();
+    if (!freshReq.exists || freshReq.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final fresh = models.PayoutRequest.fromMap(freshReq.data()!, freshReq.id);
+    if (fresh.status != models.PayoutRequestStatus.pending) {
+      throw Exception('هذا الطلب ${fresh.status.label} بالفعل');
+    }
+    final driverDoc = await _drivers.doc(fresh.driverId).get();
+    if (!driverDoc.exists || driverDoc.data() == null) {
+      throw Exception('السائق غير موجود');
+    }
+    final balance =
+        models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance;
+    if (fresh.amount > balance) {
+      throw Exception(
+          'رصيد السائق الحالي (${balance.toStringAsFixed(2)} ر.س) أقل من المبلغ — '
+          'تغيّر بعد تقديم الطلب. ارفض الطلب أو انتظر تسويته');
+    }
+    final txRef = _driverTransactions.doc();
+    final batch = _db.batch();
+    batch.update(_drivers.doc(fresh.driverId), {
+      'balance': FieldValue.increment(-fresh.amount),
+      'totalEarnings': FieldValue.increment(fresh.amount),
+    });
+    batch.set(
+      txRef,
+      models.DriverTransaction(
+        id: txRef.id,
+        driverId: fresh.driverId,
+        type: models.DriverTransactionType.payout,
+        amount: -fresh.amount,
+        balanceAfter: balance - fresh.amount,
+        note: 'صرف طلب سحب (${fresh.method})',
+        performedBy: _auth.currentUser?.uid ?? '',
+        createdAt: DateTime.now(),
+      ).toMap(),
+    );
+    batch.update(_payoutRequests.doc(fresh.id), {
+      'status': models.PayoutRequestStatus.paid.name,
+      'processedAt': Timestamp.fromDate(DateTime.now()),
+      if (adminNote != null && adminNote.trim().isNotEmpty)
+        'adminNote': adminNote.trim(),
+    });
+    await batch.commit();
+  }
+
+  /// رفض طلب سحب بسبب مكتوب يظهر للسائق.
+  Future<void> rejectPayoutRequest(String requestId, String adminNote) async {
+    final freshReq = await _payoutRequests.doc(requestId).get();
+    if (!freshReq.exists || freshReq.data() == null) {
+      throw Exception('الطلب غير موجود');
+    }
+    final fresh = models.PayoutRequest.fromMap(freshReq.data()!, freshReq.id);
+    if (fresh.status != models.PayoutRequestStatus.pending) {
+      throw Exception('هذا الطلب ${fresh.status.label} بالفعل');
+    }
+    await _payoutRequests.doc(requestId).update({
+      'status': models.PayoutRequestStatus.rejected.name,
+      'adminNote': adminNote.trim(),
+      'processedAt': Timestamp.fromDate(DateTime.now()),
+    });
   }
 
   /// سجلّ حركات سائق، الأحدث أولاً. (ترتيب محلي — انظر تعليق
@@ -1248,7 +1707,9 @@ class FirebaseService {
       'customerRating': orderRating,
       'driverRating': driverRating,
       'isRated': true,
-      if (review != null) 'review': review,
+      // كان المفتاح 'review' بينما النموذج يقرأ 'customerReview' — فكل نص
+      // تقييم كتبه عميل كان يُحفظ في حقل لا يقرؤه أحد ويضيع من كل الشاشات.
+      if (review != null) 'customerReview': review,
     });
     await updateDriverRating(driverId, driverRating);
     if (restaurantId != null) {
@@ -1322,14 +1783,29 @@ class FirebaseService {
     String? reassignToDriverName,
     String? adminNote,
   }) async {
+    // حارس المضاعفة: الحل يُنفَّذ مرة واحدة. ضغطتان متتاليتان على «تأكيد
+    // الحل» (أو نقرة من جهازين) كانتا تضيفان الاسترداد مرتين لمحفظة العميل.
+    // الفحص على أحدث حالة في القاعدة لا على النسخة الممررة من الشاشة، فقد
+    // تكون فُتحت قبل أن يحلها مدير آخر.
+    final freshDoc = await _complaints.doc(complaint.id).get();
+    final freshStatus = models.Complaint.fromMap(
+            freshDoc.data() ?? const {}, complaint.id)
+        .status;
+    if (freshStatus == models.ComplaintStatus.resolved ||
+        freshStatus == models.ComplaintStatus.closed) {
+      throw Exception('هذه الشكوى محلولة مسبقاً — لا يُنفَّذ الحل مرتين');
+    }
+
     if (refundPercentage != null && refundPercentage > 0) {
       // الاسترداد يُحسب على **قيمة الوجبات** لا على إجمالي الطلب: أجرة
       // التوصيل خدمة أُدّيت فعلاً ووصلت للسائق، فإعادتها للعميل تعني خصمها
       // من المنصّة بلا سبب. الاسترداد الكامل (100%) وحده يشمل الإجمالي لأن
       // الطلب حينها يُعدّ كأن لم يكن.
+      // والاسترداد الكامل يُعيد **ما دفعه العميل فعلاً** (بعد خصم الكوبون)
+      // لا القيمة قبل الخصم — وإلا رُدّ له أكثر مما دفع.
       final isFullRefund = refundPercentage >= 100;
       final refundAmount = isFullRefund
-          ? order.grandTotal
+          ? order.payableTotal
           : order.itemsTotal * (refundPercentage / 100);
 
       await addWalletCredit(

@@ -155,7 +155,7 @@ class _ComplaintCard extends StatelessWidget {
                 child: Text(c.type.label,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
               ),
-              Text('#${c.orderNumber}',
+              Text(c.isGeneralTicket ? 'تذكرة ${c.displayNumber}' : '#${c.orderNumber}',
                   style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 8),

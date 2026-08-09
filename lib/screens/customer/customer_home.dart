@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
@@ -8,6 +9,8 @@ import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
+import '../../widgets/promo_banner_carousel.dart';
+import '../../widgets/app_skeletons.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';
@@ -127,14 +130,26 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   String _query = '';
   String _category = 'الكل';
 
+  /// مهلة تهدئة للبحث: بدونها كان كل حرف يُعيد بناء كل بطاقات القائمة
+  /// فوراً — تقطيع محسوس على القوائم الكبيرة والأجهزة الضعيفة.
+  Timer? _searchDebounce;
+
   // قائمة الفئات ثابتة في الكود (لا تُقرأ من Firestore)، لذلك تظهر دائماً
   // حتى لو فشل جلب المطاعم.
   static const _categories = ['الكل', 'مشاوي', 'برجر', 'بيتزا', 'مشروبات', 'حلويات'];
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => _query = v);
+    });
   }
 
   /// تصفية محلية (على الجهاز) حسب الفئة المختارة ونص البحث — لا استعلام
@@ -162,7 +177,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: TextField(
           controller: _searchCtrl,
-          onChanged: (v) => setState(() => _query = v),
+          onChanged: _onSearchChanged,
           decoration: InputDecoration(
             hintText: 'ابحث عن مطعم أو صنف...',
             prefixIcon: const Icon(Icons.search),
@@ -200,11 +215,17 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         ),
       ),
       const SizedBox(height: 4),
+      // البنرات الترويجية — تختفي أثناء البحث حتى لا تزاحم النتائج، وتختفي
+      // كلياً حين لا حملة فعّالة.
+      if (_query.isEmpty) const PromoBannerCarousel(),
       Expanded(
         // ملاحظة مهمة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس Stream
         // جاهزاً، لذلك يُمرَّر اسم الدالة بلا أقواس (tear-off). إضافة أقواس
         // هنا تكسر التوقيع.
-        child: AppStreamBuilder<List<Restaurant>>(stream: service.streamRestaurants, builder: (ctx, list) {
+        child: AppStreamBuilder<List<Restaurant>>(
+            stream: service.streamRestaurants,
+            loading: const RestaurantListSkeleton(),
+            builder: (ctx, list) {
           final filtered = _filter(list);
           if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
           if (filtered.isEmpty) return const AppEmpty(emoji: '🔍', title: 'لا توجد نتائج مطابقة');
@@ -267,7 +288,12 @@ class _RestaurantCard extends StatelessWidget {
                       color: AppColors.warning),
                 _MetaChip(icon: Icons.timer_outlined, label: '${r.estimatedTimeMin} د', color: AppColors.textGray),
                 _MetaChip(icon: Icons.delivery_dining_outlined,
-                    label: r.deliveryFee > 0 ? formatCurrency(r.deliveryFee) : 'توصيل مجاني',
+                    // «توصيل مجاني» كانت كذبة مكلفة: حقل المطعم القديم صفر
+                    // بينما التسعير الموحّد يحصّل فعلاً — فيصدم العميل في
+                    // الدفع ويفقد الثقة. الصدق أرخص، والرقم شامل الرسم الثابت
+                    // (قاعدة المالك: التوصيل المعروض = الأجرة + العمولة).
+                    label:
+                        'التوصيل من ${(Pricing.baseDeliveryFee + Pricing.fixedDeliveryCommission).toStringAsFixed(0)} ر.س',
                     color: AppColors.textGray),
                 if (isPopular)
                   const _MetaChip(icon: Icons.local_fire_department_rounded, label: 'الأكثر طلباً', color: AppColors.primary),

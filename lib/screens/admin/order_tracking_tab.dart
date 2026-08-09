@@ -281,7 +281,7 @@ class _TrackedOrderCard extends StatelessWidget {
             const InfoRow(icon: Icons.delivery_dining_outlined, text: 'لم يُعيّن سائق بعد'),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
           OrderTrackingTimeline(status: order.status),
-          Text(formatCurrency(order.grandTotal),
+          Text(formatCurrency(order.payableTotal),
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
           const SizedBox(height: 8),
           SizedBox(

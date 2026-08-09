@@ -161,11 +161,14 @@ service cloud.firestore {
             (resource.data.driverId == currentUid() &&
                 !changedKeys().hasAny(['items', 'driverShare', 'appShare',
                                        'customerId', 'restaurantId', 'orderNumber'])) ||
-            // السائق يقبل الطلب بنفسه (تصميم مقصود)، لكن فقط إن كان الطلب
-            // بلا سائق مُسنَد أصلاً — يمنع سائقاً من الاستيلاء على طلب مُسنَد
-            // لغيره عبر الكتابة المباشرة على driverId.
-            (resource.data.driverId == null &&
-                request.resource.data.driverId == currentUid() &&
+            // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
+            // بعد رفضه إياه — يمرّره جهازُه تلقائياً لأقرب سائق آخر
+            // (driverId لغيره). كان الشرط يُلزم أن يكون المعرّف الجديد هو
+            // الكاتب نفسه، فتنجح إعادة الإسناد فقط حين تعود للرافض ذاته
+            // وتُرفض حين تذهب لغيره — عكس المطلوب تماماً. الاستيلاء على طلب
+            // مُسنَد لغيره ما زال ممنوعاً (الشرط driverId == null)، والإسناد
+            // لغيره صار مجرد «عرض» يملك صاحبه رفضه (driverAcknowledged).
+            (resource.data.driverId == null && isDriver() &&
                 !changedKeys().hasAny(orderMoneyKeys())) ||
             (isRestaurantManagerOf(resource.data.restaurantId) &&
                 !changedKeys().hasAny(orderMoneyKeys()))
@@ -370,6 +373,84 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // banners — البنرات الترويجية أعلى شاشة مطاعم العميل. القراءة عامة حتى
+    // بدون تسجيل دخول (كالمطاعم — الزائر يتصفح قبل إنشاء حساب)، والكتابة
+    // للمدير العام وحده.
+    // ---------------------------------------------------------------------
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // restaurant_settlements — دفعات التسوية المسلَّمة للمطاعم. يقرؤها
+    // المدير ومدير المطعم المعني (ليتابع ما استلمه مقابل مستحقّاته)،
+    // ويكتبها المدير وحده. الحذف والتعديل ممنوعان — سجلّ مالي لا يُعدَّل
+    // بأثر رجعي، والتصحيح بدفعة جديدة تبقى ظاهرة.
+    // ---------------------------------------------------------------------
+    match /restaurant_settlements/{settlementId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || isRestaurantManagerOf(resource.data.restaurantId)
+          );
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // coupons — أكواد الخصم (معرّف المستند = الكود نفسه). العميل يقرأ
+    // الكود الواحد الذي يكتبه للتحقق منه، ولا يُسمح بسرد كل الأكواد إلا
+    // للمدير (وإلا اكتُشفت الأكواد بالاستعراض). الإنشاء والتعديل للمدير
+    // وحده، باستثناء واحد مقصود: عدّاد الاستخدام (usedCount) يزيده العميل
+    // لحظة إنشاء طلبه — بزيادة مقدارها 1 فقط ودون مسّ أي حقل آخر، فلا
+    // يستطيع تعطيل الكود ولا رفع قيمته ولا تصفير عدّاده.
+    // ---------------------------------------------------------------------
+    match /coupons/{code} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+            isSignedIn() &&
+            changedKeys().hasOnly(['usedCount']) &&
+            request.resource.data.usedCount == resource.data.usedCount + 1
+          );
+    }
+
+    // ---------------------------------------------------------------------
+    // coupon_usages — سجلّ استخدام كل مستخدم لكل كود (معرّفه CODE_uid).
+    // صاحبه يقرؤه ويكتبه (التحقق من «مرة واحدة لكل عميل» يقرأ مستنده هو)،
+    // والمدير يرى الكل. الحذف ممنوع فلا يُعاد استخدام كود بحذف سجلّه.
+    // ---------------------------------------------------------------------
+    match /coupon_usages/{usageId} {
+      allow get: if isSignedIn() && (
+            isAdmin() || resource.data.userId == currentUid()
+          );
+      allow list: if isAdmin();
+      allow create, update: if isSignedIn() && (
+            isAdmin() || request.resource.data.userId == currentUid()
+          );
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // payout_requests — طلبات سحب مستحقّات السائقين. السائق يُنشئ طلبه هو
+    // فقط وبحالة pending إلزاماً (لا يُنشئ طلباً «مصروفاً» جاهزاً)، ويقرأ
+    // طلباته وحدها. البتّ (صرف/رفض) للمدير العام حصراً، والحذف ممنوع —
+    // سجلّ مالي يبقى للمراجعة.
+    // ---------------------------------------------------------------------
+    match /payout_requests/{requestId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.driverId == currentUid()
+          );
+      allow create: if isDriver() &&
+          request.resource.data.driverId == currentUid() &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.amount is number &&
+          request.resource.data.amount > 0;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // broadcasts — إرسال رسائل جماعية للمدير العام فقط، وقراءتها لأي مستخدم
     // مسجّل دخوله (كل من السائقين والعملاء يقرؤون الرسائل الموجّهة لهم).
     // ---------------------------------------------------------------------
@@ -395,6 +476,11 @@ service cloud.firestore {
       allow update: if isAdmin() || (
             isSignedIn() && (
               (resource.data.isUsed == false &&
+                  // الكود المنتهي لا يُستهلك حتى بالكتابة المباشرة — فحص
+                  // الصلاحية هنا لا في التطبيق وحده.
+                  (!('expiresAt' in resource.data) ||
+                      resource.data.expiresAt == null ||
+                      request.time < resource.data.expiresAt) &&
                   request.resource.data.isUsed == true &&
                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isUsed', 'usedAt'])) ||
               (resource.data.isUsed == true &&

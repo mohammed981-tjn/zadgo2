@@ -67,6 +67,15 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.4
   excel: ^4.0.6
+
+  # تخزين صور الشبكة على القرص (قوائم الأصناف والبنرات) — بدونها تُعاد
+  # كل الصور من الشبكة مع كل فتح للتطبيق. مثبّتة على 3.4.1: متوافقة مع
+  # Dart 3.5 (تشترط ^3.4) وflutter_cache_manager 3.4.x.
+  cached_network_image: 3.4.1
+
+  # كشف انقطاع الاتصال لشريط «لا يوجد اتصال بالإنترنت» — بدونه تظهر أخطاء
+  # تقنية أو شاشات فارغة بلا تفسير. مثبّتة على 6.1.0 (تشترط Dart >=3.3).
+  connectivity_plus: 6.1.0
   share_plus: ^10.1.2
 
 dependency_overrides:
@@ -81,6 +90,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo_square.png
+    # الشعار الكتابي الرسمي بخلفية شفافة — شاشات البداية لكل النكهات.
+    - assets/images/logo_wordmark.png
+    # بوستر افتتاح تطبيق العميل (الشعار + السائق + العبارة التسويقية).
+    - assets/images/splash_customer.jpg
+    # البنر الترويجي الافتراضي — يظهر حين لا بنرات فعّالة من الإدارة.
+    - assets/images/banner_promo_1.jpg
+    # خلفية افتتاح تطبيق الكابتن (طريق ليلي بهوية النكهة الكحلية).
+    - assets/images/bg_splash_driver.jpg
   fonts:
     - family: Cairo
       fonts:

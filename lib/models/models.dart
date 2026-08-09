@@ -3,6 +3,9 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:flutter/material.dart';
+// قواعد التسعير المعتمدة — يستعملها النموذج في المشتقّات المالية للتقارير.
+// helpers لا يستورد models، فلا دورة استيراد.
+import '../utils/helpers.dart' show Pricing;
 
 enum UserRole { admin, customer, driver, restaurantManager }
 
@@ -52,6 +55,11 @@ enum ComplaintType {
   driverLateForPickup,
   customerCancelledAfterPrep,
   driverBehaviorAtRestaurant,
+
+  // أنواع التذاكر العامة (بلا ارتباط بطلب — لكل الأدوار)
+  financial,
+  dataUpdate,
+  generalInquiry,
 
   other,
 }
@@ -253,11 +261,23 @@ extension ComplaintTypeExt on ComplaintType {
       ComplaintType.driverLateForPickup: 'سائق تأخر عن الاستلام رغم الجاهزية',
       ComplaintType.customerCancelledAfterPrep: 'عميل ألغى بعد التحضير',
       ComplaintType.driverBehaviorAtRestaurant: 'سلوك السائق داخل المطعم',
+      // التذاكر العامة
+      ComplaintType.financial: 'مالية — مستحقّات/محفظة',
+      ComplaintType.dataUpdate: 'تحديث بيانات',
+      ComplaintType.generalInquiry: 'استفسار عام',
       ComplaintType.other: 'أخرى',
     };
     return map[this] ?? '';
   }
 }
+
+/// أنواع التذاكر العامة — تُفتح بلا ارتباط بطلب، ومتاحة لكل الأدوار.
+const List<ComplaintType> generalTicketTypes = [
+  ComplaintType.financial,
+  ComplaintType.dataUpdate,
+  ComplaintType.generalInquiry,
+  ComplaintType.other,
+];
 
 /// يربط كل دور بأنواع الشكاوى التي يحق له رفعها، ومصدرٌ واحدٌ للحقيقة تعتمده
 /// شاشة تقديم الشكوى لبناء قائمة الأنواع ديناميكياً حسب دور المُقدِّم — بدل
@@ -324,6 +344,10 @@ extension ComplaintTypeScope on ComplaintType {
         return UserRole.driver;
       case ComplaintType.customerCancelledAfterPrep:
         return UserRole.customer;
+      // التذاكر العامة — موجّهة للإدارة نفسها، لا ضد طرف.
+      case ComplaintType.financial:
+      case ComplaintType.dataUpdate:
+      case ComplaintType.generalInquiry:
       case ComplaintType.other:
         return null;
     }
@@ -620,6 +644,55 @@ class MenuCategory {
       };
 }
 
+/// خيار واحد داخل مجموعة خيارات صنف (مثال: «كبير» بفرق سعر +5).
+class ItemOption {
+  final String name;
+
+  /// فرق السعر عن سعر الصنف الأساسي — صفر أو موجب غالباً، ويقبل السالب
+  /// (حجم أصغر مثلاً).
+  final double priceDelta;
+
+  const ItemOption({required this.name, this.priceDelta = 0});
+
+  factory ItemOption.fromMap(Map<String, dynamic> map) => ItemOption(
+        name: map['name'] as String? ?? '',
+        priceDelta: (map['priceDelta'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toMap() => {'name': name, 'priceDelta': priceDelta};
+}
+
+/// مجموعة خيارات لصنف — نمط جاهز/كيتا المبسّط بنوعين يغطيان واقع المطاعم:
+///   • اختيار واحد إلزامي (multiSelect=false): الحجم، نوع العجين... العميل
+///     لا يضيف الصنف دون تحديده.
+///   • إضافات اختيارية (multiSelect=true): جبن إضافي، عسل... صفر أو أكثر.
+class ItemOptionGroup {
+  final String name;
+  final bool multiSelect;
+  final List<ItemOption> options;
+
+  const ItemOptionGroup({
+    required this.name,
+    this.multiSelect = false,
+    this.options = const [],
+  });
+
+  factory ItemOptionGroup.fromMap(Map<String, dynamic> map) => ItemOptionGroup(
+        name: map['name'] as String? ?? '',
+        multiSelect: map['multiSelect'] as bool? ?? false,
+        options: ((map['options'] as List?) ?? [])
+            .whereType<Map>()
+            .map((m) => ItemOption.fromMap(m.cast<String, dynamic>()))
+            .toList(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'multiSelect': multiSelect,
+        'options': options.map((o) => o.toMap()).toList(),
+      };
+}
+
 class MenuItem {
   final String id;
   final String restaurantId;
@@ -639,6 +712,10 @@ class MenuItem {
   /// وترشيحه لاحقاً بدل أن يكون نصاً حرّاً داخل جملة.
   final int? kcal;
 
+  /// مجموعات خيارات الصنف (حجم/إضافات...) — قائمة فارغة = صنف بسيط يُضاف
+  /// مباشرة كما كان دائماً، فالحقل متوافق خلفياً مع كل الأصناف القائمة.
+  final List<ItemOptionGroup> optionGroups;
+
   const MenuItem({
     required this.id,
     required this.restaurantId,
@@ -653,7 +730,10 @@ class MenuItem {
     this.totalSold = 0,
     this.imageUrl,
     this.kcal,
+    this.optionGroups = const [],
   });
+
+  bool get hasOptions => optionGroups.isNotEmpty;
 
   /// نسخة معدَّلة مع الإبقاء على بقية الحقول كما هي. تُستخدم في كل موضع يعدّل
   /// حقلاً واحداً (السعر مثلاً)؛ بدونها كان كل موضع يعيد بناء الكائن كاملاً،
@@ -670,6 +750,7 @@ class MenuItem {
     int? totalSold,
     String? imageUrl,
     int? kcal,
+    List<ItemOptionGroup>? optionGroups,
   }) =>
       MenuItem(
         id: id,
@@ -685,6 +766,7 @@ class MenuItem {
         totalSold: totalSold ?? this.totalSold,
         imageUrl: imageUrl ?? this.imageUrl,
         kcal: kcal ?? this.kcal,
+        optionGroups: optionGroups ?? this.optionGroups,
       );
 
   bool get canOrder =>
@@ -713,6 +795,10 @@ class MenuItem {
       totalSold: (map['totalSold'] as num?)?.toInt() ?? 0,
       imageUrl: imageUrl,
       kcal: (map['kcal'] as num?)?.toInt(),
+      optionGroups: ((map['optionGroups'] as List?) ?? [])
+          .whereType<Map>()
+          .map((m) => ItemOptionGroup.fromMap(m.cast<String, dynamic>()))
+          .toList(),
     );
   }
 
@@ -729,6 +815,7 @@ class MenuItem {
         'totalSold': totalSold,
         'imageUrl': imageUrl,
         'kcal': kcal,
+        'optionGroups': optionGroups.map((g) => g.toMap()).toList(),
       };
 }
 
@@ -764,6 +851,16 @@ class Driver {
   /// العقد" (contract violations) المعتمد في تطبيقات التوصيل الكبرى.
   final int warningCount;
 
+  /// عدّادا معدل القبول (نمط تويو/جاهز): مجموع العروض التي وصلته وما قبله
+  /// منها. يُخزَّنان في المستند لا في ذاكرة الجلسة كي لا يُصفَّر المعدل مع
+  /// كل إعادة تشغيل.
+  final int offersTotal;
+  final int offersAccepted;
+
+  /// معدل القبول 0..1 — null قبل أول عرض حتى لا يُعرض «0٪» ظلماً.
+  double? get acceptanceRate =>
+      offersTotal > 0 ? offersAccepted / offersTotal : null;
+
   const Driver({
     required this.id,
     required this.name,
@@ -782,6 +879,8 @@ class Driver {
     this.lng,
     this.lastLocationUpdate,
     this.warningCount = 0,
+    this.offersTotal = 0,
+    this.offersAccepted = 0,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -802,6 +901,8 @@ class Driver {
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
         warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
+        offersTotal: (map['offersTotal'] as num?)?.toInt() ?? 0,
+        offersAccepted: (map['offersAccepted'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -822,6 +923,242 @@ class Driver {
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
         'warningCount': warningCount,
+        'offersTotal': offersTotal,
+        'offersAccepted': offersAccepted,
+      };
+}
+
+/// دفعة تسوية سُلّمت لمطعم مقابل مستحقّاته.
+///
+/// دفتر المطعم يُبنى بالطرح لا بالقيد المزدوج: المستحق = صافي طلباته
+/// المكتملة، والمدفوع = مجموع هذه الدفعات، والفرق هو رصيده. هذا يتجنّب
+/// كتابة قيد مع كل توصيل (ومخاطر ازدواجه)، ويبقى قابلاً للمراجعة لأن
+/// طرفَي المعادلة مستندات محفوظة.
+class RestaurantSettlement {
+  final String id;
+  final String restaurantId;
+  final String restaurantName;
+  final double amount;
+
+  /// طريقة السداد: تحويل بنكي، نقداً، شيك...
+  final String method;
+  final String? note;
+  final String performedBy;
+  final DateTime createdAt;
+
+  const RestaurantSettlement({
+    required this.id,
+    required this.restaurantId,
+    required this.restaurantName,
+    required this.amount,
+    this.method = '',
+    this.note,
+    required this.performedBy,
+    required this.createdAt,
+  });
+
+  factory RestaurantSettlement.fromMap(Map<String, dynamic> map, String id) =>
+      RestaurantSettlement(
+        id: id,
+        restaurantId: map['restaurantId'] as String? ?? '',
+        restaurantName: map['restaurantName'] as String? ?? '',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        method: map['method'] as String? ?? '',
+        note: map['note'] as String?,
+        performedBy: map['performedBy'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'restaurantId': restaurantId,
+        'restaurantName': restaurantName,
+        'amount': amount,
+        'method': method,
+        if (note != null) 'note': note,
+        'performedBy': performedBy,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
+/// نوع خصم الكوبون.
+enum CouponType { percentage, fixed }
+
+CouponType _couponTypeFromString(String? raw) => _enumValueFromString<CouponType>(
+      raw,
+      CouponType.values,
+      CouponType.percentage,
+      'CouponType',
+    );
+
+/// كود خصم ترويجي. الخصم **تسويقٌ تموّله المنصّة من حصّتها** — لا يُنقص
+/// مستحق المطعم ولا أجرة السائق، وهو ما يجعله آمناً تشغيلياً بلا تفاوض.
+///
+/// معرّف المستند هو الكود نفسه (بحروف كبيرة)، فالتحقق قراءةُ مستند واحد
+/// لا استعلام — أسرع، وقواعده أبسط.
+class Coupon {
+  final String code;
+  final CouponType type;
+
+  /// نسبة مئوية (10 = 10%) أو مبلغ ثابت بالريال حسب [type].
+  final double value;
+
+  /// حد أدنى لقيمة الوجبات لتفعيل الكوبون (0 = بلا حد).
+  final double minOrderTotal;
+
+  /// سقف الخصم بالريال للنوع النسبي (0 = بلا سقف) — يمنع «20% على طلب
+  /// 500 ريال» من ابتلاع دخل المنصّة.
+  final double maxDiscount;
+
+  /// حد الاستخدام الكلي (0 = بلا حد) وعدد ما استُخدم فعلاً.
+  final int usageLimit;
+  final int usedCount;
+
+  /// كم مرة يحق للمستخدم الواحد استخدامه (افتراضياً مرة واحدة).
+  final int perUserLimit;
+
+  /// مقصور على مطعم بعينه؟ (فارغ = كل المطاعم)
+  final String restaurantId;
+
+  final DateTime? expiresAt;
+  final bool isActive;
+  final DateTime createdAt;
+
+  const Coupon({
+    required this.code,
+    this.type = CouponType.percentage,
+    required this.value,
+    this.minOrderTotal = 0,
+    this.maxDiscount = 0,
+    this.usageLimit = 0,
+    this.usedCount = 0,
+    this.perUserLimit = 1,
+    this.restaurantId = '',
+    this.expiresAt,
+    this.isActive = true,
+    required this.createdAt,
+  });
+
+  bool get isExpired =>
+      expiresAt != null && DateTime.now().isAfter(expiresAt!);
+
+  bool get isExhausted => usageLimit > 0 && usedCount >= usageLimit;
+
+  /// وصف مختصر للعرض: «20% حتى 15 ر.س» أو «10 ر.س».
+  String get label => type == CouponType.percentage
+      ? '${value.toStringAsFixed(0)}%${maxDiscount > 0 ? ' حتى ${maxDiscount.toStringAsFixed(0)} ر.س' : ''}'
+      : '${value.toStringAsFixed(0)} ر.س';
+
+  /// قيمة الخصم على مبلغ معيّن — لا تتجاوز المبلغ نفسه أبداً (فلا يصير
+  /// الإجمالي سالباً ولا تدفع المنصّة للعميل).
+  double discountFor(double amount) {
+    final raw = type == CouponType.percentage
+        ? amount * (value / 100)
+        : value;
+    final capped = (maxDiscount > 0 && raw > maxDiscount) ? maxDiscount : raw;
+    return capped > amount ? amount : capped;
+  }
+
+  factory Coupon.fromMap(Map<String, dynamic> map, String id) => Coupon(
+        code: id,
+        type: _couponTypeFromString(map['type'] as String?),
+        value: (map['value'] as num?)?.toDouble() ?? 0,
+        minOrderTotal: (map['minOrderTotal'] as num?)?.toDouble() ?? 0,
+        maxDiscount: (map['maxDiscount'] as num?)?.toDouble() ?? 0,
+        usageLimit: (map['usageLimit'] as num?)?.toInt() ?? 0,
+        usedCount: (map['usedCount'] as num?)?.toInt() ?? 0,
+        perUserLimit: (map['perUserLimit'] as num?)?.toInt() ?? 1,
+        restaurantId: map['restaurantId'] as String? ?? '',
+        expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
+        isActive: map['isActive'] as bool? ?? true,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'type': type.name,
+        'value': value,
+        'minOrderTotal': minOrderTotal,
+        'maxDiscount': maxDiscount,
+        'usageLimit': usageLimit,
+        'usedCount': usedCount,
+        'perUserLimit': perUserLimit,
+        'restaurantId': restaurantId,
+        if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
+        'isActive': isActive,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
+/// حالة طلب سحب مستحقّات السائق.
+enum PayoutRequestStatus { pending, paid, rejected }
+
+PayoutRequestStatus _payoutRequestStatusFromString(String? raw) =>
+    _enumValueFromString<PayoutRequestStatus>(
+      raw,
+      PayoutRequestStatus.values,
+      PayoutRequestStatus.pending,
+      'PayoutRequestStatus',
+    );
+
+extension PayoutRequestStatusExt on PayoutRequestStatus {
+  String get label => switch (this) {
+        PayoutRequestStatus.pending => 'قيد المعالجة',
+        PayoutRequestStatus.paid => 'مصروف',
+        PayoutRequestStatus.rejected => 'مرفوض',
+      };
+}
+
+/// طلب سحب مستحقّات يقدّمه السائق بنفسه (نمط نينجا/تويو: زر «اسحب أموالي»)
+/// بدل انتظار مبادرة الإدارة — الإدارة تصرفه فيتقيّد في دفتر الحركات
+/// بحركة payout كالمعتاد، أو ترفضه بسبب مكتوب يراه السائق.
+class PayoutRequest {
+  final String id;
+  final String driverId;
+  final String driverName;
+  final double amount;
+
+  /// طريقة الاستلام التي يكتبها السائق: آيبان للتحويل أو «نقداً من الإدارة».
+  final String method;
+  final PayoutRequestStatus status;
+
+  /// ردّ الإدارة — سبب الرفض أو ملاحظة الصرف.
+  final String? adminNote;
+  final DateTime createdAt;
+  final DateTime? processedAt;
+
+  const PayoutRequest({
+    required this.id,
+    required this.driverId,
+    required this.driverName,
+    required this.amount,
+    required this.method,
+    this.status = PayoutRequestStatus.pending,
+    this.adminNote,
+    required this.createdAt,
+    this.processedAt,
+  });
+
+  factory PayoutRequest.fromMap(Map<String, dynamic> map, String id) =>
+      PayoutRequest(
+        id: id,
+        driverId: map['driverId'] as String? ?? '',
+        driverName: map['driverName'] as String? ?? '',
+        amount: (map['amount'] as num?)?.toDouble() ?? 0,
+        method: map['method'] as String? ?? '',
+        status: _payoutRequestStatusFromString(map['status'] as String?),
+        adminNote: map['adminNote'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        processedAt: (map['processedAt'] as Timestamp?)?.toDate(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'driverId': driverId,
+        'driverName': driverName,
+        'amount': amount,
+        'method': method,
+        'status': status.name,
+        if (adminNote != null) 'adminNote': adminNote,
+        'createdAt': Timestamp.fromDate(createdAt),
+        if (processedAt != null) 'processedAt': Timestamp.fromDate(processedAt!),
       };
 }
 
@@ -941,6 +1278,10 @@ enum DriverTransactionType {
   /// توصيل طلب مدفوع إلكترونياً: التطبيق قبض المبلغ، فتُقيَّد أجرة السائق له.
   deliveryOnline,
 
+  /// مكافأة تمنحها الإدارة (تحدٍّ، إحالة سائق جديد، تميّز...) — أقوى أداة
+  /// استبقاء سائقين في تطبيقات التوصيل (توصية تقريرَي تويو ونينجا).
+  bonus,
+
   /// إيداع: السائق سلّم نقداً للإدارة.
   deposit,
 
@@ -966,6 +1307,7 @@ extension DriverTransactionTypeExt on DriverTransactionType {
       DriverTransactionType.custodyReversal: 'ردّ عُهدة (إلغاء)',
       DriverTransactionType.deliveryCash: 'توصيل نقدي',
       DriverTransactionType.deliveryOnline: 'توصيل إلكتروني',
+      DriverTransactionType.bonus: 'مكافأة 🎉',
       DriverTransactionType.deposit: 'شحن / إيداع',
       DriverTransactionType.payout: 'صرف مستحقّات',
       DriverTransactionType.adjustment: 'تسوية يدوية',
@@ -979,6 +1321,7 @@ extension DriverTransactionTypeExt on DriverTransactionType {
       DriverTransactionType.custodyReversal: Icons.replay_rounded,
       DriverTransactionType.deliveryCash: Icons.payments_outlined,
       DriverTransactionType.deliveryOnline: Icons.credit_card,
+      DriverTransactionType.bonus: Icons.emoji_events_outlined,
       DriverTransactionType.deposit: Icons.south_west_rounded,
       DriverTransactionType.payout: Icons.north_east_rounded,
       DriverTransactionType.adjustment: Icons.tune_rounded,
@@ -1142,6 +1485,12 @@ class Order {
   /// ٧:٣٥ = التأخير من المطعم لا من السائق.
   final DateTime? arrivedAtRestaurantAt;
 
+  /// كود الخصم المطبَّق على الطلب (إن وُجد) وقيمة خصمه بالريال. القيمة
+  /// تُحفظ محسوبةً لا كنسبة، فتبقى الفاتورة صحيحة حتى لو عُدّل الكوبون
+  /// أو حُذف لاحقاً.
+  final String? couponCode;
+  final double discountAmount;
+
   const Order({
     required this.id,
     required this.restaurantId,
@@ -1179,21 +1528,59 @@ class Order {
     this.driverAcknowledged = true,
     this.custodyDebited = false,
     this.arrivedAtRestaurantAt,
+    this.couponCode,
+    this.discountAmount = 0,
   });
 
   /// عُهدة الطلب النقدي على السائق لحظة استلامه: قيمة الوجبات (للمطعم)
-  /// + الرسم الثابت (للمنصّة). أجرة توصيله ليست ضمنها — يستوفيها من
-  /// النقد الذي يحصّله من العميل.
-  double get custodyAmount => itemsTotal + appShare;
+  /// + الرسم الثابت (للمنصّة) — ناقصاً ما دفعه العميل من رصيد محفظته،
+  /// فذلك الجزء قبضته المنصّة أصلاً ولن يحصّله السائق نقداً. بدون خصمه
+  /// كان السائق يُقيَّد عليه مالٌ لن يقبضه (عميل دفع 20 من محفظته على
+  /// طلب 112 = يحصّل السائق 92 وتُقيَّد عليه 103 فيُظلم بـ20).
+  ///
+  /// أجرة توصيله ليست ضمن العُهدة — يستوفيها من النقد الذي يحصّله؛ وإن
+  /// غطّت المحفظة أكثر من حصّتَي المطعم والمنصّة صارت القيمة سالبة =
+  /// مستحق للسائق تقيّده المنصّة له (كالطلب الإلكتروني تماماً).
+  /// وخصم الكوبون كذلك: تسويقٌ تتحمّله المنصّة من حصّتها، فلا يُنقص مستحق
+  /// المطعم ولا أجرة السائق — والسائق لن يحصّله نقداً فلا يُقيَّد عليه.
+  double get custodyAmount =>
+      itemsTotal + appShare - walletUsed - discountAmount;
 
   double get deliveryFee => driverShare + appShare;
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
+
+  /// إجمالي الطلب قبل أي خصم — الأساس المحاسبي الثابت (وعليه تُبنى
+  /// حصص المطعم والسائق والمنصّة).
   double get grandTotal => itemsTotal + deliveryFee;
+
+  /// ما يدفعه العميل فعلاً بعد خصم الكوبون (لا يشمل خصم المحفظة، فذاك
+  /// دفعٌ من رصيده لا تخفيض للقيمة).
+  double get payableTotal => grandTotal - discountAmount;
+
   double get calculatedCommission => itemsTotal * 0.15;
+
+  /// عمولة الوجبات **للتقارير**: المخزَّنة إن وُجدت، وإلا محسوبةً بالقاعدة
+  /// المعتمدة (15%). الطلبات التي أُنشئت قبل تثبيت قاعدة التسعير (أو من
+  /// لوحة الويب) تحمل platformCommission = 0، فكان تقرير الإدارة يجمعها
+  /// أصفاراً ويُظهر دخل المنصّة شبه معدوم (37 ر.س على مبيعات 1370).
+  double get effectiveCommission =>
+      platformCommission > 0 ? platformCommission : calculatedCommission;
+
+  /// رسم التوصيل الثابت **للتقارير**: المخزَّن إن وُجد، وإلا القيمة المعتمدة
+  /// حالياً — لنفس سبب [effectiveCommission] (طلبات قديمة بـ appShare = 0
+  /// كانت تُظهر «عمولة التوصيل: 0.00»).
+  double get effectiveAppShare =>
+      appShare > 0 ? appShare : Pricing.fixedDeliveryCommission;
 
   /// صافي مستحقّات المطعم = قيمة الوجبات بعد خصم عمولة التطبيق (15%). قيمة
   /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.
-  double get restaurantNet => itemsTotal - platformCommission;
+  /// خصم الكوبون لا يمسّه — تتحمّله المنصّة وحدها.
+  double get restaurantNet => itemsTotal - effectiveCommission;
+
+  /// دخل المنصّة من هذا الطلب: عمولة الوجبات + رسم التوصيل الثابت، ناقصاً
+  /// خصم الكوبون الذي موّلته.
+  double get platformNet =>
+      effectiveCommission + effectiveAppShare - discountAmount;
 
   /// مهلة تقديم الشكوى بعد انتهاء الطلب — 24 ساعة، وهي النافذة المعتمدة في
   /// تطبيقات التوصيل الكبرى: تكفي لاكتشاف النقص/الخطأ/الجودة بعد فتح الطلب،
@@ -1270,6 +1657,8 @@ class Order {
         custodyDebited: map['custodyDebited'] as bool? ?? false,
         arrivedAtRestaurantAt:
             (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
+        couponCode: map['couponCode'] as String?,
+        discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -1311,6 +1700,8 @@ class Order {
         'custodyDebited': custodyDebited,
         if (arrivedAtRestaurantAt != null)
           'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
+        if (couponCode != null) 'couponCode': couponCode,
+        'discountAmount': discountAmount,
       };
 
   Order copyWith({
@@ -1366,6 +1757,8 @@ class Order {
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
         custodyDebited: custodyDebited,
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
+        couponCode: couponCode,
+        discountAmount: discountAmount,
       );
 }
 
@@ -1476,6 +1869,10 @@ class Complaint {
   /// هل الشكوى ما تزال بانتظار معالجة الإدارة؟
   bool get isAwaitingAction =>
       status == ComplaintStatus.open || status == ComplaintStatus.inProgress;
+
+  /// تذكرة عامة: فُتحت بلا ارتباط بطلب (مالية/تحديث بيانات/استفسار...) —
+  /// تُعرض وتُحل بلا حقول الطلب (لا استرداد نسبة، لا خط إثبات).
+  bool get isGeneralTicket => orderId.trim().isEmpty;
 
   const Complaint({
     required this.id,
@@ -1593,8 +1990,29 @@ class CartItem {
   final MenuItem item;
   int quantity;
   String? extras;
-  CartItem({required this.item, this.quantity = 1, this.extras});
-  double get subtotal => item.price * quantity;
+
+  /// الخيارات المنتقاة لهذه التشكيلة (حجم/إضافات) — القائمة الفارغة تعني
+  /// الصنف البسيط، وكل تشكيلة مختلفة سطرٌ مستقل في السلة.
+  final List<ItemOption> selectedOptions;
+
+  CartItem({
+    required this.item,
+    this.quantity = 1,
+    this.extras,
+    this.selectedOptions = const [],
+  });
+
+  /// سعر الوحدة بعد فروق الخيارات.
+  double get unitPrice =>
+      item.price + selectedOptions.fold(0.0, (s, o) => s + o.priceDelta);
+
+  /// نص الخيارات للعرض والمفتاح: «كبير • جبن إضافي».
+  String get optionsLabel => selectedOptions.map((o) => o.name).join(' • ');
+
+  /// مفتاح التشكيلة: الصنف نفسه بخيارات مختلفة = سطران مستقلان.
+  String get variantKey => '${item.id}|$optionsLabel';
+
+  double get subtotal => unitPrice * quantity;
 }
 
 class DriverReassignment {
@@ -1696,6 +2114,10 @@ class RegistrationCode {
   final String? usedByUid;
   final String? usedByName;
 
+  /// انتهاء صلاحية الكود — null = بلا انتهاء (توافق خلفي مع الأكواد
+  /// المولّدة قبل هذه الميزة).
+  final DateTime? expiresAt;
+
   const RegistrationCode({
     required this.code,
     required this.role,
@@ -1706,7 +2128,11 @@ class RegistrationCode {
     this.usedAt,
     this.usedByUid,
     this.usedByName,
+    this.expiresAt,
   });
+
+  bool get isExpired =>
+      expiresAt != null && DateTime.now().isAfter(expiresAt!);
 
   factory RegistrationCode.fromMap(Map<String, dynamic> map, String id) =>
       RegistrationCode(
@@ -1722,6 +2148,7 @@ class RegistrationCode {
         usedAt: (map['usedAt'] as Timestamp?)?.toDate(),
         usedByUid: map['usedByUid'] as String?,
         usedByName: map['usedByName'] as String?,
+        expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -1734,5 +2161,57 @@ class RegistrationCode {
         'usedAt': usedAt != null ? Timestamp.fromDate(usedAt!) : null,
         'usedByUid': usedByUid,
         'usedByName': usedByName,
+        if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
+      };
+}
+/// بنر ترويجي أعلى شاشة مطاعم العميل — عروض، مطاعم جديدة، إعلانات موسمية.
+///
+/// الصورة رابط خارجي (المكان الطبيعي: zadgo.co/images — استبدال الملف
+/// بنفس الاسم هناك يحدّث البنر عند الجميع بلا لمس للتطبيق). البنر يظهر
+/// فقط حين [isActive]، فتتحكم الإدارة بالحملة تشغيلاً وإيقافاً بضغطة.
+class PromoBanner {
+  final String id;
+  final String imageUrl;
+
+  /// عنوان اختياري يظهر شريطاً أسفل الصورة (يُترك فارغاً لو كان النص
+  /// مرسوماً داخل الصورة نفسها).
+  final String title;
+
+  /// معرّف مطعم اختياري: ضغطة البنر تفتح صفحته مباشرة.
+  final String? restaurantId;
+
+  final bool isActive;
+
+  /// ترتيب العرض — الأصغر أولاً.
+  final int sortOrder;
+  final DateTime createdAt;
+
+  const PromoBanner({
+    required this.id,
+    required this.imageUrl,
+    this.title = '',
+    this.restaurantId,
+    this.isActive = true,
+    this.sortOrder = 0,
+    required this.createdAt,
+  });
+
+  factory PromoBanner.fromMap(Map<String, dynamic> map, String id) => PromoBanner(
+        id: id,
+        imageUrl: map['imageUrl'] as String? ?? '',
+        title: map['title'] as String? ?? '',
+        restaurantId: map['restaurantId'] as String?,
+        isActive: map['isActive'] as bool? ?? true,
+        sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'imageUrl': imageUrl,
+        'title': title,
+        if (restaurantId != null) 'restaurantId': restaurantId,
+        'isActive': isActive,
+        'sortOrder': sortOrder,
+        'createdAt': Timestamp.fromDate(createdAt),
       };
 }
