@@ -245,6 +245,7 @@ const PAGES = [
   ['drivers', '🛵', 'السائقون'],
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
+  ['menu', '🍔', 'إدارة المنيو'],
   ['codes', '🔑', 'أكواد التسجيل'],
   ['wallets', '👛', 'محافظ العملاء'],
   ['settlements', '💰', 'تسويات المطاعم'],
@@ -370,6 +371,11 @@ let couponFilter = 'all';
 let payoutFilter = 'pending';
 let walletSearch = '';
 let codeFilter = 'unused';
+/* المنيو يُحمَّل لمطعم واحد عند اختياره — لا لكل المطاعم دفعةً واحدة. */
+let menuRid = '';
+let menuCats = [];
+let menuItems = [];
+let menuUnsub = [];
 /* مستمع محادثة الشكوى المفتوح حالياً — يُلغى عند إغلاق النافذة. */
 let chatUnsub = null;
 let adminUser = { name: '', email: '' };
@@ -492,6 +498,8 @@ document.addEventListener('click', (e) => {
   if (b) go(b.dataset.page);
 });
 function go(p) {
+  // مستمعا المنيو مرتبطان بمطعم واحد ولا معنى لبقائهما بعد مغادرة الصفحة.
+  if (page === 'menu' && p !== 'menu') stopMenuListeners();
   page = p;
   const meta = PAGES.find((x) => x[0] === p);
   $('pageTitle').innerHTML = `<span id="liveDot"></span>${meta ? meta[2] : ''}`;
@@ -502,7 +510,7 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    codes: renderCodesPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    menu: renderMenuPage, codes: renderCodesPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
     reports: renderReportsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
@@ -1098,6 +1106,220 @@ function openComplaintChat(complaintId) {
 }
 
 /* ================= رسالة جماعية ================= */
+/* ================= إدارة المنيو =================
+ *
+ * الأصناف والأقسام مجموعات فرعية تحت المطعم:
+ *   restaurants/{rid}/categories/{cid}  و  restaurants/{rid}/items/{iid}
+ *
+ * تُحمَّل لمطعم **واحد** عند اختياره لا لكل المطاعم معاً — منيو واحد قد يبلغ
+ * مئات الأصناف، وتحميلها كلها في الخلفية يُثقل اللوحة ويُفوتر قراءات بلا داعٍ.
+ * المستمعان يُلغيان عند تبديل المطعم أو مغادرة الصفحة.
+ *
+ * الكتابة تطابق شكل أداة الاستيراد حقلاً بحقل — فما يُعدَّل هنا وما يُستورد
+ * هناك ينتجان نفس المستند تماماً.
+ */
+function stopMenuListeners() {
+  menuUnsub.forEach((u) => { try { u(); } catch (_) {} });
+  menuUnsub = [];
+}
+
+function loadMenu(rid) {
+  stopMenuListeners();
+  menuRid = rid; menuCats = []; menuItems = [];
+  if (!rid) { renderMenuPage(); return; }
+  menuUnsub.push(onSnapshot(collection(db, 'restaurants', rid, 'categories'),
+    (qs) => { menuCats = qs.docs.map((d) => ({ id: d.id, ...d.data() })); if (page === 'menu') renderMenuPage(); },
+    (err) => console.error('categories', err)));
+  menuUnsub.push(onSnapshot(collection(db, 'restaurants', rid, 'items'),
+    (qs) => { menuItems = qs.docs.map((d) => ({ id: d.id, ...d.data() })); if (page === 'menu') renderMenuPage(); },
+    (err) => console.error('items', err)));
+}
+
+function renderMenuPage() {
+  const restOptions = [...S.restaurants]
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
+    .map((r) => `<option value="${esc(r.id)}" ${r.id === menuRid ? 'selected' : ''}>${esc(restName(r))}</option>`).join('');
+
+  const cats = [...menuCats].sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+  const unavailable = menuItems.filter((i) => i.isAvailable === false).length;
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <div class="field"><label>المطعم</label>
+        <select id="menuRest"><option value="">— اختر مطعماً —</option>${restOptions}</select></div>
+      ${menuRid ? `
+        <div class="kpi-grid">
+          <div class="kpi"><div class="num">${menuItems.length}</div><div class="lbl">صنف</div></div>
+          <div class="kpi"><div class="num">${cats.length}</div><div class="lbl">قسم</div></div>
+          <div class="kpi" style="border-color:${unavailable ? '#ca6f1e' : 'var(--green)'}">
+            <div class="num">${unavailable}</div><div class="lbl">غير متوفر</div></div>
+        </div>
+        <div class="row1" style="margin-top:12px;gap:6px">
+          <button class="toggle-btn on" id="addItemBtn">➕ صنف جديد</button>
+          <button class="toggle-btn" id="addCatBtn">➕ قسم جديد</button>
+          <button class="toggle-btn" data-page="import">📥 استيراد منيو كامل</button>
+        </div>` : '<p class="meta">اختر مطعماً لعرض منيوه وتعديله.</p>'}
+    </div>
+    ${menuRid ? cats.map((c) => {
+      const items = menuItems.filter((i) => i.categoryId === c.id)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+      return `
+        <div class="panel">
+          <div class="row1" style="margin-bottom:8px">
+            <h3 style="margin:0">${esc(c.name || 'قسم')} <span class="meta">(${items.length})</span></h3>
+            <button class="toggle-btn" data-catedit="${esc(c.id)}">✎ تعديل</button>
+          </div>
+          ${items.map((i) => `
+            <div class="card">
+              <div class="row1">
+                <span class="title">${esc(i.emoji || '🍽️')} ${esc(i.name || '')}</span>
+                ${i.isAvailable === false ? badge('نفد', '#c0392b') : badge('متوفر', '#1e8449')}
+              </div>
+              <div class="meta">
+                <b>${fmtMoney(i.price)} ${SAR}</b>
+                ${i.kcal ? ` · ${Number(i.kcal)} سعرة` : ''}
+                ${i.imageUrl ? ' · 🖼️ بصورة' : ' · بلا صورة'}
+                ${i.description ? `<br>${esc(i.description)}` : ''}
+              </div>
+              <div class="row1" style="margin-top:8px;gap:6px">
+                <button class="toggle-btn ${i.isAvailable === false ? 'on' : ''}" data-itoggle="${esc(i.id)}">
+                  ${i.isAvailable === false ? '▶️ أعده للتوفر' : '⏸ نفد الصنف'}</button>
+                <button class="toggle-btn" data-iedit="${esc(i.id)}">✎ تعديل</button>
+                <button class="toggle-btn" data-idel="${esc(i.id)}">🗑</button>
+              </div>
+            </div>`).join('') || '<div class="empty">لا أصناف في هذا القسم</div>'}
+        </div>`;
+    }).join('') : ''}
+    ${menuRid && !cats.length ? '<div class="panel"><div class="empty">لا أقسام بعد — أضف قسماً أو استورد منيو كاملاً</div></div>' : ''}`;
+
+  document.getElementById('menuRest').addEventListener('change', (e) => loadMenu(e.target.value));
+  const ai = document.getElementById('addItemBtn');
+  if (ai) ai.addEventListener('click', () => openItemForm(null));
+  const ac = document.getElementById('addCatBtn');
+  if (ac) ac.addEventListener('click', () => openCatForm(null));
+  $('main').querySelectorAll('[data-iedit]').forEach((b) =>
+    b.addEventListener('click', () => openItemForm(b.dataset.iedit)));
+  $('main').querySelectorAll('[data-itoggle]').forEach((b) =>
+    b.addEventListener('click', () => toggleItem(b.dataset.itoggle)));
+  $('main').querySelectorAll('[data-idel]').forEach((b) =>
+    b.addEventListener('click', () => deleteItem(b.dataset.idel)));
+  $('main').querySelectorAll('[data-catedit]').forEach((b) =>
+    b.addEventListener('click', () => openCatForm(b.dataset.catedit)));
+}
+
+function openCatForm(catId) {
+  const c = catId ? menuCats.find((x) => x.id === catId) : null;
+  openModal(`
+    <h3>${c ? 'تعديل قسم' : 'قسم جديد'}</h3>
+    <div class="field"><label>اسم القسم</label>
+      <input id="ct_name" value="${esc(c?.name || '')}" placeholder="الفطائر الحلوة"></div>
+    <div class="field"><label>الترتيب (الأصغر أولاً)</label>
+      <input id="ct_order" type="number" step="1" value="${Number(c?.sortOrder) || menuCats.length}"></div>
+    <button class="btn block" id="ct_save">حفظ</button>
+    ${c ? '<button class="btn block danger" id="ct_del" style="margin-top:8px">🗑 حذف القسم</button>' : ''}
+  `);
+  document.getElementById('ct_save').addEventListener('click', async () => {
+    const name = document.getElementById('ct_name').value.trim();
+    const sortOrder = Math.round(Number(document.getElementById('ct_order').value) || 0);
+    if (!name) { alert('اكتب اسم القسم'); return; }
+    try {
+      if (c) {
+        await updateDoc(doc(db, 'restaurants', menuRid, 'categories', c.id), { name, sortOrder });
+      } else {
+        await addDoc(collection(db, 'restaurants', menuRid, 'categories'),
+          { name, restaurantId: menuRid, sortOrder });
+      }
+      toast('حُفظ القسم'); closeModal();
+    } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
+  });
+  const del = document.getElementById('ct_del');
+  if (del) del.addEventListener('click', async () => {
+    const n = menuItems.filter((i) => i.categoryId === c.id).length;
+    if (n) { alert(`لا يمكن حذف قسم فيه ${n} صنفاً.\nانقل أصنافه أو احذفها أولاً.`); return; }
+    if (!confirm(`حذف القسم «${c.name}»؟`)) return;
+    try {
+      await deleteDoc(doc(db, 'restaurants', menuRid, 'categories', c.id));
+      toast('حُذف القسم'); closeModal();
+    } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
+  });
+}
+
+function openItemForm(itemId) {
+  const i = itemId ? menuItems.find((x) => x.id === itemId) : null;
+  const catOptions = [...menuCats]
+    .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0))
+    .map((c) => `<option value="${esc(c.id)}" ${c.id === i?.categoryId ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  if (!menuCats.length) { alert('أضف قسماً أولاً — كل صنف ينتمي إلى قسم'); return; }
+  openModal(`
+    <h3>${i ? 'تعديل صنف' : 'صنف جديد'}</h3>
+    <div class="field"><label>القسم</label><select id="it_cat">${catOptions}</select></div>
+    <div class="field"><label>الاسم</label>
+      <input id="it_name" value="${esc(i?.name || '')}" placeholder="فطيرة جبن"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+      <div class="field"><label>السعر (${SAR})</label>
+        <input id="it_price" type="number" min="0" step="any" value="${Number(i?.price) || ''}"></div>
+      <div class="field"><label>السعرات (اختياري)</label>
+        <input id="it_kcal" type="number" min="0" step="1" value="${i?.kcal ?? ''}"></div>
+    </div>
+    <div class="field"><label>الوصف (اختياري)</label>
+      <input id="it_desc" value="${esc(i?.description || '')}"></div>
+    <div class="field"><label>رابط الصورة (اختياري)</label>
+      <input id="it_img" value="${esc(i?.imageUrl || '')}" style="direction:ltr;text-align:left"
+             placeholder="https://zadgo.co/images/item.jpg"></div>
+    <div class="field"><label>الرمز التعبيري (اختياري)</label>
+      <input id="it_emoji" value="${esc(i?.emoji || '')}" maxlength="4" placeholder="🥐"></div>
+    <button class="btn block" id="it_save">حفظ</button>
+  `);
+  document.getElementById('it_save').addEventListener('click', async () => {
+    const name = document.getElementById('it_name').value.trim();
+    const price = Number(document.getElementById('it_price').value);
+    const kcalRaw = document.getElementById('it_kcal').value.trim();
+    const categoryId = document.getElementById('it_cat').value;
+    const imageUrl = document.getElementById('it_img').value.trim();
+    if (!name) { alert('اكتب اسم الصنف'); return; }
+    if (!(price > 0)) { alert('أدخل سعراً أكبر من صفر'); return; }
+    if (imageUrl && !/^https:\/\/\S+$/i.test(imageUrl)) { alert('رابط الصورة يجب أن يبدأ بـ https://'); return; }
+    // نفس الحقول التي تكتبها أداة الاستيراد — فلا يختلف صنف مُعدَّل عن مُستورَد.
+    const payload = {
+      restaurantId: menuRid, categoryId, name, price,
+      description: document.getElementById('it_desc').value.trim(),
+      emoji: document.getElementById('it_emoji').value.trim(),
+      imageUrl: imageUrl || null,
+      kcal: kcalRaw === '' ? null : Math.round(Number(kcalRaw) || 0),
+    };
+    try {
+      if (i) {
+        await updateDoc(doc(db, 'restaurants', menuRid, 'items', i.id), payload);
+      } else {
+        await addDoc(collection(db, 'restaurants', menuRid, 'items'),
+          { ...payload, isAvailable: true, trackStock: false, totalSold: 0 });
+      }
+      toast('حُفظ الصنف'); closeModal();
+    } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
+  });
+}
+
+/* «نفد الصنف» يخفيه عن العميل فوراً دون حذفه — أهم زر في الصفحة عملياً،
+ * فالمطعم ينفد منه صنف يومياً ويعود غداً. */
+async function toggleItem(itemId) {
+  const i = menuItems.find((x) => x.id === itemId);
+  if (!i) return;
+  try {
+    await updateDoc(doc(db, 'restaurants', menuRid, 'items', itemId),
+      { isAvailable: i.isAvailable === false });
+    toast(i.isAvailable === false ? 'عاد الصنف للتوفر' : 'أُخفي الصنف عن العملاء');
+  } catch (err) { alert('تعذر التغيير: ' + (err.code || err.message)); }
+}
+
+async function deleteItem(itemId) {
+  const i = menuItems.find((x) => x.id === itemId);
+  if (!confirm(`حذف «${i?.name}» نهائياً؟\n(«نفد الصنف» يخفيه مؤقتاً دون فقدانه — وهو الأنسب غالباً)`)) return;
+  try {
+    await deleteDoc(doc(db, 'restaurants', menuRid, 'items', itemId));
+    toast('حُذف الصنف');
+  } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
+}
+
 /* ================= أكواد التسجيل =================
  *
  * حسابا السائق ومدير المطعم لا يُنشآن بتسجيل ذاتي — يحتاجان كوداً تُصدره
