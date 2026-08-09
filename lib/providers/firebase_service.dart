@@ -1459,11 +1459,19 @@ class FirebaseService {
 
   /// إنشاء/تعديل كوبون من لوحة الإدارة. `merge` يحفظ عدّاد الاستخدام
   /// القائم فلا يُصفَّر بتعديل قيمة الخصم.
-  Future<void> saveCoupon(models.Coupon coupon) =>
-      _coupons.doc(coupon.code.trim().toUpperCase()).set(
-            coupon.toMap()..remove('usedCount'),
-            SetOptions(merge: true),
-          );
+  Future<void> saveCoupon(models.Coupon coupon) {
+    final data = coupon.toMap()..remove('usedCount');
+    // toMap يُسقط expiresAt حين يكون null، والدمج يُبقي القيمة القديمة في
+    // المستند — فكان زر مسح تاريخ الانتهاء يُظهر نجاحاً والكوبون يحتفظ
+    // بتاريخه القديم صامتاً. تُكتب null صراحةً ليُمحى فعلاً.
+    data['expiresAt'] = coupon.expiresAt == null
+        ? null
+        : Timestamp.fromDate(coupon.expiresAt!);
+    return _coupons.doc(coupon.code.trim().toUpperCase()).set(
+          data,
+          SetOptions(merge: true),
+        );
+  }
 
   Future<void> setCouponActive(String code, bool isActive) =>
       _coupons.doc(code).update({'isActive': isActive});
