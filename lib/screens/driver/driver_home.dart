@@ -11,6 +11,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/complaint_window.dart';
 import '../auth/login_screen.dart';
 import '../auth/change_password_screen.dart';
 import '../auth/edit_profile_screen.dart';
@@ -712,23 +713,36 @@ class _OrderCard extends StatelessWidget {
             // ✅ زر الشكوى — يفتح شاشة تقديم شكوى مشتركة، مع تحديد السائق
             // كمُقدِّم الشكوى (submittedByRole: driver) لتظهر له خيارات
             // "ضد العميل" أو "ضد المطعم" فقط (لا يمكنه الشكوى ضد نفسه).
-            // يختفي بعد انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
-            if (order.canSubmitComplaint)
-              IconButton(
-                icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning),
-                tooltip: 'تقديم شكوى',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SubmitComplaintScreen(
-                      order: order,
-                      submittedByUid: auth.user?.uid ?? '',
-                      submittedByName: auth.user?.name ?? '',
-                      submittedByRole: UserRole.driver,
+            // يختفي في لحظة انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب)،
+            // والمتبقّي في التلميح — والساعات الثلاث الأخيرة بالأحمر.
+            ComplaintWindow(
+              order: order,
+              builder: (context, left, canSubmit) {
+                if (!canSubmit) return const SizedBox.shrink();
+                final urgent = left != null && left.inHours < 3;
+                return IconButton(
+                  icon: Icon(
+                      urgent
+                          ? Icons.timer_outlined
+                          : Icons.report_problem_outlined,
+                      color: urgent ? AppColors.error : AppColors.warning),
+                  tooltip: left == null
+                      ? 'تقديم شكوى'
+                      : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SubmitComplaintScreen(
+                        order: order,
+                        submittedByUid: auth.user?.uid ?? '',
+                        submittedByName: auth.user?.name ?? '',
+                        submittedByRole: UserRole.driver,
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
+            ),
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
           ]),
           const SizedBox(height: 10),

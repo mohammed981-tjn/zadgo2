@@ -23,6 +23,7 @@ import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/complaint_window.dart';
 import '../auth/login_screen.dart';
 import '../auth/change_password_screen.dart';
 import '../customer/submit_complaint_screen.dart';
@@ -573,24 +574,37 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           ),
           const Spacer(),
           // ✅ زر الشكوى — المطعم يقدّم شكوى ضد السائق أو العميل من هنا،
-          // ويختفي بعد انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
-          if (order.canSubmitComplaint)
-            IconButton(
-              icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning, size: 20),
-              tooltip: 'تقديم شكوى',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SubmitComplaintScreen(
-                    order: order,
-                    submittedByUid: auth.user?.uid ?? '',
-                    submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
-                    submittedByRole: UserRole.restaurantManager,
+          // ويختفي في لحظة انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
+          // المتبقّي يظهر في التلميح، ويصير أحمر في ساعاته الثلاث الأخيرة
+          // حتى لا تفوت المطعمَ نافذةُ الاعتراض على طلبٍ فيه إشكال.
+          ComplaintWindow(
+            order: order,
+            builder: (context, left, canSubmit) {
+              if (!canSubmit) return const SizedBox.shrink();
+              final urgent = left != null && left.inHours < 3;
+              return IconButton(
+                icon: Icon(
+                    urgent ? Icons.timer_outlined : Icons.report_problem_outlined,
+                    color: urgent ? AppColors.error : AppColors.warning,
+                    size: 20),
+                tooltip: left == null
+                    ? 'تقديم شكوى'
+                    : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SubmitComplaintScreen(
+                      order: order,
+                      submittedByUid: auth.user?.uid ?? '',
+                      submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
+                      submittedByRole: UserRole.restaurantManager,
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
+          ),
         ]),
         const SizedBox(height: 10),
         Row(children: [

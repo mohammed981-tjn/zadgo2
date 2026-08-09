@@ -10,6 +10,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/app_skeletons.dart';
+import '../../widgets/complaint_window.dart';
 import 'order_receipt_screen.dart';
 import 'order_map_screen.dart';
 import 'order_chat_screen.dart';
@@ -229,27 +230,45 @@ class _OrderCard extends StatelessWidget {
               ),
             // الشكوى: زر واضح بدل أيقونة غامضة. تبقى متاحة بعد التسليم خلال
             // مهلة 24 ساعة (وقت اكتشاف النقص/الخطأ/الجودة)، ثم يُغلق الطلب.
+            // العدّاد حيّ: ينزل من تلقائه وينقلب إلى «انتهت المهلة» في لحظته
+            // بلا انتظار تحديثٍ من الخادم.
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: order.canSubmitComplaint
-                  ? SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.report_problem_outlined, size: 18),
-                        label: Text(_complaintLabel()),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.warning,
-                          side: const BorderSide(color: AppColors.warning),
-                        ),
-                        onPressed: () => _openComplaint(context, auth),
-                      ),
-                    )
-                  : Row(children: [
-                      const Icon(Icons.lock_outline, size: 15, color: AppColors.textGray),
-                      const SizedBox(width: 6),
-                      const Text('انتهت مهلة تقديم الشكوى',
+              child: ComplaintWindow(
+                order: order,
+                builder: (context, left, canSubmit) {
+                  if (!canSubmit) {
+                    return const Row(children: [
+                      Icon(Icons.lock_outline, size: 15, color: AppColors.textGray),
+                      SizedBox(width: 6),
+                      Text('انتهت مهلة تقديم الشكوى',
                           style: TextStyle(fontSize: 12, color: AppColors.textGray)),
-                    ]),
+                    ]);
+                  }
+                  // الساعات الثلاث الأخيرة تُعرض بالأحمر: تنبيه أن النافذة
+                  // توشك أن تُغلق، لا مجرّد رقم يتناقص بلا دلالة.
+                  final urgent = left != null && left.inHours < 3;
+                  final color = urgent ? AppColors.error : AppColors.warning;
+                  return SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: Icon(
+                          urgent
+                              ? Icons.timer_outlined
+                              : Icons.report_problem_outlined,
+                          size: 18),
+                      label: Text(left == null
+                          ? 'تقديم شكوى'
+                          : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: color,
+                        side: BorderSide(color: color),
+                      ),
+                      onPressed: () => _openComplaint(context, auth),
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -358,16 +377,6 @@ class _OrderCard extends StatelessWidget {
         showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
       }
     }
-  }
-
-  /// نص زر الشكوى — يُظهر ما تبقّى من المهلة على الطلبات المنتهية حتى يعرف
-  /// العميل أن الوقت محدود، بدل أن يفاجئه الإغلاق.
-  String _complaintLabel() {
-    final left = order.complaintTimeLeft;
-    if (left == null) return 'تقديم شكوى';
-    final hours = left.inHours;
-    if (hours >= 1) return 'تقديم شكوى (متبقٍ $hours ساعة)';
-    return 'تقديم شكوى (متبقٍ ${left.inMinutes} دقيقة)';
   }
 
   void _openComplaint(BuildContext context, app_auth.AuthProvider auth) {
