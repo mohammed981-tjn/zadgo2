@@ -241,9 +241,13 @@ service cloud.firestore {
       // بعد) — يُشدَّد لاحقاً مع المسار د.
       allow update: if isSignedIn() && (
             isAdmin() ||
+            // referredByCode/referralRewarded ضمن المحميّة: الأول يُثبَّت
+            // لحظة التسجيل فلا تُدّعى إحالة بأثر رجعي، والثاني ختمُ الصرف
+            // فلا يُعاد تصفيره لقبض المكافأة مرتين.
             (isDriver() && currentUid() == driverId &&
                 !changedKeys().hasAny(
-                    ['warningCount', 'totalEarnings', 'rating', 'ratingCount'])) ||
+                    ['warningCount', 'totalEarnings', 'rating', 'ratingCount',
+                     'referredByCode', 'referralRewarded'])) ||
             (!isCustomer() && changedKeys().hasOnly(['isAvailable'])) ||
             (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']))
           );
@@ -423,7 +427,12 @@ service cloud.firestore {
     // مقصورتان على المدير العام فقط.
     // ---------------------------------------------------------------------
     match /delivery_settings/{settingId} {
-      allow read, write: if isAdmin();
+      // مستند الحوافز (incentives) يقرؤه أي مسجَّل: بطاقتا الإحالة والتحدي
+      // في تطبيق الكابتن تعرضان مبالغ الإدارة اللحظية، فلا يَعِد التطبيق
+      // بمبلغ يخالف ما سيُصرف. بقية الإعدادات (مُهل الطلبات) للمدير وحده،
+      // والكتابة للمدير في الحالتين.
+      allow read: if isAdmin() || (settingId == 'incentives' && isSignedIn());
+      allow write: if isAdmin();
     }
 
     // ---------------------------------------------------------------------

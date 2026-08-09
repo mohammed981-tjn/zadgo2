@@ -18,6 +18,7 @@ import 'admin_driver_ledger_screen.dart';
 import 'admin_banners_screen.dart';
 import 'admin_payout_requests_screen.dart';
 import 'admin_coupons_screen.dart';
+import 'admin_incentives_screen.dart';
 import '../auth/change_password_screen.dart';
 import 'admin_registration_codes_screen.dart';
 
@@ -144,6 +145,15 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات سحب السائقين', child: AdminPayoutRequestsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.emoji_events_outlined),
+              title: const Text('الحوافز والإحالات'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'الحوافز والإحالات', child: AdminIncentivesScreen())));
               },
             ),
             ListTile(

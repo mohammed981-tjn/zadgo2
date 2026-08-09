@@ -857,6 +857,22 @@ class Driver {
   final int offersTotal;
   final int offersAccepted;
 
+  /// كود الداعي الذي أدخله هذا السائق عند تسجيله — أساس برنامج الإحالة.
+  /// كان البرنامج نصَّ مشاركة بلا أي حقل يسجّل «من دعا من»، فالتتبّع في
+  /// ذاكرة المدير وحدها: لا منع ازدواج ولا تحقّق من الشرط.
+  final String referredByCode;
+
+  /// هل صُرفت مكافأة إحالة هذا السائق (للداعي وله)؟ يمنع الصرف مرتين.
+  final bool referralRewarded;
+
+  /// تاريخ الانضمام — تُحسب منه نافذة شرط الإحالة (٣٠ يوماً افتراضياً).
+  final DateTime? createdAt;
+
+  /// كود إحالة السائق الذي يشاركه مع من يدعوهم. مشتقّ من معرّفه لا مخزَّن:
+  /// لا مجموعة جديدة ولا خطر تعارض، وثابت مدى الحياة.
+  String get referralCode =>
+      id.length >= 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
+
   /// معدل القبول 0..1 — null قبل أول عرض حتى لا يُعرض «0٪» ظلماً.
   double? get acceptanceRate =>
       offersTotal > 0 ? offersAccepted / offersTotal : null;
@@ -881,6 +897,9 @@ class Driver {
     this.warningCount = 0,
     this.offersTotal = 0,
     this.offersAccepted = 0,
+    this.referredByCode = '',
+    this.referralRewarded = false,
+    this.createdAt,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -903,6 +922,9 @@ class Driver {
         warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
         offersTotal: (map['offersTotal'] as num?)?.toInt() ?? 0,
         offersAccepted: (map['offersAccepted'] as num?)?.toInt() ?? 0,
+        referredByCode: map['referredByCode'] as String? ?? '',
+        referralRewarded: map['referralRewarded'] as bool? ?? false,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -925,7 +947,196 @@ class Driver {
         'warningCount': warningCount,
         'offersTotal': offersTotal,
         'offersAccepted': offersAccepted,
+        'referredByCode': referredByCode,
+        'referralRewarded': referralRewarded,
+        if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       };
+}
+
+/// مستوى واحد في تحدي نهاية الأسبوع: عدد توصيلات ومكافأتها.
+class ChallengeTier {
+  final int deliveries;
+  final double bonus;
+
+  const ChallengeTier({required this.deliveries, required this.bonus});
+
+  factory ChallengeTier.fromMap(Map<String, dynamic> m) => ChallengeTier(
+        deliveries: (m['deliveries'] as num?)?.toInt() ?? 0,
+        bonus: (m['bonus'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'deliveries': deliveries, 'bonus': bonus};
+}
+
+/// إعدادات الحوافز — كل مبلغ وكل شرط يضبطه المدير من لوحته، فلا رقم
+/// مبرمَج في الكود يحتاج إصداراً جديداً لتغييره. الافتراضيات هنا هي
+/// المعتمدة عند أول تشغيل (قبل أن يحفظ المدير إعداداته).
+///
+/// المبالغ الافتراضية محسوبة على اقتصاد ZadGo: كل توصيلة تُدخل للمنصّة
+/// رسمها الثابت (3 ر.س)، فشرط 30 توصيلة يعني 90 ر.س دخلاً قبل صرف 80 ر.س
+/// مكافآت — أي أن الإحالة مربحة من أول سائق.
+class IncentiveSettings {
+  // ————— برنامج الإحالة —————
+  final bool referralEnabled;
+
+  /// مكافأة الداعي، وتُصرف بعد أن يُكمل المدعوّ شرط التوصيلات.
+  final double referrerBonus;
+
+  /// مكافأة ترحيب للمدعوّ نفسه بنفس الشرط.
+  final double refereeBonus;
+
+  /// عدد التوصيلات المطلوب من المدعوّ خلال [referralWindowDays] يوماً.
+  /// الشرط جوهر البرنامج: الدفع على سائق يعمل فعلاً لا على تسجيل.
+  final int referralDeliveries;
+  final int referralWindowDays;
+
+  /// سقف الإحالات المدفوعة للداعي الواحد شهرياً — يمنع تحوّل البرنامج
+  /// إلى مهنة قائمة بذاتها.
+  final int referralMonthlyCap;
+
+  // ————— تحدي نهاية الأسبوع —————
+  final bool challengeEnabled;
+
+  /// أيام التحدي بترقيم DateTime (الاثنين 1 … الأحد 7)؛ الافتراضي
+  /// الخميس (4) والجمعة (5) — نهاية الأسبوع السعودية وذروة الطلب.
+  final List<int> challengeWeekdays;
+
+  /// مستويات تصاعدية؛ يُصرف للسائق **أعلى** مستوى بلغه لا مجموعها.
+  final List<ChallengeTier> tiers;
+
+  const IncentiveSettings({
+    this.referralEnabled = true,
+    this.referrerBonus = 50,
+    this.refereeBonus = 30,
+    this.referralDeliveries = 30,
+    this.referralWindowDays = 30,
+    this.referralMonthlyCap = 3,
+    this.challengeEnabled = true,
+    this.challengeWeekdays = const [DateTime.thursday, DateTime.friday],
+    this.tiers = const [
+      ChallengeTier(deliveries: 10, bonus: 20),
+      ChallengeTier(deliveries: 20, bonus: 50),
+    ],
+  });
+
+  factory IncentiveSettings.fromMap(Map<String, dynamic> map) {
+    const d = IncentiveSettings();
+    final rawTiers = map['tiers'];
+    final rawDays = map['challengeWeekdays'];
+    return IncentiveSettings(
+      referralEnabled: map['referralEnabled'] as bool? ?? d.referralEnabled,
+      referrerBonus:
+          (map['referrerBonus'] as num?)?.toDouble() ?? d.referrerBonus,
+      refereeBonus:
+          (map['refereeBonus'] as num?)?.toDouble() ?? d.refereeBonus,
+      referralDeliveries:
+          (map['referralDeliveries'] as num?)?.toInt() ?? d.referralDeliveries,
+      referralWindowDays: (map['referralWindowDays'] as num?)?.toInt() ??
+          d.referralWindowDays,
+      referralMonthlyCap: (map['referralMonthlyCap'] as num?)?.toInt() ??
+          d.referralMonthlyCap,
+      challengeEnabled: map['challengeEnabled'] as bool? ?? d.challengeEnabled,
+      challengeWeekdays: rawDays is List && rawDays.isNotEmpty
+          ? rawDays.map((e) => (e as num).toInt()).toList()
+          : d.challengeWeekdays,
+      tiers: rawTiers is List && rawTiers.isNotEmpty
+          ? (rawTiers
+              .whereType<Map>()
+              .map((e) => ChallengeTier.fromMap(e.cast<String, dynamic>()))
+              .where((t) => t.deliveries > 0)
+              .toList()
+            ..sort((a, b) => a.deliveries.compareTo(b.deliveries)))
+          : d.tiers,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'referralEnabled': referralEnabled,
+        'referrerBonus': referrerBonus,
+        'refereeBonus': refereeBonus,
+        'referralDeliveries': referralDeliveries,
+        'referralWindowDays': referralWindowDays,
+        'referralMonthlyCap': referralMonthlyCap,
+        'challengeEnabled': challengeEnabled,
+        'challengeWeekdays': challengeWeekdays,
+        'tiers': tiers.map((t) => t.toMap()).toList(),
+      };
+
+  IncentiveSettings copyWith({
+    bool? referralEnabled,
+    double? referrerBonus,
+    double? refereeBonus,
+    int? referralDeliveries,
+    int? referralWindowDays,
+    int? referralMonthlyCap,
+    bool? challengeEnabled,
+    List<int>? challengeWeekdays,
+    List<ChallengeTier>? tiers,
+  }) =>
+      IncentiveSettings(
+        referralEnabled: referralEnabled ?? this.referralEnabled,
+        referrerBonus: referrerBonus ?? this.referrerBonus,
+        refereeBonus: refereeBonus ?? this.refereeBonus,
+        referralDeliveries: referralDeliveries ?? this.referralDeliveries,
+        referralWindowDays: referralWindowDays ?? this.referralWindowDays,
+        referralMonthlyCap: referralMonthlyCap ?? this.referralMonthlyCap,
+        challengeEnabled: challengeEnabled ?? this.challengeEnabled,
+        challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
+        tiers: tiers ?? this.tiers,
+      );
+
+  /// أعلى مستوى بلغه سائق أنجز [count] توصيلة — `null` إن لم يبلغ أدناها.
+  ChallengeTier? tierFor(int count) {
+    ChallengeTier? reached;
+    for (final t in tiers) {
+      if (count >= t.deliveries) reached = t;
+    }
+    return reached;
+  }
+
+  /// المستوى التالي الذي يسعى إليه — `null` إن بلغ أعلاها.
+  ChallengeTier? nextTierFor(int count) {
+    for (final t in tiers) {
+      if (count < t.deliveries) return t;
+    }
+    return null;
+  }
+
+  /// نافذة التحدي الحالية (بدايتها ونهايتها) المحيطة بـ [now]، أو `null`
+  /// حين لا تكون أيام التحدي جارية. الأيام المتتالية تُعدّ نافذة واحدة
+  /// (الخميس والجمعة معاً)، فيُحسب التقدّم عبر اليومين لا لكل يوم وحده.
+  (DateTime, DateTime)? currentWindow(DateTime now) {
+    if (!challengeEnabled || challengeWeekdays.isEmpty || tiers.isEmpty) {
+      return null;
+    }
+    if (!challengeWeekdays.contains(now.weekday)) return null;
+    var start = DateTime(now.year, now.month, now.day);
+    // التراجع لأول يوم متصل بأيام التحدي حتى تُحسب نافذة واحدة ممتدة.
+    while (challengeWeekdays
+        .contains(start.subtract(const Duration(days: 1)).weekday)) {
+      start = start.subtract(const Duration(days: 1));
+    }
+    var end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    while (challengeWeekdays.contains(end.add(const Duration(days: 1)).weekday)) {
+      end = end.add(const Duration(days: 1));
+    }
+    return (start, end);
+  }
+
+  /// أسماء أيام التحدي للعرض.
+  String get weekdaysLabel {
+    const names = {
+      DateTime.monday: 'الاثنين',
+      DateTime.tuesday: 'الثلاثاء',
+      DateTime.wednesday: 'الأربعاء',
+      DateTime.thursday: 'الخميس',
+      DateTime.friday: 'الجمعة',
+      DateTime.saturday: 'السبت',
+      DateTime.sunday: 'الأحد',
+    };
+    return challengeWeekdays.map((d) => names[d] ?? '').join(' و');
+  }
 }
 
 /// دفعة تسوية سُلّمت لمطعم مقابل مستحقّاته.
