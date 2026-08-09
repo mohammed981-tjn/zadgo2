@@ -8,6 +8,7 @@
 // المطعم المربوط به إن وُجد. حين لا بنرات فعّالة يختفي الشريط كلياً بلا
 // أي فراغ — الشاشة تعود كما كانت تماماً.
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
@@ -85,24 +86,21 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Stack(fit: StackFit.expand, children: [
-                        Image.network(
-                          b.imageUrl,
+                        CachedNetworkImage(
+                          imageUrl: b.imageUrl,
                           fit: BoxFit.cover,
-                          // فكّ الترميز بعرض معقول للبنر لا بحجم الملف الأصلي.
-                          cacheWidth: 1200,
+                          // فكّ الترميز بعرض معقول للبنر لا بحجم الملف الأصلي،
+                          // والتخزين على القرص يعرضه فورياً من ثاني فتح.
+                          memCacheWidth: 1200,
                           // بديل هادئ عند فشل التحميل بدل أيقونة كسر قبيحة.
-                          errorBuilder: (_, __, ___) => Container(
+                          errorWidget: (_, __, ___) => Container(
                             color: AppColors.primary.withOpacity(0.1),
                             alignment: Alignment.center,
                             child: const Icon(Icons.local_offer_outlined,
                                 color: AppColors.primary, size: 34),
                           ),
-                          loadingBuilder: (ctx, child, progress) =>
-                              progress == null
-                                  ? child
-                                  : Container(
-                                      color: AppColors.surface,
-                                    ),
+                          placeholder: (_, __) =>
+                              Container(color: AppColors.surface),
                         ),
                         if (b.title.trim().isNotEmpty)
                           Positioned(
