@@ -419,6 +419,15 @@ class FirebaseService {
   Future<void> addCategory(models.MenuCategory cat) =>
       _categories(cat.restaurantId).doc(cat.id).set(cat.toMap());
 
+  /// جلب أصناف مطعم مرة واحدة — لإعادة الطلب: تُطابَق أصناف الطلب القديم مع
+  /// القائمة الحالية (أسعارها وتوفرها اليوم، لا كما كانت وقت الطلب).
+  Future<List<models.MenuItem>> getMenuItemsOnce(String rId) async {
+    final snap = await _items(rId).get();
+    return snap.docs
+        .map((d) => models.MenuItem.fromMap(d.data(), d.id))
+        .toList();
+  }
+
   Stream<List<models.MenuItem>> streamMenuItems(String rId) => _items(rId)
       .snapshots()
       .map((s) => s.docs.map((d) => models.MenuItem.fromMap(d.data(), d.id)).toList());

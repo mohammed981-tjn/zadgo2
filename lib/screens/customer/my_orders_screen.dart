@@ -5,6 +5,7 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
+import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -13,6 +14,7 @@ import 'order_receipt_screen.dart';
 import 'order_map_screen.dart';
 import 'order_chat_screen.dart';
 import 'submit_complaint_screen.dart';
+import 'cart_screen.dart';
 
 /// شاشة طلبات العميل — مقسّمة إلى تبويبين: «جارية» للطلبات التي تحتاج متابعة
 /// لحظية (خريطة/محادثة)، و«السابقة» كسجلّ للتصفّح. الفصل مقصود لأن غرض كل
@@ -158,6 +160,21 @@ class _OrderCard extends StatelessWidget {
             Text(formatCurrency(order.grandTotal),
                 style: const TextStyle(
                     fontWeight: FontWeight.bold, color: AppColors.primary)),
+            // إعادة الطلب بضغطة — أرخص ميزة تزيد تكرار الشراء (معيار جاهز/
+            // كيتا): تُبنى السلة من القائمة الحالية للمطعم (أسعار وتوفّر
+            // اليوم)، ويُبلَّغ العميل بما لم يعد متوفراً بدل فشل صامت.
+            if (!order.status.isActive)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.replay_rounded, size: 18),
+                    label: const Text('اطلب مجدداً'),
+                    onPressed: () => _reorder(context),
+                  ),
+                ),
+              ),
             if (order.status == OrderStatus.delivered && !order.isRated)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -238,6 +255,72 @@ class _OrderCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _reorder(BuildContext context) async {
+    final service = context.read<FirebaseService>();
+    final cart = context.read<CartProvider>();
+
+    // سلة فيها أصناف من مطعم آخر ستُفرَّغ (قاعدة «مطعم واحد للسلة») —
+    // بموافقة صريحة لا بمسح صامت.
+    if (!cart.isEmpty && cart.restaurantId != order.restaurantId) {
+      final ok = await showConfirmDialog(
+        context,
+        title: 'استبدال السلة؟',
+        content:
+            'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} — '
+            'ستُستبدل بأصناف هذا الطلب.',
+        confirmLabel: 'استبدال',
+      );
+      if (ok != true || !context.mounted) return;
+    }
+
+    try {
+      final restaurant = await service.getRestaurantOnce(order.restaurantId);
+      if (restaurant == null) {
+        if (context.mounted) showError(context, 'هذا المطعم لم يعد متوفراً');
+        return;
+      }
+      if (!restaurant.isOpen) {
+        if (context.mounted) {
+          showError(context, '${restaurant.name} مغلق حالياً — جرّب لاحقاً');
+        }
+        return;
+      }
+
+      final menu = await service.getMenuItemsOnce(order.restaurantId);
+      final byId = {for (final m in menu) m.id: m};
+
+      var added = 0, skipped = 0;
+      for (final oi in order.items) {
+        final current = byId[oi.menuItemId];
+        if (current == null || !current.isAvailable) {
+          skipped++;
+          continue;
+        }
+        for (var q = 0; q < oi.quantity; q++) {
+          cart.add(current, restaurant.id, restaurant.name, restaurant.emoji,
+              restaurant.driverShareFee, restaurant.appShareFee);
+        }
+        added++;
+      }
+
+      if (!context.mounted) return;
+      if (added == 0) {
+        showError(context, 'أصناف هذا الطلب لم تعد متوفرة في القائمة');
+        return;
+      }
+      if (skipped > 0) {
+        showSuccess(context,
+            'أُضيف $added من الأصناف — و$skipped لم يعد متوفراً فتُرك');
+      }
+      Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const CartScreen()));
+    } catch (_) {
+      if (context.mounted) {
+        showError(context, 'تعذّر تجهيز السلة — تحقق من اتصالك وحاول مجدداً');
+      }
+    }
   }
 
   Future<void> _cancelOrder(BuildContext context, FirebaseService service) async {
