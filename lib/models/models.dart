@@ -925,6 +925,114 @@ class Driver {
       };
 }
 
+/// نوع خصم الكوبون.
+enum CouponType { percentage, fixed }
+
+CouponType _couponTypeFromString(String? raw) => _enumValueFromString<CouponType>(
+      raw,
+      CouponType.values,
+      CouponType.percentage,
+      'CouponType',
+    );
+
+/// كود خصم ترويجي. الخصم **تسويقٌ تموّله المنصّة من حصّتها** — لا يُنقص
+/// مستحق المطعم ولا أجرة السائق، وهو ما يجعله آمناً تشغيلياً بلا تفاوض.
+///
+/// معرّف المستند هو الكود نفسه (بحروف كبيرة)، فالتحقق قراءةُ مستند واحد
+/// لا استعلام — أسرع، وقواعده أبسط.
+class Coupon {
+  final String code;
+  final CouponType type;
+
+  /// نسبة مئوية (10 = 10%) أو مبلغ ثابت بالريال حسب [type].
+  final double value;
+
+  /// حد أدنى لقيمة الوجبات لتفعيل الكوبون (0 = بلا حد).
+  final double minOrderTotal;
+
+  /// سقف الخصم بالريال للنوع النسبي (0 = بلا سقف) — يمنع «20% على طلب
+  /// 500 ريال» من ابتلاع دخل المنصّة.
+  final double maxDiscount;
+
+  /// حد الاستخدام الكلي (0 = بلا حد) وعدد ما استُخدم فعلاً.
+  final int usageLimit;
+  final int usedCount;
+
+  /// كم مرة يحق للمستخدم الواحد استخدامه (افتراضياً مرة واحدة).
+  final int perUserLimit;
+
+  /// مقصور على مطعم بعينه؟ (فارغ = كل المطاعم)
+  final String restaurantId;
+
+  final DateTime? expiresAt;
+  final bool isActive;
+  final DateTime createdAt;
+
+  const Coupon({
+    required this.code,
+    this.type = CouponType.percentage,
+    required this.value,
+    this.minOrderTotal = 0,
+    this.maxDiscount = 0,
+    this.usageLimit = 0,
+    this.usedCount = 0,
+    this.perUserLimit = 1,
+    this.restaurantId = '',
+    this.expiresAt,
+    this.isActive = true,
+    required this.createdAt,
+  });
+
+  bool get isExpired =>
+      expiresAt != null && DateTime.now().isAfter(expiresAt!);
+
+  bool get isExhausted => usageLimit > 0 && usedCount >= usageLimit;
+
+  /// وصف مختصر للعرض: «20% حتى 15 ر.س» أو «10 ر.س».
+  String get label => type == CouponType.percentage
+      ? '${value.toStringAsFixed(0)}%${maxDiscount > 0 ? ' حتى ${maxDiscount.toStringAsFixed(0)} ر.س' : ''}'
+      : '${value.toStringAsFixed(0)} ر.س';
+
+  /// قيمة الخصم على مبلغ معيّن — لا تتجاوز المبلغ نفسه أبداً (فلا يصير
+  /// الإجمالي سالباً ولا تدفع المنصّة للعميل).
+  double discountFor(double amount) {
+    final raw = type == CouponType.percentage
+        ? amount * (value / 100)
+        : value;
+    final capped = (maxDiscount > 0 && raw > maxDiscount) ? maxDiscount : raw;
+    return capped > amount ? amount : capped;
+  }
+
+  factory Coupon.fromMap(Map<String, dynamic> map, String id) => Coupon(
+        code: id,
+        type: _couponTypeFromString(map['type'] as String?),
+        value: (map['value'] as num?)?.toDouble() ?? 0,
+        minOrderTotal: (map['minOrderTotal'] as num?)?.toDouble() ?? 0,
+        maxDiscount: (map['maxDiscount'] as num?)?.toDouble() ?? 0,
+        usageLimit: (map['usageLimit'] as num?)?.toInt() ?? 0,
+        usedCount: (map['usedCount'] as num?)?.toInt() ?? 0,
+        perUserLimit: (map['perUserLimit'] as num?)?.toInt() ?? 1,
+        restaurantId: map['restaurantId'] as String? ?? '',
+        expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
+        isActive: map['isActive'] as bool? ?? true,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'type': type.name,
+        'value': value,
+        'minOrderTotal': minOrderTotal,
+        'maxDiscount': maxDiscount,
+        'usageLimit': usageLimit,
+        'usedCount': usedCount,
+        'perUserLimit': perUserLimit,
+        'restaurantId': restaurantId,
+        if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
+        'isActive': isActive,
+        'createdAt': Timestamp.fromDate(createdAt),
+      };
+}
+
 /// حالة طلب سحب مستحقّات السائق.
 enum PayoutRequestStatus { pending, paid, rejected }
 
@@ -1316,6 +1424,12 @@ class Order {
   /// ٧:٣٥ = التأخير من المطعم لا من السائق.
   final DateTime? arrivedAtRestaurantAt;
 
+  /// كود الخصم المطبَّق على الطلب (إن وُجد) وقيمة خصمه بالريال. القيمة
+  /// تُحفظ محسوبةً لا كنسبة، فتبقى الفاتورة صحيحة حتى لو عُدّل الكوبون
+  /// أو حُذف لاحقاً.
+  final String? couponCode;
+  final double discountAmount;
+
   const Order({
     required this.id,
     required this.restaurantId,
@@ -1353,6 +1467,8 @@ class Order {
     this.driverAcknowledged = true,
     this.custodyDebited = false,
     this.arrivedAtRestaurantAt,
+    this.couponCode,
+    this.discountAmount = 0,
   });
 
   /// عُهدة الطلب النقدي على السائق لحظة استلامه: قيمة الوجبات (للمطعم)
@@ -1364,16 +1480,32 @@ class Order {
   /// أجرة توصيله ليست ضمن العُهدة — يستوفيها من النقد الذي يحصّله؛ وإن
   /// غطّت المحفظة أكثر من حصّتَي المطعم والمنصّة صارت القيمة سالبة =
   /// مستحق للسائق تقيّده المنصّة له (كالطلب الإلكتروني تماماً).
-  double get custodyAmount => itemsTotal + appShare - walletUsed;
+  /// وخصم الكوبون كذلك: تسويقٌ تتحمّله المنصّة من حصّتها، فلا يُنقص مستحق
+  /// المطعم ولا أجرة السائق — والسائق لن يحصّله نقداً فلا يُقيَّد عليه.
+  double get custodyAmount =>
+      itemsTotal + appShare - walletUsed - discountAmount;
 
   double get deliveryFee => driverShare + appShare;
   double get itemsTotal => items.fold(0.0, (s, i) => s + i.subtotal);
+
+  /// إجمالي الطلب قبل أي خصم — الأساس المحاسبي الثابت (وعليه تُبنى
+  /// حصص المطعم والسائق والمنصّة).
   double get grandTotal => itemsTotal + deliveryFee;
+
+  /// ما يدفعه العميل فعلاً بعد خصم الكوبون (لا يشمل خصم المحفظة، فذاك
+  /// دفعٌ من رصيده لا تخفيض للقيمة).
+  double get payableTotal => grandTotal - discountAmount;
+
   double get calculatedCommission => itemsTotal * 0.15;
 
   /// صافي مستحقّات المطعم = قيمة الوجبات بعد خصم عمولة التطبيق (15%). قيمة
   /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.
+  /// خصم الكوبون لا يمسّه — تتحمّله المنصّة وحدها.
   double get restaurantNet => itemsTotal - platformCommission;
+
+  /// دخل المنصّة من هذا الطلب: عمولة الوجبات + رسم التوصيل الثابت، ناقصاً
+  /// خصم الكوبون الذي موّلته.
+  double get platformNet => platformCommission + appShare - discountAmount;
 
   /// مهلة تقديم الشكوى بعد انتهاء الطلب — 24 ساعة، وهي النافذة المعتمدة في
   /// تطبيقات التوصيل الكبرى: تكفي لاكتشاف النقص/الخطأ/الجودة بعد فتح الطلب،
@@ -1450,6 +1582,8 @@ class Order {
         custodyDebited: map['custodyDebited'] as bool? ?? false,
         arrivedAtRestaurantAt:
             (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
+        couponCode: map['couponCode'] as String?,
+        discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -1491,6 +1625,8 @@ class Order {
         'custodyDebited': custodyDebited,
         if (arrivedAtRestaurantAt != null)
           'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
+        if (couponCode != null) 'couponCode': couponCode,
+        'discountAmount': discountAmount,
       };
 
   Order copyWith({
@@ -1546,6 +1682,8 @@ class Order {
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
         custodyDebited: custodyDebited,
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
+        couponCode: couponCode,
+        discountAmount: discountAmount,
       );
 }
 

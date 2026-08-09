@@ -17,6 +17,7 @@ import 'admin_reports_tab.dart';
 import 'admin_driver_ledger_screen.dart';
 import 'admin_banners_screen.dart';
 import 'admin_payout_requests_screen.dart';
+import 'admin_coupons_screen.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
 /// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
@@ -105,6 +106,15 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'البنرات الترويجية', child: AdminBannersScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_offer_outlined),
+              title: const Text('أكواد الخصم'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد الخصم', child: AdminCouponsScreen())));
               },
             ),
             ListTile(
@@ -207,11 +217,12 @@ class _StatsTabState extends State<_StatsTab> {
               o.status == OrderStatus.restaurantRejected)
           .length;
 
-      // المال — بنفس قواعد التسعير المعتمدة: إيراد العميل، عمولة المنصة
-      // (15% من الوجبات + الرسم الثابت)، وصافي المطاعم بعد العمولة.
-      final revenue = deliveredOrders.fold(0.0, (s, o) => s + o.grandTotal);
-      final platformIncome = deliveredOrders.fold(
-          0.0, (s, o) => s + o.platformCommission + o.appShare);
+      // المال — بنفس قواعد التسعير المعتمدة: ما دفعه العميل فعلاً (بعد خصم
+      // الكوبون)، ودخل المنصة (15% من الوجبات + الرسم الثابت − الخصومات
+      // التي موّلتها)، وصافي المطاعم بعد العمولة.
+      final revenue = deliveredOrders.fold(0.0, (s, o) => s + o.payableTotal);
+      final platformIncome =
+          deliveredOrders.fold(0.0, (s, o) => s + o.platformNet);
       final restaurantsNet =
           deliveredOrders.fold(0.0, (s, o) => s + o.restaurantNet);
 

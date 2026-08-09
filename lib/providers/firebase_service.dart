@@ -516,6 +516,17 @@ class FirebaseService {
       ...order.toMap(),
       if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
     });
+    // تقييد استخدام الكوبون بعد ثبوت الطلب لا قبله — فلا يُستهلك كودٌ على
+    // طلب لم يُنشأ. وفشل التقييد لا يُسقط الطلب: الخصم محفوظ داخله أصلاً.
+    final code = order.couponCode;
+    if (code != null && code.isNotEmpty && order.discountAmount > 0) {
+      try {
+        await _recordCouponUse(
+            code: code, userId: order.customerId, orderId: order.id);
+      } catch (e) {
+        debugPrint('⚠️ تعذّر تقييد استخدام الكوبون $code: $e');
+      }
+    }
     // إشعار فوري لمديري المطعم بالطلب الجديد عبر الخادم المرافق — بدونه لا
     // يعلم المطعم بالطلب إلا حين يكون تطبيقه مفتوحاً على الشاشة.
     NotifyRelay.orderEvent(order.id, OrderEvent.created);
@@ -1239,6 +1250,104 @@ class FirebaseService {
   }
 
   // -------------------------------------------------------------------------
+  // أكواد الخصم — التحقق عند العميل، والتقييد عند إنشاء الطلب.
+  // -------------------------------------------------------------------------
+
+  CollectionReference<Map<String, dynamic>> get _coupons =>
+      _db.collection('coupons');
+
+  /// سجلّ استخدام الكوبونات: معرّف المستند `CODE_uid` فيمنع تكرار المستخدم
+  /// نفسه بلا استعلام، ويُحصى منه عدد مرّاته.
+  CollectionReference<Map<String, dynamic>> get _couponUsages =>
+      _db.collection('coupon_usages');
+
+  String _usageId(String code, String uid) => '${code}_$uid';
+
+  /// التحقق من كود خصم قبل تطبيقه. يرمي رسالة عربية مفهومة عند كل سبب رفض،
+  /// ويعيد الكوبون صالحاً.
+  ///
+  /// ملاحظة أمنية: هذا تحقّق واجهة لتجربة المستخدم؛ الحارس النهائي أن قيمة
+  /// الخصم تُعاد كتابتها من الكوبون نفسه لحظة إنشاء الطلب (لا من الشاشة)،
+  /// وأن القواعد تمنع أي عبث بعدّاد الاستخدام.
+  Future<models.Coupon> validateCoupon({
+    required String rawCode,
+    required String userId,
+    required double itemsTotal,
+    required String restaurantId,
+  }) async {
+    final code = rawCode.trim().toUpperCase();
+    if (code.isEmpty) throw Exception('اكتب كود الخصم');
+    final doc = await _coupons.doc(code).get();
+    if (!doc.exists || doc.data() == null) {
+      throw Exception('كود الخصم غير صحيح');
+    }
+    final coupon = models.Coupon.fromMap(doc.data()!, doc.id);
+    if (!coupon.isActive) throw Exception('هذا الكود موقوف');
+    if (coupon.isExpired) throw Exception('انتهت صلاحية هذا الكود');
+    if (coupon.isExhausted) throw Exception('استُنفد هذا الكود');
+    if (coupon.restaurantId.isNotEmpty && coupon.restaurantId != restaurantId) {
+      throw Exception('هذا الكود لا يسري على هذا المطعم');
+    }
+    if (itemsTotal < coupon.minOrderTotal) {
+      throw Exception(
+          'الكود يبدأ من ${coupon.minOrderTotal.toStringAsFixed(0)} ر.س للوجبات');
+    }
+    if (coupon.perUserLimit > 0) {
+      final usageDoc = await _couponUsages.doc(_usageId(code, userId)).get();
+      final used = (usageDoc.data()?['count'] as num?)?.toInt() ?? 0;
+      if (used >= coupon.perUserLimit) {
+        throw Exception('استخدمت هذا الكود من قبل');
+      }
+    }
+    return coupon;
+  }
+
+  /// تقييد استخدام الكوبون بعد نجاح الطلب — عدّاد كلي + عدّاد لكل مستخدم.
+  /// يُستدعى بعد [placeOrder]؛ فشله لا يُلغي الطلب (الخصم مسجَّل في الطلب
+  /// نفسه) لكنه يُسجَّل في السجلّ.
+  Future<void> _recordCouponUse({
+    required String code,
+    required String userId,
+    required String orderId,
+  }) async {
+    final batch = _db.batch();
+    batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(1)});
+    batch.set(
+      _couponUsages.doc(_usageId(code, userId)),
+      {
+        'code': code,
+        'userId': userId,
+        'count': FieldValue.increment(1),
+        'lastOrderId': orderId,
+        'lastUsedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+    await batch.commit();
+  }
+
+  Stream<List<models.Coupon>> streamCoupons() =>
+      _coupons.limit(200).snapshots().map((s) {
+        final list =
+            s.docs.map((d) => models.Coupon.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
+
+  /// إنشاء/تعديل كوبون من لوحة الإدارة. `merge` يحفظ عدّاد الاستخدام
+  /// القائم فلا يُصفَّر بتعديل قيمة الخصم.
+  Future<void> saveCoupon(models.Coupon coupon) =>
+      _coupons.doc(coupon.code.trim().toUpperCase()).set(
+            coupon.toMap()..remove('usedCount'),
+            SetOptions(merge: true),
+          );
+
+  Future<void> setCouponActive(String code, bool isActive) =>
+      _coupons.doc(code).update({'isActive': isActive});
+
+  Future<void> deleteCoupon(String code) => _coupons.doc(code).delete();
+
+  // -------------------------------------------------------------------------
   // طلبات سحب المستحقّات — السائق يطلب، والإدارة تصرف أو ترفض.
   // -------------------------------------------------------------------------
 
@@ -1569,9 +1678,11 @@ class FirebaseService {
       // التوصيل خدمة أُدّيت فعلاً ووصلت للسائق، فإعادتها للعميل تعني خصمها
       // من المنصّة بلا سبب. الاسترداد الكامل (100%) وحده يشمل الإجمالي لأن
       // الطلب حينها يُعدّ كأن لم يكن.
+      // والاسترداد الكامل يُعيد **ما دفعه العميل فعلاً** (بعد خصم الكوبون)
+      // لا القيمة قبل الخصم — وإلا رُدّ له أكثر مما دفع.
       final isFullRefund = refundPercentage >= 100;
       final refundAmount = isFullRefund
-          ? order.grandTotal
+          ? order.payableTotal
           : order.itemsTotal * (refundPercentage / 100);
 
       await addWalletCredit(

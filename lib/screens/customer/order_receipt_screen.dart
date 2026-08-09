@@ -102,6 +102,10 @@ class OrderReceiptScreen extends StatelessWidget {
               PriceRow(
                   label: 'رسوم توصيل ثابتة',
                   value: formatCurrency(o.appShare)),
+              if (o.discountAmount > 0)
+                PriceRow(
+                    label: 'خصم الكود ${o.couponCode ?? ''}'.trim(),
+                    value: '- ${formatCurrency(o.discountAmount)}'),
               if (o.walletUsed > 0)
                 PriceRow(
                     label: 'خصم من المحفظة',
@@ -109,7 +113,7 @@ class OrderReceiptScreen extends StatelessWidget {
               const Divider(),
               PriceRow(
                   label: 'الإجمالي',
-                  value: formatCurrency(o.grandTotal),
+                  value: formatCurrency(o.payableTotal),
                   bold: true),
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -119,7 +123,7 @@ class OrderReceiptScreen extends StatelessWidget {
                     const Text('شامل ضريبة القيمة المضافة (15٪)',
                         style: TextStyle(
                             fontSize: 11.5, color: AppColors.textGray)),
-                    Text(formatCurrency(Pricing.vatIncludedIn(o.grandTotal)),
+                    Text(formatCurrency(Pricing.vatIncludedIn(o.payableTotal)),
                         style: const TextStyle(
                             fontSize: 11.5, color: AppColors.textGray)),
                   ],

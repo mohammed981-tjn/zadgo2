@@ -156,7 +156,7 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'حصّل من العميل ${formatCurrency(order.grandTotal - order.walletUsed)} نقداً عند التسليم',
+                        'حصّل من العميل ${formatCurrency(order.payableTotal - order.walletUsed)} نقداً عند التسليم',
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
