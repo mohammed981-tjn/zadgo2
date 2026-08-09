@@ -170,6 +170,7 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     String? nationalId,
     UserRole? expectedRole,
+    String? referredByCode,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
@@ -181,6 +182,7 @@ class AuthProvider extends ChangeNotifier {
         phone: phone.trim(),
         nationalId: nationalId?.trim(),
         expectedRole: expectedRole,
+        referredByCode: referredByCode?.trim(),
       );
       _user = user; _loading = false; notifyListeners();
       return true;

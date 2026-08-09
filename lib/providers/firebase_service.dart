@@ -367,6 +367,7 @@ class FirebaseService {
     required String phone,
     String? nationalId,
     models.UserRole? expectedRole,
+    String? referredByCode,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
 
@@ -422,7 +423,17 @@ class FirebaseService {
       await createUser(newUser);
       if (claimed.role == models.UserRole.driver) {
         await addDriver(models.Driver(
-            id: uid, name: name.trim(), phone: phone.trim(), vehicleType: 'دراجة نارية'));
+          id: uid,
+          name: name.trim(),
+          phone: phone.trim(),
+          vehicleType: 'دراجة نارية',
+          // كود الداعي يُثبَّت لحظة التسجيل ولا يُعدَّل بعدها: إتاحة
+          // إضافته لاحقاً تعني إحالات تُدّعى بأثر رجعي لسائقين عملوا
+          // شهوراً. وتاريخ الانضمام أساس نافذة شرط التوصيلات.
+          referredByCode:
+              (referredByCode ?? '').trim().toUpperCase(),
+          createdAt: DateTime.now(),
+        ));
       }
       await ref.update({'usedByUid': uid, 'usedByName': name.trim()});
       return newUser;
@@ -1687,6 +1698,68 @@ class FirebaseService {
     final doc = await _deliverySettings.doc('config').get();
     return doc.data() ?? {};
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // الحوافز: الإحالة وتحدي نهاية الأسبوع
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// إعدادات الحوافز — مستند واحد يضبط كل المبالغ والشروط من لوحة المدير.
+  /// المستند غير الموجود يعطي الافتراضيات المعتمدة، فالنظام يعمل من أول
+  /// تشغيل بلا إعداد مسبق.
+  Stream<models.IncentiveSettings> streamIncentiveSettings() =>
+      _deliverySettings.doc('incentives').snapshots().map(
+          (d) => models.IncentiveSettings.fromMap(d.data() ?? const {}));
+
+  Future<models.IncentiveSettings> getIncentiveSettings() async {
+    final doc = await _deliverySettings.doc('incentives').get();
+    return models.IncentiveSettings.fromMap(doc.data() ?? const {});
+  }
+
+  Future<void> saveIncentiveSettings(models.IncentiveSettings s) =>
+      _deliverySettings.doc('incentives').set(s.toMap());
+
+  /// صرف مكافأة إحالة: حركتان في دفتر كل طرف + ختم السائق المُحال بأنها
+  /// صُرفت. الختم يسبق الحركتين منطقياً لكنه يُكتب بعدهما عمداً — لو فشل
+  /// الختم بقيت الحركتان موثّقتين وظهرت الإحالة مستحقّة مجدداً (تكرار
+  /// ظاهر يصلحه المدير)، بينما ختمٌ بلا صرف يُضيع المكافأة صامتاً.
+  Future<void> payReferralBonus({
+    required models.Driver referrer,
+    required models.Driver referee,
+    required double referrerAmount,
+    required double refereeAmount,
+  }) async {
+    if (referrerAmount > 0) {
+      await recordDriverBonus(
+        driverId: referrer.id,
+        amount: referrerAmount,
+        note: 'مكافأة إحالة — ${referee.name}',
+      );
+    }
+    if (refereeAmount > 0) {
+      await recordDriverBonus(
+        driverId: referee.id,
+        amount: refereeAmount,
+        note: 'مكافأة ترحيب — دعوة ${referrer.name}',
+      );
+    }
+    await _drivers.doc(referee.id).update({'referralRewarded': true});
+  }
+
+  /// صرف مكافأة تحدٍّ. الملاحظة تحمل النافذة ومستواها فيبقى الأثر مفهوماً
+  /// في الدفتر بعد شهور، وهي أيضاً ما يمنع المدير من الصرف مرتين لنفس
+  /// النافذة (يراها في السجلّ).
+  Future<void> payChallengeBonus({
+    required String driverId,
+    required double amount,
+    required int deliveries,
+    required DateTime windowStart,
+  }) =>
+      recordDriverBonus(
+        driverId: driverId,
+        amount: amount,
+        note: 'تحدي ${windowStart.day}/${windowStart.month} — '
+            '$deliveries توصيلة',
+      );
 
   /// يحدّث متوسط تقييم المطعم تراكمياً بنفس أسلوب تقييم السائق. كان تقييم
   /// المطاعم لا يُحدَّث إطلاقاً، فتبقى كلها على القيمة الافتراضية 5.0 مهما

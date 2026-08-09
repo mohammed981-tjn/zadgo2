@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
-    show HapticFeedback, SystemSound, SystemSoundType;
+    show Clipboard, ClipboardData, HapticFeedback, SystemSound, SystemSoundType;
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -1029,28 +1029,9 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                 : AppColors.warning),
       ]),
       const SizedBox(height: 12),
-      // برنامج التوصية (ب2): السائق يدعو زميلاً، والإدارة تمنح «مكافأة
-      // إحالة» من دفتره عند اكتمال تسجيل المُحال وأول توصيلاته — بلا
-      // أكواد آلية في هذه المرحلة؛ الاسم في نص الدعوة هو مرجع الإحالة.
-      Card(
-        child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: context.flavorColors.primary.withOpacity(0.12),
-            child: Icon(Icons.group_add_outlined,
-                color: context.flavorColors.primaryDark),
-          ),
-          title: const Text('ادعُ سائقاً واكسب مكافأة',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-          subtitle: const Text(
-              'عند انضمامه وذكر اسمك تُضاف مكافأة الإحالة لمحفظتك',
-              style: TextStyle(fontSize: 11.5)),
-          trailing: const Icon(Icons.share_outlined, size: 20),
-          onTap: () => Share.share(
-              'انضم لكباتن ZadGo وابدأ التوصيل باشتراطات مرنة وأجرة واضحة '
-              'لكل طلب. للتسجيل تواصل مع الإدارة واذكر أن ${d.name} دعاك '
-              '(تُحسب لي مكافأة الإحالة 😉).'),
-        ),
-      ),
+      // الإحالة والتحدي — بمبالغ وشروط الإدارة اللحظية لا أرقام مبرمَجة،
+      // فما يراه السائق هو ما سيُصرف له فعلاً.
+      _IncentivesCards(driver: d),
       const SizedBox(height: 8),
       Card(
         child: Column(children: [
@@ -1380,6 +1361,226 @@ class _TransactionTile extends StatelessWidget {
         '${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
         style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
       ),
+    );
+  }
+}
+
+/// بطاقتا الحوافز في تبويب «أرباحي»: كود الإحالة ودعوة زميل، وتقدّم تحدي
+/// نهاية الأسبوع.
+///
+/// كل الأرقام تأتي من إعدادات الإدارة اللحظية (IncentiveSettings) لا من
+/// ثوابت في الكود — فلو رفع المالك مكافأة الإحالة اليوم رآها السائق فوراً
+/// بلا تحديث للتطبيق، ولا يَعِد التطبيق بمبلغ يخالف ما سيُصرف.
+///
+/// البطاقتان تختفيان كلياً حين يوقف المالك البرنامج، فلا يبقى وعدٌ معلّق.
+class _IncentivesCards extends StatelessWidget {
+  final Driver driver;
+  const _IncentivesCards({required this.driver});
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    return AppStreamBuilder<IncentiveSettings>(
+      stream: service.streamIncentiveSettings,
+      loading: const SizedBox.shrink(),
+      builder: (ctx, s) => Column(children: [
+        if (s.referralEnabled) _referralCard(context, s),
+        if (s.referralEnabled && s.challengeEnabled)
+          const SizedBox(height: 8),
+        if (s.challengeEnabled) _challengeCard(context, s),
+      ]),
+    );
+  }
+
+  Widget _referralCard(BuildContext context, IncentiveSettings s) {
+    final fc = context.flavorColors;
+    final code = driver.referralCode;
+    final invite =
+        'انضم لكباتن ZadGo — أجرة واضحة لكل طلب واشتراطات مرنة.\n'
+        'اكتب كود الدعوة «$code» عند التسجيل، '
+        'وتنال ${s.refereeBonus.toStringAsFixed(0)} ر.س ترحيباً بعد '
+        '${s.referralDeliveries} توصيلة 🎁';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: fc.primary.withOpacity(0.12),
+              child: Icon(Icons.group_add_outlined, color: fc.primaryDark),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('ادعُ كابتناً واكسب',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
+                    Text(
+                        'لك ${s.referrerBonus.toStringAsFixed(0)} ر.س وله '
+                        '${s.refereeBonus.toStringAsFixed(0)} ر.س — بعد إكماله '
+                        '${s.referralDeliveries} توصيلة خلال '
+                        '${s.referralWindowDays} يوماً',
+                        style: const TextStyle(fontSize: 11.5)),
+                  ]),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          // الكود هو مرجع الإحالة الوحيد — يُبرز ويُنسخ بضغطة، فلا يعتمد
+          // البرنامج على تذكّر المدعوّ اسمَ من دعاه.
+          Row(children: [
+            Expanded(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: fc.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: fc.primary.withOpacity(0.35)),
+                ),
+                child: Row(children: [
+                  const Text('كودك:',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textGray)),
+                  const SizedBox(width: 6),
+                  Text(code,
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 3,
+                          color: fc.primaryDark)),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () async {
+                      await Clipboard.setData(ClipboardData(text: code));
+                      if (context.mounted) showSuccess(context, 'نُسخ كودك');
+                    },
+                    child: const Icon(Icons.copy_outlined,
+                        size: 18, color: AppColors.textGray),
+                  ),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => Share.share(invite),
+              icon: const Icon(Icons.share_outlined, size: 17),
+              label: const Text('دعوة'),
+              style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 14)),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _challengeCard(BuildContext context, IncentiveSettings s) {
+    final service = context.read<FirebaseService>();
+    final now = DateTime.now();
+    final window = s.currentWindow(now);
+    final fc = context.flavorColors;
+
+    // خارج أيام التحدي: تُعرض القاعدة مختصرةً كتشويق، بلا عدّاد كاذب.
+    if (window == null) {
+      return Card(
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.emoji_events_outlined,
+              color: AppColors.textGray),
+          title: Text('تحدي ${s.weekdaysLabel}',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 13.5)),
+          subtitle: Text(
+              s.tiers
+                  .map((t) =>
+                      '${t.deliveries} توصيلة = ${t.bonus.toStringAsFixed(0)} ر.س')
+                  .join(' • '),
+              style: const TextStyle(fontSize: 11.5)),
+        ),
+      );
+    }
+
+    final (start, end) = window;
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamDriverOrders(driver.id),
+      loading: const SizedBox.shrink(),
+      builder: (ctx, orders) {
+        final count = orders
+            .where((o) =>
+                o.status == OrderStatus.delivered &&
+                !o.createdAt.isBefore(start) &&
+                !o.createdAt.isAfter(end))
+            .length;
+        final reached = s.tierFor(count);
+        final next = s.nextTierFor(count);
+        final target = next?.deliveries ?? reached?.deliveries ?? 1;
+        final progress = (count / target).clamp(0.0, 1.0);
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.emoji_events_rounded,
+                    color: reached != null ? Colors.amber : fc.primary,
+                    size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('تحدي ${s.weekdaysLabel} — جارٍ الآن',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14)),
+                ),
+                Text('$count',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: fc.primaryDark)),
+              ]),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: fc.primary.withOpacity(0.12),
+                  color: reached != null ? Colors.amber.shade700 : fc.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                next != null
+                    ? 'أنجزتَ $count — بقيت ${next.deliveries - count} توصيلة '
+                        'لمكافأة ${next.bonus.toStringAsFixed(0)} ر.س'
+                    : 'بلغتَ أعلى مستوى — مكافأة '
+                        '${reached!.bonus.toStringAsFixed(0)} ر.س 🎉',
+                style: const TextStyle(fontSize: 12),
+              ),
+              if (reached != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                    'مستحقّ الآن: ${reached.bonus.toStringAsFixed(0)} ر.س — '
+                    'تُضاف لدفترك بعد مراجعة الإدارة',
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w700)),
+              ],
+              const SizedBox(height: 4),
+              Text(
+                  'المستويات: ${s.tiers.map((t) => '${t.deliveries}=${t.bonus.toStringAsFixed(0)}').join(' • ')}'
+                  ' — تنتهي ${end.day}/${end.month}',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textGray)),
+            ]),
+          ),
+        );
+      },
     );
   }
 }
