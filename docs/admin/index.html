@@ -245,6 +245,7 @@ const PAGES = [
   ['drivers', '🛵', 'السائقون'],
   ['users', '👥', 'المستخدمون'],
   ['complaints', '📮', 'الشكاوى'],
+  ['codes', '🔑', 'أكواد التسجيل'],
   ['wallets', '👛', 'محافظ العملاء'],
   ['settlements', '💰', 'تسويات المطاعم'],
   ['banners', '🖼️', 'البنرات'],
@@ -354,7 +355,7 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], settings: null };
+  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], regCodes: [], settings: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
@@ -362,6 +363,7 @@ const ORDERS_LIMIT = 400;
 let couponFilter = 'all';
 let payoutFilter = 'pending';
 let walletSearch = '';
+let codeFilter = 'unused';
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
@@ -438,6 +440,7 @@ function startListeners() {
   bind(query(collection(db, 'restaurant_settlements'), limit(500)), 'settlements');
   bind(query(collection(db, 'wallet_transactions'), limit(500)), 'walletTxns');
   bind(query(collection(db, 'reassignments'), limit(200)), 'reassignments');
+  bind(query(collection(db, 'registrationCodes'), limit(200)), 'regCodes');
   bind(query(collection(db, 'banners'), limit(60)), 'banners');
   bind(query(collection(db, 'payout_requests'), orderBy('createdAt', 'desc'), limit(200)), 'payouts');
   bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
@@ -491,7 +494,7 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    codes: renderCodesPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
     reports: renderReportsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
@@ -1011,6 +1014,191 @@ function renderComplaintsPage() {
 }
 
 /* ================= رسالة جماعية ================= */
+/* ================= أكواد التسجيل =================
+ *
+ * حسابا السائق ومدير المطعم لا يُنشآن بتسجيل ذاتي — يحتاجان كوداً تُصدره
+ * الإدارة. هذا قرار تصميمي مقصود: القبول إداري لا ذاتي.
+ *
+ * أبجدية الكود بلا 0/O و1/I/L — الحروف الملتبسة تُقرأ خطأً حين يُملى الكود
+ * صوتياً أو يُنسخ من صورة، فيشتكي المتقدّم أن «الكود لا يعمل».
+ *
+ * `referredByCode` يُحمَّل على الكود نفسه عند إصداره لطلب انضمام، فيلتقطه
+ * التطبيق تلقائياً عند التسجيل ولا تضيع مكافأة الداعي إن نسي المتقدّم نقلها.
+ */
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+function makeCode(len = 6) {
+  const a = new Uint32Array(len);
+  crypto.getRandomValues(a);
+  return Array.from(a, (n) => CODE_ALPHABET[n % CODE_ALPHABET.length]).join('');
+}
+
+function codeState(c) {
+  if (c.isUsed) return ['مُستخدم', '#7f8c8d'];
+  const exp = toDate(c.expiresAt);
+  if (exp && exp < new Date()) return ['منتهي', '#c0392b'];
+  return ['صالح', '#1e8449'];
+}
+
+function renderCodesPage() {
+  const filters = [['unused', 'الصالحة'], ['all', 'الكل'], ['used', 'المستخدمة']];
+  let list = [...S.regCodes].sort((a, b) => {
+    const da = toDate(a.createdAt), dbb = toDate(b.createdAt);
+    return (dbb ? dbb.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+  if (codeFilter === 'unused') list = list.filter((c) => codeState(c)[0] === 'صالح');
+  if (codeFilter === 'used') list = list.filter((c) => c.isUsed);
+
+  const valid = S.regCodes.filter((c) => codeState(c)[0] === 'صالح').length;
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <div class="row1" style="margin-bottom:10px">
+        <h3 style="margin:0">أكواد التسجيل</h3>
+        <button class="btn" id="newCodeBtn">➕ توليد كود</button>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="num">${valid}</div><div class="lbl">كود صالح</div></div>
+        <div class="kpi"><div class="num">${S.regCodes.filter((c) => c.isUsed).length}</div><div class="lbl">استُخدم</div></div>
+      </div>
+      <p class="meta" style="margin-top:10px">حسابا السائق ومدير المطعم لا يُنشآن إلا بكود من هنا — لا تسجيل ذاتي.</p>
+      <div class="toolbar" style="margin-top:10px">${filters.map(([k, l]) =>
+        `<button class="chip ${codeFilter === k ? 'active' : ''}" data-kf="${k}">${l}</button>`).join('')}</div>
+    </div>
+    <div class="panel">
+      ${list.map((c) => {
+        const [stTxt, stColor] = codeState(c);
+        const exp = toDate(c.expiresAt);
+        return `
+          <div class="card">
+            <div class="row1">
+              <span class="title" style="direction:ltr;display:inline-block;letter-spacing:2px">${esc(c.id)}</span>
+              ${badge(stTxt, stColor)}
+            </div>
+            <div class="meta">
+              الدور: <b>${c.role === 'driver' ? 'سائق' : c.role === 'restaurantManager' ? 'مدير مطعم' : esc(c.role || '—')}</b>
+              ${c.restaurantName ? ` · ${esc(c.restaurantName)}` : ''}
+              <br>أُنشئ: ${esc(fmtTime(c.createdAt))}
+              ${exp ? ` · ينتهي: ${esc(fmtTime(c.expiresAt))}` : ' · بلا انتهاء'}
+              ${c.isUsed ? `<br>استخدمه: ${esc(c.usedByName || '—')} في ${esc(fmtTime(c.usedAt))}` : ''}
+              ${c.referredByCode ? `<br>إحالة من: <b style="direction:ltr;display:inline-block">${esc(c.referredByCode)}</b>` : ''}
+            </div>
+            ${!c.isUsed ? `
+              <div class="row1" style="margin-top:8px;gap:6px">
+                <button class="toggle-btn" data-kshare="${esc(c.id)}">📤 نسخ نص الدعوة</button>
+                <button class="toggle-btn" data-kdel="${esc(c.id)}">🗑 حذف</button>
+              </div>` : ''}
+          </div>`;
+      }).join('') || '<div class="empty">لا توجد أكواد في هذا التصنيف</div>'}
+    </div>`;
+
+  document.querySelectorAll('[data-kf]').forEach((b) =>
+    b.addEventListener('click', () => { codeFilter = b.dataset.kf; renderCodesPage(); }));
+  document.getElementById('newCodeBtn').addEventListener('click', openCodeForm);
+  $('main').querySelectorAll('[data-kshare]').forEach((b) =>
+    b.addEventListener('click', () => shareCode(b.dataset.kshare)));
+  $('main').querySelectorAll('[data-kdel]').forEach((b) =>
+    b.addEventListener('click', () => deleteCode(b.dataset.kdel)));
+}
+
+function openCodeForm() {
+  const restOptions = [...S.restaurants]
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
+    .map((r) => `<option value="${esc(r.id)}">${esc(restName(r))}</option>`).join('');
+  openModal(`
+    <h3>توليد كود تسجيل</h3>
+    <div class="field"><label>الدور</label>
+      <select id="k_role">
+        <option value="driver">سائق (كابتن)</option>
+        <option value="restaurantManager">مدير مطعم</option>
+      </select></div>
+    <div class="field" id="k_rest_wrap" style="display:none"><label>المطعم</label>
+      <select id="k_rest"><option value="">—</option>${restOptions}</select>
+      <p class="meta">يُربط مدير المطعم بهذا الفرع تلقائياً عند تسجيله.</p></div>
+    <div class="field"><label>صلاحية الكود</label>
+      <select id="k_exp">
+        <option value="7">7 أيام</option>
+        <option value="30">30 يوماً</option>
+        <option value="3">3 أيام</option>
+        <option value="0">بلا انتهاء</option>
+      </select></div>
+    <div class="field"><label>كود الداعي (اختياري)</label>
+      <input id="k_ref" placeholder="A1B2C3" style="direction:ltr;text-align:left" maxlength="6">
+      <p class="meta">إن كان هذا الكابتن جاء بدعوة كابتن آخر، ضع كوده هنا فتنتقل الإحالة تلقائياً عند تسجيله.</p></div>
+    <button class="btn block" id="k_save">توليد الكود</button>
+  `);
+  const role = document.getElementById('k_role');
+  const wrap = document.getElementById('k_rest_wrap');
+  const sync = () => { wrap.style.display = role.value === 'restaurantManager' ? '' : 'none'; };
+  role.addEventListener('change', sync); sync();
+  document.getElementById('k_save').addEventListener('click', saveCode);
+}
+
+async function saveCode() {
+  const role = document.getElementById('k_role').value;
+  const restaurantId = role === 'restaurantManager' ? document.getElementById('k_rest').value : '';
+  const days = Number(document.getElementById('k_exp').value);
+  const ref = document.getElementById('k_ref').value.trim().toUpperCase();
+  if (role === 'restaurantManager' && !restaurantId) { alert('اختر المطعم'); return; }
+  if (ref && !/^[A-Z0-9]{4,8}$/.test(ref)) { alert('كود الداعي غير صحيح'); return; }
+
+  const r = S.restaurants.find((x) => x.id === restaurantId);
+  // تصادم الكود مستبعد لكنه ممكن — نولّد بديلاً بدل الكتابة فوق كود قائم.
+  let code = makeCode();
+  for (let i = 0; i < 5 && S.regCodes.some((c) => c.id === code); i++) code = makeCode();
+
+  const expiresAt = days > 0
+    ? Timestamp.fromDate(new Date(Date.now() + days * 86400000)) : null;
+  try {
+    await setDoc(doc(db, 'registrationCodes', code), {
+      code, role,
+      restaurantId, restaurantName: r ? restName(r) : '',
+      isUsed: false,
+      createdAt: serverTimestamp(),
+      usedAt: null, usedByUid: null, usedByName: null,
+      ...(expiresAt ? { expiresAt } : {}),
+      ...(ref ? { referredByCode: ref } : {}),
+    });
+    closeModal();
+    toast('أُنشئ الكود ' + code);
+    setTimeout(() => shareCode(code), 200);
+  } catch (err) { alert('تعذر التوليد: ' + (err.code || err.message)); }
+}
+
+/* نصّ دعوة جاهز للّصق في واتساب — أوفر من إملاء الكود صوتياً. */
+function shareCode(code) {
+  const c = S.regCodes.find((x) => x.id === code) || { id: code };
+  const roleAr = c.role === 'restaurantManager' ? 'مدير مطعم' : 'كابتن';
+  const exp = toDate(c.expiresAt);
+  const text = `مرحباً بك في زادقو ZadGo 👋
+كود تسجيلك ك${roleAr}:
+
+${code}
+
+حمّل التطبيق، واختر «لدي كود تسجيل»، وأدخل الكود أعلاه.${exp ? `\nالكود صالح حتى ${fmtTime(c.expiresAt)}.` : ''}`;
+  openModal(`
+    <h3>نص الدعوة</h3>
+    <div class="field"><textarea id="k_text" rows="9" style="direction:rtl">${esc(text)}</textarea></div>
+    <button class="btn block" id="k_copy">📋 نسخ النص</button>
+    <p class="meta" style="margin-top:8px">الصقه في واتساب وأرسله للمتقدّم.</p>
+  `);
+  document.getElementById('k_copy').addEventListener('click', () => {
+    const ta = document.getElementById('k_text');
+    ta.select();
+    navigator.clipboard.writeText(ta.value)
+      .then(() => toast('نُسخ النص'))
+      .catch(() => toast('حدّد النص وانسخه يدوياً'));
+  });
+}
+
+async function deleteCode(code) {
+  if (!confirm(`حذف الكود ${code}؟\n(إن كنتَ أرسلته لأحد فلن يعمل بعد الحذف)`)) return;
+  try {
+    await deleteDoc(doc(db, 'registrationCodes', code));
+    toast('حُذف الكود');
+  } catch (err) { alert('تعذر الحذف: ' + (err.code || err.message)); }
+}
+
 /* سجل إعادة إسناد الطلب — من أُخذ منه ولمن ذهب ولماذا ومتى.
  * يظهر داخل تفاصيل الطلب لا في صفحة مستقلة: السؤال «لماذا تغيّر سائق هذا
  * الطلب؟» يُطرح دائماً وأنت تنظر إلى الطلب نفسه. طلب تكرّر إسناده مرات
