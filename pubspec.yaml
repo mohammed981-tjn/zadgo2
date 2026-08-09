@@ -94,6 +94,10 @@ flutter:
     - assets/images/logo_wordmark.png
     # بوستر افتتاح تطبيق العميل (الشعار + السائق + العبارة التسويقية).
     - assets/images/splash_customer.jpg
+    # البنر الترويجي الافتراضي — يظهر حين لا بنرات فعّالة من الإدارة.
+    - assets/images/banner_promo_1.jpg
+    # خلفية افتتاح تطبيق الكابتن (طريق ليلي بهوية النكهة الكحلية).
+    - assets/images/bg_splash_driver.jpg
   fonts:
     - family: Cairo
       fonts:

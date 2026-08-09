@@ -5,8 +5,8 @@
 // من تطبيقها لحظياً (تفعيل/إيقاف/ترتيب) دون أي تحديث للتطبيق.
 //
 // السلوك: تقليب تلقائي كل 5 ثوانٍ مع نقاط مؤشر، وضغطة البنر تفتح صفحة
-// المطعم المربوط به إن وُجد. حين لا بنرات فعّالة يختفي الشريط كلياً بلا
-// أي فراغ — الشاشة تعود كما كانت تماماً.
+// المطعم المربوط به إن وُجد. حين لا بنرات فعّالة من الإدارة يظهر البنر
+// الافتراضي المدمج (عرض الطلب الأول) بدل اختفاء الشريط.
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -68,7 +68,22 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
       builder: (context, snap) {
         final banners = snap.data ?? [];
         _count = banners.length;
-        if (banners.isEmpty) return const SizedBox.shrink();
+        // حين لا بنرات من الإدارة يظهر البنر الافتراضي المدمج في التطبيق
+        // (عرض الطلب الأول) — فلا تفقد الشاشة مساحتها الترويجية أبداً.
+        if (banners.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.asset(
+                'assets/images/banner_promo_1.jpg',
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+          );
+        }
 
         return Column(children: [
           SizedBox(
