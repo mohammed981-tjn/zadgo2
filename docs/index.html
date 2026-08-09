@@ -17,7 +17,9 @@
     body { background: var(--navy-deep); color: var(--ink); }
 
     /* ===== سلايدات ملء الشاشة ===== */
-    .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+    /* proximity لا mandatory: على الشاشات القصيرة تصير الشريحة أطول من النافذة،
+       والالتقاط الإجباري كان يقاوم التمرير داخلها فيبقى أسفلها بعيد المنال. */
+    .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y proximity; scroll-behavior: smooth; }
     .slide { min-height: 100dvh; scroll-snap-align: start; position: relative;
       display: flex; flex-direction: column; justify-content: center; padding: 90px 8vw 70px; overflow: hidden; }
     /* خلفيات مجرّدة بلا صور: أُزيلت صور المطاعم لأنها كانت تحمل علامة شريك
@@ -69,6 +71,22 @@
     .cta.solid { background: var(--gold); color: var(--navy-deep); }
     .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); animation: pulse 1.8s infinite; }
     @keyframes pulse { 50% { opacity: .25; } }
+
+    /* شاشات قصيرة (جوال وشريط عنوان المتصفح ظاهر): شريحة «للمناديب» كان
+       محتواها ٧٠٥px بينما النافذة ٦٤٠px، فيضطر الزائر للتمرير داخل الشريحة
+       ويمرّ العنوان تحت الترويسة الثابتة. نضغط الإيقاع الرأسي لتتّسع. */
+    @media (max-height: 760px) {
+      .slide { padding: 84px 8vw 52px; }
+      .kicker { margin-bottom: 14px; }
+      p.sub { line-height: 1.85; margin-top: 12px; }
+      .cta { margin-top: 22px; padding: 13px 34px; }
+    }
+    @media (max-height: 680px) {
+      .slide { padding: 80px 8vw 44px; }
+      .kicker { height: 8px; margin-bottom: 10px; }
+      p.sub { line-height: 1.7; margin-top: 10px; }
+      .cta { margin-top: 16px; }
+    }
 
     /* شريط علوي */
     .top { position: fixed; top: 0; inset-inline: 0; z-index: 50; display: flex; justify-content: space-between;
