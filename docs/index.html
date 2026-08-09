@@ -20,9 +20,10 @@
     .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
     .slide { min-height: 100dvh; scroll-snap-align: start; position: relative;
       display: flex; flex-direction: column; justify-content: center; padding: 90px 8vw 70px; overflow: hidden; }
-    /* خلفيات مجرّدة بلا صور: أُزيلت صور المطاعم لأنها كانت تحمل علامة شريك
-       بعينه على صفحة تمثّل المنصّة كلها. الطبقات هنا تدرّجات كحلية بلمسة
-       ذهبية — لا علامة لأحد فيها. */
+    /* الخلفية الافتراضية تدرّجات كحلية بلمسة ذهبية بلا صورة. ثلاث شرائح
+       تحمل صوراً فوقها (انظر أدناه) — وكلها **عامة بلا علامة تجارية لأي
+       شريك**: صور فطير ستيشن أُزيلت لأنها كانت تُظهر شريكاً بعينه على صفحة
+       تمثّل المنصّة كلها. */
     .bg { position: absolute; inset: 0; z-index: 0;
       background:
         radial-gradient(1100px 620px at 82% 8%, rgba(255,193,7,.16), transparent 62%),
@@ -32,16 +33,35 @@
     .bg::after { content: ''; position: absolute; inset: 0; opacity: .5;
       background-image: radial-gradient(rgba(255,255,255,.055) 1.5px, transparent 1.6px);
       background-size: 34px 34px; }
-    /* تنويع بين السلايدات حتى لا تتشابه */
+    /* تنويع بين السلايدات حتى لا تتشابه.
+       ثلاث شرائح تحمل صوراً حقيقية بترتيب الطبقات: تعتيم كحلي فوق الصورة،
+       والتدرّج الأصلي تحتها. الترتيب مقصود لسببين: التعتيم يحفظ قراءة النص
+       فوق أي جزء فاتح من الصورة، والتدرّج يبقى شبكة أمان — لو تعذّر تحميل
+       الصورة على شبكة بطيئة تظهر الشريحة كما كانت لا بيضاء.
+       والصور عامة بلا علامة تجارية لأي شريك: الصفحة تمثّل المنصّة كلها. */
     #why .bg { background:
+        linear-gradient(rgba(6,16,36,.58), rgba(6,16,36,.74)),
+        url('images/bg-table.jpg') center/cover no-repeat,
         radial-gradient(1000px 600px at 18% 12%, rgba(255,193,7,.14), transparent 60%),
         linear-gradient(200deg, var(--navy) 0%, #0a142e 55%, var(--navy-deep) 100%); }
     #values .bg { background:
+        linear-gradient(rgba(6,16,36,.42), rgba(6,16,36,.62)),
+        url('images/bg-dining.jpg') center/cover no-repeat,
         radial-gradient(950px 620px at 88% 82%, rgba(255,193,7,.15), transparent 62%),
         linear-gradient(150deg, #101f45 0%, var(--navy) 50%, var(--navy-deep) 100%); }
     #partners .bg { background:
+        linear-gradient(rgba(6,16,36,.42), rgba(6,16,36,.62)),
+        url('images/bg-kitchen.jpg') center/cover no-repeat,
         radial-gradient(1050px 640px at 50% 0%, rgba(255,193,7,.18), transparent 60%),
         linear-gradient(190deg, var(--navy) 0%, #091333 60%, var(--navy-deep) 100%); }
+    /* النمط النقطي يعلو التدرّج المجرّد، لكنه فوق صورة يصير شبكةً مرئية —
+       فيُخفَّف على الشرائح المصوَّرة ولا يُلغى (يبقى يوحّد ملمس الصفحة). */
+    #why .bg::after, #values .bg::after, #partners .bg::after { opacity: .16; }
+    /* الطاولة لقطة علوية محتواها عند الأطراف ووسطها خالٍ عمداً. وعلى شاشة
+       الجوال يقتصّ `cover` من العرض (لا من الارتفاع)، فيبقى الوسط الفارغ
+       وحده ظاهراً وتضيع الصورة كلها. الإزاحة أفقياً تُدخل صفّ الصحون
+       والشوك في الإطار، ويبقى النص على الشريط الخالي بينهما. */
+    @media (max-width: 700px) { #why .bg { background-position: 24% center; } }
     #riders .bg { background:
         radial-gradient(900px 600px at 8% 20%, rgba(30,110,190,.24), transparent 62%),
         linear-gradient(160deg, #0d1937 0%, var(--navy) 48%, var(--navy-deep) 100%); }
