@@ -451,6 +451,7 @@ let chatUnsub = null;
 let alertsTimer = null;
 let auditBroken = null;
 let auditRows = null, auditCat = 'all', auditSearch = '', auditErr = null, auditLoading = false;
+let appMinVersion = '';
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
 
@@ -542,6 +543,11 @@ function startListeners() {
   bind(query(collection(db, 'coupon_usages'), limit(500)), 'couponUsages');
   unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'config'),
     (d) => { S.settings = d.exists() ? d.data() : {}; if (page === 'settings') rerender(); },
+    () => {}));
+  // مستند منفصل عن `config` عمداً: التطبيق يقرأ هذا **قبل تسجيل الدخول**،
+  // فلا يصحّ دفنه في مستندٍ قراءتُه مقصورة على المدير.
+  unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'app'),
+    (d) => { appMinVersion = String(d.data()?.minAppVersion || ''); if (page === 'settings') rerender(); },
     () => {}));
 }
 
@@ -3313,11 +3319,45 @@ function renderSettingsPage() {
       <button class="btn" id="saveSettings">حفظ الإعدادات</button>
     </div>
     <div class="panel">
+      <h3>🚧 الحد الأدنى لنسخة التطبيق</h3>
+      <p class="meta" style="margin-bottom:12px">أي تطبيق نسخته أقدم من هذا الرقم يُحجَب عن العمل
+        ويُطلب من صاحبه التحديث. اتركه فارغاً لتعطيل البوابة.</p>
+      <div class="card" style="border-inline-start:4px solid var(--orange);margin-bottom:12px">
+        <b>⚠️ اقرأ قبل الرفع</b>
+        <div class="meta">رفعُه يحجب كل من لم يحدّث — بمن فيهم سائقوك أثناء عملهم.
+          ارفعه بعد أن تتأكد أن النسخة الجديدة وصلت الجميع، لا قبله.</div>
+      </div>
+      <div class="field"><label>أقدم نسخة مسموح لها بالعمل (مثال: 1.4.0)</label>
+        <input type="text" id="s_minver" inputmode="decimal" placeholder="1.0.0"
+               style="direction:ltr;text-align:left" value="${esc(appMinVersion)}"></div>
+      <button class="btn" id="saveMinVer">حفظ الحد الأدنى</button>
+      <p class="meta" style="margin-top:8px">يُكتب في <code>delivery_settings/app</code> —
+        مستند منفصل عن الإعدادات أعلاه ليقرأه التطبيق قبل تسجيل الدخول.</p>
+    </div>
+    <div class="panel">
       <h3>عن اللوحة</h3>
       <div class="kv"><span>الرابط</span><b>zadgo.co/admin</b></div>
       <div class="kv"><span>مصدر البيانات</span><b>Firestore — لحظي</b></div>
       <div class="kv"><span>الدخول</span><b>حسابات المدير العام فقط</b></div>
     </div>`;
+  document.getElementById('saveMinVer').addEventListener('click', async () => {
+    const raw = document.getElementById('s_minver').value.trim();
+    // الصيغة تُتحقَّق هنا لا في التطبيق: قيمة مشوّهة تجعل المقارنة تفشل عند
+    // كل مستخدم، والبوابة تفتح للجميع بصمت — عطلٌ لا يظهر إلا حين تحتاجها.
+    if (raw && !/^\d{1,3}(\.\d{1,3}){0,2}$/.test(raw)) {
+      alert('الصيغة يجب أن تكون أرقاماً بنقاط مثل 1.4.0');
+      return;
+    }
+    if (!confirm(raw
+      ? `حجب كل نسخة أقدم من ${raw}؟\nمن لم يحدّث لن يستطيع استخدام التطبيق — بمن فيهم السائقون أثناء عملهم.`
+      : 'تعطيل البوابة؟ ستعمل كل النسخ مهما قدُمت.')) return;
+    try {
+      await setDoc(doc(db, 'delivery_settings', 'app'), { minAppVersion: raw }, { merge: true });
+      audit('settings.save', raw ? `رفع الحد الأدنى لنسخة التطبيق إلى ${raw}` : 'عطّل بوابة الحد الأدنى للنسخة',
+        { target: 'delivery_settings/app' });
+      toast('حُفظ الحد الأدنى');
+    } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
+  });
   document.getElementById('saveSettings').addEventListener('click', async () => {
     if (!confirm('حفظ إعدادات المُهل الجديدة؟')) return;
     try {
