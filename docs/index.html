@@ -18,7 +18,7 @@
 
     /* ===== سلايدات ملء الشاشة ===== */
     .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
-    section.slide { min-height: 100dvh; scroll-snap-align: start; position: relative;
+    .slide { min-height: 100dvh; scroll-snap-align: start; position: relative;
       display: flex; flex-direction: column; justify-content: center; padding: 90px 8vw 70px; overflow: hidden; }
     .bg { position: absolute; inset: 0; background-size: cover; background-position: center; z-index: 0; }
     .veil { position: absolute; inset: 0; z-index: 1;
@@ -53,6 +53,8 @@
     .overlay a { color: var(--ink); text-decoration: none; font-size: clamp(1.7rem, 6.5vw, 2.6rem); font-weight: 800;
       padding: 10px 0; }
     .overlay a:first-child { color: var(--gold); }
+    .overlay a.mini { font-size: clamp(1rem, 3.6vw, 1.2rem); font-weight: 500; color: var(--muted); }
+    .overlay a.mini:hover { color: var(--gold); }
     .overlay a:hover { color: var(--gold); }
     #menu-t:checked ~ .overlay { opacity: 1; pointer-events: auto; }
     #menu-t:checked ~ .top .burger i:nth-child(1) { transform: translateY(10px) rotate(45deg); }
@@ -78,7 +80,9 @@
       color: var(--gold); font-size: 1.6rem; animation: bob 2s infinite; }
     @keyframes bob { 50% { transform: translateY(8px); } }
 
-    footer.slide { min-height: 60dvh; justify-content: flex-end; padding-bottom: 40px; }
+    /* التذييل سلايد كامل مثل البقية: أقصر منه يجعل نقطة التوقف غير قابلة للوصول
+       فترتد الصفحة للسلايد السابق ولا يمكن الضغط على روابطه. */
+    footer.slide { justify-content: flex-end; padding-bottom: 46px; }
     .foot-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
       border-top: 1px solid rgba(255,255,255,.12); padding-top: 22px; margin-top: 40px; }
     .foot-row img { height: 30px; }
@@ -106,6 +110,8 @@
   <a href="#values">قيمنا</a>
   <a href="#partners">للمطاعم</a>
   <a href="#riders">للمناديب</a>
+  <a class="mini" href="contact.html">التواصل والدعم</a>
+  <a class="mini" href="privacy-policy.html">سياسة الخصوصية</a>
 </nav>
 
 <div class="deck">
