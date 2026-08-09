@@ -656,7 +656,9 @@ class FirebaseService {
       if (needsCustody) 'custodyDebited': true,
     });
 
-    if (needsCustody) {
+    // عُهدة صفرية (محفظة العميل غطّت حصّتَي المطعم والمنصّة بالضبط) لا
+    // تستحق قيداً — يبقى custodyDebited=true فلا يُعاد القيد عند التسليم.
+    if (needsCustody && current.custodyAmount != 0) {
       final custody = current.custodyAmount;
       final driverDoc = await _drivers.doc(driverId).get();
       final balance = driverDoc.exists && driverDoc.data() != null
@@ -802,7 +804,9 @@ class FirebaseService {
   /// السائق لطلب لن يحصّل قيمته من أحد.
   Future<void> _reverseCustodyIfNeeded(models.Order order) async {
     final driverId = order.driverId ?? '';
-    if (!order.custodyDebited || driverId.isEmpty) return;
+    if (!order.custodyDebited || driverId.isEmpty || order.custodyAmount == 0) {
+      return;
+    }
     final driverDoc = await _drivers.doc(driverId).get();
     if (!driverDoc.exists || driverDoc.data() == null) return;
     final balance = models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance;
@@ -1037,7 +1041,7 @@ class FirebaseService {
     // إعادة إسناد طلبٍ استُلم فعلاً (عُهدته مقيّدة على السائق القديم):
     // تُردّ العُهدة للقديم وتُقيَّد على الجديد — البضاعة انتقلت من يدٍ ليد،
     // والدفتران يجب أن يعكسا ذلك وإلا حُوسب سائق على طلب ليس بيده.
-    if (order.custodyDebited) {
+    if (order.custodyDebited && order.custodyAmount != 0) {
       await _reverseCustodyIfNeeded(order);
       final custody = order.custodyAmount;
       final newDoc = await _drivers.doc(newDriverId).get();
@@ -1106,7 +1110,9 @@ class FirebaseService {
     // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
     final isCash = paymentMethod == models.PaymentMethod.cash;
     final delta = isCash
-        ? (order.custodyDebited ? 0.0 : -(itemsTotal + appShare))
+        // المسار القديم (استلام بنسخة لا تعرف العُهدة): نفس معادلة العُهدة
+        // بخصم المدفوع من المحفظة — لا -(itemsTotal+appShare) الخام.
+        ? (order.custodyDebited ? 0.0 : -order.custodyAmount)
         : driverPayout;
 
     final driverDoc = await _drivers.doc(driverId).get();
