@@ -20,6 +20,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_version.dart';
 import '../../widgets/common_widgets.dart';
 
 class AdminIncentivesScreen extends StatelessWidget {
@@ -78,6 +79,8 @@ class _BodyState extends State<_Body> {
 
     return ListView(padding: const EdgeInsets.all(12), children: [
       _SettingsCard(settings: widget.settings),
+      const SizedBox(height: 14),
+      const _MinVersionCard(),
       const SizedBox(height: 14),
       _ReferralsSection(
           settings: widget.settings,
@@ -916,4 +919,130 @@ class DriverReferralCodeChip extends StatelessWidget {
                   color: AppColors.primary)),
         ),
       );
+}
+
+/// ضابط الحدّ الأدنى لإصدار التطبيق.
+///
+/// موضعه هنا لا في شاشة مستقلة: المالك يفتح «الحوافز والإحالات» بعد كل
+/// إصدار ليضبط أرقامه، فيراه في طريقه. وهو الحقل الوحيد في
+/// `delivery_settings/app`.
+///
+/// ⚠️ رقم أعلى من كل النسخ المثبَّتة يحجب **الجميع بما فيهم أنت** —
+/// والإصلاح حينها من كونسول Firestore لا من التطبيق. لذا يُعرض تحذير
+/// صريح قبل الحفظ لا بعده.
+class _MinVersionCard extends StatefulWidget {
+  const _MinVersionCard();
+
+  @override
+  State<_MinVersionCard> createState() => _MinVersionCardState();
+}
+
+class _MinVersionCardState extends State<_MinVersionCard> {
+  final _ctrl = TextEditingController();
+  bool _loaded = false, _saving = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    return StreamBuilder<String>(
+      stream: service.streamMinAppVersion(),
+      builder: (context, snap) {
+        // يُملأ الحقل مرة واحدة: إعادة ملئه مع كل تحديث للبثّ تمسح ما
+        // يكتبه المدير تحت أصابعه.
+        if (!_loaded && snap.hasData) {
+          _ctrl.text = snap.data!;
+          _loaded = true;
+        }
+        final active = (snap.data ?? '').isNotEmpty;
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.system_update_alt_rounded,
+                        color: AppColors.primary, size: 20),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('أدنى إصدار مسموح',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15)),
+                    ),
+                    Text('نسخة هذا الجهاز $kAppVersion',
+                        style: const TextStyle(
+                            fontSize: 11.5, color: AppColors.textGray)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(
+                      active
+                          ? 'النسخ الأقدم من ${snap.data} محجوبة الآن'
+                          : 'لا حجب — كل النسخ تعمل',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: active
+                              ? AppColors.warning
+                              : AppColors.textGray)),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl,
+                        textDirection: TextDirection.ltr,
+                        decoration: const InputDecoration(
+                          labelText: 'مثال 4.0.0 — واتركه فارغاً لإلغاء الحجب',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: _saving ? null : () => _save(service),
+                      style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(0, 46)),
+                      child: const Text('حفظ'),
+                    ),
+                  ]),
+                ]),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _save(FirebaseService service) async {
+    final value = _ctrl.text.trim();
+    // الحجب الذي يشمل جهاز المدير نفسه خطأ يصعب التراجع عنه من التطبيق،
+    // فيُستأذن فيه صراحةً بذكر أثره.
+    if (value.isNotEmpty && isVersionBelow(kAppVersion, value)) {
+      final ok = await showConfirmDialog(context,
+          title: 'تحذير — سيحجبك أنت أيضاً',
+          content: 'نسخة جهازك $kAppVersion أقدم من $value، فستُحجب هذه '
+              'الشاشة نفسها بعد الحفظ ولن تستطيع التراجع إلا من كونسول '
+              'Firestore. تابع؟',
+          confirmLabel: 'أفهم — احفظ',
+          confirmColor: AppColors.error);
+      if (ok != true) return;
+    }
+    if (!mounted) return;
+    setState(() => _saving = true);
+    try {
+      await service.setMinAppVersion(value);
+      if (mounted) {
+        showSuccess(context,
+            value.isEmpty ? 'أُلغي الحجب' : 'أدنى إصدار مسموح: $value');
+      }
+    } catch (_) {
+      if (mounted) showError(context, 'تعذّر الحفظ');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 }

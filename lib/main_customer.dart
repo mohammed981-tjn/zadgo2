@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'app_flavor.dart';
 import 'navigator_key.dart';
 import 'widgets/connectivity_banner.dart';
+import 'widgets/min_version_gate.dart';
 import 'models/models.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/cart_provider.dart';
@@ -91,8 +92,9 @@ class CustomerApp extends StatelessWidget {
         theme: AppTheme.build(palette: FlavorPalette.customer),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
-          // شريط انقطاع الاتصال يلتف حول كل الشاشات من هنا.
-          child: ConnectivityBanner(child: child!),
+          // بوابة الإصدار أولاً ثم شريط انقطاع الاتصال — نسخة محجوبة لا
+          // معنى لعرض حالة شبكتها.
+          child: MinVersionGate(child: ConnectivityBanner(child: child!)),
         ),
         home: const SplashScreen(),
       ),
