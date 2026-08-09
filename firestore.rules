@@ -11,11 +11,14 @@ rules_version = '2';
 // الحقول المالية (رصيد المحفظة، عمولة التطبيق، أجرة السائق، حالة السداد)
 // فلا يعدّلها إلا المدير العام.
 //
-// ما تبقّى بلا تغطية كاملة ويحتاج منطقاً على الخادم لاحقاً:
-//   • قيم الطلب المالية لحظة الإنشاء تأتي من تطبيق العميل ولا يمكن التحقق من
-//     صحتها هنا (تتطلّب إعادة حساب السعر على الخادم).
-//   • السائق يزيد مستحقّاته على مستنده عند تأكيد التوصيل، فالقاعدة تسمح بذلك
-//     لأن التدفّق الحالي يتطلّبه.
+// ما تبقّى بلا تغطية كاملة ويحتاج منطقاً على الخادم لاحقاً (المسار د/Blaze):
+//   • قيم الطلب المالية لحظة الإنشاء تأتي من تطبيق العميل؛ حقول الخصم
+//     والكوبون صارت مفحوصة هنا (couponGrantsDiscount)، لكن إعادة حساب
+//     السعر الكامل (الأصناف والأجرة) تتطلّب خادماً.
+//   • رصيد السائق يُعدَّل من جهازه (قيد العُهدة وأجرة التوصيل) — النوع
+//     مقيّد بحركات التوصيل فقط، لكن مطابقة المبلغ بقيمة الطلب تحتاج خادماً.
+//   • walletUsed على الطلب يُكتب من العميل؛ خصم المحفظة الفعلي محكوم بقاعدة
+//     «الإنقاص فقط» على users، لكن تطابق القيمتين يحتاج خادماً.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -67,6 +70,20 @@ service cloud.firestore {
     function orderMoneyKeys() {
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber'];
+    }
+
+    /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
+    /// الكود موجود وفعّال وغير منتهٍ، والمبلغ لا يتجاوز سقفه (قيمة الكوبون
+    /// الثابت، وسقف maxDiscount حين يكون مضبوطاً). كوبون نسبة بلا سقف لا
+    /// يمكن التحقق من مبلغه هنا (يتطلّب جمع الأصناف على الخادم) — لذا
+    /// يُنصح بضبط maxDiscount لكل كوبونات النسبة.
+    function couponGrantsDiscount(code, amount) {
+      let c = get(/databases/$(database)/documents/coupons/$(code)).data;
+      return c.isActive == true &&
+          (!('expiresAt' in c) || c.expiresAt == null ||
+              request.time < c.expiresAt) &&
+          (c.type != 'fixed' || amount <= c.value) &&
+          (c.maxDiscount <= 0 || amount <= c.maxDiscount);
     }
 
     // ---------------------------------------------------------------------
@@ -146,7 +163,22 @@ service cloud.firestore {
             resource.data.driverId == currentUid() ||
             isRestaurantManagerOf(resource.data.restaurantId)
           );
-      allow create: if isCustomer() && request.resource.data.customerId == currentUid();
+      // الإنشاء يفحص حقول الخصم لا يقبلها حرفياً: كانت القيود المالية كلها
+      // على «التعديل» فقط، فعميل معدَّل البرمجية يُنشئ طلباً بخصم مختلَق
+      // (discountAmount بلا كوبون أصلاً) ويتجاوز نظام الكوبونات من أساسه.
+      // الخصم الموجب يستلزم كوداً موجوداً وفعّالاً وغير منتهٍ، وبسقف
+      // الكوبون نفسه (قيمة الثابت، وسقف maxDiscount إن ضُبط).
+      allow create: if isCustomer() &&
+          request.resource.data.customerId == currentUid() &&
+          request.resource.data.discountAmount is number &&
+          request.resource.data.walletUsed is number &&
+          request.resource.data.walletUsed >= 0 &&
+          (request.resource.data.discountAmount == 0 ||
+            (request.resource.data.discountAmount > 0 &&
+             request.resource.data.couponCode is string &&
+             request.resource.data.couponCode != '' &&
+             couponGrantsDiscount(request.resource.data.couponCode,
+                 request.resource.data.discountAmount)));
       // بعد الإنشاء، لا يعدّل أحدٌ الحقول المالية (قيمة الأصناف، أجرة السائق،
       // حصّة التطبيق، حالة السداد...) إلا المدير العام — باستثناء واحد مقصود:
       // السائق المُسنَد يضبط isPaid و platformCommission لحظة تأكيد التوصيل،
@@ -193,9 +225,15 @@ service cloud.firestore {
     match /drivers/{driverId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && currentUid() == driverId;
+      // كتابة السائق على مستنده مقيّدة: كانت بلا قيد على الحقول، فيمكنه
+      // ضبط إنذاراته صفراً أو تضخيم totalEarnings. الرصيد يبقى مسموحاً له
+      // لأن قيد العُهدة وأجرة التوصيل يُكتبان من جهازه (لا Cloud Functions
+      // بعد) — يُشدَّد لاحقاً مع المسار د.
       allow update: if isSignedIn() && (
             isAdmin() ||
-            (isDriver() && currentUid() == driverId) ||
+            (isDriver() && currentUid() == driverId &&
+                !changedKeys().hasAny(
+                    ['warningCount', 'totalEarnings', 'rating', 'ratingCount'])) ||
             (!isCustomer() && changedKeys().hasOnly(['isAvailable'])) ||
             (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']))
           );
@@ -215,9 +253,15 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
             isAdmin() || resource.data.driverId == currentUid()
           );
+      // السائق يُنشئ حركات تدفّق التوصيل فقط (عُهدة/عكسها/أجرة): كان الإنشاء
+      // بلا قيد على النوع، فيمكنه سكّ حركة «مكافأة» باسمه توثّق رصيداً
+      // زوّره على مستنده. المكافآت والإيداع والصرف والتسوية للمدير وحده.
       allow create: if isSignedIn() && (
             isAdmin() ||
-            (isDriver() && request.resource.data.driverId == currentUid())
+            (isDriver() && request.resource.data.driverId == currentUid() &&
+                request.resource.data.type in
+                    ['orderCustody', 'custodyReversal',
+                     'deliveryCash', 'deliveryOnline'])
           );
       allow update, delete: if false;
     }
@@ -408,10 +452,19 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create, delete: if isAdmin();
+      // زيادة العدّاد مشروطة بصلاحية الكود لحظتها: كانت «+1» وحدها، فيمكن
+      // لأي مسجَّل استنزاف كود عمداً حتى سقفه بلا أي شراء، وتجاوُز السقف
+      // بزيادات متسابقة (القاعدة لم تكن تقارن بالسقف أصلاً).
       allow update: if isAdmin() || (
             isSignedIn() &&
             changedKeys().hasOnly(['usedCount']) &&
-            request.resource.data.usedCount == resource.data.usedCount + 1
+            request.resource.data.usedCount == resource.data.usedCount + 1 &&
+            resource.data.isActive == true &&
+            (!('expiresAt' in resource.data) ||
+                resource.data.expiresAt == null ||
+                request.time < resource.data.expiresAt) &&
+            (resource.data.usageLimit <= 0 ||
+                request.resource.data.usedCount <= resource.data.usageLimit)
           );
     }
 
@@ -425,8 +478,19 @@ service cloud.firestore {
             isAdmin() || resource.data.userId == currentUid()
           );
       allow list: if isAdmin();
-      allow create, update: if isSignedIn() && (
-            isAdmin() || request.resource.data.userId == currentUid()
+      // العدّاد لا يتحرك إلا +1 تصاعدياً: القاعدة السابقة سمحت لصاحب السجل
+      // بأي كتابة — فيصفّر عدّاده ويعيد استخدام الكود متجاوزاً «مرة واحدة
+      // لكل عميل». منع الحذف وحده لا يكفي حين يكون التصفير مباحاً.
+      allow create: if isSignedIn() && (
+            isAdmin() ||
+            (request.resource.data.userId == currentUid() &&
+                request.resource.data.count == 1)
+          );
+      allow update: if isSignedIn() && (
+            isAdmin() ||
+            (resource.data.userId == currentUid() &&
+                request.resource.data.userId == resource.data.userId &&
+                request.resource.data.count == resource.data.count + 1)
           );
       allow delete: if false;
     }
