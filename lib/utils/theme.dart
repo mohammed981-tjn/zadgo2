@@ -156,7 +156,11 @@ class AppTheme {
           fontWeight: FontWeight.w700,
           color: AppColors.textDark,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textDark),
+        // زر الرجوع الافتراضي (سهم أعلى الشاشة) كان بحجمه الافتراضي 24
+        // نحيلاً خافت الحضور — يبدو زخرفة لا زراً قابلاً للضغط، خاصة على
+        // شاشات التفاصيل التي يفتحها المستخدم متكرراً (كتفاصيل الشكوى).
+        // التكبير هنا يشمل كل زر رجوع تلقائي في النكهات الأربع دفعة واحدة.
+        iconTheme: const IconThemeData(color: AppColors.textDark, size: 27),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
