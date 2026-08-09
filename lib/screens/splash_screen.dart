@@ -115,18 +115,28 @@ class _SplashScreenState extends State<SplashScreen>
       );
     }
 
+    // تطبيق الكابتن يفتح على خلفية «الطريق الليلي» بهويته الكحلية — منتصفها
+    // داكن صافٍ فيبقى الشعار والعبارة بأعلى وضوح. بقية النكهات تدرّج شعاعي
+    // من "ليل" النكهة الفاتح نسبياً في المركز إلى الأغمق في الأطراف.
+    final isDriver = AppFlavorConfig.flavor == AppFlavor.driver;
     return Scaffold(
-      // خلفية البداية بهوية النكهة: تدرّج شعاعي من "ليل" النكهة الفاتح نسبياً
-      // في المركز إلى الأغمق في الأطراف.
       body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0, -0.2),
-            radius: 1.3,
-            colors: [fc.bgDark, fc.bgDarker],
-          ),
+          image: isDriver
+              ? const DecorationImage(
+                  image: AssetImage('assets/images/bg_splash_driver.jpg'),
+                  fit: BoxFit.cover,
+                )
+              : null,
+          gradient: isDriver
+              ? null
+              : RadialGradient(
+                  center: const Alignment(0, -0.2),
+                  radius: 1.3,
+                  colors: [fc.bgDark, fc.bgDarker],
+                ),
         ),
         child: Center(
           child: FadeTransition(
