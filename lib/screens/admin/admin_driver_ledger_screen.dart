@@ -5,13 +5,69 @@
 //
 // المرحلة الحالية (التجريب) لا تفرض أي تقييد على السائقين — هذه الشاشة أداة
 // محاسبة يدوية تُظهر للإدارة مَن عليه مال ومَن له، مع أثر موثّق لكل عملية.
+import 'dart:typed_data';
+import 'package:excel/excel.dart' as xl;
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+
+/// تصدير دفتر سائق واحد إلى Excel — لتسليمه إياه عند التسوية أو لمراجعة
+/// محاسبية خارج التطبيق. الأعمدة بأسماء سجلّ الحركات نفسها.
+Future<void> exportDriverLedgerExcel({
+  required Driver driver,
+  required List<DriverTransaction> txs,
+}) async {
+  final workbook = xl.Excel.createExcel();
+  final sheet = workbook['الدفتر'];
+  workbook.setDefaultSheet('الدفتر');
+  final dateFmt = DateFormat('yyyy-MM-dd HH:mm');
+
+  sheet.appendRow([
+    xl.TextCellValue('السائق'),
+    xl.TextCellValue(driver.name),
+    xl.TextCellValue('الرصيد الحالي'),
+    xl.DoubleCellValue(driver.balance),
+  ]);
+  sheet.appendRow([xl.TextCellValue('')]);
+  sheet.appendRow([
+    xl.TextCellValue('التاريخ'),
+    xl.TextCellValue('النوع'),
+    xl.TextCellValue('المبلغ'),
+    xl.TextCellValue('الرصيد بعدها'),
+    xl.TextCellValue('رقم الطلب'),
+    xl.TextCellValue('ملاحظة'),
+  ]);
+  for (final t in txs) {
+    sheet.appendRow([
+      xl.TextCellValue(dateFmt.format(t.createdAt)),
+      xl.TextCellValue(t.type.label),
+      xl.DoubleCellValue(t.amount),
+      xl.DoubleCellValue(t.balanceAfter),
+      xl.TextCellValue(t.orderNumber == null ? '' : '#${t.orderNumber}'),
+      xl.TextCellValue(t.note ?? ''),
+    ]);
+  }
+
+  final bytes = workbook.save();
+  if (bytes == null) return;
+  await Share.shareXFiles(
+    [
+      XFile.fromData(
+        Uint8List.fromList(bytes),
+        name: 'دفتر_${driver.name}.xlsx',
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ),
+    ],
+    subject: 'دفتر حساب ${driver.name}',
+  );
+}
 
 class AdminDriverLedgerScreen extends StatelessWidget {
   final Driver driver;
@@ -139,9 +195,21 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                   if (txs.isEmpty) {
                     return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات بعد');
                   }
-                  return Column(
-                    children: txs.map((t) => _LedgerTile(tx: t)).toList(),
-                  );
+                  return Column(children: [
+                    // تصدير الدفتر لتسليمه للسائق عند التسوية — بنفس أعمدة
+                    // السجلّ المعروض حرفياً.
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: TextButton.icon(
+                        onPressed: () =>
+                            exportDriverLedgerExcel(driver: d, txs: txs),
+                        icon: const Icon(Icons.table_view_outlined, size: 16),
+                        label: const Text('تصدير الدفتر Excel',
+                            style: TextStyle(fontSize: 12.5)),
+                      ),
+                    ),
+                    ...txs.map((t) => _LedgerTile(tx: t)),
+                  ]);
                 },
               ),
             ],

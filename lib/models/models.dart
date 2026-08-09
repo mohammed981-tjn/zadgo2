@@ -2114,6 +2114,10 @@ class RegistrationCode {
   final String? usedByUid;
   final String? usedByName;
 
+  /// انتهاء صلاحية الكود — null = بلا انتهاء (توافق خلفي مع الأكواد
+  /// المولّدة قبل هذه الميزة).
+  final DateTime? expiresAt;
+
   const RegistrationCode({
     required this.code,
     required this.role,
@@ -2124,7 +2128,11 @@ class RegistrationCode {
     this.usedAt,
     this.usedByUid,
     this.usedByName,
+    this.expiresAt,
   });
+
+  bool get isExpired =>
+      expiresAt != null && DateTime.now().isAfter(expiresAt!);
 
   factory RegistrationCode.fromMap(Map<String, dynamic> map, String id) =>
       RegistrationCode(
@@ -2140,6 +2148,7 @@ class RegistrationCode {
         usedAt: (map['usedAt'] as Timestamp?)?.toDate(),
         usedByUid: map['usedByUid'] as String?,
         usedByName: map['usedByName'] as String?,
+        expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -2152,6 +2161,7 @@ class RegistrationCode {
         'usedAt': usedAt != null ? Timestamp.fromDate(usedAt!) : null,
         'usedByUid': usedByUid,
         'usedByName': usedByName,
+        if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
       };
 }
 /// بنر ترويجي أعلى شاشة مطاعم العميل — عروض، مطاعم جديدة، إعلانات موسمية.

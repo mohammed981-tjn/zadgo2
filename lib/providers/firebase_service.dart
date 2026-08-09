@@ -315,6 +315,7 @@ class FirebaseService {
     required models.UserRole role,
     String restaurantId = '',
     String restaurantName = '',
+    Duration? validity,
   }) async {
     for (var attempt = 0; attempt < 5; attempt++) {
       final code = _randomCode();
@@ -327,6 +328,7 @@ class FirebaseService {
         restaurantId: restaurantId,
         restaurantName: restaurantName,
         createdAt: DateTime.now(),
+        expiresAt: validity == null ? null : DateTime.now().add(validity),
       );
       await ref.set(entry.toMap());
       return entry;
@@ -343,6 +345,16 @@ class FirebaseService {
               .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
               .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// كل أكواد التسجيل لشاشة إدارتها — الأحدث أولاً.
+  Stream<List<models.RegistrationCode>> streamAllRegistrationCodes() =>
+      _registrationCodes.limit(200).snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      });
 
   Future<void> revokeRegistrationCode(String code) =>
       _registrationCodes.doc(code.trim().toUpperCase()).delete();
@@ -366,6 +378,9 @@ class FirebaseService {
     if (initial.isUsed) {
       throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
     }
+    if (initial.isExpired) {
+      throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
+    }
     if (expectedRole != null && initial.role != expectedRole) {
       throw Exception('هذا الكود غير مخصص لهذا التطبيق');
     }
@@ -382,6 +397,9 @@ class FirebaseService {
         final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
         if (current.isUsed) {
           throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+        }
+        if (current.isExpired) {
+          throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
         }
         if (expectedRole != null && current.role != expectedRole) {
           throw Exception('هذا الكود غير مخصص لهذا التطبيق');

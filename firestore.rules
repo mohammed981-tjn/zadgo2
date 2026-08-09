@@ -476,6 +476,11 @@ service cloud.firestore {
       allow update: if isAdmin() || (
             isSignedIn() && (
               (resource.data.isUsed == false &&
+                  // الكود المنتهي لا يُستهلك حتى بالكتابة المباشرة — فحص
+                  // الصلاحية هنا لا في التطبيق وحده.
+                  (!('expiresAt' in resource.data) ||
+                      resource.data.expiresAt == null ||
+                      request.time < resource.data.expiresAt) &&
                   request.resource.data.isUsed == true &&
                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isUsed', 'usedAt'])) ||
               (resource.data.isUsed == true &&
