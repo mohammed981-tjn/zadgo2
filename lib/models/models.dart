@@ -341,6 +341,10 @@ extension ComplaintTypeScope on ComplaintType {
         return UserRole.driver;
       case ComplaintType.customerCancelledAfterPrep:
         return UserRole.customer;
+      // التذاكر العامة — موجّهة للإدارة نفسها، لا ضد طرف.
+      case ComplaintType.financial:
+      case ComplaintType.dataUpdate:
+      case ComplaintType.generalInquiry:
       case ComplaintType.other:
         return null;
     }
