@@ -560,11 +560,49 @@ function showOrderModal(id) {
   `);
   const cb = document.getElementById('cancelOrderBtn');
   if (cb) cb.addEventListener('click', async () => {
-    if (!confirm('إلغاء هذا الطلب نهائياً؟ لا يمكن التراجع.')) return;
+    const wallet = Number(o.walletUsed) || 0;
+    const warn = wallet > 0
+      ? `\n\nسيُعاد ${fmtMoney(wallet)} ${SAR} إلى محفظة العميل.`
+      : '';
+    if (!confirm('إلغاء هذا الطلب نهائياً؟ لا يمكن التراجع.' + warn)) return;
     try {
       await updateDoc(doc(db, 'orders', o.id), { status: 'cancelled', statusChangedAt: serverTimestamp() });
-      toast('تم إلغاء الطلب'); closeModal();
+      await refundWalletOnCancel(o);
+      toast(wallet > 0 ? 'أُلغي الطلب وأُعيد الرصيد للعميل' : 'تم إلغاء الطلب');
+      closeModal();
     } catch (err) { alert('تعذر الإلغاء: ' + (err.code || err.message)); }
+  });
+}
+
+/* يعيد إلى محفظة العميل ما خُصم منها لهذا الطلب عند إلغائه من اللوحة.
+ *
+ * كانت اللوحة تكتب حالة الإلغاء فقط دون إعادة الرصيد — بعكس التطبيق —
+ * فيخسر العميلُ الذي دفع من محفظته مالَه إن أُلغي طلبه من الويب. تُطابق
+ * هذه الدالة منطق _refundWalletOnCancel في التطبيق حرفاً بحرف: نفس نوع
+ * الحركة (orderReversal) ونفس الحقول، حتى لا يفترق الدفتران.
+ *
+ * تُستدعى بعد نجاح تغيير الحالة لا قبله: لو فشل الإلغاء، لا يكون رصيد
+ * قد أُعيد لطلب ما زال قائماً. وتُنفَّذ داخل معاملة ذرّية فلا يتغيّر
+ * الرصيد دون حركة مقابلة في الدفتر. */
+async function refundWalletOnCancel(order) {
+  const amount = Number(order.walletUsed) || 0;
+  if (amount <= 0 || !order.customerId) return;
+  await runTransaction(db, async (tx) => {
+    const userRef = doc(db, 'users', order.customerId);
+    const snap = await tx.get(userRef);
+    const current = Number(snap.data()?.walletBalance) || 0;
+    const after = current + amount;
+    tx.update(userRef, { walletBalance: after });
+    tx.set(doc(collection(db, 'wallet_transactions')), {
+      userId: order.customerId,
+      type: 'orderReversal',
+      amount,
+      balanceAfter: after,
+      orderId: order.id,
+      orderNumber: order.orderNumber ?? null,
+      note: 'إلغاء الطلب من لوحة التحكم',
+      createdAt: serverTimestamp(),
+    });
   });
 }
 
