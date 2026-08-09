@@ -9,6 +9,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'app_flavor.dart';
 import 'navigator_key.dart';
+import 'widgets/connectivity_banner.dart';
 import 'models/models.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/firebase_service.dart';
@@ -83,7 +84,8 @@ class DriverApp extends StatelessWidget {
         theme: AppTheme.build(palette: FlavorPalette.driver),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
-          child: child!,
+          // شريط انقطاع الاتصال يلتف حول كل الشاشات من هنا.
+          child: ConnectivityBanner(child: child!),
         ),
         home: const SplashScreen(),
       ),
