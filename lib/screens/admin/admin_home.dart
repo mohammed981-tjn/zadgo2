@@ -19,6 +19,7 @@ import 'admin_banners_screen.dart';
 import 'admin_payout_requests_screen.dart';
 import 'admin_coupons_screen.dart';
 import '../auth/change_password_screen.dart';
+import 'admin_registration_codes_screen.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
 /// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
@@ -107,6 +108,15 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'البنرات الترويجية', child: AdminBannersScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.vpn_key_outlined),
+              title: const Text('أكواد التسجيل'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد التسجيل', child: AdminRegistrationCodesScreen())));
               },
             ),
             ListTile(
