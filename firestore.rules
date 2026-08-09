@@ -247,7 +247,8 @@ service cloud.firestore {
             (isDriver() && currentUid() == driverId &&
                 !changedKeys().hasAny(
                     ['warningCount', 'totalEarnings', 'rating', 'ratingCount',
-                     'referredByCode', 'referralRewarded'])) ||
+                     'referredByCode', 'referralRewarded',
+                     'lastChallengeWindow'])) ||
             (!isCustomer() && changedKeys().hasOnly(['isAvailable'])) ||
             (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']))
           );

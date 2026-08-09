@@ -5,10 +5,14 @@
 // كل مبلغ وكل شرط يُضبط من هنا لا من الكود: المالك يرفع مكافأة الإحالة في
 // موسم يحتاج فيه سائقين، ويخفضها حين يكتفي، دون إصدار جديد للتطبيق.
 //
-// الصرف بضغطة المدير لا آلياً: التطبيق بلا Cloud Functions بعد، وقواعد
-// الأمان تمنع السائق من سكّ حركة «مكافأة» لنفسه (وهو الصواب). فالشاشة
-// تحسب المستحقّين وتعرضهم جاهزين، والمدير يصرف بضغطة — أثرٌ موثّق بيد
-// بشرية بدل أتمتة تكتب في دفتر مالي بلا رقيب.
+// الصرف: يدويٌّ بضغطة، أو تلقائيٌّ حين يفعّله المدير. والتلقائي هنا يمسح
+// المستحقّين ما دامت هذه الشاشة مفتوحة — التطبيق بلا Cloud Functions بعد،
+// وقواعد الأمان تمنع السائق من سكّ حركة «مكافأة» لنفسه (وهو الصواب)، فلا
+// جهة أخرى تستطيع الكتابة نيابةً. الأتمتة الكاملة على الخادم مع ترقية
+// Blaze (المسار د).
+//
+// الصرف المزدوج ممتنع في الحالتين بختمٍ على مستند السائق لا بانتباه
+// المدير: referralRewarded للإحالة، وlastChallengeWindow للتحدي.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
@@ -41,7 +45,7 @@ class AdminIncentivesScreen extends StatelessWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends StatefulWidget {
   final IncentiveSettings settings;
   final List<Driver> drivers;
   final List<Order> orders;
@@ -53,21 +57,153 @@ class _Body extends StatelessWidget {
   });
 
   @override
+  State<_Body> createState() => _BodyState();
+}
+
+class _BodyState extends State<_Body> {
+  /// قفل التزامن: البثّ يعيد البناء عدة مرات قبل أن تصل نتيجة الصرف، فبلا
+  /// القفل ينطلق المسح مرات متوازية على نفس المستحقّ. الختم في القاعدة
+  /// يمنع الصرف المزدوج فعلياً، والقفل يمنع الضجيج ومحاولات فاشلة.
+  bool _sweeping = false;
+
+  @override
   Widget build(BuildContext context) {
-    final delivered =
-        orders.where((o) => o.status == OrderStatus.delivered).toList();
+    final delivered = widget.orders
+        .where((o) => o.status == OrderStatus.delivered)
+        .toList();
+
+    if (widget.settings.autoPay && !_sweeping) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _sweep(delivered));
+    }
 
     return ListView(padding: const EdgeInsets.all(12), children: [
-      _SettingsCard(settings: settings),
+      _SettingsCard(settings: widget.settings),
       const SizedBox(height: 14),
       _ReferralsSection(
-          settings: settings, drivers: drivers, delivered: delivered),
+          settings: widget.settings,
+          drivers: widget.drivers,
+          delivered: delivered),
       const SizedBox(height: 14),
       _ChallengeSection(
-          settings: settings, drivers: drivers, delivered: delivered),
+          settings: widget.settings,
+          drivers: widget.drivers,
+          delivered: delivered),
       const SizedBox(height: 24),
     ]);
   }
+
+  /// المسح التلقائي: يصرف لكل مستحقّ لم يُختم بعد. يعمل ما دامت هذه
+  /// الشاشة مفتوحة — وهو أقصى ما يمكن بلا خادم؛ الأتمتة الكاملة مع Blaze.
+  Future<void> _sweep(List<Order> delivered) async {
+    if (!mounted || _sweeping) return;
+    _sweeping = true;
+    final service = context.read<FirebaseService>();
+    final s = widget.settings;
+    var paid = 0;
+
+    try {
+      if (s.referralEnabled) {
+        for (final r in eligibleReferrals(s, widget.drivers, delivered)) {
+          await service.payReferralBonus(
+            referrer: r.referrer,
+            referee: r.referee,
+            referrerAmount: s.referrerBonus,
+            refereeAmount: s.refereeBonus,
+          );
+          paid++;
+        }
+      }
+      final window = s.currentWindow(DateTime.now());
+      if (s.challengeEnabled && window != null) {
+        final key = IncentiveSettings.windowKey(window.$1);
+        for (final a
+            in challengeAchievers(s, widget.drivers, delivered, window)) {
+          if (a.driver.lastChallengeWindow == key) continue;
+          await service.payChallengeBonus(
+            driverId: a.driver.id,
+            amount: a.tier.bonus,
+            deliveries: a.count,
+            windowStart: window.$1,
+          );
+          paid++;
+        }
+      }
+      if (paid > 0 && mounted) {
+        showSuccess(context, 'صُرفت $paid مكافأة تلقائياً');
+      }
+    } catch (_) {
+      // فشل صرفٍ واحد لا يُسقط المسح؛ يبقى المستحقّ ظاهراً للصرف اليدوي.
+    } finally {
+      _sweeping = false;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// حساب المستحقّين — دوال مشتركة بين العرض والمسح التلقائي، فلا يختلف ما
+// يراه المدير عمّا يُصرف آلياً.
+// ═══════════════════════════════════════════════════════════════════════
+
+List<_ReferralRow> referralRows(
+    IncentiveSettings s, List<Driver> drivers, List<Order> delivered) {
+  final byCode = {for (final d in drivers) d.referralCode: d};
+  final now = DateTime.now();
+  final rows = <_ReferralRow>[];
+
+  for (final referee in drivers
+      .where((d) => d.referredByCode.isNotEmpty && !d.referralRewarded)) {
+    final referrer = byCode[referee.referredByCode];
+    // كود لا يطابق أي سائق (خطأ إدخال) أو سائق يدّعي دعوة نفسه.
+    if (referrer == null || referrer.id == referee.id) continue;
+
+    final joined = referee.createdAt;
+    final deadline = joined?.add(Duration(days: s.referralWindowDays));
+    final count = delivered
+        .where((o) =>
+            o.driverId == referee.id &&
+            (joined == null || !o.createdAt.isBefore(joined)) &&
+            (deadline == null || !o.createdAt.isAfter(deadline)))
+        .length;
+
+    rows.add(_ReferralRow(
+      referrer: referrer,
+      referee: referee,
+      count: count,
+      expired: deadline != null && now.isAfter(deadline),
+    ));
+  }
+  rows.sort((a, b) => b.count.compareTo(a.count));
+  return rows;
+}
+
+List<_ReferralRow> eligibleReferrals(
+        IncentiveSettings s, List<Driver> drivers, List<Order> delivered) =>
+    referralRows(s, drivers, delivered)
+        .where((r) => !r.expired && r.count >= s.referralDeliveries)
+        .toList();
+
+List<({Driver driver, int count, ChallengeTier tier})> challengeAchievers(
+  IncentiveSettings s,
+  List<Driver> drivers,
+  List<Order> delivered,
+  (DateTime, DateTime) window,
+) {
+  final (start, end) = window;
+  final counts = <String, int>{};
+  for (final o in delivered) {
+    final id = o.driverId;
+    if (id == null) continue;
+    if (o.createdAt.isBefore(start) || o.createdAt.isAfter(end)) continue;
+    counts[id] = (counts[id] ?? 0) + 1;
+  }
+  final out = <({Driver driver, int count, ChallengeTier tier})>[];
+  for (final d in drivers) {
+    final c = counts[d.id] ?? 0;
+    final t = s.tierFor(c);
+    if (t != null) out.add((driver: d, count: c, tier: t));
+  }
+  out.sort((a, b) => b.count.compareTo(a.count));
+  return out;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -109,12 +245,23 @@ class _SettingsCard extends StatelessWidget {
           _row('الشرط',
               '${s.referralDeliveries} توصيلة خلال ${s.referralWindowDays} يوماً'),
           _row('سقف الداعي شهرياً', '${s.referralMonthlyCap} إحالات'),
+          _row('رابط الدعوة', s.joinUrl),
           const Divider(height: 18),
           _row('تحدي نهاية الأسبوع',
               s.challengeEnabled ? 'مفعّل — ${s.weekdaysLabel}' : 'موقوف',
               highlight: !s.challengeEnabled),
           ...s.tiers.map((t) => _row('  ${t.deliveries} توصيلة',
               formatCurrency(t.bonus))),
+          const Divider(height: 18),
+          _row('الصرف التلقائي',
+              s.autoPay ? 'مفعّل — يصرف فور تحقّق الشرط' : 'يدوي بضغطة'),
+          if (s.autoPay)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                  'يعمل ما دامت هذه الشاشة مفتوحة — الأتمتة على الخادم مع ترقية Blaze',
+                  style: TextStyle(fontSize: 11, color: AppColors.textGray)),
+            ),
         ]),
       ),
     );
@@ -147,7 +294,8 @@ class _SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<_SettingsForm> {
   late bool _referralOn, _challengeOn;
   late final TextEditingController _referrer, _referee, _deliveries,
-      _windowDays, _cap;
+      _windowDays, _cap, _joinUrl;
+  late bool _autoPay;
   late List<int> _days;
   late List<({TextEditingController d, TextEditingController b})> _tiers;
   bool _saving = false;
@@ -163,6 +311,8 @@ class _SettingsFormState extends State<_SettingsForm> {
     _deliveries = TextEditingController(text: '${s.referralDeliveries}');
     _windowDays = TextEditingController(text: '${s.referralWindowDays}');
     _cap = TextEditingController(text: '${s.referralMonthlyCap}');
+    _joinUrl = TextEditingController(text: s.joinUrl);
+    _autoPay = s.autoPay;
     _days = [...s.challengeWeekdays];
     _tiers = s.tiers
         .map((t) => (
@@ -174,7 +324,9 @@ class _SettingsFormState extends State<_SettingsForm> {
 
   @override
   void dispose() {
-    for (final c in [_referrer, _referee, _deliveries, _windowDays, _cap]) {
+    for (final c in [
+      _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
+    ]) {
       c.dispose();
     }
     for (final t in _tiers) {
@@ -215,6 +367,8 @@ class _SettingsFormState extends State<_SettingsForm> {
               challengeEnabled: _challengeOn,
               challengeWeekdays: _days,
               tiers: tiers,
+              autoPay: _autoPay,
+              joinUrl: _joinUrl.text.trim(),
             ),
           );
       if (mounted) {
@@ -272,6 +426,18 @@ class _SettingsFormState extends State<_SettingsForm> {
           ]),
           const SizedBox(height: 10),
           _num(_cap, 'سقف إحالات الداعي شهرياً'),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _joinUrl,
+            textDirection: TextDirection.ltr,
+            decoration: const InputDecoration(
+              labelText: 'رابط صفحة التسجيل',
+              helperText: 'يُلحَق به ?ref=كود الداعي — صفحة رفع المستندات',
+              helperMaxLines: 2,
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
 
           const Divider(height: 26),
           SwitchListTile(
@@ -347,6 +513,19 @@ class _SettingsFormState extends State<_SettingsForm> {
             ),
           ),
 
+          const Divider(height: 26),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _autoPay,
+            onChanged: (v) => setState(() => _autoPay = v),
+            title: const Text('الصرف التلقائي',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+            subtitle: const Text(
+                'تُصرف المكافأة فور تحقّق الشرط بلا ضغطة — ما دامت شاشة '
+                'الحوافز مفتوحة (الأتمتة على الخادم تنتظر ترقية Blaze)',
+                style: TextStyle(fontSize: 11.5)),
+          ),
+
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -387,42 +566,8 @@ class _ReferralsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    final byCode = {for (final d in drivers) d.referralCode: d};
-    final now = DateTime.now();
-
-    // كل سائق أدخل كود داعٍ ولم تُصرف إحالته بعد.
-    final pending = drivers
-        .where((d) => d.referredByCode.isNotEmpty && !d.referralRewarded)
-        .toList();
-
-    final rows = <_ReferralRow>[];
-    for (final referee in pending) {
-      final referrer = byCode[referee.referredByCode];
-      // كود لا يطابق أي سائق (خطأ إدخال) أو سائق يدّعي دعوة نفسه.
-      if (referrer == null || referrer.id == referee.id) continue;
-
-      final joined = referee.createdAt;
-      final deadline =
-          joined?.add(Duration(days: settings.referralWindowDays));
-      final count = delivered
-          .where((o) =>
-              o.driverId == referee.id &&
-              (joined == null || !o.createdAt.isBefore(joined)) &&
-              (deadline == null || !o.createdAt.isAfter(deadline)))
-          .length;
-
-      rows.add(_ReferralRow(
-        referrer: referrer,
-        referee: referee,
-        count: count,
-        expired: deadline != null && now.isAfter(deadline),
-      ));
-    }
-    rows.sort((a, b) => b.count.compareTo(a.count));
-
-    final eligible = rows
-        .where((r) => !r.expired && r.count >= settings.referralDeliveries)
-        .toList();
+    final rows = referralRows(settings, drivers, delivered);
+    final eligible = eligibleReferrals(settings, drivers, delivered);
     final inProgress = rows.where((r) => !eligible.contains(r)).toList();
 
     return Card(
@@ -433,9 +578,44 @@ class _ReferralsSection extends StatelessWidget {
             const Icon(Icons.group_add_outlined,
                 color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
-            Text('الإحالات (${eligible.length} مستحقّة)',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 15)),
+            Expanded(
+              child: Text('الإحالات (${eligible.length} مستحقّة)',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 15)),
+            ),
+            // الصرف الجماعي: مستحقّون كثر يعني ضغطات كثيرة، وكلٌّ منها
+            // نافذة تأكيد. زرٌّ واحد بتأكيد واحد يذكر العدد والمبلغ.
+            if (eligible.length > 1)
+              TextButton(
+                onPressed: () async {
+                  final total = eligible.length *
+                      (settings.referrerBonus + settings.refereeBonus);
+                  final ok = await showConfirmDialog(context,
+                      title: 'صرف كل المستحقّين',
+                      content: '${eligible.length} إحالة — إجمالي '
+                          '${formatCurrency(total)} تُوزَّع على الطرفين.',
+                      confirmLabel: 'صرف الكل');
+                  if (ok != true) return;
+                  var done = 0;
+                  for (final r in eligible) {
+                    try {
+                      await service.payReferralBonus(
+                        referrer: r.referrer,
+                        referee: r.referee,
+                        referrerAmount: settings.referrerBonus,
+                        refereeAmount: settings.refereeBonus,
+                      );
+                      done++;
+                    } catch (_) {
+                      // يُترك للصرف اليدوي؛ لا يُوقف البقية.
+                    }
+                  }
+                  if (context.mounted) {
+                    showSuccess(context, 'صُرفت $done من ${eligible.length}');
+                  }
+                },
+                child: const Text('صرف الكل', style: TextStyle(fontSize: 12.5)),
+              ),
           ]),
           if (rows.isEmpty) ...[
             const SizedBox(height: 10),
@@ -590,18 +770,10 @@ class _ChallengeSection extends StatelessWidget {
     }
 
     final (start, end) = window;
-    final counts = <String, int>{};
-    for (final o in delivered) {
-      if (o.driverId == null) continue;
-      if (o.createdAt.isBefore(start) || o.createdAt.isAfter(end)) continue;
-      counts[o.driverId!] = (counts[o.driverId!] ?? 0) + 1;
-    }
-
-    final achieved = drivers
-        .map((d) => (driver: d, count: counts[d.id] ?? 0))
-        .where((e) => settings.tierFor(e.count) != null)
-        .toList()
-      ..sort((a, b) => b.count.compareTo(a.count));
+    final key = IncentiveSettings.windowKey(start);
+    final achieved = challengeAchievers(settings, drivers, delivered, window);
+    final unpaid =
+        achieved.where((e) => e.driver.lastChallengeWindow != key).toList();
 
     return Card(
       child: Padding(
@@ -611,8 +783,41 @@ class _ChallengeSection extends StatelessWidget {
             const Icon(Icons.emoji_events_outlined,
                 color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
-            const Text('تحدي نهاية الأسبوع',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            const Expanded(
+              child: Text('تحدي نهاية الأسبوع',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            ),
+            if (unpaid.length > 1)
+              TextButton(
+                onPressed: () async {
+                  final total =
+                      unpaid.fold<double>(0, (s, e) => s + e.tier.bonus);
+                  final ok = await showConfirmDialog(context,
+                      title: 'صرف كل المستحقّين',
+                      content: '${unpaid.length} كابتن — إجمالي '
+                          '${formatCurrency(total)}.',
+                      confirmLabel: 'صرف الكل');
+                  if (ok != true) return;
+                  var done = 0;
+                  for (final e in unpaid) {
+                    try {
+                      await service.payChallengeBonus(
+                        driverId: e.driver.id,
+                        amount: e.tier.bonus,
+                        deliveries: e.count,
+                        windowStart: start,
+                      );
+                      done++;
+                    } catch (_) {
+                      // مصروفة مسبقاً أو فشل شبكة — تبقى ظاهرة.
+                    }
+                  }
+                  if (context.mounted) {
+                    showSuccess(context, 'صُرفت $done من ${unpaid.length}');
+                  }
+                },
+                child: const Text('صرف الكل', style: TextStyle(fontSize: 12.5)),
+              ),
           ]),
           const SizedBox(height: 4),
           Text(
@@ -626,7 +831,7 @@ class _ChallengeSection extends StatelessWidget {
                 style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
           ],
           ...achieved.map((e) {
-            final tier = settings.tierFor(e.count)!;
+            final done = e.driver.lastChallengeWindow == key;
             return Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Row(children: [
@@ -638,38 +843,47 @@ class _ChallengeSection extends StatelessWidget {
                             style: const TextStyle(
                                 fontSize: 13, fontWeight: FontWeight.w700)),
                         Text('${e.count} توصيلة • بلغ مستوى '
-                            '${tier.deliveries}',
+                            '${e.tier.deliveries}',
                             style: const TextStyle(
                                 fontSize: 11.5, color: AppColors.textGray)),
                       ]),
                 ),
-                TextButton(
-                  onPressed: () async {
-                    final ok = await showConfirmDialog(context,
-                        title: 'صرف مكافأة التحدي',
-                        content:
-                            'تُضاف ${formatCurrency(tier.bonus)} لدفتر '
-                            '${e.driver.name} عن ${e.count} توصيلة في هذه '
-                            'النافذة. راجع دفتره أولاً حتى لا تُصرف مرتين.',
-                        confirmLabel: 'صرف');
-                    if (ok != true) return;
-                    try {
-                      await service.payChallengeBonus(
-                        driverId: e.driver.id,
-                        amount: tier.bonus,
-                        deliveries: e.count,
-                        windowStart: start,
-                      );
-                      if (context.mounted) {
-                        showSuccess(context, 'صُرفت المكافأة');
+                if (done)
+                  const StatusChip(label: 'صُرفت', color: AppColors.success)
+                else
+                  TextButton(
+                    onPressed: () async {
+                      final ok = await showConfirmDialog(context,
+                          title: 'صرف مكافأة التحدي',
+                          content:
+                              'تُضاف ${formatCurrency(e.tier.bonus)} لدفتر '
+                              '${e.driver.name} عن ${e.count} توصيلة في هذه '
+                              'النافذة.',
+                          confirmLabel: 'صرف');
+                      if (ok != true) return;
+                      try {
+                        await service.payChallengeBonus(
+                          driverId: e.driver.id,
+                          amount: e.tier.bonus,
+                          deliveries: e.count,
+                          windowStart: start,
+                        );
+                        if (context.mounted) {
+                          showSuccess(context, 'صُرفت المكافأة');
+                        }
+                      } catch (err) {
+                        if (context.mounted) {
+                          showError(
+                              context,
+                              err
+                                  .toString()
+                                  .replaceFirst('Exception: ', ''));
+                        }
                       }
-                    } catch (_) {
-                      if (context.mounted) showError(context, 'تعذّر الصرف');
-                    }
-                  },
-                  child: Text('صرف ${formatCurrency(tier.bonus)}',
-                      style: const TextStyle(fontSize: 12.5)),
-                ),
+                    },
+                    child: Text('صرف ${formatCurrency(e.tier.bonus)}',
+                        style: const TextStyle(fontSize: 12.5)),
+                  ),
               ]),
             );
           }),

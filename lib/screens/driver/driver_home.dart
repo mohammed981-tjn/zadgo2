@@ -1395,11 +1395,18 @@ class _IncentivesCards extends StatelessWidget {
   Widget _referralCard(BuildContext context, IncentiveSettings s) {
     final fc = context.flavorColors;
     final code = driver.referralCode;
-    final invite =
-        'انضم لكباتن ZadGo — أجرة واضحة لكل طلب واشتراطات مرنة.\n'
-        'اكتب كود الدعوة «$code» عند التسجيل، '
-        'وتنال ${s.refereeBonus.toStringAsFixed(0)} ر.س ترحيباً بعد '
-        '${s.referralDeliveries} توصيلة 🎁';
+    // الرابط يحمل الكود، فلا يعتمد وصول الإحالة على تذكّر المدعوّ كتابته:
+    // يفتح صفحة التسجيل، يملأ بياناته ويرفق مستنداته، ويصل الكود معها.
+    final link = s.inviteLinkFor(code);
+    final invite = [
+      'انضم لكباتن ZadGo — أجرة واضحة لكل طلب واشتراطات مرنة.',
+      if (link.isNotEmpty)
+        'سجّل من هنا (المستندات تُرفع في الصفحة نفسها):\n$link'
+      else
+        'اكتب كود الدعوة «$code» عند التسجيل.',
+      'وتنال ${s.refereeBonus.toStringAsFixed(0)} ر.س ترحيباً بعد '
+          '${s.referralDeliveries} توصيلة 🎁',
+    ].join('\n');
 
     return Card(
       child: Padding(

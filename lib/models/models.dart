@@ -865,6 +865,11 @@ class Driver {
   /// هل صُرفت مكافأة إحالة هذا السائق (للداعي وله)؟ يمنع الصرف مرتين.
   final bool referralRewarded;
 
+  /// مفتاح آخر نافذة تحدٍّ صُرفت له (yyyy-MM-dd لأول أيامها). حارسُ التكرار:
+  /// بدونه كان الصرف اليدوي يعتمد على انتباه المدير، وأي أتمتة كانت
+  /// ستدفع المكافأة مع كل تحديث للشاشة.
+  final String lastChallengeWindow;
+
   /// تاريخ الانضمام — تُحسب منه نافذة شرط الإحالة (٣٠ يوماً افتراضياً).
   final DateTime? createdAt;
 
@@ -899,6 +904,7 @@ class Driver {
     this.offersAccepted = 0,
     this.referredByCode = '',
     this.referralRewarded = false,
+    this.lastChallengeWindow = '',
     this.createdAt,
   });
 
@@ -924,6 +930,7 @@ class Driver {
         offersAccepted: (map['offersAccepted'] as num?)?.toInt() ?? 0,
         referredByCode: map['referredByCode'] as String? ?? '',
         referralRewarded: map['referralRewarded'] as bool? ?? false,
+        lastChallengeWindow: map['lastChallengeWindow'] as String? ?? '',
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
       );
 
@@ -949,6 +956,7 @@ class Driver {
         'offersAccepted': offersAccepted,
         'referredByCode': referredByCode,
         'referralRewarded': referralRewarded,
+        'lastChallengeWindow': lastChallengeWindow,
         if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       };
 }
@@ -1005,6 +1013,23 @@ class IncentiveSettings {
   /// مستويات تصاعدية؛ يُصرف للسائق **أعلى** مستوى بلغه لا مجموعها.
   final List<ChallengeTier> tiers;
 
+  /// الصرف التلقائي فور تحقّق الشرط — بلا ضغطة المدير على كل مستحقّ.
+  ///
+  /// حدوده يجب أن تكون معلومة: التطبيق بلا Cloud Functions، فالمسح يجري
+  /// من **تطبيق الإدارة وهو مفتوح على شاشة الحوافز**. أي أن الصرف يقع
+  /// خلال دقائق من فتحك الشاشة لا في اللحظة نفسها. الأتمتة الكاملة على
+  /// الخادم تنتظر ترقية Blaze (المسار د).
+  ///
+  /// الصرف المزدوج ممتنع في الحالتين: الإحالة تُختم بـ referralRewarded،
+  /// والتحدي بـ lastChallengeWindow على مستند السائق.
+  final bool autoPay;
+
+  /// رابط صفحة التسجيل التي يفتحها كود الدعوة — يُلحَق به `?ref=CODE`.
+  /// صفحة ويب لا شاشة في التطبيق: المدعوّ يرفع فيها مستنداته (الإقامة
+  /// ورخصة القيادة والاستمارة والتأمين وصور المركبة)، ورفعُ الملفات من
+  /// التطبيق يتطلّب Firebase Storage الموقوف على ترقية Blaze.
+  final String joinUrl;
+
   const IncentiveSettings({
     this.referralEnabled = true,
     this.referrerBonus = 50,
@@ -1018,6 +1043,8 @@ class IncentiveSettings {
       ChallengeTier(deliveries: 10, bonus: 20),
       ChallengeTier(deliveries: 20, bonus: 50),
     ],
+    this.autoPay = false,
+    this.joinUrl = 'https://zadgo.co/join',
   });
 
   factory IncentiveSettings.fromMap(Map<String, dynamic> map) {
@@ -1048,6 +1075,10 @@ class IncentiveSettings {
               .toList()
             ..sort((a, b) => a.deliveries.compareTo(b.deliveries)))
           : d.tiers,
+      autoPay: map['autoPay'] as bool? ?? d.autoPay,
+      joinUrl: (map['joinUrl'] as String?)?.trim().isNotEmpty == true
+          ? (map['joinUrl'] as String).trim()
+          : d.joinUrl,
     );
   }
 
@@ -1061,6 +1092,8 @@ class IncentiveSettings {
         'challengeEnabled': challengeEnabled,
         'challengeWeekdays': challengeWeekdays,
         'tiers': tiers.map((t) => t.toMap()).toList(),
+        'autoPay': autoPay,
+        'joinUrl': joinUrl,
       };
 
   IncentiveSettings copyWith({
@@ -1073,6 +1106,8 @@ class IncentiveSettings {
     bool? challengeEnabled,
     List<int>? challengeWeekdays,
     List<ChallengeTier>? tiers,
+    bool? autoPay,
+    String? joinUrl,
   }) =>
       IncentiveSettings(
         referralEnabled: referralEnabled ?? this.referralEnabled,
@@ -1084,6 +1119,8 @@ class IncentiveSettings {
         challengeEnabled: challengeEnabled ?? this.challengeEnabled,
         challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
         tiers: tiers ?? this.tiers,
+        autoPay: autoPay ?? this.autoPay,
+        joinUrl: joinUrl ?? this.joinUrl,
       );
 
   /// أعلى مستوى بلغه سائق أنجز [count] توصيلة — `null` إن لم يبلغ أدناها.
@@ -1122,6 +1159,21 @@ class IncentiveSettings {
       end = end.add(const Duration(days: 1));
     }
     return (start, end);
+  }
+
+  /// مفتاح النافذة المخزَّن على مستند السائق لمنع تكرار الصرف.
+  static String windowKey(DateTime start) =>
+      '${start.year}-${start.month.toString().padLeft(2, '0')}-'
+      '${start.day.toString().padLeft(2, '0')}';
+
+  /// رابط دعوة يحمل كود الداعي — يفتحه المدعوّ فيسجّل ويرفق مستنداته،
+  /// فيصل الكود مع البيانات بلا اعتماد على تذكّره كتابته يدوياً.
+  String inviteLinkFor(String referralCode) {
+    final base = joinUrl.trim();
+    if (base.isEmpty) return '';
+    return base.contains('?')
+        ? '$base&ref=$referralCode'
+        : '$base?ref=$referralCode';
   }
 
   /// أسماء أيام التحدي للعرض.

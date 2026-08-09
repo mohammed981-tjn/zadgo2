@@ -1745,21 +1745,32 @@ class FirebaseService {
     await _drivers.doc(referee.id).update({'referralRewarded': true});
   }
 
-  /// صرف مكافأة تحدٍّ. الملاحظة تحمل النافذة ومستواها فيبقى الأثر مفهوماً
-  /// في الدفتر بعد شهور، وهي أيضاً ما يمنع المدير من الصرف مرتين لنفس
-  /// النافذة (يراها في السجلّ).
+  /// صرف مكافأة تحدٍّ — مرة واحدة لكل سائق في كل نافذة.
+  ///
+  /// الحارس يُقرأ من القاعدة لا من النسخة المعروضة على الشاشة: الصرف
+  /// التلقائي قد يعمل من جهازين، والشاشة قد تكون فُتحت قبل صرف مدير آخر.
+  /// ويُختم المستند قبل كتابة الحركة عمداً — ختمٌ بلا صرف يُكتشف ويُصلَح
+  /// يدوياً، أما صرفٌ بلا ختم فيتكرر مع كل تحديث.
   Future<void> payChallengeBonus({
     required String driverId,
     required double amount,
     required int deliveries,
     required DateTime windowStart,
-  }) =>
-      recordDriverBonus(
-        driverId: driverId,
-        amount: amount,
-        note: 'تحدي ${windowStart.day}/${windowStart.month} — '
-            '$deliveries توصيلة',
-      );
+  }) async {
+    final key = models.IncentiveSettings.windowKey(windowStart);
+    final snap = await _drivers.doc(driverId).get();
+    final current = snap.data()?['lastChallengeWindow'] as String? ?? '';
+    if (current == key) {
+      throw Exception('صُرفت مكافأة هذه النافذة لهذا السائق مسبقاً');
+    }
+    await _drivers.doc(driverId).update({'lastChallengeWindow': key});
+    await recordDriverBonus(
+      driverId: driverId,
+      amount: amount,
+      note: 'تحدي ${windowStart.day}/${windowStart.month} — '
+          '$deliveries توصيلة',
+    );
+  }
 
   /// يحدّث متوسط تقييم المطعم تراكمياً بنفس أسلوب تقييم السائق. كان تقييم
   /// المطاعم لا يُحدَّث إطلاقاً، فتبقى كلها على القيمة الافتراضية 5.0 مهما
