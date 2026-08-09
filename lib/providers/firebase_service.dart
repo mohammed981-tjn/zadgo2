@@ -1,6 +1,7 @@
 // lib/providers/firebase_service.dart
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -1107,8 +1108,6 @@ class FirebaseService {
     }
     final commission = order.calculatedCommission;
     final driverPayout = order.driverShare;
-    final itemsTotal = order.itemsTotal;
-    final appShare = order.appShare;
     final paymentMethod = order.paymentMethod;
     final orderNumber = order.orderNumber;
     // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
