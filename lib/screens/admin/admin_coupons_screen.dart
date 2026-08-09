@@ -120,10 +120,17 @@ class _CouponCard extends StatelessWidget {
               icon: const Icon(Icons.delete_outline,
                   size: 18, color: AppColors.error),
               onPressed: () async {
+                // كود استُخدم فعلاً: الحذف يُفقد أثره عند مراجعة الحملة،
+                // والإيقاف يمنع استخدامه ويُبقي سجلّه — فيُوجَّه إليه.
                 final ok = await showConfirmDialog(context,
                     title: 'حذف الكود',
-                    content: 'حذف ${c.code} نهائياً؟ الطلبات السابقة تحتفظ '
-                        'بخصمها المسجَّل فيها.',
+                    content: c.usedCount > 0
+                        ? 'استُخدم ${c.code} ${c.usedCount} مرة. حذفه يُفقد '
+                            'أثره عند مراجعة الحملة — «إيقاف» أفضل: يمنع '
+                            'استخدامه ويُبقي سجلّه. الطلبات السابقة تحتفظ '
+                            'بخصمها المسجَّل فيها.'
+                        : 'حذف ${c.code} نهائياً؟ الطلبات السابقة تحتفظ '
+                            'بخصمها المسجَّل فيها.',
                     confirmLabel: 'حذف',
                     confirmColor: AppColors.error);
                 if (ok == true) await service.deleteCoupon(c.code);
@@ -194,8 +201,14 @@ class _CouponFormState extends State<_CouponForm> {
   Future<void> _save() async {
     final code = _code.text.trim().toUpperCase();
     final value = double.tryParse(_value.text.trim()) ?? 0;
-    if (code.length < 3) {
-      showError(context, 'الكود ثلاثة أحرف فأكثر');
+    if (code.length < 3 || code.length > 24) {
+      showError(context, 'الكود من ٣ إلى ٢٤ خانة');
+      return;
+    }
+    // حروف إنجليزية وأرقام فقط: الكود معرّف المستند، والعميل يكتبه بلوحة
+    // مفاتيح قد تُدخل مسافة أو حرفاً عربياً فلا يطابق أبداً.
+    if (!RegExp(r'^[A-Z0-9]+$').hasMatch(code)) {
+      showError(context, 'الكود حروف إنجليزية وأرقام فقط بلا مسافات');
       return;
     }
     if (value <= 0) {
@@ -207,6 +220,21 @@ class _CouponFormState extends State<_CouponForm> {
       return;
     }
     setState(() => _saving = true);
+    // الكود معرّف المستند والحفظ بالدمج، فكود جديد باسم كودٍ قائم كان
+    // يندمج فيه صامتاً: يستبدل قيمته ويرث عدّاد استخداماته — بلا أي تنبيه.
+    if (widget.existing == null) {
+      try {
+        if (await context.read<FirebaseService>().couponExists(code)) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          showError(context, 'الكود $code موجود مسبقاً — عدّله من قائمة الأكواد');
+          return;
+        }
+      } catch (_) {
+        // تعذّر الفحص (شبكة) — لا يُمنع الحفظ بسببه.
+      }
+      if (!mounted) return;
+    }
     try {
       await context.read<FirebaseService>().saveCoupon(Coupon(
             code: code,
@@ -354,7 +382,13 @@ class _CouponFormState extends State<_CouponForm> {
                       firstDate: now,
                       lastDate: now.add(const Duration(days: 730)),
                     );
-                    if (picked != null) setState(() => _expiresAt = picked);
+                    // نهاية اليوم لا بدايته: مُنتقي التاريخ يعيد منتصف
+                    // الليل، فكوبون «ينتهي ١٥/٨» كان ميتاً طوال يوم ١٥
+                    // كاملاً. المالك يقصد «صالح إلى آخر ذلك اليوم».
+                    if (picked != null) {
+                      setState(() => _expiresAt = DateTime(
+                          picked.year, picked.month, picked.day, 23, 59, 59));
+                    }
                   },
                   child: const Text('اختيار'),
                 ),

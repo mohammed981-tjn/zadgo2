@@ -77,13 +77,23 @@ service cloud.firestore {
     /// الثابت، وسقف maxDiscount حين يكون مضبوطاً). كوبون نسبة بلا سقف لا
     /// يمكن التحقق من مبلغه هنا (يتطلّب جمع الأصناف على الخادم) — لذا
     /// يُنصح بضبط maxDiscount لكل كوبونات النسبة.
+    ///
+    /// كل حقل يُقرأ بقيمة افتراضية عبر get(key, default) لا بالوصول المباشر:
+    /// قراءة حقل غير موجود في القواعد **خطأ تقييم** يرفض الطلب كله — فكوبون
+    /// أُنشئ من لوحة الويب بلا maxDiscount مثلاً كان سيمنع العميل من إتمام
+    /// طلبه أصلاً (لا مجرد رفض الخصم). ولوحة الويب طرف كاتب ثانٍ لا نضمن
+    /// تطابق حقوله، فالتساهل مع الحقل الغائب شرط تشغيلي لا تجميل.
+    /// والكود المحذوف يعطي isActive الافتراضية false فيُرفض بنظافة.
     function couponGrantsDiscount(code, amount) {
-      let c = get(/databases/$(database)/documents/coupons/$(code)).data;
-      return c.isActive == true &&
-          (!('expiresAt' in c) || c.expiresAt == null ||
-              request.time < c.expiresAt) &&
-          (c.type != 'fixed' || amount <= c.value) &&
-          (c.maxDiscount <= 0 || amount <= c.maxDiscount);
+      let path = /databases/$(database)/documents/coupons/$(code);
+      let c = exists(path) ? get(path).data : {};
+      return c.get('isActive', false) == true &&
+          (c.get('expiresAt', null) == null ||
+              request.time < c.get('expiresAt', null)) &&
+          (c.get('type', 'percentage') != 'fixed' ||
+              amount <= c.get('value', 0)) &&
+          (c.get('maxDiscount', 0) <= 0 ||
+              amount <= c.get('maxDiscount', 0));
     }
 
     // ---------------------------------------------------------------------
@@ -455,16 +465,18 @@ service cloud.firestore {
       // زيادة العدّاد مشروطة بصلاحية الكود لحظتها: كانت «+1» وحدها، فيمكن
       // لأي مسجَّل استنزاف كود عمداً حتى سقفه بلا أي شراء، وتجاوُز السقف
       // بزيادات متسابقة (القاعدة لم تكن تقارن بالسقف أصلاً).
+      // الحقول تُقرأ بقيم افتراضية: كوبون من لوحة الويب بلا usageLimit أو
+      // بلا isActive كان سيرفع خطأ تقييم فيفشل تقييد الاستخدام صامتاً.
       allow update: if isAdmin() || (
             isSignedIn() &&
             changedKeys().hasOnly(['usedCount']) &&
             request.resource.data.usedCount == resource.data.usedCount + 1 &&
-            resource.data.isActive == true &&
-            (!('expiresAt' in resource.data) ||
-                resource.data.expiresAt == null ||
-                request.time < resource.data.expiresAt) &&
-            (resource.data.usageLimit <= 0 ||
-                request.resource.data.usedCount <= resource.data.usageLimit)
+            resource.data.get('isActive', false) == true &&
+            (resource.data.get('expiresAt', null) == null ||
+                request.time < resource.data.get('expiresAt', null)) &&
+            (resource.data.get('usageLimit', 0) <= 0 ||
+                request.resource.data.usedCount <=
+                    resource.data.get('usageLimit', 0))
           );
     }
 
