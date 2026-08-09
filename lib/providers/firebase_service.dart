@@ -489,9 +489,24 @@ class FirebaseService {
     required String restaurantId,
     required List<models.MenuCategory> categories,
     required List<models.MenuItem> items,
+    bool replaceExisting = false,
   }) async {
     const maxOps = 450; // هامش أمان تحت حدّ 500
     final ops = <void Function(WriteBatch)>[];
+
+    // وضع الاستبدال: يُحذف المنيو القائم (تصنيفاته وأصنافه) قبل كتابة
+    // الجديد — لإعادة استيراد منيو استُورد سابقاً (من لوحة الويب مثلاً)
+    // دون تكرار الأصناف. الحذف يتقدّم الكتابة في نفس تسلسل الدفعات.
+    if (replaceExisting) {
+      final oldCats = await _categories(restaurantId).get();
+      final oldItems = await _items(restaurantId).get();
+      for (final d in oldCats.docs) {
+        ops.add((b) => b.delete(d.reference));
+      }
+      for (final d in oldItems.docs) {
+        ops.add((b) => b.delete(d.reference));
+      }
+    }
 
     for (final c in categories) {
       ops.add((b) => b.set(_categories(restaurantId).doc(c.id), c.toMap()));
