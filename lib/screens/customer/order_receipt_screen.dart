@@ -70,8 +70,17 @@ class OrderReceiptScreen extends StatelessWidget {
                               color: AppColors.primary)),
                       const SizedBox(width: 8),
                       Expanded(
-                          child: Text(i.name,
-                              style: const TextStyle(fontSize: 14))),
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(i.name, style: const TextStyle(fontSize: 14)),
+                              if ((i.extras ?? '').trim().isNotEmpty)
+                                Text(i.extras!,
+                                    style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: AppColors.textGray)),
+                            ]),
+                      ),
                       Text(formatCurrency(i.subtotal),
                           style: const TextStyle(
                               fontSize: 13.5, fontWeight: FontWeight.w600)),

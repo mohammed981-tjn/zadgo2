@@ -298,9 +298,27 @@ class _OrderCard extends StatelessWidget {
           skipped++;
           continue;
         }
+        // استرجاع خيارات الطلب القديم بأسمائها من القائمة الحالية؛ الخيار
+        // الذي حُذف من القائمة يسقط، والمجموعة الإلزامية بلا اختيار مسترجَع
+        // تأخذ خيارها الأول — فلا يدخل السلة صنفُ خياراتٍ ناقصُ إلزامي.
+        final oldNames = (oi.extras ?? '')
+            .split(' • ')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toSet();
+        final selections = <ItemOption>[];
+        for (final group in current.optionGroups) {
+          final matched =
+              group.options.where((o) => oldNames.contains(o.name)).toList();
+          if (group.multiSelect) {
+            selections.addAll(matched);
+          } else if (group.options.isNotEmpty) {
+            selections.add(matched.isNotEmpty ? matched.first : group.options.first);
+          }
+        }
         for (var q = 0; q < oi.quantity; q++) {
           cart.add(current, restaurant.id, restaurant.name, restaurant.emoji,
-              restaurant.driverShareFee, restaurant.appShareFee);
+              restaurant.driverShareFee, restaurant.appShareFee, selections);
         }
         added++;
       }

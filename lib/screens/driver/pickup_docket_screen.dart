@@ -189,10 +189,26 @@ class PickupDocketScreen extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
-                                      child: Text(i.name,
-                                          style: const TextStyle(
-                                              fontSize: 15.5,
-                                              fontWeight: FontWeight.w600))),
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(i.name,
+                                              style: const TextStyle(
+                                                  fontSize: 15.5,
+                                                  fontWeight: FontWeight.w600)),
+                                          // الخيارات (كبير • جبن...) جزء من
+                                          // المطابقة مع الشنطة لا زينة.
+                                          if ((i.extras ?? '')
+                                              .trim()
+                                              .isNotEmpty)
+                                            Text(i.extras!,
+                                                style: const TextStyle(
+                                                    fontSize: 12.5,
+                                                    color:
+                                                        AppColors.textGray)),
+                                        ]),
+                                  ),
                                 ]),
                               )),
                           if ((o.notes ?? '').trim().isNotEmpty) ...[
