@@ -50,7 +50,11 @@ class PickupDocketScreen extends StatelessWidget {
                 subtitle: 'حالته الآن: ${o.status.label}');
           }
 
-          final isCash = o.paymentMethod == PaymentMethod.cash;
+          // «نقدي» يستحق شريط التحصيل فقط إن بقي على العميل ما يُحصَّل —
+          // محفظته قد تكون غطّت المبلغ كله فيُعامل كالمدفوع إلكترونياً.
+          final collectAmount = o.grandTotal - o.walletUsed;
+          final isCash =
+              o.paymentMethod == PaymentMethod.cash && collectAmount > 0;
           final prePickup = o.status == OrderStatus.readyForPickup ||
               o.status == OrderStatus.searchingDriver ||
               o.status == OrderStatus.driverAssigned;
@@ -135,15 +139,15 @@ class PickupDocketScreen extends StatelessWidget {
                           children: [
                             Text(
                                 isCash
-                                    ? 'نقدي — حصّل من العميل ${formatCurrency(o.grandTotal - o.walletUsed)}'
-                                    : 'مدفوع إلكترونياً — لا تحصيل من أحد',
+                                    ? 'نقدي — حصّل من العميل ${formatCurrency(collectAmount)}'
+                                    : 'مدفوع — لا تحصيل من أحد',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 14.5,
                                     color: isCash
                                         ? const Color(0xFF8A6508)
                                         : AppColors.success)),
-                            if (isCash)
+                            if (isCash && o.custodyAmount > 0)
                               Text(
                                   'ستُقيَّد عُهدة ${formatCurrency(o.custodyAmount)} على محفظتك عند الاستلام',
                                   style: const TextStyle(fontSize: 11.5)),

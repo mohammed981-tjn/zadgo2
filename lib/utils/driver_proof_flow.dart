@@ -115,7 +115,7 @@ class DriverProofFlow {
       title: 'استلام الطلب',
       content: 'هل طابقت رقم الطلب #${order.orderNumber} على ملصق الكيس '
               'وعدد الأصناف؟\n\n' +
-          (isCash
+          (isCash && order.custodyAmount > 0
               ? 'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
                   '(قيمة الطلب) حتى تحصيلها من العميل.\n\n'
               : '') +

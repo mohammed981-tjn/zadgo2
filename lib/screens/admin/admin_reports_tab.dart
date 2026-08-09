@@ -48,6 +48,18 @@ class AdminReportsTab extends StatelessWidget {
         final totalCommission = mealsCommission + deliveryCommission;
         final vatInMeals = Pricing.vatIncludedIn(totalMeals);
 
+        // الدورة المالية الكاملة: كل ريال دفعه العميل يذهب لأحد ثلاثة —
+        // المطعم أو السائق أو المنصّة. عرضها معادلةً واحدة يجعل أي خلل
+        // (عمولة ناقصة، أجرة مكررة) ظاهراً فوراً بدل أرقام متناثرة.
+        final totalRevenue = sold.fold(0.0, (s, o) => s + o.grandTotal);
+        final restaurantsNet = totalMeals - mealsCommission;
+        final totalWalletUsed = sold.fold(0.0, (s, o) => s + o.walletUsed);
+        // مسار التحصيل: النقدي حصّله السائقون من العملاء مباشرة، والباقي
+        // قبضته المنصّة (بطاقات + ما خُصم من أرصدة المحافظ).
+        final cashCollected = sold
+            .where((o) => o.paymentMethod == PaymentMethod.cash)
+            .fold(0.0, (s, o) => s + (o.grandTotal - o.walletUsed));
+
         // تجميع المبيعات لكل مطعم على حدة.
         final byRestaurant = <String, _RestaurantTotals>{};
         for (final o in sold) {
@@ -89,6 +101,81 @@ class AdminReportsTab extends StatelessWidget {
                           const TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
+            ),
+            const SizedBox(height: 16),
+
+            // معادلة الدورة المالية — من دفع العميل حتى استقرار كل ريال.
+            const SectionHeader(title: 'الدورة المالية الكاملة'),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(children: [
+                  PriceRow(
+                      label: 'دفعه العملاء (شامل التوصيل والرسوم)',
+                      value: formatCurrency(totalRevenue),
+                      bold: true),
+                  const Divider(),
+                  PriceRow(
+                      label: '← صافي مستحقّات المطاعم',
+                      value: formatCurrency(restaurantsNet)),
+                  PriceRow(
+                      label: '← أجرة السائقين',
+                      value: formatCurrency(totalDelivery)),
+                  PriceRow(
+                      label: '← دخل المنصّة (عمولة 15% + الرسم الثابت)',
+                      value: formatCurrency(totalCommission)),
+                  const Divider(),
+                  PriceRow(
+                      label: 'حصّله السائقون نقداً من العملاء',
+                      value: formatCurrency(cashCollected)),
+                  PriceRow(
+                      label: 'قبضته المنصّة (بطاقات + محافظ)',
+                      value: formatCurrency(totalRevenue - cashCollected)),
+                  if (totalWalletUsed > 0)
+                    PriceRow(
+                        label: 'منها مدفوع من أرصدة المحافظ',
+                        value: formatCurrency(totalWalletUsed)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // أين المال الآن؟ أرصدة السائقين الحيّة: السالب نقدٌ بأيديهم
+            // (عُهد لم تُسوَّ بعد)، والموجب مستحقّات عليهم للمنصّة صرفها.
+            AppStreamBuilder<List<Driver>>(
+              stream: () => service.streamDrivers(),
+              loading: const SizedBox.shrink(),
+              builder: (ctx, drivers) {
+                final custodyHeld = drivers
+                    .where((d) => d.balance < 0)
+                    .fold(0.0, (s, d) => s + d.balance.abs());
+                final duesToDrivers = drivers
+                    .where((d) => d.balance > 0)
+                    .fold(0.0, (s, d) => s + d.balance);
+                if (custodyHeld == 0 && duesToDrivers == 0) {
+                  return const SizedBox.shrink();
+                }
+                return Card(
+                  color: AppColors.primary.withOpacity(0.05),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('أرصدة السائقين الآن',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 13.5)),
+                          const SizedBox(height: 6),
+                          PriceRow(
+                              label: 'نقد بيد السائقين (عُهد لم تُسوَّ)',
+                              value: formatCurrency(custodyHeld)),
+                          PriceRow(
+                              label: 'مستحقّات للسائقين على المنصّة',
+                              value: formatCurrency(duesToDrivers)),
+                        ]),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
 
