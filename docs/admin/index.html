@@ -206,7 +206,7 @@
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut }
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, collection, query, orderBy, where,
   limit, onSnapshot, getDocs, writeBatch, runTransaction, Timestamp, serverTimestamp }
@@ -279,6 +279,7 @@ const AUDIT_ACTIONS = {
   'order.cancel':       ['إلغاء طلب', 'orders', '#c0392b'],
   'order.assign':       ['إسناد سائق', 'orders', '#2471a3'],
   'order.reassign':     ['تغيير سائق', 'orders', '#ca6f1e'],
+  'order.status':       ['دفع حالة الطلب', 'orders', '#2471a3'],
   'driver.deposit':     ['إيداع نقدي', 'money', '#1e8449'],
   'driver.payout':      ['صرف لسائق', 'money', '#c0392b'],
   'driver.adjustment':  ['تسوية دفتر سائق', 'money', '#8e44ad'],
@@ -286,6 +287,7 @@ const AUDIT_ACTIONS = {
   'payout.rejected':    ['رفض طلب سحب', 'money', '#c0392b'],
   'settlement.create':  ['تسوية مطعم', 'money', '#16a085'],
   'wallet.adjust':      ['تعديل محفظة عميل', 'money', '#2471a3'],
+  'restaurant.create':  ['إنشاء مطعم', 'content', '#1e8449'],
   'restaurant.toggle':  ['فتح/إغلاق مطعم', 'content', '#ca6f1e'],
   'restaurant.edit':    ['تعديل بيانات مطعم', 'content', '#2471a3'],
   'menu.category':      ['تصنيف منيو', 'content', '#8e44ad'],
@@ -301,6 +303,7 @@ const AUDIT_ACTIONS = {
   'code.create':        ['إصدار كود تسجيل', 'users', '#1e8449'],
   'code.delete':        ['حذف كود تسجيل', 'users', '#c0392b'],
   'user.toggle':        ['تفعيل/إيقاف مستخدم', 'users', '#ca6f1e'],
+  'user.reset':         ['رابط استعادة كلمة المرور', 'users', '#2471a3'],
   'complaint.status':   ['تغيير حالة شكوى', 'users', '#2471a3'],
   'complaint.note':     ['ملاحظة على شكوى', 'users', '#7f8c8d'],
   'complaint.reply':    ['ردّ على شكوى', 'users', '#2471a3'],
@@ -911,12 +914,15 @@ function showOrderModal(id) {
         ${ACTIVE_STATUSES.includes(o.status)
           ? '<button class="btn danger" id="cancelOrderBtn">إلغاء الطلب</button>' : ''}
       </div>
-      ${assignHintHtml(o)}` : ''}
+      ${assignHintHtml(o)}
+      ${nextStatusHtml(o)}` : ''}
   `);
   const pb = document.getElementById('loadProofBtn');
   if (pb) pb.addEventListener('click', () => loadOrderProof(o.id));
   const ab = document.getElementById('assignBtn');
   if (ab) ab.addEventListener('click', () => showAssignModal(o.id));
+  document.querySelectorAll('[data-nextst]').forEach((b) =>
+    b.addEventListener('click', () => pushStatus(o.id, b.dataset.nextst)));
   const cb = document.getElementById('cancelOrderBtn');
   if (cb) cb.addEventListener('click', async () => {
     const wallet = Number(o.walletUsed) || 0;
@@ -934,6 +940,158 @@ function showOrderModal(id) {
       closeModal();
     } catch (err) { alert('تعذر الإلغاء: ' + (err.code || err.message)); }
   });
+}
+
+/* ---------------- دفع حالة الطلب يدوياً ----------------
+ *
+ * التطبيق ينقل الحالات بثلاث دوال لا بواحدة، ولكلٍّ أثر مالي مختلف — وهذا
+ * أخطر ما في هذه الميزة: زرٌّ ساذج يكتب `status` وحده يبدو ناجحاً ويترك
+ * الدفاتر ناقصة بصمت.
+ *
+ * • الحالات الوسطى (قبول المطعم، التحضير، الجاهزية، البحث عن سائق):
+ *   كتابة حالة خالصة — لا أثر مالي. (`updateOrderStatus`)
+ * • **«في الطريق»**: لحظة انتقال العُهدة. الطلب النقدي تُقيَّد قيمته على
+ *   دفتر السائق هنا لا عند التسليم. (`markPickedUpBySelf`)
+ * • **«تم التوصيل»**: `isPaid` وعمولة المنصة وعدّاد توصيلات السائق
+ *   و**تفريغه لطلب جديد** (`isAvailable`) وأجرته إن كان الدفع إلكترونياً.
+ *   إغفال `isAvailable` وحده يُجمّد السائق فلا يصله طلب بعدها. (`markOrderDelivered`)
+ * • **رفض المطعم**: إنهاءٌ بلا خدمة، فيُعاد رصيد المحفظة كالإلغاء.
+ *
+ * وكله داخل معاملة ذرّية واحدة تقرأ الطلب من الخادم أولاً: بين فتح النافذة
+ * والضغط قد يكون السائق أنهى الطلب من جوّاله، فلا يُحتسب مرّتين.
+ */
+const NEXT_STATUS = {
+  restaurantPending:  [['restaurantAccepted', '✅ قبول الطلب'], ['restaurantRejected', '✖️ رفض المطعم']],
+  pending:            [['restaurantAccepted', '✅ قبول الطلب'], ['restaurantRejected', '✖️ رفض المطعم']],
+  restaurantAccepted: [['preparing', '👨‍🍳 بدء التحضير']],
+  confirmed:          [['preparing', '👨‍🍳 بدء التحضير']],
+  preparing:          [['readyForPickup', '📦 جاهز للاستلام']],
+  readyForPickup:     [['searchingDriver', '🔎 بدء البحث عن سائق'], ['onTheWay', '🛵 استلمه السائق']],
+  driverAssigned:     [['onTheWay', '🛵 استلمه السائق']],
+  pickedUp:           [['onTheWay', '🛵 في الطريق']],
+  onTheWay:           [['delivered', '🏠 تم التوصيل']],
+  outForDelivery:     [['delivered', '🏠 تم التوصيل']],
+};
+
+function nextStatusHtml(o) {
+  const opts = NEXT_STATUS[o.status] || [];
+  if (!opts.length) return '';
+  return `<div style="margin-top:14px">
+    <div class="meta" style="margin-bottom:6px">دفع الحالة يدوياً — حين لا يحدّثها المطعم أو السائق:</div>
+    <div class="row1" style="gap:6px;justify-content:flex-start">
+      ${opts.map(([k, lbl]) => `<button class="toggle-btn" data-nextst="${k}">${lbl}</button>`).join('')}
+    </div></div>`;
+}
+
+async function pushStatus(orderId, to) {
+  const o = S.orders.find((x) => x.id === orderId);
+  if (!o) return;
+  const label = (STATUS_AR[to] || [to])[0];
+  const isCash = o.paymentMethod === 'cash';
+  const custody = custodyAmount(o);
+  const wallet = Number(o.walletUsed) || 0;
+
+  let reason = '';
+  if (to === 'restaurantRejected') {
+    reason = (prompt('سبب رفض المطعم (يظهر للعميل):', '') || '').trim();
+    if (!reason) { alert('اكتب سبب الرفض'); return; }
+  }
+
+  const warn = [`نقل الطلب #${o.orderNumber || ''} إلى «${label}»؟`];
+  if (to === 'onTheWay' && isCash && !o.custodyDebited && custody) {
+    warn.push(`⚠️ ستُقيَّد عُهدة ${fmtMoney(Math.abs(custody))} ${SAR} على دفتر السائق.`);
+  }
+  if (to === 'delivered') {
+    if (!o.driverId) { alert('لا يمكن التسليم بلا سائق مُسنَد — أسنِد سائقاً أولاً.'); return; }
+    warn.push(isCash
+      ? '⚠️ سيُعلَّم الطلب مدفوعاً، ويُفرَّغ السائق لطلب جديد.'
+      : `⚠️ ستُقيَّد أجرة ${fmtMoney(Number(o.driverShare) || 0)} ${SAR} لصالح السائق، ويُفرَّغ لطلب جديد.`);
+  }
+  if (to === 'restaurantRejected' && wallet > 0) {
+    warn.push(`⚠️ سيُعاد ${fmtMoney(wallet)} ${SAR} إلى محفظة العميل.`);
+  }
+  if (!confirm(warn.join('\n'))) return;
+
+  try {
+    await runTransaction(db, async (tx) => {
+      const oRef = doc(db, 'orders', orderId);
+      const snap = await tx.get(oRef);
+      if (!snap.exists()) throw new Error('الطلب لم يعد موجوداً');
+      const cur = snap.data();
+      if (cur.status !== o.status) {
+        throw new Error(`تغيّرت حالة الطلب إلى «${(STATUS_AR[cur.status] || [cur.status])[0]}» — أغلق النافذة وأعد المحاولة`);
+      }
+      const upd = { status: to, updatedAt: serverTimestamp(), statusChangedAt: serverTimestamp() };
+
+      if (to === 'restaurantRejected') {
+        upd.rejectionReason = reason;
+        tx.update(oRef, upd);
+        return;
+      }
+
+      // «في الطريق» — قيد العُهدة، نسخة حرفية من markPickedUpBySelf
+      if (to === 'onTheWay') {
+        const drvId = cur.driverId || '';
+        const needs = cur.paymentMethod === 'cash' && !cur.custodyDebited && drvId;
+        if (!needs) { tx.update(oRef, upd); return; }
+        upd.custodyDebited = true;
+        const c = custodyAmount(cur);
+        if (!c) { tx.update(oRef, upd); return; }
+        const dRef = doc(db, 'drivers', drvId);
+        const dSnap = await tx.get(dRef);
+        const bal = Number(dSnap.data()?.balance) || 0;
+        tx.update(oRef, upd);
+        tx.update(dRef, { balance: bal - c });
+        tx.set(doc(collection(db, 'driver_transactions')), {
+          driverId: drvId, type: 'orderCustody', amount: -c, balanceAfter: bal - c,
+          orderId, orderNumber: cur.orderNumber ?? null,
+          performedBy: adminUser.uid || '', createdAt: serverTimestamp(),
+        });
+        return;
+      }
+
+      // «تم التوصيل» — نسخة حرفية من markOrderDelivered
+      if (to === 'delivered') {
+        const drvId = cur.driverId || '';
+        if (!drvId) throw new Error('لا سائق على الطلب');
+        const dRef = doc(db, 'drivers', drvId);
+        const dSnap = await tx.get(dRef);
+        const bal = Number(dSnap.data()?.balance) || 0;
+        const cash = cur.paymentMethod === 'cash';
+        // نقدي: العُهدة قُيّدت عند الاستلام فلا قيد ثانٍ — إلا طلباً استُلم
+        // بنسخة قديمة لا تعرف العُهدة، فيُقيَّد هنا كي لا يضيع كلياً.
+        const delta = cash ? (cur.custodyDebited ? 0 : -custodyAmount(cur))
+                           : (Number(cur.driverShare) || 0);
+        upd.isPaid = true;
+        upd.platformCommission = itemsTotal(cur) * PRICING.appCommissionRate;
+        tx.update(oRef, upd);
+        const dUpd = { totalDeliveries: (Number(dSnap.data()?.totalDeliveries) || 0) + 1,
+          isAvailable: true };
+        if (delta !== 0) dUpd.balance = bal + delta;
+        tx.update(dRef, dUpd);
+        // حركة صفرية تُلوّث الدفتر بلا معنى، فلا تُكتب.
+        if (delta !== 0) {
+          tx.set(doc(collection(db, 'driver_transactions')), {
+            driverId: drvId, type: cash ? 'deliveryCash' : 'deliveryOnline',
+            amount: delta, balanceAfter: bal + delta,
+            orderId, orderNumber: cur.orderNumber ?? null,
+            performedBy: adminUser.uid || '', createdAt: serverTimestamp(),
+          });
+        }
+        return;
+      }
+
+      tx.update(oRef, upd);
+    });
+
+    if (to === 'restaurantRejected') await refundWalletOnCancel(o);
+    audit('order.status', `نقل الطلب #${o.orderNumber || ''} إلى «${label}»`
+      + (reason ? ` — ${reason}` : ''), { target: 'orders/' + orderId });
+    toast('نُقل الطلب إلى «' + label + '»');
+    closeModal();
+  } catch (err) {
+    alert('تعذر النقل: ' + (err.message || err.code));
+  }
 }
 
 /* ---------------- إسناد السائقين وإعادة الإسناد ----------------
@@ -1212,6 +1370,7 @@ function renderRestaurantsPage() {
   const list = [...S.restaurants].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
   $('main').innerHTML = `
     <div class="toolbar">
+      <button class="btn" id="newRestBtn">➕ مطعم جديد</button>
       <button class="btn" data-page="import">📥 استيراد منيو لمطعم</button>
     </div>` + list.map((r) => `
     <div class="card">
@@ -1243,6 +1402,72 @@ function renderRestaurantsPage() {
     catch (err) { alert('تعذر التعديل: ' + (err.code || err.message)); }
   }));
   $('main').querySelectorAll('[data-redit]').forEach((b) => b.addEventListener('click', () => showRestEdit(b.dataset.redit)));
+  $('main').querySelector('#newRestBtn').addEventListener('click', showNewRestaurant);
+}
+
+/* إنشاء مطعم جديد — كانت الحلقة الأولى في ضمّ شريك مفقودة من الويب: اللوحة
+ * تُصدر كود مدير المطعم وتستورد منيوه، لكن مستند المطعم نفسه لم يكن يُنشأ
+ * إلا من التطبيق. فيوقّع المالك اتفاقية على مكتبه ثم يحتاج جوّاله.
+ *
+ * المستند يُكتب **بنفس شكل `Restaurant.toMap()` حرفاً بحرف** بما فيه حقول
+ * التسعير الميتة (البند 0.2): لا يقرؤها أحد، لكن غيابها يجعل مطاعم الويب
+ * مختلفة الشكل عن مطاعم التطبيق، وأي قارئ مستقبلي يفترض وجودها يتعطّل. */
+function showNewRestaurant() {
+  openModal(`
+    <h3>مطعم جديد <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    <div class="field"><label>اسم المطعم *</label><input id="nr_name" placeholder="فطير ستيشن"></div>
+    <div class="field"><label>اسم الفرع (اختياري)</label>
+      <input id="nr_branch" placeholder="العزيزية">
+      <p class="meta">يميّز فرعين لنفس العلامة: «فطير ستيشن — العزيزية».</p></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+      <div class="field"><label>الجوال</label><input id="nr_phone" placeholder="05xxxxxxxx"></div>
+      <div class="field"><label>الرمز التعبيري</label><input id="nr_emoji" maxlength="4" placeholder="🥐"></div>
+    </div>
+    <div class="field"><label>العنوان</label><input id="nr_addr" placeholder="حي العزيزية — شارع ..."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+      <div class="field"><label>الحد الأدنى للطلب (${SAR})</label>
+        <input id="nr_min" type="number" min="0" step="any" value="20"></div>
+      <div class="field"><label>زمن التحضير (دقيقة)</label>
+        <input id="nr_time" type="number" min="1" step="1" value="30"></div>
+    </div>
+    <div class="field"><label>وصف قصير (اختياري)</label><input id="nr_desc" maxlength="140"></div>
+    <button class="btn block" id="nr_save">إنشاء المطعم</button>
+    <p class="meta" style="margin-top:8px">يُنشأ <b>مغلقاً</b> حتى تضيف منيوه — فلا يظهر للعملاء بلا أصناف.
+      وبعد الإنشاء: أصدر كود «مدير مطعم» له من صفحة الأكواد، ثم استورد منيوه.</p>
+  `);
+  document.getElementById('nr_save').addEventListener('click', async () => {
+    const v = (k) => document.getElementById('nr_' + k).value.trim();
+    const name = v('name');
+    if (name.length < 2) { alert('اكتب اسم المطعم'); return; }
+    const branchName = v('branch');
+    const twin = S.restaurants.find((r) => (r.name || '').trim() === name &&
+      (r.branchName || '').trim() === branchName);
+    if (twin && !confirm(`يوجد مطعم بنفس الاسم والفرع «${restName(twin)}».\nإنشاء مطعم ثانٍ رغم ذلك؟`)) return;
+    const minOrder = Math.max(0, Number(document.getElementById('nr_min').value) || 0);
+    const estimatedTimeMin = Math.max(1, Math.round(Number(document.getElementById('nr_time').value) || 30));
+    try {
+      const ref = await addDoc(collection(db, 'restaurants'), {
+        name, branchName,
+        description: v('desc'),
+        emoji: v('emoji') || '🍽️',
+        phone: v('phone'),
+        address: v('addr'),
+        isOpen: false,
+        minOrder, estimatedTimeMin,
+        // تقييم افتراضي مع ratingCount = 0 — نفس ما ينتجه منشئ Restaurant في
+        // التطبيق، والواجهتان تعرضان «جديد» ما دام العدّاد صفراً.
+        rating: 5, ratingCount: 0, totalOrders: 0,
+        // حقول تسعير لا تُقرأ (التسعير ثوابت في كود التطبيق) — تُكتب
+        // بقيمها الافتراضية ليطابق المستند شكل مطاعم التطبيق.
+        driverShareFee: 5, appShareFee: 0, perKmFee: 0, freeKm: 3, deliveryFee: 5,
+        lat: null, lng: null, imageUrl: null,
+      });
+      audit('restaurant.create', `أنشأ مطعم «${name}${branchName ? ' — ' + branchName : ''}»`,
+        { target: 'restaurants/' + ref.id });
+      toast('أُنشئ المطعم — أضف منيوه ثم افتحه');
+      closeModal();
+    } catch (err) { alert('تعذر الإنشاء: ' + (err.code || err.message)); }
+  });
 }
 
 function showRestEdit(id) {
@@ -1455,8 +1680,31 @@ function renderUsersPage() {
           <button class="toggle-btn ${u.isActive === false ? 'off' : 'on'}" data-utoggle="${u.id}"
             data-active="${u.isActive === false ? 0 : 1}">
             ${u.isActive === false ? 'تفعيل الحساب' : 'إيقاف الحساب'}</button>
+          ${u.email ? `<button class="toggle-btn" data-ureset="${esc(u.email)}">🔑 رابط استعادة كلمة المرور</button>` : ''}
         </div>` : ''}
       </div>`).join('') || '<div class="empty">لا يوجد مستخدمون مطابقون</div>'}`;
+
+  /* استعادة كلمة المرور — «نسيت كلمة المرور» أكثر مكالمات الدعم تكراراً،
+   * وكانت اللوحة تعجز عنها فيضطر المالك لفتح كونسول Firebase.
+   *
+   * الرابط يذهب لصندوق المستخدم لا للمالك: لا كلمة مرور تُقرأ ولا تُملى
+   * صوتياً، ولا يستطيع المالك دخول حساب غيره — يفتحه صاحبه وحده. */
+  $('main').querySelectorAll('[data-ureset]').forEach((b) => b.addEventListener('click', async () => {
+    const email = b.dataset.ureset;
+    if (!confirm(`إرسال رابط استعادة كلمة المرور إلى:\n${email}\n\nيصل الرابط لصندوقه هو، ولا يمكنك قراءة كلمته.`)) return;
+    b.disabled = true;
+    try {
+      await sendPasswordResetEmail(auth, email);
+      audit('user.reset', `أرسل رابط استعادة كلمة المرور إلى ${email}`, { target: 'auth/' + email });
+      toast('أُرسل الرابط — تحقّق معه من صندوق البريد والمهملات');
+    } catch (err) {
+      const m = { 'auth/user-not-found': 'لا يوجد حساب دخول بهذا البريد — قد يكون سجّل برقم جواله',
+        'auth/invalid-email': 'صيغة البريد غير صحيحة',
+        'auth/too-many-requests': 'محاولات كثيرة متتالية — انتظر دقائق' }[err.code];
+      alert(m || ('تعذر الإرسال: ' + (err.code || err.message)));
+    }
+    b.disabled = false;
+  }));
 
   $('main').querySelectorAll('[data-uf]').forEach((b) =>
     b.addEventListener('click', () => { userFilter = b.dataset.uf; renderUsersPage(); }));
