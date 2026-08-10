@@ -1892,6 +1892,20 @@ class FirebaseService {
     required double referrerAmount,
     required double refereeAmount,
   }) async {
+    // الحارس الذرّي: قراءة ختم referralRewarded وكتابته في معاملة واحدة —
+    // النسخة السابقة كانت تصفّي على لقطة البثّ في الذاكرة ثم تختم **بعد**
+    // الصرف، فجهازا مدير بالتوازي (أو المسح التلقائي معهما) يصرفان
+    // المكافأتين مرتين، وفشل جزئي بين الكتابات كان يترك صرفاً بلا ختم
+    // يتكرر مع كل مسح تالٍ.
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(_drivers.doc(referee.id));
+      if (snap.data()?['referralRewarded'] as bool? ?? false) {
+        throw Exception('صُرفت مكافأة هذه الإحالة مسبقاً');
+      }
+      tx.update(_drivers.doc(referee.id), {'referralRewarded': true});
+    });
+    // الختم قبل الصرف عمداً — نفس عقيدة payChallengeBonus: ختمٌ بلا صرف
+    // يُكتشف ويُصلَح يدوياً، أما صرفٌ بلا ختم فيتكرر صامتاً.
     if (referrerAmount > 0) {
       await recordDriverBonus(
         driverId: referrer.id,
@@ -1906,7 +1920,6 @@ class FirebaseService {
         note: 'مكافأة ترحيب — دعوة ${referrer.name}',
       );
     }
-    await _drivers.doc(referee.id).update({'referralRewarded': true});
   }
 
   /// صرف مكافأة تحدٍّ — مرة واحدة لكل سائق في كل نافذة.
