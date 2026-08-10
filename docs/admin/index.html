@@ -260,6 +260,7 @@ const PAGES = [
   ['coupons', '🎟️', 'الكوبونات'],
   ['broadcast', '📢', 'رسالة جماعية'],
   ['import', '📥', 'استيراد منيو'],
+  ['archive', '🗄️', 'أرشيف الطلبات'],
   ['reports', '📈', 'التقارير'],
   ['audit', '🕵️', 'سجل التدقيق'],
   ['settings', '⚙️', 'الإعدادات'],
@@ -454,6 +455,8 @@ let chatUnsub = null;
 let alertsTimer = null;
 let auditBroken = null;
 let auditRows = null, auditCat = 'all', auditSearch = '', auditErr = null, auditLoading = false;
+let archRows = null, archErr = null, archLoading = false, archSearch = '', archNote = '';
+let archFrom = '', archTo = '';
 let appMinVersion = '';
 let adminUser = { name: '', email: '' };
 function clearListeners() { unsubs.forEach((u) => { try { u(); } catch (_) {} }); unsubs = []; }
@@ -602,7 +605,7 @@ function rerender() {
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
     menu: renderMenuPage, codes: renderCodesPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
-    reports: renderReportsPage, audit: renderAuditPage, settings: renderSettingsPage };
+    reports: renderReportsPage, archive: renderArchivePage, audit: renderAuditPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
 
@@ -873,7 +876,9 @@ document.addEventListener('click', (e) => {
 });
 
 function showOrderModal(id) {
-  const o = S.orders.find((x) => x.id === id);
+  // الأرشيف يجلب طلبات ليست في المستمع الحي (آخر 400 فقط)، فالبحث يشمله —
+  // وإلا فُتحت نافذة فارغة على طلب معروض أمام المالك.
+  const o = S.orders.find((x) => x.id === id) || (archRows || []).find((x) => x.id === id);
   if (!o) return;
   const [lbl, color] = STATUS_AR[o.status] || [o.status, '#7f8c8d'];
   const it = itemsTotal(o);
@@ -3347,6 +3352,139 @@ async function runImport() {
     say('❌ تعذر الاستيراد: ' + esc(err.code || err.message));
   }
   btn.disabled = false;
+}
+
+/* ================= أرشيف الطلبات =================
+ *
+ * المستمع الحي يحمل آخر 400 طلب فقط — حدٌّ مقصود: مستمعٌ مفتوح على كل طلب
+ * منذ الإطلاق يقرأ آلاف المستندات في كل جلسة بلا فائدة. لكن ذلك يعني أن
+ * طلباً عمره شهران لا يُرى ولا يُبحث عنه، فهذه الصفحة تجلبه **عند الطلب**.
+ *
+ * مسارا بحث لأن Firestore لا يبحث داخل النصوص:
+ * • **برقم الطلب** — مطابقة تامة، استعلام مباشر بلا تاريخ. المسار الأسرع
+ *   وأرخصه: مستند واحد بدل نطاق كامل.
+ * • **بنطاق تاريخ** — يُجلب النطاق ثم يُصفّى في المتصفح (اسم، جوال، مطعم).
+ *   فلا فهرس مركّب يحتاج إنشاءً يدوياً في الكونسول.
+ */
+const ARCHIVE_LIMIT = 500;
+
+function isoDaysAgo(n) {
+  const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderArchivePage() {
+  if (!archFrom) { archFrom = isoDaysAgo(30); archTo = isoDaysAgo(0); }
+  const rows = archRows || [];
+  let list = rows;
+  if (archSearch) {
+    const q2 = archSearch.toLowerCase();
+    list = list.filter((o) => [o.orderNumber, o.customerName, o.customerPhone, o.restaurantName, o.driverName]
+      .some((v) => String(v || '').toLowerCase().includes(q2)));
+  }
+  const money = list.filter((o) => o.status === 'delivered').reduce((t, o) => t + orderTotal(o), 0);
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <p class="meta" style="margin-bottom:12px">صفحة <b>الطلبات</b> تعرض آخر ${ORDERS_LIMIT} طلب لحظياً.
+        وهذه الصفحة تبحث في <b>كل الطلبات</b> — تُجلب عند الضغط لا تلقائياً.</p>
+      <div class="field"><label>ابحث برقم الطلب (مطابقة تامة — الأسرع)</label>
+        <div class="row1" style="gap:8px">
+          <input id="ar_num" placeholder="مثال: 1042" style="flex:1">
+          <button class="btn" id="ar_bynum">بحث</button>
+        </div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;margin-top:6px">
+        <div class="field"><label>من تاريخ</label><input type="date" id="ar_from" value="${esc(archFrom)}"></div>
+        <div class="field"><label>إلى تاريخ</label><input type="date" id="ar_to" value="${esc(archTo)}"></div>
+      </div>
+      <button class="btn block" id="ar_load">📥 جلب طلبات هذه الفترة</button>
+      ${archErr ? `<div class="card" style="border-inline-start:4px solid var(--red);margin-top:12px">
+        <b>⚠️ تعذّر الجلب</b><div class="meta">${esc(archErr)}</div></div>` : ''}
+      ${archNote ? `<div class="meta" style="margin-top:10px">${esc(archNote)}</div>` : ''}
+    </div>
+    ${archLoading ? '<div class="loading">جارٍ الجلب…</div>' : (archRows === null ? '' : `
+      <div class="panel">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="num">${rows.length}</div><div class="lbl">طلب في النتيجة</div></div>
+          <div class="kpi"><div class="num">${rows.filter((o) => o.status === 'delivered').length}</div>
+            <div class="lbl">مُوصَّل</div></div>
+          <div class="kpi"><div class="num">${fmtMoney(money)}</div><div class="lbl">مبيعات المُوصَّل (${SAR})</div></div>
+        </div>
+        <input class="search" id="ar_q" placeholder="🔍 تصفية داخل النتيجة: عميل، جوال، مطعم، سائق"
+          value="${esc(archSearch)}" style="width:100%;margin-top:12px">
+      </div>
+      <div id="ar_list"></div>`)}`;
+
+  const byNum = async () => {
+    const n = document.getElementById('ar_num').value.trim();
+    if (!n) { alert('اكتب رقم الطلب'); return; }
+    await loadArchive({ orderNumber: n });
+  };
+  document.getElementById('ar_bynum').addEventListener('click', byNum);
+  document.getElementById('ar_num').addEventListener('keydown', (e) => { if (e.key === 'Enter') byNum(); });
+  document.getElementById('ar_load').addEventListener('click', () => {
+    archFrom = document.getElementById('ar_from').value;
+    archTo = document.getElementById('ar_to').value;
+    if (!archFrom || !archTo) { alert('حدّد التاريخين'); return; }
+    if (archFrom > archTo) { alert('«من» بعد «إلى» — بدّل التاريخين'); return; }
+    loadArchive({ from: archFrom, to: archTo });
+  });
+  const q = document.getElementById('ar_q');
+  if (q) q.addEventListener('input', () => { archSearch = q.value.trim(); renderArchiveRows(); });
+  renderArchiveRows();
+}
+
+function renderArchiveRows() {
+  const box = document.getElementById('ar_list');
+  if (!box) return;
+  let list = archRows || [];
+  if (archSearch) {
+    const q2 = archSearch.toLowerCase();
+    list = list.filter((o) => [o.orderNumber, o.customerName, o.customerPhone, o.restaurantName, o.driverName]
+      .some((v) => String(v || '').toLowerCase().includes(q2)));
+  }
+  box.innerHTML = list.map(orderCard).join('') ||
+    `<div class="empty">${archRows && archRows.length ? 'لا نتيجة مطابقة داخل الفترة' : 'لا طلبات في هذه الفترة'}</div>`;
+}
+
+async function loadArchive(spec) {
+  if (archLoading) return;
+  archLoading = true; archErr = null; archNote = ''; archSearch = '';
+  renderArchivePage();
+  try {
+    let q2;
+    if (spec.orderNumber) {
+      q2 = query(collection(db, 'orders'), where('orderNumber', '==', spec.orderNumber), limit(20));
+    } else {
+      // نهاية اليوم المختار لا بدايته: «إلى 10 أغسطس» يجب أن تشمل يومه كاملاً.
+      const from = new Date(spec.from + 'T00:00:00');
+      const to = new Date(spec.to + 'T23:59:59.999');
+      q2 = query(collection(db, 'orders'),
+        where('createdAt', '>=', Timestamp.fromDate(from)),
+        where('createdAt', '<=', Timestamp.fromDate(to)),
+        orderBy('createdAt', 'desc'), limit(ARCHIVE_LIMIT));
+    }
+    const qs = await getDocs(q2);
+    archRows = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (spec.orderNumber) {
+      archNote = archRows.length
+        ? `نتيجة البحث عن الطلب رقم ${spec.orderNumber}.`
+        : `لا طلب برقم ${spec.orderNumber}. تأكد من الرقم — البحث بالرقم مطابقة تامة لا جزئية.`;
+    } else if (archRows.length >= ARCHIVE_LIMIT) {
+      // صمتٌ عن الاقتطاع يجعل المالك يظن أنه رأى الفترة كاملة.
+      archNote = `⚠️ بلغت النتيجة الحد الأقصى (${ARCHIVE_LIMIT} طلب) — الفترة أطول من ذلك. `
+        + 'ضيّق النطاق لترى بقيتها.';
+    } else {
+      archNote = `${archRows.length} طلب في الفترة من ${spec.from} إلى ${spec.to}.`;
+    }
+  } catch (err) {
+    archErr = err.code === 'failed-precondition'
+      ? 'يحتاج هذا الاستعلام فهرساً في Firestore — افتح الرابط في رسالة الخطأ بالكونسول لإنشائه بضغطة.'
+      : (err.code || err.message);
+    archRows = [];
+  }
+  archLoading = false;
+  if (page === 'archive') renderArchivePage();
 }
 
 /* ================= التقارير ================= */
