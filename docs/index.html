@@ -37,7 +37,11 @@
        والالتقاط الإجباري كان يقاوم التمرير داخلها فيبقى أسفلها بعيد المنال. */
     .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y proximity; scroll-behavior: smooth; }
     .slide { min-height: 100dvh; scroll-snap-align: start; position: relative;
-      display: flex; flex-direction: column; justify-content: center; padding: 90px 8vw 70px; overflow: hidden; }
+      display: flex; flex-direction: column; justify-content: center; padding: 90px 8vw 70px;
+      /* clip لا hidden: `overflow:hidden` يجعل الشريحة حاوية تمرير فتلتقطها
+         `view()` بدل `.deck` وتتجمد كل الحركات المربوطة بالتمرير. `clip`
+         يقصّ الفائض بلا أن ينشئ حاوية. */
+      overflow: clip; }
     /* الخلفية الافتراضية تدرّجات كحلية بلمسة ذهبية بلا صورة. ثلاث شرائح
        تحمل صوراً فوقها (انظر أدناه) — وكلها **عامة بلا علامة تجارية لأي
        شريك**: صور فطير ستيشن أُزيلت لأنها كانت تُظهر شريكاً بعينه على صفحة
@@ -179,6 +183,53 @@
     .badge { border: 1px solid rgba(255,255,255,.25); border-radius: 14px; padding: 10px 22px; color: var(--muted);
       font-size: .95rem; }
     .badge b { color: var(--ink); display: block; font-size: 1.05rem; }
+
+    /* مطرقة الصدق — رسالة التمايز الواحدة، مرفوعة من بند مدفون إلى سطر البطل */
+    .honest { margin-top: 22px; border: 1.5px solid rgba(255,193,7,.55); background: rgba(255,193,7,.08);
+      color: var(--gold); border-radius: 999px; padding: 10px 28px; font-weight: 700;
+      font-size: clamp(.95rem, 3.4vw, 1.15rem); }
+    .honest b { color: var(--ink); }
+
+    /* خط التوصيل: مسار مرسوم بين المطعم والبيت يقطعه المندوب مع تمريرك —
+       الحركة الأفقية هنا ليست زينة بل استعارة المنتج نفسه. */
+    .route { display: flex; align-items: center; gap: 12px; width: min(560px, 82vw); margin-top: 40px; }
+    .route .pt { font-size: 1.35rem; }
+    .route .lane { position: relative; flex: 1; height: 0; border-top: 2px dashed rgba(255,193,7,.45); }
+    .route .rider { position: absolute; top: -.8em; inset-inline-start: 0; font-size: 1.5rem; line-height: 1; }
+    @media (max-height: 680px) { .route { display: none; } }
+
+    /* ===== الحركة الأفقية المربوطة بالتمرير =====
+       تحسين تدريجي خالص: متصفح لا يدعم scroll-driven animations يرى الصفحة
+       ساكنة مكتملة كما كانت — لا جافاسكربت ولا محتوى يختفي. والحركة أفقية
+       عمداً على صفحة تُمرَّر عمودياً: العنوان يدخل من جهة والفقرة من
+       الأخرى فيلتقيان في الوسط، والخلفية تنسحب ببطء عكس الاتجاه، والمندوب
+       يقطع خط التوصيل — تقدّمك في الصفحة هو تقدّم الطلب إلى بابك. */
+    @supports (animation-timeline: view()) {
+      @media (prefers-reduced-motion: no-preference) {
+        .slide h1, .slide h2 { animation: drift-in-r linear both; animation-timeline: view();
+          animation-range: entry 0% cover 30%; }
+        .slide .sub, .slide .honest { animation: drift-in-l linear both; animation-timeline: view();
+          animation-range: entry 0% cover 38%; }
+        .points li:nth-child(odd) { animation: drift-in-r linear both; animation-timeline: view();
+          animation-range: entry 0% cover 32%; }
+        .points li:nth-child(even) { animation: drift-in-l linear both; animation-timeline: view();
+          animation-range: entry 0% cover 42%; }
+        /* البطاقات الثلاث تتوالى دخولاً — كل واحدة تلحق أختها */
+        .stats .stat { animation: drift-in-r linear both; animation-timeline: view(); }
+        .stats .stat:nth-child(1) { animation-range: entry 0% cover 28%; }
+        .stats .stat:nth-child(2) { animation-range: entry 0% cover 38%; }
+        .stats .stat:nth-child(3) { animation-range: entry 0% cover 48%; }
+        /* انسحاب سينمائي بطيء للخلفية عكس اتجاه القراءة — التكبير الطفيف
+           يمنع ظهور حافة الصورة أثناء الانزياح */
+        .slide .bg { animation: bg-pan linear both; animation-timeline: view(); }
+        .route .rider { animation: ride linear both; animation-timeline: view();
+          animation-range: cover 5% cover 95%; }
+      }
+    }
+    @keyframes drift-in-r { from { opacity: 0; transform: translateX(72px); } to { opacity: 1; transform: none; } }
+    @keyframes drift-in-l { from { opacity: 0; transform: translateX(-72px); } to { opacity: 1; transform: none; } }
+    @keyframes bg-pan { from { transform: scale(1.06) translateX(2.2%); } to { transform: scale(1.06) translateX(-2.2%); } }
+    @keyframes ride { from { inset-inline-start: 0; } to { inset-inline-start: calc(100% - 1.2em); } }
   </style>
 </head>
 <body>
@@ -207,9 +258,13 @@
     <div class="c">
       <span class="kicker"></span>
       <h1>كل احتياجاتك<br><span>نوصّلها لك</span></h1>
+      <div class="honest">السعر اللي تشوفه هو اللي تدفعه — <b>بلا رسوم خفية</b></div>
       <p class="sub"><img class="wordmark" src="images/zadgo-logo.png" alt="ZadGo"> — منصة توصيل سعودية تجمع مطاعمك المفضلة في تطبيق واحد:
-        توصيل سريع، تتبع لحظي لطلبك، وأسعار واضحة بلا مفاجآت.</p>
+        توصيل سريع، وتتبع لحظي لطلبك من المطبخ حتى بابك.</p>
       <span class="cta"><span class="pulse"></span> التطبيق قادم قريباً</span>
+      <div class="route" aria-hidden="true">
+        <span class="pt">🍽️</span><span class="lane"><span class="rider">🛵</span></span><span class="pt">🏠</span>
+      </div>
     </div>
     <div class="down">⌄</div>
   </section>
@@ -250,8 +305,9 @@
     <div class="c">
       <span class="kicker"></span>
       <h2>لأصحاب المطاعم<br><span>كن شريكاً</span></h2>
-      <p class="sub">منيو رقمي كامل بصورك وأسعارك، وشاشة طلبات حية لمطبخك،
-        وتقارير مبيعات يومية — <b>انضمامك معنا من اليوم الأول يعني ظهوراً أوسع بلا تكلفة تأسيس.</b></p>
+      <p class="sub"><b>عملاء جدد يصلونك من اليوم الأول — بلا أي تكلفة تأسيس.</b>
+        منيوك الرقمي بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها،
+        وتقارير تُطلعك على كل ريال — ومستحقاتك بحساب مكشوف أمامك.</p>
       <span class="cta solid">قريباً — سجّل اهتمامك</span>
     </div>
     <div class="down">⌄</div>
@@ -269,6 +325,9 @@
         <li><b>إنصاف التقييم:</b> نظام تقييم شفاف يحمي المجتهد.</li>
       </ul>
       <span class="cta">قريباً — انضم كمندوب</span>
+      <div class="route" aria-hidden="true">
+        <span class="pt">🍽️</span><span class="lane"><span class="rider">🛵</span></span><span class="pt">🏠</span>
+      </div>
     </div>
     <div class="down">⌄</div>
   </section>
