@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, HapticFeedback, SystemSound, SystemSoundType;
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/models.dart';
@@ -673,40 +675,254 @@ class _MyOrdersTab extends StatelessWidget {
       ),
     );
 
-    return Column(children: [
-      statusCard,
-      Expanded(
-        child: AppStreamBuilder<List<Order>>(
-          stream: () => service.streamDriverOrders(driverId),
-          builder: (ctx, all) {
-            final active = all.where((o) => o.status.isActive).toList();
+    // شاشة «نمط أوبر» (قرار المالك ٢٠٢٦-٠٨-١٠): الخريطة هي الشاشة —
+    // الكابتن يرى موقعه ومسافة العرض بعينه لا رقماً مجرداً — وبطاقة
+    // الحالة تطفو فوقها، والطلبات في لوح سحبٍ سفلي يبقى بمتناول الإبهام.
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamDriverOrders(driverId),
+      builder: (ctx, all) {
+        final active = all.where((o) => o.status.isActive).toList();
 
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              onOrdersChanged(active);
-            });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          onOrdersChanged(active);
+        });
 
-            final confirmedActive =
-                active.where((o) => !o.needsDriverAcknowledgement).toList();
+        final confirmedActive =
+            active.where((o) => !o.needsDriverAcknowledgement).toList();
 
-            if (confirmedActive.isEmpty) {
-              return AppEmpty(
-                emoji: isOnline ? '📦' : '🔌',
-                title: 'لا توجد طلبات نشطة حالياً',
-                subtitle: isOnline
-                    ? 'سيصلك عرض بأي طلب جديد فور توفره'
-                    : 'اتصل أولاً ليصلك أي عرض',
-              );
-            }
+        return Stack(children: [
+          Positioned.fill(
+            child: _DriverMap(driver: driver, orders: confirmedActive),
+          ),
+          Positioned(top: 0, left: 0, right: 0, child: statusCard),
+          // اللوح السفلي: يبدأ بثلث الشاشة ويُسحب حتى 85% — لا يغطي
+          // الخريطة كلياً أبداً فلا يعود «قائمة على أبيض» من جديد.
+          DraggableScrollableSheet(
+            initialChildSize: 0.32,
+            minChildSize: 0.18,
+            maxChildSize: 0.85,
+            snap: true,
+            builder: (context, scroll) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(22)),
+                boxShadow: [
+                  BoxShadow(color: Color(0x33000000), blurRadius: 14),
+                ],
+              ),
+              child: ListView(
+                controller: scroll,
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  if (confirmedActive.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 26),
+                      child: Column(children: [
+                        Text(isOnline ? '📦' : '🔌',
+                            style: const TextStyle(fontSize: 40)),
+                        const SizedBox(height: 10),
+                        const Text('لا توجد طلبات نشطة حالياً',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 5),
+                        Text(
+                          isOnline
+                              ? 'سيصلك عرض بأي طلب جديد فور توفره'
+                              : 'اتصل أولاً ليصلك أي عرض',
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.textGray),
+                        ),
+                      ]),
+                    )
+                  else ...[
+                    const SectionHeader(title: 'طلباتي'),
+                    ...confirmedActive.map((o) => _OrderCard(order: o)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ]);
+      },
+    );
+  }
+}
 
-            return ListView(padding: const EdgeInsets.all(12), children: [
-              const SectionHeader(title: 'طلباتي'),
-              ...confirmedActive.map((o) => _OrderCard(order: o)),
-            ]);
-          },
+/// خريطة خلفية شاشة الكابتن: موقعه الحي، ودبابيس طلبه النشط (المطعم
+/// والعميل) مع خط المسار. التمركز الأولي على موقعه المعروف، وزر التمركز
+/// يقرأ GPS طازجاً — أما تحديث الموقع على الخريطة فيتبع مستند السائق
+/// نفسه، فلا نضيف أي قراءة GPS أو كتابة Firestore جديدة على خنق الموقع
+/// القائم (450 كتابة/ساعة كانت الدرس).
+class _DriverMap extends StatefulWidget {
+  final Driver? driver;
+  final List<Order> orders;
+  const _DriverMap({required this.driver, required this.orders});
+
+  @override
+  State<_DriverMap> createState() => _DriverMapState();
+}
+
+class _DriverMapState extends State<_DriverMap> {
+  final _mapController = MapController();
+
+  /// مركز الرياض — بداية معقولة لسائق جديد لم يُسجَّل له موقع بعد.
+  static const _fallbackCenter = LatLng(24.7136, 46.6753);
+
+  LatLng get _driverPoint {
+    final d = widget.driver;
+    if (d?.lat != null && d?.lng != null) return LatLng(d!.lat!, d.lng!);
+    return _fallbackCenter;
+  }
+
+  Future<void> _recenter() async {
+    // GPS طازج إن تيسّر خلال ٤ ثوانٍ، وإلا فآخر موقع معروف — زرٌّ يجب
+    // أن يستجيب دائماً لا أن يعلّق بانتظار قمر صناعي داخل مبنى.
+    var target = _driverPoint;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 4),
+      );
+      target = LatLng(pos.latitude, pos.longitude);
+    } catch (_) {}
+    if (mounted) _mapController.move(target, 15.5);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = context.flavorColors;
+
+    final markers = <Marker>[
+      Marker(
+        point: _driverPoint,
+        width: 46,
+        height: 46,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                  color: fc.primary.withOpacity(0.45),
+                  blurRadius: 14,
+                  spreadRadius: 3),
+            ],
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Container(
+            decoration:
+                BoxDecoration(shape: BoxShape.circle, color: fc.primary),
+            child: const Icon(Icons.delivery_dining,
+                color: Colors.white, size: 22),
+          ),
+        ),
+      ),
+    ];
+    final lines = <Polyline>[];
+
+    for (final o in widget.orders) {
+      final hasR = o.restaurantLat != null && o.restaurantLng != null;
+      final hasD = o.deliveryLat != null && o.deliveryLng != null;
+      if (hasR) {
+        markers.add(Marker(
+          point: LatLng(o.restaurantLat!, o.restaurantLng!),
+          width: 56,
+          height: 56,
+          child: const _MapPin(icon: Icons.restaurant, color: Colors.orange),
+        ));
+      }
+      if (hasD) {
+        markers.add(Marker(
+          point: LatLng(o.deliveryLat!, o.deliveryLng!),
+          width: 56,
+          height: 56,
+          child:
+              const _MapPin(icon: Icons.location_on, color: AppColors.error),
+        ));
+      }
+      if (hasR || hasD) {
+        lines.add(Polyline(
+          points: [
+            _driverPoint,
+            if (hasR) LatLng(o.restaurantLat!, o.restaurantLng!),
+            if (hasD) LatLng(o.deliveryLat!, o.deliveryLng!),
+          ],
+          strokeWidth: 4,
+          color: fc.primary.withOpacity(0.75),
+        ));
+      }
+    }
+
+    return Stack(children: [
+      FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(initialCenter: _driverPoint, initialZoom: 14.5),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.zadam.delivery',
+          ),
+          if (lines.isNotEmpty) PolylineLayer(polylines: lines),
+          MarkerLayer(markers: markers),
+        ],
+      ),
+      // فوق اللوح السفلي في وضعه الأدنى (18%) بهامش أمان.
+      PositionedDirectional(
+        bottom: MediaQuery.of(context).size.height * 0.20 + 12,
+        end: 14,
+        child: FloatingActionButton.small(
+          heroTag: 'driver_recenter',
+          backgroundColor: Colors.white,
+          onPressed: _recenter,
+          child: Icon(Icons.my_location, color: fc.primary),
         ),
       ),
     ]);
   }
+}
+
+/// دبوس خريطة موحّد — نفس شكل دبابيس خريطة تتبع العميل فلا تختلف لغة
+/// الخرائط بين التطبيقين.
+class _MapPin extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  const _MapPin({required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: const [
+              BoxShadow(color: Color(0x44000000), blurRadius: 6),
+            ],
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        Container(
+          width: 3,
+          height: 9,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ]);
 }
 
 class _OrderCard extends StatelessWidget {
