@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#061024">
+<meta name="robots" content="noindex">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<title>انضم كابتناً — زادقو ZadGo</title>
+<style>
+  :root { --navy:#0b1631; --navy-deep:#061024; --gold:#FFC107; --ink:#f2f5fb; --muted:#9aa7bd;
+    --line:rgba(255,255,255,.14); --ok:#27ae60; --red:#e74c3c; }
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Tajawal',Tahoma,sans-serif; }
+  body { background:linear-gradient(168deg,#0e1c3d 0%,var(--navy) 46%,var(--navy-deep) 100%);
+    background-attachment:fixed; color:var(--ink); min-height:100dvh; padding:26px 5vw 70px; }
+  .wrap { max-width:640px; margin:0 auto; }
+  header { text-align:center; margin-bottom:26px; }
+  header img { height:52px; }
+  h1 { font-size:clamp(1.6rem,6vw,2.3rem); font-weight:900; margin-top:16px; }
+  h1 span { color:var(--gold); }
+  .lede { color:var(--muted); line-height:2; margin-top:10px; }
+  .card { background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:18px;
+    padding:20px 18px; margin-bottom:16px; }
+  .card > h2 { font-size:1.1rem; margin-bottom:4px; }
+  .card > .hint { color:var(--muted); font-size:.86rem; line-height:1.9; margin-bottom:14px; }
+  label { display:block; font-size:.9rem; margin-bottom:6px; }
+  .req::after { content:' *'; color:var(--gold); }
+  input[type=text], input[type=tel], input[type=email], select {
+    width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line);
+    background:rgba(6,16,36,.55); color:var(--ink); font-size:1rem; }
+  input:focus, select:focus { outline:2px solid var(--gold); border-color:transparent; }
+  select option { background:var(--navy-deep); }
+  .field { margin-bottom:14px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  @media (max-width:520px) { .grid2 { grid-template-columns:1fr; } }
+  .err { color:var(--red); font-size:.84rem; margin-top:5px; display:none; }
+  .field.bad .err { display:block; }
+  .field.bad input, .field.bad select { border-color:var(--red); }
+
+  /* رفع المستندات — كل مستند صفٌّ واحد بحالته الظاهرة */
+  .doc { display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px dashed var(--line); }
+  .doc:last-child { border-bottom:0; }
+  .doc .nm { flex:1; font-size:.94rem; }
+  .doc .nm small { display:block; color:var(--muted); font-size:.78rem; margin-top:2px; }
+  .doc .st { font-size:.82rem; white-space:nowrap; color:var(--muted); }
+  .doc.done .st { color:var(--ok); }
+  .pick { border:1px solid var(--gold); color:var(--gold); background:transparent; border-radius:999px;
+    padding:8px 16px; font-size:.85rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+  .pick input { display:none; }
+  .thumb { width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--line); }
+
+  .btn { width:100%; background:var(--gold); color:var(--navy-deep); border:0; border-radius:999px;
+    padding:16px; font-size:1.1rem; font-weight:800; cursor:pointer; margin-top:8px; }
+  .btn[disabled] { opacity:.5; cursor:not-allowed; }
+  .note { color:var(--muted); font-size:.85rem; line-height:1.9; margin-top:12px; text-align:center; }
+  .banner { border-radius:14px; padding:14px 16px; margin-bottom:18px; line-height:1.9; font-size:.92rem; }
+  .banner.warn { background:rgba(231,76,60,.12); border:1px solid rgba(231,76,60,.5); }
+  .banner.info { background:rgba(255,193,7,.1); border:1px solid rgba(255,193,7,.45); color:var(--gold); }
+  .hidden { display:none; }
+  #done { text-align:center; padding:40px 10px; }
+  #done .big { font-size:3rem; }
+  #done h2 { font-size:1.5rem; margin:14px 0 10px; }
+  .prog { height:6px; border-radius:999px; background:rgba(255,255,255,.12); overflow:hidden; margin-top:14px; }
+  .prog i { display:block; height:100%; width:0; background:var(--gold); transition:width .25s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="/images/zadgo-logo.png" alt="ZadGo زادقو">
+    <h1>انضم إلينا <span>كابتناً</span></h1>
+    <p class="lede">عبّئ بياناتك وارفع مستنداتك، وسنراجع طلبك ونتواصل معك.
+      <br>الرفع يتم من جوالك مباشرة — لا حاجة لحاسوب.</p>
+  </header>
+
+  <div id="gate" class="banner warn hidden"></div>
+  <div id="refBox" class="banner info hidden"></div>
+
+  <form id="form" novalidate>
+    <div class="card">
+      <h2>بياناتك</h2>
+      <p class="hint">اكتبها كما في الهوية أو الإقامة تماماً.</p>
+      <div class="field"><label class="req" for="f_name">الاسم الكامل</label>
+        <input type="text" id="f_name" autocomplete="name"><div class="err">اكتب اسمك الثلاثي</div></div>
+      <div class="grid2">
+        <div class="field"><label class="req" for="f_phone">رقم الجوال</label>
+          <input type="tel" id="f_phone" inputmode="numeric" placeholder="05xxxxxxxx" autocomplete="tel">
+          <div class="err">رقم سعودي يبدأ بـ05 ويتكون من ١٠ أرقام</div></div>
+        <div class="field"><label class="req" for="f_nid">رقم الهوية / الإقامة</label>
+          <input type="tel" id="f_nid" inputmode="numeric" placeholder="1xxxxxxxxx">
+          <div class="err">١٠ أرقام</div></div>
+      </div>
+      <div class="field"><label class="req" for="f_email">البريد الإلكتروني</label>
+        <input type="email" id="f_email" inputmode="email" autocomplete="email" placeholder="name@example.com">
+        <div class="err">بريد صحيح — يصير اسم دخولك للتطبيق لاحقاً</div></div>
+      <div class="grid2">
+        <div class="field"><label class="req" for="f_vtype">نوع المركبة</label>
+          <select id="f_vtype">
+            <option value="">اختر…</option>
+            <option value="دراجة نارية">دراجة نارية</option>
+            <option value="سيارة">سيارة</option>
+          </select><div class="err">اختر نوع مركبتك</div></div>
+        <div class="field"><label class="req" for="f_plate">رقم اللوحة</label>
+          <input type="text" id="f_plate" placeholder="أ ب ج ١٢٣٤"><div class="err">اكتب رقم اللوحة</div></div>
+      </div>
+      <div class="field"><label for="f_ref">كود من دعاك (اختياري)</label>
+        <input type="text" id="f_ref" style="text-transform:uppercase" maxlength="12" placeholder="A1B2C3"></div>
+    </div>
+
+    <div class="card">
+      <h2>المستندات</h2>
+      <p class="hint">صوّرها بجوالك في ضوء واضح، وتأكد أن الأرقام والتواريخ مقروءة.
+        الصور تُصغَّر تلقائياً قبل الرفع فلا تستهلك باقتك.</p>
+      <div id="docs"></div>
+    </div>
+
+    <div class="card">
+      <h2>صور المركبة</h2>
+      <p class="hint">أربع جهات: أمام، خلف، يمين، يسار — واللوحة ظاهرة في صورة الأمام أو الخلف.</p>
+      <div id="photos"></div>
+    </div>
+
+    <button class="btn" id="submit" type="submit">إرسال الطلب</button>
+    <div class="prog hidden" id="prog"><i></i></div>
+    <p class="note" id="status">
+      بإرسالك الطلب توافق على <a href="/terms.html" style="color:var(--gold)">الشروط والأحكام</a>
+      و<a href="/privacy-policy.html" style="color:var(--gold)">سياسة الخصوصية</a>.
+      مستنداتك لا يطّلع عليها إلا الإدارة.
+    </p>
+  </form>
+
+  <div id="done" class="hidden">
+    <div class="big">✅</div>
+    <h2>وصلنا طلبك</h2>
+    <p class="lede" id="doneMsg"></p>
+    <p class="note">احتفظ برقم جوالك متاحاً — سنتواصل معك عليه.
+      <br><a href="/" style="color:var(--gold)">العودة للصفحة الرئيسية</a></p>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, collection, serverTimestamp, Bytes }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const app = initializeApp({
+  apiKey: 'AIzaSyBuU7g3vG5enxaebwxGdGgavG5U8cftwd4',
+  authDomain: 'restaurant-app-ed699.firebaseapp.com',
+  projectId: 'restaurant-app-ed699',
+});
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = (id) => document.getElementById(id);
+
+/* المستندات المطلوبة. المفاتيح تطابق ما يقرؤه التطبيق في `documents`
+ * حرفاً بحرف — أي اختلاف يجعل الصورة مرفوعةً ولا تُعرض للمدير. */
+const DOCS = [
+  ['id',            'الهوية الوطنية أو الإقامة', 'صورة واضحة للوجه الأمامي', true],
+  ['idBack',        'ظهر الهوية أو الإقامة',     'الوجه الخلفي',             false],
+  ['license',       'رخصة القيادة',              'سارية المفعول',            true],
+  ['registration',  'الاستمارة (رخصة السير)',    'سارية المفعول',            true],
+  ['insurance',     'وثيقة التأمين',             'سارية المفعول',            true],
+  ['freelanceDoc',  'وثيقة العمل الحر',          'للسعوديين — بمسمى «مندوب توصيل طلبات»', false],
+  ['criminalRecord','شهادة خلو من السوابق',      'إن توفرت',                 false],
+  ['drivingAuth',   'تفويض قيادة',               'إن كانت المركبة ليست باسمك', false],
+];
+const PHOTOS = ['من الأمام', 'من الخلف', 'الجهة اليمنى', 'الجهة اليسرى'];
+
+/* الصور مضغوطة في المتصفح: صورة جوال خام تتجاوز 5 ميغابايت، وسقف القاعدة
+ * 400 كيلوبايت للمستند الواحد. العرض 1600px يكفي لقراءة رقم إقامة، ونخفض
+ * الجودة تدريجياً حتى نبلغ الهدف — لا نرفع صورةً سترفضها القاعدة. */
+const MAX_W = 1600, TARGET = 150 * 1024, HARD_CAP = 380 * 1024;
+
+function compress(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_W / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const step = (q) => c.toBlob((b) => {
+        if (!b) { reject(new Error('تعذّرت معالجة الصورة')); return; }
+        if ((b.size > TARGET && q > 0.45) || b.size > HARD_CAP) { step(q - 0.1); return; }
+        resolve(b);
+      }, 'image/jpeg', q);
+      step(0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('الملف ليس صورة')); };
+    img.src = url;
+  });
+}
+
+const picked = {};   // key -> { blob, dataUrl }
+
+function row(key, title, sub, required) {
+  return `<div class="doc" data-row="${key}">
+    <img class="thumb hidden" alt="">
+    <span class="nm">${title}${required ? ' <b style="color:var(--gold)">*</b>' : ''}<small>${sub}</small></span>
+    <span class="st">—</span>
+    <label class="pick"><span>اختر صورة</span><input type="file" accept="image/*" data-pick="${key}"></label>
+  </div>`;
+}
+$('docs').innerHTML = DOCS.map(([k, t, s2, r]) => row(k, t, s2, r)).join('');
+$('photos').innerHTML = PHOTOS.map((t, i) => row('veh' + i, 'صورة المركبة ' + t, '', true)).join('');
+
+document.querySelectorAll('[data-pick]').forEach((inp) => {
+  inp.addEventListener('change', async () => {
+    const key = inp.dataset.pick;
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    const rowEl = document.querySelector(`[data-row="${key}"]`);
+    const st = rowEl.querySelector('.st');
+    st.textContent = 'جارٍ الضغط…';
+    try {
+      const blob = await compress(file);
+      const dataUrl = await new Promise((res) => {
+        const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob);
+      });
+      picked[key] = { blob, dataUrl };
+      const th = rowEl.querySelector('.thumb');
+      th.src = dataUrl; th.classList.remove('hidden');
+      rowEl.classList.add('done');
+      st.textContent = Math.round(blob.size / 1024) + ' ك';
+      rowEl.querySelector('.pick span').textContent = 'تغيير';
+    } catch (e) {
+      st.textContent = e.message || 'تعذّر';
+      rowEl.classList.remove('done');
+    }
+  });
+});
+
+// كود الداعي من الرابط — ويبقى قابلاً للتعديل يدوياً
+const ref = (new URLSearchParams(location.search).get('ref') || '').trim().toUpperCase();
+if (ref) $('f_ref').value = ref;
+
+/* المصادقة المجهولة: تعطيلها في Firebase يجعل كل إرسال يفشل، فيُفحص عند
+ * الفتح لا عند الضغط — أهون على المتقدّم أن يعرف قبل أن يملأ الاستمارة
+ * ويصوّر ثمانية مستندات. */
+let ready = false;
+(async () => {
+  try {
+    await signInAnonymously(auth);
+    ready = true;
+    loadIncentives();
+  } catch (e) {
+    $('submit').disabled = true;
+    const soon = e.code === 'auth/operation-not-allowed' || e.code === 'auth/admin-restricted-operation';
+    $('gate').textContent = soon
+      ? '⏳ باب التسجيل يُفتح قريباً جداً — الصفحة جاهزة وننتظر تفعيل الاستقبال. عد بعد قليل.'
+      : ('⚠️ تعذّر الاتصال بالخادم: ' + (e.code || e.message) + ' — تحقّق من الإنترنت وأعد تحميل الصفحة.');
+    $('gate').classList.remove('hidden');
+  }
+})();
+
+/* المبالغ تُقرأ لحظياً ولا تُكتب ثابتةً في الصفحة: المالك يضبطها من تطبيق
+ * الإدارة، وأي رقم مكتوب هنا يصير وعداً كاذباً يوم يتغيّر. */
+async function loadIncentives() {
+  try {
+    const snap = await getDoc(doc(db, 'delivery_settings', 'incentives'));
+    const d = snap.data() || {};
+    const bonus = Number(d.refereeBonus) || 0;
+    const need = Number(d.referralDeliveries) || 0;
+    if (ref && bonus > 0) {
+      $('refBox').innerHTML = `🎁 دُعيتَ بكود <b>${esc(ref)}</b> — لك مكافأة <b>${bonus}</b> ريال`
+        + (need ? ` بعد إتمام <b>${need}</b> توصيلة.` : '.');
+      $('refBox').classList.remove('hidden');
+    } else if (ref) {
+      $('refBox').innerHTML = `🎁 دُعيتَ بكود <b>${esc(ref)}</b> — لك مكافأة ترحيبية بعد أول توصيلاتك.`;
+      $('refBox').classList.remove('hidden');
+    }
+  } catch (_) { /* المبالغ زينة لا شرط — لا تُعطّل التسجيل */ }
+}
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+const V = {
+  name: (v) => v.trim().length > 2,
+  phone: (v) => /^05\d{8}$/.test(v.replace(/[\s-]/g, '')),
+  nid: (v) => /^\d{10}$/.test(v.replace(/\s/g, '')),
+  email: (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()),
+  vtype: (v) => !!v,
+  plate: (v) => v.trim().length >= 3,
+};
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!ready) return;
+
+  let bad = null;
+  for (const [k, test] of Object.entries(V)) {
+    const el = $('f_' + k);
+    const ok = test(el.value);
+    el.closest('.field').classList.toggle('bad', !ok);
+    if (!ok && !bad) bad = el;
+  }
+  if (bad) { bad.focus(); bad.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+
+  const missing = [...DOCS.filter(([k, , , r]) => r && !picked[k]).map(([, t]) => t),
+    ...PHOTOS.map((t, i) => ['veh' + i, t]).filter(([k]) => !picked[k]).map(([, t]) => 'صورة المركبة ' + t)];
+  if (missing.length && !confirm(
+    'ينقص:\n• ' + missing.join('\n• ') +
+    '\n\nيمكنك الإرسال الآن وإرسال الناقص لاحقاً عبر واتساب، لكن المراجعة تتأخر.\nإرسال على أي حال؟')) return;
+
+  const btn = $('submit');
+  btn.disabled = true;
+  const prog = $('prog'); prog.classList.remove('hidden');
+  const bar = prog.querySelector('i');
+  const say = (t) => { $('status').textContent = t; };
+
+  try {
+    /* معرّفات الصور تُولَّد **قبل** كتابة الطلب: تحديث `driver_applications`
+     * للمدير وحده، فلا يمكن إلحاق المعرّفات بعد الرفع. وترتيب الكتابة ملزم
+     * أيضاً — قاعدة الصور تشترط طلباً معلّقاً يملكه المتصل، فلا صورة قبل
+     * طلبها. */
+    const ids = {};
+    for (const k of Object.keys(picked)) ids[k] = doc(collection(db, 'driver_application_docs')).id;
+
+    const documents = {};
+    DOCS.forEach(([k]) => { if (ids[k]) documents[k] = ids[k]; });
+    const vehiclePhotos = PHOTOS.map((_, i) => ids['veh' + i]).filter(Boolean);
+
+    const appRef = doc(collection(db, 'driver_applications'));
+    say('جارٍ إرسال بياناتك…');
+    await setDoc(appRef, {
+      uid: auth.currentUser.uid,
+      name: $('f_name').value.trim(),
+      phone: $('f_phone').value.replace(/[\s-]/g, ''),
+      email: $('f_email').value.trim(),
+      nationalId: $('f_nid').value.replace(/\s/g, ''),
+      vehicleType: $('f_vtype').value,
+      vehiclePlate: $('f_plate').value.trim(),
+      referredByCode: $('f_ref').value.trim().toUpperCase(),
+      documents, vehiclePhotos,
+      status: 'pending',
+      issuedCode: '',
+      createdAt: serverTimestamp(),
+    });
+
+    const keys = Object.keys(picked);
+    const failed = [];
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      say(`جارٍ رفع الصور… ${i + 1} من ${keys.length}`);
+      bar.style.width = Math.round(((i + 1) / keys.length) * 100) + '%';
+      // محاولتان: انقطاع لحظة واحدة لا يستحق أن يُفقد مستنداً صوّره المتقدّم.
+      let done = false;
+      for (let attempt = 0; attempt < 2 && !done; attempt++) {
+        try {
+          const buf = new Uint8Array(await picked[k].blob.arrayBuffer());
+          await setDoc(doc(db, 'driver_application_docs', ids[k]), {
+            applicationId: appRef.id,
+            kind: k,
+            image: Bytes.fromUint8Array(buf),
+            createdAt: serverTimestamp(),
+          });
+          done = true;
+        } catch (err) {
+          if (attempt === 1) failed.push(k);
+          else await new Promise((r) => setTimeout(r, 900));
+        }
+      }
+    }
+
+    $('form').classList.add('hidden');
+    $('done').classList.remove('hidden');
+    $('doneMsg').textContent = failed.length
+      ? `وصلت بياناتك، لكن ${failed.length} صورة لم تُرفع. سنتواصل معك لاستكمالها.`
+      : 'سنراجع مستنداتك ونتواصل معك على جوالك خلال أيام قليلة بإذن الله.';
+    window.scrollTo(0, 0);
+  } catch (err) {
+    btn.disabled = false;
+    prog.classList.add('hidden');
+    say(err.code === 'permission-denied'
+      ? '⚠️ رُفض الإرسال. تأكد من تعبئة الحقول الإلزامية، وإن تكرّر فراسلنا عبر صفحة التواصل.'
+      : ('⚠️ تعذّر الإرسال: ' + (err.code || err.message) + ' — تحقّق من الإنترنت وأعد المحاولة.'));
+  }
+});
+</script>
+</body>
+</html>

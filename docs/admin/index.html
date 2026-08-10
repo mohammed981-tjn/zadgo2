@@ -310,6 +310,13 @@ const AUDIT_ACTIONS = {
   'complaint.reply':    ['ردّ على شكوى', 'users', '#2471a3'],
   'broadcast.send':     ['رسالة جماعية', 'users', '#8e44ad'],
   'settings.save':      ['حفظ الإعدادات', 'settings', '#ca6f1e'],
+  // أفعال يكتبها **تطبيق الإدارة** في نفس المجموعة (source: 'app').
+  'payout.pay':         ['صرف طلب سحب', 'money', '#1e8449'],
+  'payout.reject':      ['رفض طلب سحب', 'money', '#c0392b'],
+  'coupon.update':      ['تعديل كوبون', 'content', '#2471a3'],
+  'application.approve':['قبول طلب انضمام', 'users', '#1e8449'],
+  'application.reject': ['رفض طلب انضمام', 'users', '#c0392b'],
+  'application.delete': ['حذف طلب انضمام', 'users', '#7f8c8d'],
 };
 const AUDIT_CATS = { orders: '🧾 الطلبات', money: '💰 المال', content: '🍽️ المحتوى',
   users: '👥 المستخدمون', settings: '⚙️ الإعدادات' };
@@ -3631,7 +3638,8 @@ function renderAuditPage() {
   $('main').innerHTML = `
     <div class="panel">
       <p class="meta" style="margin-bottom:10px">كل فعل إداري من هذه اللوحة يُسجَّل هنا باسم فاعله ووقته.
-        السجل <b>لا يُعدَّل ولا يُحذف</b> — وآخر ${AUDIT_LIMIT} حركة هي المعروضة.</p>
+        السجل <b>لا يُعدَّل ولا يُحذف</b> — وآخر ${AUDIT_LIMIT} حركة هي المعروضة.
+        📱 من تطبيق الإدارة · 💻 من هذه اللوحة.</p>
       ${auditErr ? `<div class="card" style="border-inline-start:4px solid var(--red)">
         <b>⚠️ تعذّرت قراءة السجل</b>
         <div class="meta">${esc(auditErr)}${auditErr === 'permission-denied'
@@ -3679,7 +3687,8 @@ function renderAuditRows() {
     const amt = Number(r.amount);
     return `<div class="card">
       <div class="row1"><span class="title">${esc(r.summary || lbl)}</span>${badge(lbl, color)}</div>
-      <div class="meta">👤 ${esc(r.byName || r.byEmail || 'مدير')} — ${esc(fmtTime(r.createdAt))}
+      <div class="meta">${r.source === 'app' ? '📱' : '💻'} ${esc(r.byName || r.byEmail || 'مدير')}
+        — ${esc(fmtTime(r.createdAt))}
         ${Number.isFinite(amt) && amt !== 0 ? `<br>المبلغ: <b>${fmtMoney(Math.abs(amt))} ${SAR}</b>` : ''}
       </div>
     </div>`;
