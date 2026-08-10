@@ -306,6 +306,33 @@ class FirebaseService {
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
 
+  /// قيد في سجلّ التدقيق الإداري — نفس المجموعة وأسماء الأفعال التي
+  /// تكتبها لوحة الويب (`admin_audit`)، مع `source: 'app'` تمييزاً لقيود
+  /// الجوّال، فيقرأ المالك سجلاً واحداً مهما اختلف الجهاز.
+  ///
+  /// لا await عند الاستدعاء ولا إشعار عند الفشل: الفعل الإداري نفسه نجح،
+  /// وقيدٌ ضاع لعطل شبكة عابر لا يستحق مقاطعة المدير — صفحة السجل في
+  /// اللوحة تكشف أي انقطاع. والقواعد تشترط by == uid فلا يُنسب قيد لغير
+  /// كاتبه.
+  Future<void> logAdminAction(String action, String summary,
+      {Map<String, dynamic> extra = const {}}) async {
+    try {
+      final u = _auth.currentUser;
+      await _db.collection('admin_audit').add({
+        'action': action,
+        'summary': summary.length > 300 ? summary.substring(0, 300) : summary,
+        'by': u?.uid ?? '',
+        'byName': u?.displayName ?? '',
+        'byEmail': u?.email ?? '',
+        'source': 'app',
+        ...extra,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('audit write failed: $action $e');
+    }
+  }
+
   static const String _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
   String _randomCode() {
@@ -335,6 +362,9 @@ class FirebaseService {
         referredByCode: referredByCode.trim().toUpperCase(),
       );
       await ref.set(entry.toMap());
+      logAdminAction('code.create',
+          'إصدار كود تسجيل $code (${role.name})'
+          '${restaurantName.isEmpty ? '' : ' — $restaurantName'}');
       return entry;
     }
     throw Exception('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى');
@@ -360,8 +390,10 @@ class FirebaseService {
         return list;
       });
 
-  Future<void> revokeRegistrationCode(String code) =>
-      _registrationCodes.doc(code.trim().toUpperCase()).delete();
+  Future<void> revokeRegistrationCode(String code) async {
+    await _registrationCodes.doc(code.trim().toUpperCase()).delete();
+    logAdminAction('code.delete', 'حذف كود تسجيل ${code.trim().toUpperCase()}');
+  }
 
   Future<models.AppUser> registerWithCode({
     required String code,
@@ -1133,6 +1165,9 @@ class FirebaseService {
       ).toMap(),
     );
     await batch.commit();
+    logAdminAction('order.reassign',
+        'إعادة إسناد طلب #${order.orderNumber} إلى $newDriverName',
+        extra: {'orderId': order.id});
 
     // إعادة إسناد طلبٍ استُلم فعلاً (عُهدته مقيّدة على السائق القديم):
     // تُردّ العُهدة للقديم وتُقيَّد على الجديد — البضاعة انتقلت من يدٍ ليد،
@@ -1495,10 +1530,10 @@ class FirebaseService {
     data['expiresAt'] = coupon.expiresAt == null
         ? null
         : Timestamp.fromDate(coupon.expiresAt!);
-    return _coupons.doc(coupon.code.trim().toUpperCase()).set(
-          data,
-          SetOptions(merge: true),
-        );
+    final code = coupon.code.trim().toUpperCase();
+    return _coupons.doc(code).set(data, SetOptions(merge: true)).then((_) {
+      logAdminAction('coupon.create', 'حفظ كوبون $code');
+    });
   }
 
   /// هل الكود مستخدَم مسبقاً؟ يُفحص قبل إنشاء كوبون جديد — الحفظ بالدمج على
@@ -1506,10 +1541,16 @@ class FirebaseService {
   Future<bool> couponExists(String code) async =>
       (await _coupons.doc(code.trim().toUpperCase()).get()).exists;
 
-  Future<void> setCouponActive(String code, bool isActive) =>
-      _coupons.doc(code).update({'isActive': isActive});
+  Future<void> setCouponActive(String code, bool isActive) async {
+    await _coupons.doc(code).update({'isActive': isActive});
+    logAdminAction('coupon.update',
+        isActive ? 'تفعيل كوبون $code' : 'إيقاف كوبون $code');
+  }
 
-  Future<void> deleteCoupon(String code) => _coupons.doc(code).delete();
+  Future<void> deleteCoupon(String code) async {
+    await _coupons.doc(code).delete();
+    logAdminAction('coupon.delete', 'حذف كوبون $code');
+  }
 
   // -------------------------------------------------------------------------
   // طلبات سحب المستحقّات — السائق يطلب، والإدارة تصرف أو ترفض.
@@ -1630,6 +1671,9 @@ class FirebaseService {
         'adminNote': adminNote.trim(),
     });
     await batch.commit();
+    logAdminAction('payout.pay',
+        'صرف سحب ${fresh.amount.toStringAsFixed(2)} ر.س للسائق ${fresh.driverName}',
+        extra: {'driverId': fresh.driverId, 'requestId': fresh.id});
   }
 
   /// رفض طلب سحب بسبب مكتوب يظهر للسائق.
@@ -1647,6 +1691,9 @@ class FirebaseService {
       'adminNote': adminNote.trim(),
       'processedAt': Timestamp.fromDate(DateTime.now()),
     });
+    logAdminAction('payout.reject',
+        'رفض سحب ${fresh.amount.toStringAsFixed(2)} ر.س للسائق ${fresh.driverName}',
+        extra: {'driverId': fresh.driverId, 'requestId': requestId});
   }
 
   /// سجلّ حركات سائق، الأحدث أولاً. (ترتيب محلي — انظر تعليق
@@ -1732,9 +1779,13 @@ class FirebaseService {
       .handleError((_) {})
       .cast<String>();
 
-  Future<void> setMinAppVersion(String version) => _deliverySettings
-      .doc('app')
-      .set({'minAppVersion': version.trim()}, SetOptions(merge: true));
+  Future<void> setMinAppVersion(String version) async {
+    await _deliverySettings
+        .doc('app')
+        .set({'minAppVersion': version.trim()}, SetOptions(merge: true));
+    logAdminAction('settings.save',
+        'الحد الأدنى لإصدار التطبيق: ${version.trim().isEmpty ? 'بلا حد' : version.trim()}');
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // طلبات انضمام الكباتن — تصل من صفحة التسجيل على الويب
@@ -1774,6 +1825,9 @@ class FirebaseService {
       'issuedCode': entry.code,
       'reviewedAt': FieldValue.serverTimestamp(),
     });
+    logAdminAction('application.approve',
+        'قبول طلب انضمام ${application.name} وإصدار كود ${entry.code}',
+        extra: {'applicationId': application.id});
     return entry;
   }
 
@@ -1785,10 +1839,27 @@ class FirebaseService {
         'status': models.DriverApplicationStatus.rejected.name,
         'reviewNote': note,
         'reviewedAt': FieldValue.serverTimestamp(),
+      }).then((_) {
+        logAdminAction('application.reject', 'رفض طلب انضمام',
+            extra: {'applicationId': applicationId});
       });
 
-  Future<void> deleteDriverApplication(String applicationId) =>
-      _driverApplications.doc(applicationId).delete();
+  Future<void> deleteDriverApplication(String applicationId) async {
+    await _driverApplications.doc(applicationId).delete();
+    logAdminAction('application.delete', 'حذف طلب انضمام',
+        extra: {'applicationId': applicationId});
+  }
+
+  /// صورة مستند متقدّم من مجموعة `driver_application_docs` — قيمة الحقل
+  /// في الطلب معرّفُ مستندٍ هنا (نمط الويب: الصور Blob في Firestore لأن
+  /// zadgo.co على GitHub Pages بلا خادم رفع؛ وعند Blaze تصير روابط
+  /// Storage والتطبيق يفرّق بـstartsWith('http') بلا تغيير بنية).
+  Future<Uint8List?> fetchApplicationDocImage(String docId) async {
+    final doc =
+        await _db.collection('driver_application_docs').doc(docId).get();
+    final img = doc.data()?['image'];
+    return img is Blob ? img.bytes : null;
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // الحوافز: الإحالة وتحدي نهاية الأسبوع
@@ -1806,8 +1877,10 @@ class FirebaseService {
     return models.IncentiveSettings.fromMap(doc.data() ?? const {});
   }
 
-  Future<void> saveIncentiveSettings(models.IncentiveSettings s) =>
-      _deliverySettings.doc('incentives').set(s.toMap());
+  Future<void> saveIncentiveSettings(models.IncentiveSettings s) async {
+    await _deliverySettings.doc('incentives').set(s.toMap());
+    logAdminAction('settings.save', 'حفظ إعدادات الحوافز');
+  }
 
   /// صرف مكافأة إحالة: حركتان في دفتر كل طرف + ختم السائق المُحال بأنها
   /// صُرفت. الختم يسبق الحركتين منطقياً لكنه يُكتب بعدهما عمداً — لو فشل
@@ -1957,6 +2030,9 @@ class FirebaseService {
         'status': status.name,
         if (adminNote != null) 'adminNote': adminNote,
         if (resolution != null) 'resolution': resolution,
+      }).then((_) {
+        logAdminAction('complaint.status', 'تغيير حالة شكوى إلى ${status.label}',
+            extra: {'complaintId': complaintId});
       });
 
   static const int _driverWarningThreshold = 3;
@@ -2085,6 +2161,8 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.BroadcastMessage.fromMap(d.data(), d.id)).toList());
 
-  Future<void> sendBroadcast(models.BroadcastMessage message) =>
-      _broadcasts.doc(message.id).set(message.toMap());
+  Future<void> sendBroadcast(models.BroadcastMessage message) async {
+    await _broadcasts.doc(message.id).set(message.toMap());
+    logAdminAction('broadcast.send', 'رسالة جماعية: ${message.title}');
+  }
 }

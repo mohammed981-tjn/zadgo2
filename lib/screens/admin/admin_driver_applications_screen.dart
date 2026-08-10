@@ -10,6 +10,7 @@
 //
 // الصور تُعرض بروابطها لا بتنزيلها — نفس آلية صور المطاعم والبنرات، فلا
 // تتطلّب الترقية شيئاً هنا.
+import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -185,18 +186,8 @@ class _AppDetailScreen extends StatelessWidget {
                     context, 'صورة المركبة ${i + 1}', app.vehiclePhotos[i]),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: CachedNetworkImage(
-                    imageUrl: app.vehiclePhotos[i],
-                    width: 150,
-                    height: 110,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 150,
-                      color: AppColors.surface,
-                      child: const Icon(Icons.broken_image_outlined,
-                          color: AppColors.textGray),
-                    ),
-                  ),
+                  child: _DocThumb(
+                      docRef: app.vehiclePhotos[i], width: 150, height: 110),
                 ),
               ),
             ),
@@ -433,20 +424,7 @@ class _DocTile extends StatelessWidget {
           onTap: () => _openViewer(context, label, url),
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(6),
-            child: CachedNetworkImage(
-              imageUrl: url,
-              width: 52,
-              height: 52,
-              fit: BoxFit.cover,
-              memCacheWidth: 200,
-              errorWidget: (_, __, ___) => Container(
-                width: 52,
-                height: 52,
-                color: AppColors.surface,
-                child: const Icon(Icons.description_outlined,
-                    color: AppColors.textGray, size: 22),
-              ),
-            ),
+            child: _DocThumb(docRef: url, width: 52, height: 52),
           ),
           title: Text(label, style: const TextStyle(fontSize: 13.5)),
           trailing: const Icon(Icons.zoom_in_rounded, size: 20),
@@ -460,6 +438,59 @@ void _openViewer(BuildContext context, String label, String url) =>
       MaterialPageRoute(builder: (_) => _DocViewer(label: label, url: url)),
     );
 
+/// هل مرجع المستند رابط شبكة؟ وإلا فهو معرّف مستند Blob في مجموعة
+/// `driver_application_docs` (نمط صفحة /join — الموقع بلا خادم رفع؛
+/// وعند Blaze تصير القيم روابط Storage فيعود هذا الفرع تلقائياً).
+bool _isNetworkRef(String ref) => ref.startsWith('http');
+
+/// مصغّر مستند موحّد: شبكة أو Blob — واجهة واحدة للبطاقات وصور المركبة.
+class _DocThumb extends StatelessWidget {
+  final String docRef;
+  final double width;
+  final double height;
+  const _DocThumb(
+      {required this.docRef, required this.width, required this.height});
+
+  Widget _placeholder({IconData icon = Icons.description_outlined}) =>
+      Container(
+        width: width,
+        height: height,
+        color: AppColors.surface,
+        child: Icon(icon, color: AppColors.textGray, size: 22),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isNetworkRef(docRef)) {
+      return CachedNetworkImage(
+        imageUrl: docRef,
+        width: width,
+        height: height,
+        fit: BoxFit.cover,
+        memCacheWidth: 300,
+        errorWidget: (_, __, ___) => _placeholder(),
+      );
+    }
+    // ‏Blob: تُجلب مرة وتخدمها ذاكرة Firestore المحلية بعدها — فتح
+    // العارض لاحقاً لنفس المستند لا يعيد التنزيل.
+    return FutureBuilder<Uint8List?>(
+      future:
+          context.read<FirebaseService>().fetchApplicationDocImage(docRef),
+      builder: (_, snap) {
+        final bytes = snap.data;
+        if (bytes == null) {
+          return _placeholder(
+              icon: snap.connectionState == ConnectionState.waiting
+                  ? Icons.hourglass_empty_rounded
+                  : Icons.description_outlined);
+        }
+        return Image.memory(bytes,
+            width: width, height: height, fit: BoxFit.cover);
+      },
+    );
+  }
+}
+
 /// عارض المستند بحجم الشاشة مع تكبير بالأصابع — مراجعة إقامة أو رخصة
 /// تتطلّب قراءة رقمٍ وتاريخِ انتهاء، وصورةٌ مصغّرة لا تكفي لذلك.
 class _DocViewer extends StatelessWidget {
@@ -467,46 +498,66 @@ class _DocViewer extends StatelessWidget {
   final String url;
   const _DocViewer({required this.label, required this.url});
 
+  Widget _error() => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.broken_image_outlined,
+              color: Colors.white54, size: 48),
+          const SizedBox(height: 12),
+          const Text('تعذّر تحميل المستند',
+              style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 6),
+          SelectableText(url,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white38, fontSize: 11)),
+        ]),
+      );
+
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    final isNetwork = _isNetworkRef(url);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text(label),
         backgroundColor: Colors.black,
-        appBar: AppBar(
-          title: Text(label),
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          actions: [
+        foregroundColor: Colors.white,
+        actions: [
+          // المشاركة للروابط فقط — معرّف Blob لا يفتح شيئاً خارج التطبيق.
+          if (isNetwork)
             IconButton(
               tooltip: 'مشاركة الرابط',
               icon: const Icon(Icons.share_outlined),
               onPressed: () => Share.share(url),
             ),
-          ],
+        ],
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.8,
+          maxScale: 5,
+          child: isNetwork
+              ? CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.contain,
+                  placeholder: (_, __) => const CircularProgressIndicator(),
+                  errorWidget: (_, __, ___) => _error(),
+                )
+              : FutureBuilder<Uint8List?>(
+                  future: context
+                      .read<FirebaseService>()
+                      .fetchApplicationDocImage(url),
+                  builder: (_, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const CircularProgressIndicator();
+                    }
+                    final bytes = snap.data;
+                    if (bytes == null) return _error();
+                    return Image.memory(bytes, fit: BoxFit.contain);
+                  },
+                ),
         ),
-        body: Center(
-          child: InteractiveViewer(
-            minScale: 0.8,
-            maxScale: 5,
-            child: CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.contain,
-              placeholder: (_, __) => const CircularProgressIndicator(),
-              errorWidget: (_, __, ___) => Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.broken_image_outlined,
-                      color: Colors.white54, size: 48),
-                  const SizedBox(height: 12),
-                  const Text('تعذّر تحميل المستند',
-                      style: TextStyle(color: Colors.white70)),
-                  const SizedBox(height: 6),
-                  SelectableText(url,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: Colors.white38, fontSize: 11)),
-                ]),
-              ),
-            ),
-          ),
-        ),
-      );
+      ),
+    );
+  }
 }
