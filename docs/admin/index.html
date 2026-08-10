@@ -63,6 +63,11 @@
   .nav-btn .ico { font-size: 1.1rem; width: 24px; text-align: center; }
   .nav-btn .cnt { margin-inline-start: auto; background: var(--red); color: #fff; border-radius: 999px;
     font-size: .7rem; padding: 2px 8px; font-weight: 700; }
+  /* عنوان المجموعة: يُقرأ ولا يُنقر — يفصل بالبياض لا بالخطوط. */
+  .nav-group { padding: 16px 20px 5px; font-size: .68rem; font-weight: 700; letter-spacing: .03em;
+    color: rgba(255,255,255,.4); }
+  .nav-group:first-child { padding-top: 4px; }
+  .nav-sep { height: 1px; background: rgba(255,255,255,.13); margin: 14px 18px 6px; }
   .side-foot { padding: 16px 20px 4px; font-size: .75rem; color: rgba(255,255,255,.45); }
 
   .content { flex: 1; margin-inline-start: var(--side-w); display: flex; flex-direction: column; min-width: 0; }
@@ -276,28 +281,52 @@ const COMPLAINT_STATUS_AR = { open: 'مفتوحة', inProgress: 'قيد المع
 const COMPLAINT_TYPE_AR = { lateDelivery: 'تأخر التوصيل', wrongOrder: 'طلب خاطئ', badQuality: 'جودة سيئة',
   driverBehavior: 'سلوك السائق', other: 'أخرى' };
 
-const PAGES = [
-  ['dashboard', '📊', 'نظرة عامة'],
-  ['orders', '🧾', 'الطلبات'],
-  ['restaurants', '🍽️', 'المطاعم'],
-  ['drivers', '🛵', 'السائقون'],
-  ['users', '👥', 'المستخدمون'],
-  ['complaints', '📮', 'الشكاوى'],
-  ['menu', '🍔', 'إدارة المنيو'],
-  ['codes', '🔑', 'أكواد التسجيل'],
-  ['applications', '🪪', 'طلبات الكباتن'],
-  ['wallets', '👛', 'محافظ العملاء'],
-  ['settlements', '💰', 'تسويات المطاعم'],
-  ['banners', '🖼️', 'البنرات'],
-  ['payouts', '💸', 'طلبات السحب'],
-  ['coupons', '🎟️', 'الكوبونات'],
-  ['broadcast', '📢', 'رسالة جماعية'],
-  ['import', '📥', 'استيراد منيو'],
-  ['archive', '🗄️', 'أرشيف الطلبات'],
-  ['reports', '📈', 'التقارير'],
-  ['audit', '🕵️', 'سجل التدقيق'],
-  ['settings', '⚙️', 'الإعدادات'],
+/* ---------------- ترتيب القائمة ----------------
+ * القائمة مجموعاتٌ لا قائمةً واحدة طويلة. المعيار في الترتيب هو **متى**
+ * تُفتح الصفحة لا متى بُنيت: ما يُفتح كل صباح أولاً، وما يُفتح آخر الشهر
+ * أخيراً. ولهذا جاورت كل صفحةٍ أختها التي تُستعمل معها — «إدارة المنيو»
+ * و«استيراد منيو» كانتا على طرفَي القائمة وهما عملٌ واحد.
+ *
+ * لا صفحة حُذفت ولا صفحتان دُمجتا: العشرون كلّها هنا، وكل عدّاداتها كما هي.
+ * المجموعة بلا عنوان تعني فاصلاً في الأسفل (الإعدادات وحدها).
+ *
+ * `PAGES` تُشتقّ من المجموعات ولا تُكتب يدوياً، حتى لا يفترق الاثنان:
+ * صفحةٌ تُضاف إلى مجموعة تظهر في الشريطين معاً بلا خطوةٍ ثانية. */
+const NAV_GROUPS = [
+  ['التشغيل اليومي', [
+    ['dashboard', '📊', 'نظرة عامة'],
+    ['orders', '🧾', 'الطلبات'],
+    ['applications', '🪪', 'طلبات الكباتن'],
+    ['complaints', '📮', 'الشكاوى'],
+  ]],
+  ['المال', [
+    ['wallets', '👛', 'محافظ العملاء'],
+    ['payouts', '💸', 'طلبات السحب'],
+    ['settlements', '💰', 'تسويات المطاعم'],
+  ]],
+  ['المطاعم والمنيو', [
+    ['restaurants', '🍽️', 'المطاعم'],
+    ['menu', '🍔', 'إدارة المنيو'],
+    ['import', '📥', 'استيراد منيو'],
+  ]],
+  ['الناس', [
+    ['drivers', '🛵', 'السائقون'],
+    ['users', '👥', 'المستخدمون'],
+    ['codes', '🔑', 'أكواد التسجيل'],
+  ]],
+  ['التسويق والتقارير', [
+    ['banners', '🖼️', 'البنرات'],
+    ['coupons', '🎟️', 'الكوبونات'],
+    ['broadcast', '📢', 'رسالة جماعية'],
+    ['reports', '📈', 'التقارير'],
+    ['archive', '🗄️', 'أرشيف الطلبات'],
+    ['audit', '🕵️', 'سجل التدقيق'],
+  ]],
+  ['', [
+    ['settings', '⚙️', 'الإعدادات'],
+  ]],
 ];
+const PAGES = NAV_GROUPS.flatMap(([, items]) => items);
 
 /* ---------------- سجل التدقيق الإداري ----------------
  * كل فعل إداري يُكتب هنا باسم فاعله ووقته. الغرض ليس الشكّ في أحد، بل أن
@@ -608,18 +637,23 @@ function navCount(k) {
   if (k === 'payouts') return S.payouts.filter((p) => (p.status || 'pending') === 'pending').length;
   return 0;
 }
-function navHtml(withText) {
-  return PAGES.map(([k, ico, lbl]) => {
-    const n = navCount(k);
-    return `
+/* الشريط الجانبي مجموعات معنونة. الشريط السفلي (الجوال) يبقى مسطّحاً بالترتيب
+ * نفسه: عناوين المجموعات لا تسع في شريطٍ سفلي، والترتيب وحده يكفي هناك. */
+function navHtml() {
+  return NAV_GROUPS.map(([title, items]) => {
+    const head = title ? `<div class="nav-group">${title}</div>` : '<div class="nav-sep"></div>';
+    return head + items.map(([k, ico, lbl]) => {
+      const n = navCount(k);
+      return `
     <button class="nav-btn ${k === page ? 'active' : ''}" data-page="${k}">
-      <span class="ico">${ico}</span>${withText ? `<span>${lbl}</span>` : `<span>${lbl}</span>`}
+      <span class="ico">${ico}</span><span>${lbl}</span>
       ${n ? `<span class="cnt">${n}</span>` : ''}
     </button>`;
+    }).join('');
   }).join('');
 }
 function renderNav() {
-  $('sideNav').innerHTML = navHtml(true);
+  $('sideNav').innerHTML = navHtml();
   $('bottomNav').innerHTML = PAGES.map(([k, ico, lbl]) => {
     const n = navCount(k);
     return `
