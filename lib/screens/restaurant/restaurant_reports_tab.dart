@@ -187,6 +187,10 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
             ]),
             const SizedBox(height: 16),
             const SectionHeader(title: 'تفاصيل الطلبات'),
+            // تفصيل سطري قابل للتدقيق (بطلب المالك بعد شكّه في أساس
+            // العمولة): كل طلب يعرض أصنافه وقيمة وجباته وعمولته وصافيه —
+            // فمجموع الأعمدة يطابق الدفتر أعلاه رقماً رقماً، وأي طلبٍ
+            // «قيمة وجباته» تشمل توصيلاً بالخطأ ينكشف من سطر أصنافه فوراً.
             ...sorted.map((o) => Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   child: Padding(
@@ -197,11 +201,40 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         const Spacer(),
                         StatusBadge(label: o.status.label, color: o.status.color),
                       ]),
+                      if (o.items.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          o.items
+                              .map((i) => '${i.name} ×${i.quantity}')
+                              .join('، '),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                       const SizedBox(height: 6),
                       PriceRow(label: 'قيمة الوجبات', value: formatCurrency(o.itemsTotal), bold: true),
+                      if (o.status == OrderStatus.delivered) ...[
+                        PriceRow(
+                            label: 'عمولة المنصّة (15%)',
+                            value: '- ${formatCurrency(o.effectiveCommission)}'),
+                        PriceRow(
+                            label: 'صافيك من الطلب',
+                            value: formatCurrency(
+                                o.itemsTotal - o.effectiveCommission)),
+                      ],
                     ]),
                   ),
                 )),
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(
+                'قيمة الوجبات = مجموع الأصناف فقط — أجرة التوصيل لا تدخل في '
+                'مبيعاتك ولا تُحتسب عليها عمولة.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray),
+              ),
+            ),
           ],
         );
       },
