@@ -2463,7 +2463,10 @@ class DriverApplication {
   final String vehiclePlate;
   final String referredByCode;
 
-  /// المستندات: المفتاح اسمه المعياري أدناه، والقيمة رابط الصورة.
+  /// المستندات: المفتاح اسمه المعياري أدناه، والقيمة إما رابط صورة (http)
+  /// أو معرّف مستند Blob في `driver_application_docs` — التطبيق يفرّق
+  /// بينهما بـstartsWith('http')، فانتقال /join إلى Storage بعد Blaze لا
+  /// يغيّر هذا النموذج بحرف.
   final Map<String, String> documents;
 
   /// صور المركبة (أربع جهات) — قائمة مستقلة لأنها متعددة.
