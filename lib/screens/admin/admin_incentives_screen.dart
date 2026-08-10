@@ -104,16 +104,24 @@ class _BodyState extends State<_Body> {
     final s = widget.settings;
     var paid = 0;
 
+    // ‏try لكل مستحقّ على حدة — نسخة سابقة لفّت الحلقتين بـtry واحدة
+    // فكان فشل صرفٍ واحد يُسقط بقية المستحقّين بصمت والتعليق يدّعي
+    // العكس. «صُرفت مسبقاً» من الحارس الذرّي تُعدّ تخطياً طبيعياً
+    // (سبقنا جهاز آخر إليها) لا فشلاً.
     try {
       if (s.referralEnabled) {
         for (final r in eligibleReferrals(s, widget.drivers, delivered)) {
-          await service.payReferralBonus(
-            referrer: r.referrer,
-            referee: r.referee,
-            referrerAmount: s.referrerBonus,
-            refereeAmount: s.refereeBonus,
-          );
-          paid++;
+          try {
+            await service.payReferralBonus(
+              referrer: r.referrer,
+              referee: r.referee,
+              referrerAmount: s.referrerBonus,
+              refereeAmount: s.refereeBonus,
+            );
+            paid++;
+          } catch (_) {
+            // يبقى المستحقّ ظاهراً للصرف اليدوي؛ ونكمل على بقية القائمة.
+          }
         }
       }
       final window = s.currentWindow(DateTime.now());
@@ -122,20 +130,22 @@ class _BodyState extends State<_Body> {
         for (final a
             in challengeAchievers(s, widget.drivers, delivered, window)) {
           if (a.driver.lastChallengeWindow == key) continue;
-          await service.payChallengeBonus(
-            driverId: a.driver.id,
-            amount: a.tier.bonus,
-            deliveries: a.count,
-            windowStart: window.$1,
-          );
-          paid++;
+          try {
+            await service.payChallengeBonus(
+              driverId: a.driver.id,
+              amount: a.tier.bonus,
+              deliveries: a.count,
+              windowStart: window.$1,
+            );
+            paid++;
+          } catch (_) {
+            // نفس المبدأ: التالي في القائمة لا يدفع ثمن فشل سابقه.
+          }
         }
       }
       if (paid > 0 && mounted) {
         showSuccess(context, 'صُرفت $paid مكافأة تلقائياً');
       }
-    } catch (_) {
-      // فشل صرفٍ واحد لا يُسقط المسح؛ يبقى المستحقّ ظاهراً للصرف اليدوي.
     } finally {
       _sweeping = false;
     }
