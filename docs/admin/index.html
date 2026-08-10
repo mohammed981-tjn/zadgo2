@@ -134,6 +134,28 @@
   .toggle-btn[disabled] { opacity: .4; cursor: default; }
   .toggle-btn.off { background: #fdecea; border-color: var(--red); color: var(--red); }
   select.inline-sel { padding: 7px 10px; border-radius: 8px; border: 1px solid #cfd9d5; font-size: .84rem; background: #fff; }
+  .doc-tile { background: rgba(0,0,0,.03); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px; text-align: center; cursor: pointer; }
+  .doc-tile:hover { border-color: var(--green); }
+  .doc-tile img { width: 100%; height: 96px; object-fit: cover; border-radius: 8px; background: #eef1f6; }
+  .doc-tile .cap { font-size: .76rem; margin-top: 6px; color: var(--muted); }
+  .doc-tile.miss { opacity: .55; cursor: default; }
+  .doc-tile.miss .ph { height: 96px; display: flex; align-items: center; justify-content: center;
+    background: #f2f4f8; border-radius: 8px; color: var(--muted); font-size: .78rem; }
+  .doc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 4px; }
+  @media (max-width: 700px) { .doc-grid { grid-template-columns: repeat(2, 1fr); } }
+  /* عارض المستند: المراجعة الحقيقية قراءةُ رقم إقامة وتاريخ انتهاء رخصة،
+     فلا تكفي المصغّرات. والتدوير ضروري لا كمالي — صور الجوال تصل مقلوبة. */
+  #viewer { position: fixed; inset: 0; z-index: 200; background: rgba(6,16,36,.94);
+    display: flex; flex-direction: column; }
+  #viewer.hidden { display: none; }
+  #viewer .bar { display: flex; gap: 8px; padding: 12px; flex-wrap: wrap; align-items: center;
+    justify-content: center; background: rgba(0,0,0,.35); }
+  #viewer .bar b { color: #fff; margin-inline-end: auto; padding-inline-start: 6px; }
+  #viewer .bar button { border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff;
+    border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: .9rem; }
+  #viewer .stage { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; }
+  #viewer img { transform-origin: center; transition: transform .15s; max-width: none; }
   .empty { text-align: center; color: var(--muted); padding: 40px 10px; }
   .loading { text-align: center; color: var(--muted); padding: 30px; }
   table.rep { width: 100%; border-collapse: collapse; font-size: .86rem; }
@@ -203,6 +225,16 @@
 </div>
 
 <div id="modalBack" class="hidden"><div id="modalBox"></div></div>
+<div id="viewer" class="hidden">
+  <div class="bar">
+    <b id="vTitle"></b>
+    <button data-v="rot-">⟲ تدوير</button><button data-v="rot+">⟳ تدوير</button>
+    <button data-v="out">− تصغير</button><button data-v="in">+ تكبير</button>
+    <button data-v="reset">إعادة الضبط</button><button data-v="tab">↗ تبويب جديد</button>
+    <button data-v="close">✕ إغلاق</button>
+  </div>
+  <div class="stage"><img id="vImg" alt=""></div>
+</div>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -253,6 +285,7 @@ const PAGES = [
   ['complaints', '📮', 'الشكاوى'],
   ['menu', '🍔', 'إدارة المنيو'],
   ['codes', '🔑', 'أكواد التسجيل'],
+  ['applications', '🪪', 'طلبات الكباتن'],
   ['wallets', '👛', 'محافظ العملاء'],
   ['settlements', '💰', 'تسويات المطاعم'],
   ['banners', '🖼️', 'البنرات'],
@@ -443,7 +476,7 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], regCodes: [], settings: null };
+  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], regCodes: [], applications: [], settings: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
@@ -550,6 +583,7 @@ function startListeners() {
   bind(query(collection(db, 'wallet_transactions'), limit(500)), 'walletTxns');
   bind(query(collection(db, 'reassignments'), limit(200)), 'reassignments');
   bind(query(collection(db, 'registrationCodes'), limit(200)), 'regCodes');
+  bind(query(collection(db, 'driver_applications'), limit(200)), 'applications');
   bind(query(collection(db, 'banners'), limit(60)), 'banners');
   bind(query(collection(db, 'payout_requests'), orderBy('createdAt', 'desc'), limit(200)), 'payouts');
   bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
@@ -569,6 +603,7 @@ function startListeners() {
  * السحب المعلّقة. طلب سحب لا يراه أحد يعني سائقاً ينتظر ماله بلا ردّ. */
 function navCount(k) {
   if (k === 'dashboard') return computeAlerts().filter((a) => a.sev === 'red').length;
+  if (k === 'applications') return S.applications.filter((a) => (a.status || 'pending') === 'pending').length;
   if (k === 'complaints') return S.complaints.filter((c) => c.status === 'open').length;
   if (k === 'payouts') return S.payouts.filter((p) => (p.status || 'pending') === 'pending').length;
   return 0;
@@ -611,7 +646,7 @@ function rerender() {
   renderNav();
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
-    menu: renderMenuPage, codes: renderCodesPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
+    menu: renderMenuPage, codes: renderCodesPage, applications: renderApplicationsPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
     reports: renderReportsPage, archive: renderArchivePage, audit: renderAuditPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
@@ -1661,6 +1696,228 @@ async function showTxnsModal(driverId) {
       `<div class="empty">تعذر التحميل: ${esc(err.code || err.message)}<br>
       <small>إن كان الخطأ permission-denied فقواعد Firestore الجديدة لم تُنشر بعد</small></div>`;
   }
+}
+
+/* ================= طلبات انضمام الكباتن =================
+ *
+ * الصور مستندات هوية وإقامة، ولا تُقرأ إلا عند فتح الطلب: الطلب الواحد يحمل
+ * حتى ١١ صورة، وتحميلها مع القائمة يجرّ ميغابايتات بلا داعٍ.
+ *
+ * قيمة الحقل تُقرأ بطريقتين — إن بدأت بـhttp فهي رابط يُعرض شبكياً، وإلا
+ * فهي معرّف مستند صورة داخل Firestore. نفس ما يفعله عارض التطبيق، فيوم
+ * ننتقل إلى Storage بعد Blaze لا يتغيّر شيء في الشاشتين.
+ */
+const APP_DOCS = [
+  ['id', 'الهوية / الإقامة', true], ['idBack', 'ظهر الهوية', false],
+  ['license', 'رخصة القيادة', true], ['registration', 'الاستمارة', true],
+  ['insurance', 'التأمين', true], ['freelanceDoc', 'وثيقة العمل الحر', false],
+  ['criminalRecord', 'خلو السوابق', false], ['drivingAuth', 'تفويض قيادة', false],
+];
+const APP_STATUS = { pending: ['بانتظار المراجعة', '#ca6f1e'], approved: ['مقبول', '#1e8449'],
+  rejected: ['مرفوض', '#c0392b'] };
+let appFilter = 'pending';
+const docCache = new Map();     // معرّف مستند الصورة → data:URL
+
+function renderApplicationsPage() {
+  const all = [...S.applications].sort((a, b) => {
+    const pa = (a.status || 'pending') === 'pending' ? 0 : 1;
+    const pb = (b.status || 'pending') === 'pending' ? 0 : 1;
+    return pa - pb || (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0);
+  });
+  const pending = all.filter((a) => (a.status || 'pending') === 'pending').length;
+  const list = appFilter === 'all' ? all : all.filter((a) => (a.status || 'pending') === appFilter);
+  const filters = [['pending', 'بانتظار المراجعة'], ['all', 'الكل'], ['approved', 'المقبولة'], ['rejected', 'المرفوضة']];
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <div class="kpi-grid">
+        <div class="kpi" style="border-color:${pending ? '#ca6f1e' : 'var(--green)'}">
+          <div class="num">${pending}</div><div class="lbl">بانتظار المراجعة</div></div>
+        <div class="kpi"><div class="num">${all.filter((a) => a.status === 'approved').length}</div>
+          <div class="lbl">مقبول</div></div>
+        <div class="kpi"><div class="num">${all.length}</div><div class="lbl">إجمالي الطلبات</div></div>
+      </div>
+      <div class="toolbar" style="margin-top:12px">${filters.map(([k, l]) =>
+        `<button class="chip ${appFilter === k ? 'active' : ''}" data-af2="${k}">${l}</button>`).join('')}</div>
+    </div>
+    ${list.map((a) => {
+      const st = a.status || 'pending';
+      const [lbl, color] = APP_STATUS[st] || [st, '#7f8c8d'];
+      const n = Object.keys(a.documents || {}).length + (a.vehiclePhotos || []).length;
+      return `<div class="card click" data-appid="${esc(a.id)}">
+        <div class="row1"><span class="title">🪪 ${esc(a.name || '—')}</span>${badge(lbl, color)}</div>
+        <div class="meta">📞 ${esc(a.phone || '—')} — ${esc(a.vehicleType || '')} ${esc(a.vehiclePlate || '')}<br>
+          ${esc(fmtTime(a.createdAt))} — ${n} مستند
+          ${a.referredByCode ? ' — دعاه: ' + esc(a.referredByCode) : ''}
+          ${a.issuedCode ? '<br>الكود الصادر: <b>' + esc(a.issuedCode) + '</b>' : ''}
+          ${a.reviewNote ? '<br>سبب الرفض: ' + esc(a.reviewNote) : ''}</div>
+      </div>`;
+    }).join('') || '<div class="empty">لا طلبات في هذا التصنيف</div>'}`;
+
+  $('main').querySelectorAll('[data-af2]').forEach((b) => b.addEventListener('click', () => {
+    appFilter = b.dataset.af2; renderApplicationsPage();
+  }));
+  $('main').querySelectorAll('[data-appid]').forEach((b) =>
+    b.addEventListener('click', () => showApplication(b.dataset.appid)));
+}
+
+async function loadAppDoc(idOrUrl) {
+  if (!idOrUrl) return null;
+  if (/^https?:/i.test(idOrUrl)) return idOrUrl;        // رابط Storage بعد Blaze
+  if (docCache.has(idOrUrl)) return docCache.get(idOrUrl);
+  const snap = await getDoc(doc(db, 'driver_application_docs', idOrUrl));
+  const blob = snap.exists() ? snap.data().image : null;
+  const url = blob && typeof blob.toBase64 === 'function' ? 'data:image/jpeg;base64,' + blob.toBase64() : null;
+  docCache.set(idOrUrl, url);
+  return url;
+}
+
+function showApplication(id) {
+  const a = S.applications.find((x) => x.id === id);
+  if (!a) return;
+  const st = a.status || 'pending';
+  const [lbl, color] = APP_STATUS[st] || [st, '#7f8c8d'];
+  const docs = a.documents || {};
+  const missing = APP_DOCS.filter(([k, , req]) => req && !docs[k]).map(([, t]) => t);
+
+  const tile = (key, cap, val) => val
+    ? `<div class="doc-tile" data-doc="${esc(val)}" data-cap="${esc(cap)}">
+         <img alt="${esc(cap)}" data-src="${esc(val)}"><div class="cap">${esc(cap)}</div></div>`
+    : `<div class="doc-tile miss"><div class="ph">لم يُرفَع</div><div class="cap">${esc(cap)}</div></div>`;
+
+  openModal(`
+    <h3>🪪 ${esc(a.name || '')} <button class="x-btn" onclick="closeModal()">✕</button></h3>
+    <div class="row1">${badge(lbl, color)}</div>
+    <div class="kv"><span>الجوال</span><b><a href="tel:${esc(a.phone || '')}" style="color:var(--blue)">${esc(a.phone || '—')}</a></b></div>
+    <div class="kv"><span>البريد</span><b style="font-weight:400">${esc(a.email || '—')}</b></div>
+    <div class="kv"><span>رقم الهوية / الإقامة</span><b>${esc(a.nationalId || '—')}</b></div>
+    <div class="kv"><span>المركبة</span><b>${esc(a.vehicleType || '—')} — ${esc(a.vehiclePlate || '')}</b></div>
+    <div class="kv"><span>كود من دعاه</span><b>${esc(a.referredByCode || 'بلا')}</b></div>
+    <div class="kv"><span>قُدّم</span><b>${esc(fmtTime(a.createdAt))}</b></div>
+    ${a.issuedCode ? `<div class="kv"><span>الكود الصادر</span><b>${esc(a.issuedCode)}</b></div>` : ''}
+    ${a.reviewNote ? `<div class="kv"><span>سبب الرفض</span><b style="font-weight:400">${esc(a.reviewNote)}</b></div>` : ''}
+
+    ${missing.length ? `<div class="card" style="border-inline-start:4px solid var(--orange);margin-top:12px">
+      <b>⚠️ مستندات إلزامية ناقصة</b>
+      <div class="meta">${esc(missing.join(' · '))}<br>
+        قد تكون وصلتك عبر واتساب — القبول متاح على أي حال.</div></div>` : ''}
+
+    <h3 style="margin-top:16px">المستندات</h3>
+    <div class="doc-grid">${APP_DOCS.map(([k, t]) => tile(k, t, docs[k])).join('')}</div>
+    <h3 style="margin-top:12px">صور المركبة</h3>
+    <div class="doc-grid">${['أمام', 'خلف', 'يمين', 'يسار']
+      .map((t, i) => tile('veh' + i, t, (a.vehiclePhotos || [])[i])).join('')}</div>
+    <p class="meta">اضغط أي صورة لعرضها كبيرة مع التكبير والتدوير.</p>
+
+    ${st === 'pending' ? `
+      <div class="field" style="margin-top:14px"><label>صلاحية كود التسجيل (بالأيام — 0 = بلا انتهاء)</label>
+        <input type="number" id="ap_days" min="0" step="1" value="14"></div>
+      <div class="row1" style="gap:8px">
+        <button class="btn" id="ap_ok">✅ قبول وإصدار كود التسجيل</button>
+        <button class="btn danger" id="ap_no">✖️ رفض</button>
+      </div>` : ''}
+  `);
+
+  // الصور تُجلب بعد فتح النافذة: المدير يرى بياناته فوراً لا بعد ١١ قراءة.
+  document.querySelectorAll('#modalBox img[data-src]').forEach(async (img) => {
+    const url = await loadAppDoc(img.dataset.src);
+    if (url) img.src = url;
+    else { img.replaceWith(Object.assign(document.createElement('div'),
+      { className: 'ph', textContent: 'تعذّر التحميل' })); }
+  });
+  document.querySelectorAll('#modalBox .doc-tile[data-doc]').forEach((t) =>
+    t.addEventListener('click', () => openViewer(t.dataset.doc, t.dataset.cap)));
+
+  const ok = document.getElementById('ap_ok');
+  if (ok) ok.addEventListener('click', () => approveApplication(a));
+  const no = document.getElementById('ap_no');
+  if (no) no.addEventListener('click', () => rejectApplication(a));
+}
+
+/* ---------------- عارض المستند ---------------- */
+let vRot = 0, vZoom = 1, vUrl = '';
+async function openViewer(src, cap) {
+  const url = await loadAppDoc(src);
+  if (!url) { alert('تعذّر تحميل الصورة'); return; }
+  vUrl = url; vRot = 0; vZoom = 1;
+  $('vTitle').textContent = cap || '';
+  $('vImg').src = url;
+  applyView();
+  $('viewer').classList.remove('hidden');
+}
+function applyView() { $('vImg').style.transform = `rotate(${vRot}deg) scale(${vZoom})`; }
+document.getElementById('viewer').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-v]');
+  if (!b) return;
+  const a = b.dataset.v;
+  if (a === 'rot+') vRot += 90;
+  else if (a === 'rot-') vRot -= 90;
+  else if (a === 'in') vZoom = Math.min(6, vZoom * 1.35);
+  else if (a === 'out') vZoom = Math.max(0.3, vZoom / 1.35);
+  else if (a === 'reset') { vRot = 0; vZoom = 1; }
+  else if (a === 'close') { $('viewer').classList.add('hidden'); $('vImg').removeAttribute('src'); return; }
+  else if (a === 'tab') {
+    // فتح data: في تبويب أعلى محظور في المتصفحات — يُحوَّل إلى blob أولاً.
+    if (vUrl.startsWith('data:')) {
+      const bin = atob(vUrl.split(',')[1]);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      window.open(URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })), '_blank');
+    } else window.open(vUrl, '_blank');
+    return;
+  }
+  applyView();
+});
+
+/* القبول: الطلب وكود التسجيل في **معاملة واحدة**. تحذير المواصفات صريح —
+ * كتابة `issuedCode` بلا إنشاء الكود فعلاً تجعل المتقدّم «مقبولاً» بكودٍ لا
+ * يعمل، ولا شيء يكشف ذلك حتى يحاول التسجيل ويفشل. */
+async function approveApplication(a) {
+  const days = Math.max(0, Math.round(Number(document.getElementById('ap_days').value) || 0));
+  let code = makeCode();
+  for (let i = 0; i < 5 && S.regCodes.some((c) => c.id === code); i++) code = makeCode();
+  if (!confirm(`قبول «${a.name}» وإصدار كود التسجيل ${code}؟`
+    + (days > 0 ? `\nصالح ${days} يوماً.` : '\nبلا تاريخ انتهاء.')
+    + (a.referredByCode ? `\nكود الداعي ${a.referredByCode} سينتقل معه تلقائياً.` : ''))) return;
+  try {
+    await runTransaction(db, async (tx) => {
+      const aRef = doc(db, 'driver_applications', a.id);
+      const cRef = doc(db, 'registrationCodes', code);
+      const aSnap = await tx.get(aRef);
+      if (!aSnap.exists()) throw new Error('الطلب لم يعد موجوداً');
+      if ((aSnap.data().status || 'pending') !== 'pending') throw new Error('عولج هذا الطلب بالفعل — حدّث الصفحة');
+      const cSnap = await tx.get(cRef);
+      if (cSnap.exists()) throw new Error('تصادم في الكود — أعد المحاولة');
+      tx.set(cRef, {
+        code, role: 'driver', restaurantId: '', restaurantName: '',
+        isUsed: false, createdAt: serverTimestamp(),
+        usedAt: null, usedByUid: null, usedByName: null,
+        ...(days > 0 ? { expiresAt: Timestamp.fromDate(new Date(Date.now() + days * 86400000)) } : {}),
+        // بدونه تضيع مكافأة الداعي بصمت — التطبيق يلتقطه من الكود لا من المتقدّم.
+        ...(a.referredByCode ? { referredByCode: a.referredByCode } : {}),
+      });
+      tx.update(aRef, { status: 'approved', issuedCode: code, reviewedAt: serverTimestamp() });
+    });
+    audit('application.approve', `قبل طلب «${a.name}» وأصدر الكود ${code}`,
+      { target: 'driver_applications/' + a.id });
+    toast('قُبل الطلب — الكود ' + code);
+    closeModal();
+    setTimeout(() => shareCode(code), 250);
+  } catch (err) { alert('تعذر القبول: ' + (err.message || err.code)); }
+}
+
+async function rejectApplication(a) {
+  const reason = (prompt('سبب الرفض (يُعرض للمتقدّم — اكتبه بوضوح):', '') || '').trim();
+  if (!reason) { alert('السبب إلزامي — المتقدّم يستحق معرفة ما ينقصه'); return; }
+  if (!confirm(`رفض طلب «${a.name}»؟\nالسبب: ${reason}`)) return;
+  try {
+    await updateDoc(doc(db, 'driver_applications', a.id),
+      { status: 'rejected', reviewNote: reason, reviewedAt: serverTimestamp() });
+    audit('application.reject', `رفض طلب «${a.name}» — ${reason}`,
+      { target: 'driver_applications/' + a.id });
+    toast('رُفض الطلب');
+    closeModal();
+  } catch (err) { alert('تعذر الرفض: ' + (err.code || err.message)); }
 }
 
 /* ================= المستخدمون ================= */
