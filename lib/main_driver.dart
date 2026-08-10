@@ -50,7 +50,7 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.driver;
   AppFlavorConfig.flavorLabel = 'السائق';
-  AppFlavorConfig.flavorColor = const Color(0xFF1976D2);
+  AppFlavorConfig.flavorColor = const Color(0xFF12559E);
   AppFlavorConfig.flavorIcon = Icons.two_wheeler_rounded;
   AppFlavorConfig.flavorTagline = 'انطلق، وصّل، واكسب';
   AppFlavorConfig.flavorLoginTitle = 'دخول الكباتن';

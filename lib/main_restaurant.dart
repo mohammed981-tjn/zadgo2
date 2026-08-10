@@ -54,7 +54,7 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.restaurant;
   AppFlavorConfig.flavorLabel = 'المطعم';
-  AppFlavorConfig.flavorColor = const Color(0xFFE8590C);
+  AppFlavorConfig.flavorColor = const Color(0xFFC92A2A);
   AppFlavorConfig.flavorIcon = Icons.storefront_rounded;
   AppFlavorConfig.flavorTagline = 'إدارة مطبخك بذكاء';
   AppFlavorConfig.flavorLoginTitle = 'بوابة شركاء المطاعم';
