@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/models.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
+import '../../widgets/ambient_background.dart';
 import '../../widgets/common_widgets.dart';
 import '../../app_flavor.dart';
 
@@ -92,16 +93,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final fc = context.flavorColors;
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0, -0.6),
-            radius: 1.4,
-            colors: [fc.bgDark, fc.bgDarker],
-          ),
-        ),
+      body: AmbientBackground(
+        bgDark: fc.bgDark,
+        bgDarker: fc.bgDarker,
+        accent: fc.primary,
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -116,45 +111,17 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 24),
-                    // الشعار المتوهج: أيقونة النكهة داخل قرص متدرّج بلونها،
-                    // مع هالة إشعاع خلفية — هوية مميزة من أول نظرة.
-                    Container(
-                      width: 104,
-                      height: 104,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            fc.primary.withOpacity(0.28),
-                            fc.primary.withOpacity(0.0),
-                          ],
-                        ),
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 78,
-                          height: 78,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [fc.primaryLight, fc.primary],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: fc.primary.withOpacity(0.55),
-                                blurRadius: 24,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            AppFlavorConfig.flavorIcon,
-                            color: fc.bgDarker,
-                            size: 40,
-                          ),
-                        ),
+                    // الشعار المتوهّج — نفس القرص المستخدم في الجولة
+                    // التعريفية بحلقاته ولمعته، بحجم أصغر: لغة بصرية واحدة
+                    // بين أول شاشتين يراهما المستخدم.
+                    GlowOrb(
+                      size: 84,
+                      primary: fc.primary,
+                      primaryLight: fc.primaryLight,
+                      child: Icon(
+                        AppFlavorConfig.flavorIcon,
+                        color: fc.bgDarker,
+                        size: 40,
                       ),
                     ),
                     const SizedBox(height: 20),
