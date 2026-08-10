@@ -26,248 +26,218 @@ class MyOrdersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    final uid = context.read<app_auth.AuthProvider>().user?.uid ?? '';
-
-    return AppStreamBuilder<List<Order>>(
-      stream: () => service.streamCustomerOrders(uid),
-      loading: const ListCardsSkeleton(),
-      builder: (ctx, orders) {
-        if (orders.isEmpty) {
-          return const AppEmpty(emoji: '📋', title: 'لا يوجد طلبات');
-        }
-        final active = orders.where((o) => o.status.isActive).toList();
-        final past = orders.where((o) => !o.status.isActive).toList();
-
-        return DefaultTabController(
-          length: 2,
-          initialIndex: active.isEmpty ? 1 : 0,
-          child: Column(
-            children: [
-              TabBar(
-                labelColor: AppColors.primary,
-                unselectedLabelColor: AppColors.textGray,
-                indicatorColor: AppColors.primary,
-                tabs: [
-                  Tab(text: active.isEmpty ? 'جارية' : 'جارية (${active.length})'),
-                  const Tab(text: 'السابقة'),
-                ],
-              ),
-              Expanded(
-                child: TabBarView(
-                  children: [
-                    _OrdersList(
-                      orders: active,
-                      emptyTitle: 'لا يوجد طلبات جارية',
-                    ),
-                    _OrdersList(
-                      orders: past,
-                      emptyTitle: 'لا يوجد طلبات سابقة',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _OrdersList extends StatelessWidget {
-  final List<Order> orders;
-  final String emptyTitle;
-  const _OrdersList({required this.orders, required this.emptyTitle});
-
-  @override
-  Widget build(BuildContext context) {
-    if (orders.isEmpty) return AppEmpty(emoji: '📋', title: emptyTitle);
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: orders.length,
-      itemBuilder: (_, i) => _OrderCard(order: orders[i]),
-    );
-  }
-}
-
-class _OrderCard extends StatelessWidget {
-  final Order order;
-  const _OrderCard({required this.order});
-
-  @override
-  Widget build(BuildContext context) {
-    final service = context.read<FirebaseService>();
     final auth = context.read<app_auth.AuthProvider>();
-    return Card(
+    final st = order.status;
+    final time =
+        '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}';
+
+    // بطاقة بمستوى بطاقة عرض الكابتن (ملاحظة المالك «التصميم فقير»):
+    // رأس ملوّن بحالة الطلب، ملخص أصناف يحيي البطاقة، والأفعال حبوب
+    // مدمجة في صف واحد بدل أزرار عريضة متراصة تُطيل البطاقة وتُفقرها.
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: st.color.withOpacity(0.35)),
+        boxShadow: const [
+          BoxShadow(color: AppColors.cardShadow, blurRadius: 10),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              // رقم الطلب يفتح الفاتورة التفصيلية — أوضح مدخل يبحث عنه
-              // العميل («وين أشوف فاتورتي؟»).
-              InkWell(
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => OrderReceiptScreen(order: order))),
-                borderRadius: BorderRadius.circular(6),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('#${order.orderNumber}',
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.receipt_long_outlined,
-                      size: 16, color: AppColors.textGray),
-                ]),
-              ),
-              const Spacer(),
-              if (order.status == OrderStatus.pickedUp ||
-                  order.status == OrderStatus.onTheWay) ...[
-                // الاتصال بالسائق — متاح بعد استلامه الطلب من المطعم فقط،
-                // وهي الفترة التي قد يحتاج فيها الطرفان التواصل المباشر.
-                if (order.driverPhone != null && order.driverPhone!.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.phone, color: AppColors.success),
-                    onPressed: () => callPhone(context, order.driverPhone),
-                    tooltip: 'الاتصال بالسائق',
-                  ),
-                if (order.driverId != null)
-                  IconButton(
-                    icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
-                    onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
-                    tooltip: 'محادثة السائق',
-                  ),
-                if (order.restaurantLat != null || order.deliveryLat != null)
-                  IconButton(
-                    icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                    onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
-                    tooltip: 'عرض الخريطة',
-                  ),
-              ],
-              StatusBadge(
-                  label: order.status.label,
-                  color: order.status.color,
-                  icon: order.status.icon),
-            ]),
-            InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
-            InfoRow(
-                icon: Icons.access_time,
-                text:
-                    '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}'),
-            OrderTrackingTimeline(status: order.status),
-            const Divider(),
-            Text(formatCurrency(order.payableTotal),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.primary)),
-            // إعادة الطلب بضغطة — أرخص ميزة تزيد تكرار الشراء (معيار جاهز/
-            // كيتا): تُبنى السلة من القائمة الحالية للمطعم (أسعار وتوفّر
-            // اليوم)، ويُبلَّغ العميل بما لم يعد متوفراً بدل فشل صامت.
-            if (!order.status.isActive)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.replay_rounded, size: 18),
-                    label: const Text('اطلب مجدداً'),
-                    onPressed: () => _reorder(context),
-                  ),
+            Container(
+              width: double.infinity,
+              color: st.color.withOpacity(0.10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: st.color.withOpacity(0.18)),
+                  child: Icon(st.icon, size: 15, color: st.color),
                 ),
-              ),
-            if (order.status == OrderStatus.delivered && !order.isRated)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => _showRateDialog(context, service, order),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
-                    child: const Text('قيّم الطلب'),
-                  ),
+                const SizedBox(width: 8),
+                Text(st.label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                        color: st.color)),
+                const Spacer(),
+                // رقم الطلب يفتح الفاتورة التفصيلية — أوضح مدخل يبحث عنه
+                // العميل («وين أشوف فاتورتي؟»).
+                InkWell(
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => OrderReceiptScreen(order: order))),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('#${order.orderNumber}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 12.5)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.receipt_long_outlined,
+                        size: 15, color: AppColors.textGray),
+                  ]),
                 ),
-              ),
-            if (order.isRated && order.customerRating != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(children: [
-                  const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
-                  const SizedBox(width: 4),
-                  Text('تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
-                ]),
-              ),
-            // إلغاء الطلب — متاح للعميل فقط قبل أن يبدأ المطعم التحضير؛ بعدها
-            // يصبح الإلغاء إدارياً (المطعم بدأ يتكبّد التكلفة).
-            if (order.canCustomerCancel)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.cancel_outlined, size: 18),
-                    label: const Text('إلغاء الطلب'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
-                    ),
-                    onPressed: () => _cancelOrder(context, service),
-                  ),
-                ),
-              )
-            else if (order.status.isActive)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(children: [
-                  const Icon(Icons.info_outline, size: 15, color: AppColors.textGray),
-                  const SizedBox(width: 6),
-                  const Expanded(
-                    child: Text('بدأ تحضير طلبك — للإلغاء تواصل مع الإدارة',
-                        style: TextStyle(fontSize: 12, color: AppColors.textGray)),
-                  ),
-                ]),
-              ),
-            // الشكوى: زر واضح بدل أيقونة غامضة. تبقى متاحة بعد التسليم خلال
-            // مهلة 24 ساعة (وقت اكتشاف النقص/الخطأ/الجودة)، ثم يُغلق الطلب.
-            // العدّاد حيّ: ينزل من تلقائه وينقلب إلى «انتهت المهلة» في لحظته
-            // بلا انتظار تحديثٍ من الخادم.
+              ]),
+            ),
             Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: ComplaintWindow(
-                order: order,
-                builder: (context, left, canSubmit) {
-                  if (!canSubmit) {
-                    return const Row(children: [
-                      Icon(Icons.lock_outline, size: 15, color: AppColors.textGray),
-                      SizedBox(width: 6),
-                      Text('انتهت مهلة تقديم الشكوى',
-                          style: TextStyle(fontSize: 12, color: AppColors.textGray)),
-                    ]);
-                  }
-                  // الساعات الثلاث الأخيرة تُعرض بالأحمر: تنبيه أن النافذة
-                  // توشك أن تُغلق، لا مجرّد رقم يتناقص بلا دلالة.
-                  final urgent = left != null && left.inHours < 3;
-                  final color = urgent ? AppColors.error : AppColors.warning;
-                  return SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      icon: Icon(
-                          urgent
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.storefront_rounded,
+                        size: 16, color: AppColors.textGray),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(order.restaurantName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    Text(time,
+                        style: const TextStyle(
+                            fontSize: 11.5, color: AppColors.textGray)),
+                  ]),
+                  if (order.items.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      order.items
+                          .map((i) => '${i.name} ×${i.quantity}')
+                          .join('، '),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGray,
+                          height: 1.5),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  OrderTrackingTimeline(status: order.status),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(formatCurrency(order.payableTotal),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: AppColors.primaryDark)),
+                    ),
+                    const Spacer(),
+                    // أفعال المتابعة الحية — أثناء ما الطلب بيد السائق فقط.
+                    if (st == OrderStatus.pickedUp ||
+                        st == OrderStatus.onTheWay) ...[
+                      if (order.driverPhone != null &&
+                          order.driverPhone!.isNotEmpty)
+                        _roundAction(Icons.phone, AppColors.success,
+                            () => callPhone(context, order.driverPhone)),
+                      if (order.driverId != null)
+                        _roundAction(
+                            Icons.chat_bubble_outline,
+                            AppColors.secondary,
+                            () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        OrderChatScreen(order: order)))),
+                      if (order.restaurantLat != null ||
+                          order.deliveryLat != null)
+                        _roundAction(
+                            Icons.map_outlined,
+                            AppColors.secondary,
+                            () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        OrderMapScreen(order: order)))),
+                    ],
+                  ]),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    // إعادة الطلب بضغطة — أرخص ميزة تزيد تكرار الشراء.
+                    if (!order.status.isActive)
+                      _pill(
+                        icon: Icons.replay_rounded,
+                        label: 'اطلب مجدداً',
+                        color: AppColors.dark,
+                        filled: true,
+                        onTap: () => _reorder(context),
+                      ),
+                    if (order.status == OrderStatus.delivered &&
+                        !order.isRated)
+                      _pill(
+                        icon: Icons.star_rounded,
+                        label: 'قيّم الطلب',
+                        color: AppColors.warning,
+                        filled: true,
+                        onTap: () =>
+                            _showRateDialog(context, service, order),
+                      ),
+                    // الإلغاء متاح قبل بدء التحضير فقط؛ بعدها إداري.
+                    if (order.canCustomerCancel)
+                      _pill(
+                        icon: Icons.cancel_outlined,
+                        label: 'إلغاء الطلب',
+                        color: AppColors.error,
+                        onTap: () => _cancelOrder(context, service),
+                      ),
+                    // الشكوى بعدّادها الحي — الساعات الأخيرة بالأحمر.
+                    ComplaintWindow(
+                      order: order,
+                      builder: (context, left, canSubmit) {
+                        if (!canSubmit) return const SizedBox.shrink();
+                        final urgent = left != null && left.inHours < 3;
+                        final color =
+                            urgent ? AppColors.error : AppColors.warning;
+                        return _pill(
+                          icon: urgent
                               ? Icons.timer_outlined
                               : Icons.report_problem_outlined,
-                          size: 18),
-                      label: Text(left == null
-                          ? 'تقديم شكوى'
-                          : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: color,
-                        side: BorderSide(color: color),
-                      ),
-                      onPressed: () => _openComplaint(context, auth),
+                          label: left == null
+                              ? 'شكوى'
+                              : 'شكوى — ${formatRemaining(left)}',
+                          color: color,
+                          onTap: () => _openComplaint(context, auth),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ]),
+                  if (order.isRated && order.customerRating != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(children: [
+                        const Icon(Icons.star_rounded,
+                            color: Colors.amber, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                            'تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textGray)),
+                      ]),
+                    ),
+                  if (order.status.isActive && !order.canCustomerCancel)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                          'بدأ تحضير طلبك — للإلغاء تواصل مع الإدارة',
+                          style: TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray)),
+                    ),
+                ],
               ),
             ),
           ],
@@ -275,6 +245,53 @@ class _OrderCard extends StatelessWidget {
       ),
     );
   }
+
+  /// زر دائري مصغّر لأفعال المتابعة الحية — بدل IconButton الافتراضي
+  /// الفضفاض الذي يوسّع الصف بلا داع.
+  Widget _roundAction(IconData icon, Color color, VoidCallback onTap) =>
+      Padding(
+        padding: const EdgeInsetsDirectional.only(start: 6),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+                shape: BoxShape.circle, color: color.withOpacity(0.12)),
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
+      );
+
+  /// حبّة فعل مدمجة — أفعال البطاقة كلها بهذا الشكل فلا تتكدس أزرار
+  /// عريضة تحت بعضها (سبب «التصميم الفقير» الذي لاحظه المالك).
+  Widget _pill({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    bool filled = false,
+  }) =>
+      Material(
+        color: filled ? color : color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 16, color: filled ? Colors.white : color),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: filled ? Colors.white : color)),
+            ]),
+          ),
+        ),
+      );
 
   Future<void> _reorder(BuildContext context) async {
     final service = context.read<FirebaseService>();

@@ -281,110 +281,138 @@ class _TrackedOrderCard extends StatelessWidget {
             const InfoRow(icon: Icons.delivery_dining_outlined, text: 'لم يُعيّن سائق بعد'),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
           OrderTrackingTimeline(status: order.status),
-          Text(formatCurrency(order.payableTotal),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
           const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.chat_bubble_outline),
-              label: const Text('محادثة الطلب'),
-              onPressed: () => Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
-            ),
-          ),
-          if (order.status == OrderStatus.noDriverFound) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
-                icon: const Icon(Icons.person_add_alt_1),
-                label: const Text('إسناد سائق يدوياً'),
-                onPressed: () => _showAssignDriverDialog(context, service, order),
+          // المبلغ حبّة بارزة، والأفعال كلها حبوب مدمجة في صفّ ملتفّ —
+          // كانت خمسة أزرار عريضة متراصّة تُطيل البطاقة وتدفن المهم
+          // (ملاحظة المالك «التصميم فقير» على شاشات القوائم).
+          Row(children: [
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(10),
               ),
+              child: Text(formatCurrency(order.payableTotal),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
+                      color: AppColors.primaryDark)),
             ),
-          ],
-          if ((order.status == OrderStatus.driverAssigned ||
-                  order.status == OrderStatus.pickedUp ||
-                  order.status == OrderStatus.onTheWay) &&
-              order.driverId != null &&
-              order.driverId!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.swap_horiz),
-                label: const Text('تحويل الطلب لسائق آخر'),
-                onPressed: () => _showReassignDialog(context, service, order),
+          ]),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            _pill(
+              icon: Icons.chat_bubble_outline,
+              label: 'محادثة الطلب',
+              color: AppColors.secondary,
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
+            ),
+            if (order.status == OrderStatus.noDriverFound)
+              _pill(
+                icon: Icons.person_add_alt_1,
+                label: 'إسناد سائق يدوياً',
+                color: Colors.deepOrange,
+                filled: true,
+                onTap: () => _showAssignDriverDialog(context, service, order),
               ),
-            ),
-          ],
-          if (order.driverId != null && order.driverId!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('تتبع موقع السائق على الخريطة'),
-                onPressed: () => Navigator.push(context,
+            if ((order.status == OrderStatus.driverAssigned ||
+                    order.status == OrderStatus.pickedUp ||
+                    order.status == OrderStatus.onTheWay) &&
+                order.driverId != null &&
+                order.driverId!.isNotEmpty)
+              _pill(
+                icon: Icons.swap_horiz,
+                label: 'تحويل لسائق آخر',
+                color: AppColors.secondary,
+                onTap: () => _showReassignDialog(context, service, order),
+              ),
+            if (order.driverId != null && order.driverId!.isNotEmpty)
+              _pill(
+                icon: Icons.map_outlined,
+                label: 'الخريطة',
+                color: AppColors.secondary,
+                onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
               ),
-            ),
-          ],
-          // ✅ إنهاء الطلب أو إلغاؤه مباشرة من شاشة المتابعة الحية دون التنقل
-          // بين شاشات أخرى — مفيد للطوارئ (مشكلة اتصال، طلب لن يُستكمل...).
-          // «تعذّر إيجاد سائق» ليست حالة نشطة تقنياً، لكنها ليست منتهية أيضاً:
-          // الطلب عالق ينتظر قرار المدير (إسناد سائق أو إلغاء). بدون إظهار
-          // الأزرار هنا يبقى الطلب بلا مخرج، ويبقى معه رصيد المحفظة محجوزاً.
-          if (order.status.isActive ||
-              order.status == OrderStatus.noDriverFound) ...[
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                      side: const BorderSide(color: AppColors.success)),
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('إنهاء الطلب'),
-                  onPressed: order.driverId == null || order.driverId!.isEmpty
-                      ? null
-                      : () async {
-                          final ok = await showConfirmDialog(context,
-                              title: 'إنهاء الطلب',
-                              content: 'هل تم توصيل الطلب فعلياً للعميل؟ سيُعتبر الطلب منتهياً.',
-                              confirmLabel: 'إنهاء');
-                          if (ok == true) {
-                            await service.markOrderDelivered(order.id, order.driverId!);
-                            if (context.mounted) showSuccess(context, 'تم إنهاء الطلب');
+            // إنهاء الطلب أو إلغاؤه مباشرة من المتابعة الحية — للطوارئ.
+            // «تعذّر إيجاد سائق» ليست نشطة تقنياً لكنها ليست منتهية: الطلب
+            // عالق ينتظر قرار المدير، وبلا الزرّين يبقى بلا مخرج ورصيد
+            // المحفظة محجوزاً.
+            if (order.status.isActive ||
+                order.status == OrderStatus.noDriverFound) ...[
+              _pill(
+                icon: Icons.check_circle_outline,
+                label: 'إنهاء الطلب',
+                color: AppColors.success,
+                onTap: order.driverId == null || order.driverId!.isEmpty
+                    ? null
+                    : () async {
+                        final ok = await showConfirmDialog(context,
+                            title: 'إنهاء الطلب',
+                            content:
+                                'هل تم توصيل الطلب فعلياً للعميل؟ سيُعتبر الطلب منتهياً.',
+                            confirmLabel: 'إنهاء');
+                        if (ok == true) {
+                          await service.markOrderDelivered(
+                              order.id, order.driverId!);
+                          if (context.mounted) {
+                            showSuccess(context, 'تم إنهاء الطلب');
                           }
-                        },
-                ),
+                        }
+                      },
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error)),
-                  icon: const Icon(Icons.cancel_outlined),
-                  label: const Text('إلغاء الطلب'),
-                  onPressed: () async {
-                    final ok = await showConfirmDialog(context,
-                        title: 'إلغاء الطلب',
-                        content: 'هل تريد إلغاء هذا الطلب نهائياً؟ (كأنه لم يُطلب)',
-                        confirmLabel: 'إلغاء الطلب');
-                    if (ok == true) {
-                      await service.cancelOrder(order.id);
-                      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
-                    }
-                  },
-                ),
+              _pill(
+                icon: Icons.cancel_outlined,
+                label: 'إلغاء الطلب',
+                color: AppColors.error,
+                onTap: () async {
+                  final ok = await showConfirmDialog(context,
+                      title: 'إلغاء الطلب',
+                      content: 'هل تريد إلغاء هذا الطلب نهائياً؟ (كأنه لم يُطلب)',
+                      confirmLabel: 'إلغاء الطلب');
+                  if (ok == true) {
+                    await service.cancelOrder(order.id);
+                    if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+                  }
+                },
               ),
-            ]),
-          ],
+            ],
+          ]),
         ]),
+      ),
+    );
+  }
+
+  /// حبّة فعل مدمجة — onTap فارغ يعرضها رمادية معطّلة (إنهاء بلا سائق).
+  Widget _pill({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback? onTap,
+    bool filled = false,
+  }) {
+    final c = onTap == null ? AppColors.textGray : color;
+    return Material(
+      color: filled && onTap != null ? c : c.withOpacity(0.10),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon,
+                size: 16, color: filled && onTap != null ? Colors.white : c),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: filled && onTap != null ? Colors.white : c)),
+          ]),
+        ),
       ),
     );
   }
