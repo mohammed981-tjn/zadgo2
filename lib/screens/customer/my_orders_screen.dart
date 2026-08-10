@@ -26,6 +26,77 @@ class MyOrdersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
+    final uid = context.read<app_auth.AuthProvider>().user?.uid ?? '';
+
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamCustomerOrders(uid),
+      loading: const ListCardsSkeleton(),
+      builder: (ctx, orders) {
+        if (orders.isEmpty) {
+          return const AppEmpty(emoji: '📋', title: 'لا يوجد طلبات');
+        }
+        final active = orders.where((o) => o.status.isActive).toList();
+        final past = orders.where((o) => !o.status.isActive).toList();
+
+        return DefaultTabController(
+          length: 2,
+          initialIndex: active.isEmpty ? 1 : 0,
+          child: Column(
+            children: [
+              TabBar(
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textGray,
+                indicatorColor: AppColors.primary,
+                tabs: [
+                  Tab(text: active.isEmpty ? 'جارية' : 'جارية (${active.length})'),
+                  const Tab(text: 'السابقة'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _OrdersList(
+                      orders: active,
+                      emptyTitle: 'لا يوجد طلبات جارية',
+                    ),
+                    _OrdersList(
+                      orders: past,
+                      emptyTitle: 'لا يوجد طلبات سابقة',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _OrdersList extends StatelessWidget {
+  final List<Order> orders;
+  final String emptyTitle;
+  const _OrdersList({required this.orders, required this.emptyTitle});
+
+  @override
+  Widget build(BuildContext context) {
+    if (orders.isEmpty) return AppEmpty(emoji: '📋', title: emptyTitle);
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: orders.length,
+      itemBuilder: (_, i) => _OrderCard(order: orders[i]),
+    );
+  }
+}
+
+class _OrderCard extends StatelessWidget {
+  final Order order;
+  const _OrderCard({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
     final auth = context.read<app_auth.AuthProvider>();
     final st = order.status;
     final time =
