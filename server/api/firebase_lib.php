@@ -254,3 +254,22 @@ function fcm_send(string $projectId, string $token, string $deviceToken,
         $message, ["Authorization: Bearer $token"]);
     return ($resp['_status'] ?? 0) === 200;
 }
+
+// ترميز قيم PHP إلى صيغة Firestore REST — عكس fs_value.
+function fs_encode(mixed $v): array {
+    if (is_bool($v))   return ['booleanValue' => $v];
+    if (is_int($v))    return ['integerValue' => (string)$v];
+    if (is_float($v))  return ['doubleValue' => $v];
+    return ['stringValue' => (string)$v];
+}
+
+// كتابة/دمج مستند عبر REST بحساب الخدمة — تتجاوز قواعد الأمان عمداً:
+// الخادم طرف موثوق، والقواعد تمنع العملاء من الكتابة في هذه المجموعات.
+function firestore_set(string $projectId, string $path, array $data, string $token): bool {
+    $fields = [];
+    $mask   = [];
+    foreach ($data as $k => $v) { $fields[$k] = fs_encode($v); $mask[] = 'updateMask.fieldPaths=' . rawurlencode($k); }
+    $url = "https://firestore.googleapis.com/v1/projects/{$projectId}/databases/(default)/documents/{$path}?" . implode('&', $mask);
+    [$code, ] = http_json('PATCH', $url, ['fields' => $fields], ["Authorization: Bearer {$token}"]);
+    return $code >= 200 && $code < 300;
+}

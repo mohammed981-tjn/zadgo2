@@ -373,6 +373,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
       paymentId = result.paymentId;
+
+      // التحقق الخادمي قبل إنشاء الطلب: القواعد سترفض طلب بطاقة بلا ختم.
+      // المبلغ محجوز فعلاً عند ميسر، فالفشل هنا لا يُلغي — يُعاد حتى ينجح
+      // أو يقرر العميل التواصل مع الدعم (الدفعة تظهر عندنا بمعرّفها).
+      var verified = false;
+      while (!verified) {
+        final service0 = context.read<FirebaseService>();
+        verified = await service0.verifyCardPayment(paymentId ?? '');
+        if (verified) break;
+        if (!mounted) return;
+        final retry = await showConfirmDialog(
+          context,
+          title: 'تعذّر توثيق الدفعة',
+          content: 'دفعتك محجوزة برقم ($paymentId) لكن تعذّر توثيقها الآن '
+              '(اتصال أو خادم). أعد المحاولة، أو احتفظ بالرقم وتواصل مع '
+              'الدعم — لن يضيع مبلغك.',
+          confirmLabel: 'إعادة المحاولة',
+        );
+        if (retry != true) return;
+      }
     }
 
     if (!mounted) return;
