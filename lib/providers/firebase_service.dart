@@ -1,11 +1,14 @@
 // lib/providers/firebase_service.dart
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart' hide Order;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:http/http.dart' as http;
 import '../models/models.dart' as models;
+import '../utils/api_config.dart';
 import '../utils/helpers.dart' show haversineDistanceKm;
 import 'notify_relay.dart';
 
@@ -305,6 +308,53 @@ class FirebaseService {
 
   Future<void> sendPasswordReset(String email) =>
       _auth.sendPasswordResetEmail(email: email.trim());
+
+  /// التحقق الخادمي من دفعة ميسر (د٣-أ): verify.php يسأل البوابة بالمفتاح
+  /// السري ويختم verified_payments — وقواعد الإنشاء ترفض طلب بطاقة بلا
+  /// ختم. يعيد true عند الختم، وfalse عند أي فشل (شبكة/خادم/دفعة غير
+  /// مدفوعة) — والمستدعي يقرر الإعادة، فالمبلغ محجوز ولا يجوز إضاعته.
+  Future<bool> verifyCardPayment(String paymentId) async {
+    if (!ApiConfig.isConfigured || paymentId.trim().isEmpty) return false;
+    try {
+      final token = await _auth.currentUser?.getIdToken();
+      if (token == null) return false;
+      final res = await http
+          .post(ApiConfig.verifyEndpoint,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode({'payment_id': paymentId.trim()}))
+          .timeout(const Duration(seconds: 15));
+      return res.statusCode == 200;
+    } catch (e) {
+      debugPrint('verifyCardPayment: $e');
+      return false;
+    }
+  }
+
+  /// حذف الحساب داخل التطبيق (هـ٤ — قاعدة آبل 5.1.1(v) وGoogle Play).
+  ///
+  /// إخفاء هوية لا حذف سجلّ: بيانات التعريف تُمحى من مستند المستخدم
+  /// ويُحذف حساب الدخول نهائياً، وتبقى الطلبات والدفاتر المالية كما هي —
+  /// قواعدنا نفسها تمنع حذف السجلّ المحاسبي، والمتاجر تطلب حذف الحساب
+  /// لا تزوير التاريخ المالي. يرمي استثناءً يعرضه المستدعي (أشهره
+  /// requires-recent-login فيُطلب من المستخدم كلمة مروره).
+  Future<void> deleteMyAccount({required String password}) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      throw Exception('لا حساب مسجّل دخوله');
+    }
+    // إعادة مصادقة إلزامية: حذف حساب بجلسة قديمة مخاطرة يمنعها Firebase.
+    await user.reauthenticateWithCredential(EmailAuthProvider.credential(
+        email: user.email!, password: password));
+    await _users.doc(user.uid).update({
+      'name': 'مستخدم محذوف',
+      'phone': '',
+      'email': '',
+    });
+    await user.delete();
+  }
 
   /// قيد في سجلّ التدقيق الإداري — نفس المجموعة وأسماء الأفعال التي
   /// تكتبها لوحة الويب (`admin_audit`)، مع `source: 'app'` تمييزاً لقيود

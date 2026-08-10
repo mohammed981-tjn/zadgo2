@@ -22,4 +22,9 @@ class ApiConfig {
 
   /// نقطة إرسال إشعار حدث طلب.
   static Uri get notifyEndpoint => Uri.parse(notifyUrl.trim());
+
+  /// نقطة التحقق الخادمي من الدفع (verify.php) — تُشتق من عنوان الإشعارات
+  /// نفسه: ملفان على استضافة واحدة، فمتغيّر بيئة واحد يكفي.
+  static Uri get verifyEndpoint =>
+      Uri.parse(notifyUrl.trim().replaceFirst('notify.php', 'verify.php'));
 }

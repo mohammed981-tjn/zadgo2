@@ -210,8 +210,15 @@ service cloud.firestore {
       // (discountAmount بلا كوبون أصلاً) ويتجاوز نظام الكوبونات من أساسه.
       // الخصم الموجب يستلزم كوداً موجوداً وفعّالاً وغير منتهٍ، وبسقف
       // الكوبون نفسه (قيمة الثابت، وسقف maxDiscount إن ضُبط).
+      // الدفع بالبطاقة موثَّق من الخادم (د٣-أ): أي طلب يحمل paymentId
+      // يشترط ختم verify.php في verified_payments — بنفس المعرّف وباسم
+      // نفس المستخدم. عميل معدَّل يدّعي isPaid بمعرّف مختلَق يُرفض هنا.
+      // الطلبات النقدية/المحفظة (paymentId فارغ) لا تمرّ بهذا الشرط.
       allow create: if isCustomer() &&
           request.resource.data.customerId == currentUid() &&
+          (request.resource.data.get('paymentId', '') == '' ||
+              (exists(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)) &&
+               get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid())) &&
           request.resource.data.discountAmount is number &&
           request.resource.data.walletUsed is number &&
           request.resource.data.walletUsed >= 0 &&
@@ -541,6 +548,18 @@ service cloud.firestore {
     // سجلّ تدقيق لا يُعدَّل ولا يُحذف حتى من المدير: قيمته كلها في أنه لا
     // يُنقَّح بأثر رجعي. التصحيح يكون بقيد جديد يبقى الأول ظاهراً معه.
     // ---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // verified_payments — أختام التحقق من دفعات ميسر، يكتبها verify.php
+    // بحساب الخدمة حصراً (يتجاوز القواعد). لا كتابة لأي عميل إطلاقاً —
+    // ختمٌ يكتبه العميل يساوي لا ختم. القراءة get للمالك وللمدير.
+    // ---------------------------------------------------------------------
+    match /verified_payments/{paymentId} {
+      allow get: if isSignedIn() &&
+          (isAdmin() || resource.data.get('uid', '') == currentUid());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /admin_audit/{entryId} {
       allow get, list: if isAdmin();
       // النسبة مختومة: القيد يُنسب لكاتبه الفعلي حصراً — سجلٌّ يستطيع
