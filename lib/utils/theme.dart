@@ -68,23 +68,27 @@ class FlavorPalette {
   );
 
   /// هوية تطبيق السائق: أزرق "كابتن" — لون الطرق والحركة، مختلف تماماً عن
-  /// ذهبي العميل حتى لا يلتبس التطبيقان.
+  /// ذهبي العميل حتى لا يلتبس التطبيقان. الدرجة #12559E بدل أزرق Material
+  /// الافتراضي السابق (#1976D2): ذاك لون آلاف التطبيقات، وهذا مشتقّ من
+  /// كحلي العلامة فينتمي لعائلتها (قرار المالك ٢٠٢٦-٠٨-١٠ مع الأيقونات).
   static const driver = FlavorPalette(
-    primary: Color(0xFF1976D2),
-    primaryDark: Color(0xFF0D47A1),
-    primaryLight: Color(0xFF64B5F6),
-    bgDark: Color(0xFF0A1E38),
-    bgDarker: Color(0xFF050F1E),
+    primary: Color(0xFF12559E),
+    primaryDark: Color(0xFF0B3C73),
+    primaryLight: Color(0xFF5C90D2),
+    bgDark: Color(0xFF0A1F3A),
+    bgDarker: Color(0xFF050F1D),
   );
 
-  /// هوية تطبيق المطعم: برتقالي ناري — حرارة المطبخ والاستعجال، بعيد عن
-  /// ذهبي العميل الذي كان قريباً منه سابقاً فيسبّب الالتباس.
+  /// هوية تطبيق المطعم: قرميدي — لون فئة المطاعم الأصيل. البرتقالي السابق
+  /// (#E8590C) من نفس العائلة الدافئة لذهبي العميل فكانا يُقرآن شقيقين في
+  /// شبكة المشغّل عند 48dp. ورُفض الأخضر عمداً: يشتبه بلون النجاح
+  /// (AppColors.success) داخل شاشات التطبيق نفسه.
   static const restaurant = FlavorPalette(
-    primary: Color(0xFFE8590C),
-    primaryDark: Color(0xFFBF4506),
-    primaryLight: Color(0xFFFF8F4C),
-    bgDark: Color(0xFF2A1204),
-    bgDarker: Color(0xFF160902),
+    primary: Color(0xFFC92A2A),
+    primaryDark: Color(0xFF9C1F1F),
+    primaryLight: Color(0xFFE76A6A),
+    bgDark: Color(0xFF2E0B0B),
+    bgDarker: Color(0xFF170404),
   );
 
   /// هوية لوحة المدير: بنفسجي ملكي — طابع "غرفة التحكم"، متمايز بوضوح عن
