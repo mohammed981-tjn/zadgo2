@@ -274,6 +274,38 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
   cursor: pointer; font-weight: 700; color: var(--muted); font-size: .9rem; }
 .tabs button.on { background: #fff; color: var(--green); box-shadow: var(--shadow); }
 
+/* ---------- بطاقة التتبّع ---------- */
+.thero { background: linear-gradient(160deg, var(--green), var(--green-2)); color: #fff;
+  border-radius: 18px; padding: 22px 18px 16px; margin-bottom: 13px; text-align: center;
+  box-shadow: 0 6px 22px rgba(11,61,46,.28); }
+.thero .ic { font-size: 3rem; line-height: 1; animation: bob 2.6s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-7px); } }
+.thero h2 { font-size: 1.22rem; font-weight: 900; margin-top: 8px; }
+.thero p { color: rgba(255,255,255,.72); font-size: .9rem; }
+.thero .eta { background: rgba(255,255,255,.12); border-radius: 13px; padding: 11px;
+  margin-top: 14px; }
+.thero .eta b { display: block; color: var(--gold-light); font-size: 1.25rem; font-weight: 900; }
+.thero .eta span { font-size: .8rem; color: rgba(255,255,255,.75); }
+.thero .route { margin-top: 16px; }
+.thero .route .line { position: relative; height: 5px; border-radius: 3px;
+  background: rgba(255,255,255,.2); }
+.thero .route .done { position: absolute; inset-block: 0; inset-inline-start: 0;
+  background: var(--gold); border-radius: 3px; transition: width .8s ease; }
+.thero .route .rider { position: absolute; top: -13px; transform: translateX(50%);
+  font-size: 1.3rem; transition: inset-inline-start .8s ease; }
+.thero .route .ends { display: flex; justify-content: space-between; font-size: .74rem;
+  color: rgba(255,255,255,.7); margin-top: 12px; }
+.thero .upd { font-size: .72rem; color: rgba(255,255,255,.55); margin-top: 12px; }
+/* شريط المراحل داخل البطاقة الداكنة يقلب ألوانه */
+.thero .track .st { color: rgba(255,255,255,.5); }
+.thero .track .st .dot { background: rgba(255,255,255,.25); }
+.thero .track .st.done { color: #fff; }
+.thero .track .st.done .dot { background: var(--gold); }
+.thero .track .st::before { background: rgba(255,255,255,.2); }
+.dava { width: 42px; height: 42px; border-radius: 50%; background: #E7F0FF; color: #1147a6;
+  display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem;
+  flex: 0 0 auto; }
+
 .suggest { background: #FDF6E3; border: 1.5px solid var(--gold-light); border-radius: 11px;
   padding: 11px 13px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
   justify-content: space-between; font-size: .86rem; }
@@ -584,6 +616,10 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.sheet)
 function go(p) {
   // مراقب الأقسام مربوط بصفحة مطعمٍ بعينها ولا معنى لبقائه بعد مغادرتها.
   if (S.catObs && p !== 'resto') { S.catObs.disconnect(); S.catObs = null; }
+  // تدفّق موقع الكابتن يخصّ شاشة طلبٍ مفتوح — بقاؤه بعدها قراءاتٌ بلا قارئ.
+  if (p !== 'order' && S.driverUnsub) {
+    S.driverUnsub(); S.driverUnsub = null; S.driverListening = null; S.driverDoc = null;
+  }
   if (S.sheet) closeSheet();
   S.page = p;
   const titles = { home: 'المطاعم', cart: 'سلتي', orders: 'طلباتي', account: 'حسابي',
@@ -1181,6 +1217,10 @@ const fmtDate = (ts) => {
   return d.toLocaleString('ar-SA', { day: 'numeric', month: 'numeric',
     hour: '2-digit', minute: '2-digit' });
 };
+const fmtTime = (ts) => {
+  const d = ts && ts.toDate ? ts.toDate() : null;
+  return d ? d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }) : '';
+};
 
 function viewOrders() {
   if (!S.orders.length) {
@@ -1227,12 +1267,91 @@ function trackHtml(status) {
     `<div class="st ${i <= idx ? 'done' : ''}"><div class="dot"></div>${lbl}</div>`).join('')}</div>`;
 }
 
+/* ---------------- التتبّع الحيّ ----------------
+ * موقع الكابتن مقروء للعميل (قواعد drivers تسمح بذلك لكل مسجَّل دخوله)،
+ * فما تَعِد به الصفحة الرئيسية — «موقع مندوبك أولاً بأول» — قابلٌ للوفاء هنا.
+ *
+ * ولا خريطة: لا لعجزٍ بل لأن بلاطات الخرائط تحميلٌ ثقيل على شبكة جوّال
+ * ضعيفة، والمعلومة التي يريدها المنتظر ليست شكل الشوارع بل **كم بقي**.
+ * ما نعرضه محسوبٌ من إحداثيات حقيقية لا رسمٌ إيحائي. */
+function listenDriver(driverId) {
+  if (S.driverUnsub) { S.driverUnsub(); S.driverUnsub = null; }
+  S.driverDoc = null;
+  if (!driverId) return;
+  S.driverUnsub = onSnapshot(doc(db, 'drivers', driverId),
+    (d) => {
+      S.driverDoc = d.exists() ? d.data() : null;
+      if (S.page === 'order') render();
+    },
+    () => { /* تعذّرت القراءة — تبقى الشاشة بلا مسافة، ولا تنكسر */ });
+}
+
+/* سرعة المدينة داخل الأحياء أقرب إلى ٢٥ كم/س منها إلى سرعة الطريق. والناتج
+ * يُعرض مدىً لا رقماً واحداً: وعدٌ بدقيقة بعينها يُخلَف، ومدىً يُحترم. */
+function etaText(remainingKm) {
+  const mins = Math.max(2, Math.round((remainingKm / 25) * 60));
+  const lo = Math.max(2, Math.round(mins / 5) * 5);
+  return `${lo}–${lo + 5} دقيقة`;
+}
+
+function trackingCard(o) {
+  const d = S.driverDoc;
+  const hasDriverLoc = d && d.lat != null && d.lng != null;
+  const toCustomer = hasDriverLoc && o.deliveryLat != null
+    ? haversineKm(d.lat, d.lng, o.deliveryLat, o.deliveryLng) : null;
+  const legTotal = o.restaurantLat != null && o.deliveryLat != null
+    ? haversineKm(o.restaurantLat, o.restaurantLng, o.deliveryLat, o.deliveryLng) : null;
+  const enRoute = ['pickedUp', 'onTheWay'].includes(o.status);
+  // نسبة القطع من المطعم إليك — تُقصّ بين ٥٪ و٩٥٪ فلا يلتصق الرمز بطرف.
+  let pct = null;
+  if (enRoute && toCustomer != null && legTotal > 0) {
+    pct = Math.min(95, Math.max(5, (1 - toCustomer / legTotal) * 100));
+  }
+  const HERO = {
+    created: ['📨', 'وصل طلبك', 'نُرسله للمطعم الآن'],
+    restaurantPending: ['⏳', 'بانتظار قبول المطعم', 'عادةً خلال دقائق قليلة'],
+    restaurantAccepted: ['✅', 'قَبِل المطعم طلبك', 'يبدأ التحضير الآن'],
+    preparing: ['👨‍🍳', 'طلبك قيد التحضير', 'رائحته تفوح من المطبخ'],
+    readyForPickup: ['🥡', 'طلبك جاهز', 'ننتظر الكابتن ليستلمه'],
+    searchingDriver: ['🔎', 'نبحث عن كابتن قريب', 'لحظات ويُسنَد طلبك'],
+    driverAssigned: ['🛵', 'أُسنِد طلبك لكابتن', 'في طريقه إلى المطعم'],
+    pickedUp: ['📦', 'استلم الكابتن طلبك', 'انطلق نحوك'],
+    onTheWay: ['🛵', 'الكابتن في الطريق إليك', 'استعدّ لاستلام طلبك'],
+  };
+  const h = HERO[o.status] || ['🧾', STATUS_AR[o.status] || o.status, ''];
+  return `
+    <div class="thero">
+      <div class="ic">${h[0]}</div>
+      <h2>${h[1]}</h2>
+      <p>${h[2]}</p>
+      ${enRoute && toCustomer != null ? `<div class="eta">
+        <b>${etaText(toCustomer)}</b><span>يبعد عنك ${toCustomer.toFixed(1)} كم</span></div>` : ''}
+      ${pct != null ? `<div class="route">
+        <div class="line"><div class="done" style="width:${pct}%"></div>
+          <span class="rider" style="inset-inline-start:${pct}%">🛵</span></div>
+        <div class="ends"><span>🍽️ المطعم</span><span>منزلك 🏠</span></div>
+      </div>` : ''}
+      ${trackHtml(o.status)}
+      <div class="upd">آخر تحديث ${fmtTime(o.statusChangedAt || o.createdAt)}</div>
+    </div>`;
+}
+
 function viewOrder() {
   const o = S.orders.find((x) => x.id === S.openOrder);
   if (!o) { go('orders'); return; }
   const items = (o.items || []);
   const itemsTotal = items.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+  const live = ACTIVE.includes(o.status);
+  // نستمع لموقع الكابتن مرةً واحدة لكل كابتن — لا مع كل إعادة رسم.
+  if (live && o.driverId && S.driverListening !== o.driverId) {
+    S.driverListening = o.driverId; listenDriver(o.driverId);
+  }
+  if ((!live || !o.driverId) && S.driverListening) {
+    S.driverListening = null; if (S.driverUnsub) { S.driverUnsub(); S.driverUnsub = null; }
+  }
+  const d = S.driverDoc;
   $('main').innerHTML = `
+    ${live ? trackingCard(o) : ''}
     <div class="card">
       <div class="ord-head">
         <span class="ord-no">#${esc(o.orderNumber || '')}</span>
@@ -1240,14 +1359,19 @@ function viewOrder() {
       </div>
       <div style="font-weight:800;font-size:1.05rem">${esc(o.restaurantName || '')}</div>
       <div class="muted">${fmtDate(o.createdAt)}</div>
-      ${ACTIVE.includes(o.status) ? trackHtml(o.status) : ''}
       ${o.rejectionReason ? `<div class="err" style="margin-top:10px">السبب: ${esc(o.rejectionReason)}</div>` : ''}
     </div>
 
     ${o.driverName ? `<div class="sec-title">الكابتن</div>
     <div class="card"><div class="row-between">
-      <div><b>🛵 ${esc(o.driverName)}</b><div class="muted">يوصل طلبك الآن</div></div>
-      ${o.driverPhone ? `<a class="btn sm" href="tel:${esc(o.driverPhone)}">اتصال</a>` : ''}
+      <div style="display:flex;gap:11px;align-items:center">
+        <div class="dava">${esc((o.driverName || '؟').charAt(0))}</div>
+        <div><b>${esc(o.driverName)}</b>
+          <div class="muted">${d && (d.ratingCount || 0) > 0
+            ? `⭐ ${(d.rating ?? 5).toFixed(1)} · ${d.totalDeliveries || 0} توصيلة`
+            : (live ? 'يوصل طلبك الآن' : 'أوصل طلبك')}</div></div>
+      </div>
+      ${o.driverPhone ? `<a class="btn sm" href="tel:${esc(o.driverPhone)}">📞 اتصال</a>` : ''}
     </div></div>` : ''}
 
     <div class="sec-title">الأصناف</div>
