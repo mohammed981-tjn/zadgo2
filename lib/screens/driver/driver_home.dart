@@ -510,7 +510,27 @@ class _OfferBannerState extends State<_OfferBanner> {
             ),
           ),
           const SizedBox(height: 10),
-          // سطر القرار: الأجرة أولاً — أهم رقم عند السائق.
+          // ترتيب الأرقام بقرار المالك (٢٠٢٦-٠٨-١١): كامل المبلغ الذي
+          // سيستلمه من العميل أولاً (وجبات + توصيل — للنقدي)، وتحته أجرته —
+          // بلا أي تفصيل لمكوّنات رسوم العميل أو العمولة، فلا شأن له بها.
+          if (isCash)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                    'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800)),
+              ),
+            ),
           Row(children: [
             const Icon(Icons.payments_rounded, color: Colors.white, size: 17),
             const SizedBox(width: 6),
@@ -536,27 +556,6 @@ class _OfferBannerState extends State<_OfferBanner> {
               ),
             ],
           ]),
-          if (isCash)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                // بلا مبلغ عمداً (قرار المالك ٢٠٢٦-٠٨-١١): إجمالي العميل
-                // يشمل عمولة المنصّة ولا شأن للسائق به لحظة القرار — أجرته
-                // أعلاه هي رقمه الوحيد، ومبلغ التحصيل الدقيق يظهر في مذكرة
-                // الاستلام بعد القبول حيث يحتاجه فعلاً.
-                child: const Text('الدفع نقدي — مبلغ التحصيل في مذكرة الاستلام',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700)),
-              ),
-            ),
           const SizedBox(height: 6),
           Text('${o.restaurantName} ← ${o.deliveryAddress}',
               style: const TextStyle(color: Colors.white70, fontSize: 12),
