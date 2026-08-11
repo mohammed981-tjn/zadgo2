@@ -446,13 +446,28 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     }
   }
 
+  /// العمر وحده لا يكفي (بلاغ المالك ٢٠٢٦-٠٨-١١): «منذ ٤٠ د» تُخبر المطبخ
+  /// كم انتظر الطلب، لكنها لا تُطابَق مع شاشة الكابتن ولا تصلح في مراجعة
+  /// نزاع تأخير — فأُضيفت الساعة، والتاريخ حين يكون الطلب من يوم سابق.
   String _waitingLabel() {
-    final elapsed = DateTime.now().difference(widget.order.createdAt);
-    if (elapsed.inMinutes < 1) return 'منذ لحظات';
-    if (elapsed.inMinutes < 60) return 'منذ ${elapsed.inMinutes} د';
-    final hours = elapsed.inHours;
-    final mins = elapsed.inMinutes % 60;
-    return mins == 0 ? 'منذ $hours س' : 'منذ $hours س $mins د';
+    final t = widget.order.createdAt;
+    final now = DateTime.now();
+    final elapsed = now.difference(t);
+    final String age;
+    if (elapsed.inMinutes < 1) {
+      age = 'منذ لحظات';
+    } else if (elapsed.inMinutes < 60) {
+      age = 'منذ ${elapsed.inMinutes} د';
+    } else {
+      final hours = elapsed.inHours;
+      final mins = elapsed.inMinutes % 60;
+      age = mins == 0 ? 'منذ $hours س' : 'منذ $hours س $mins د';
+    }
+    final clock =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    final sameDay = t.year == now.year && t.month == now.month && t.day == now.day;
+    final stamp = sameDay ? clock : '${t.day}/${t.month} — $clock';
+    return '$stamp ($age)';
   }
 
   Future<void> _call(BuildContext context, String phone) async {
