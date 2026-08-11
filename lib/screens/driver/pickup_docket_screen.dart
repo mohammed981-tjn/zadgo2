@@ -22,6 +22,7 @@ import '../../utils/helpers.dart';
 import '../../utils/driver_proof_flow.dart';
 import '../../utils/location_guard.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/complaint_window.dart' show formatRemaining;
 import '../customer/order_map_screen.dart';
 
 class PickupDocketScreen extends StatefulWidget {
@@ -79,6 +80,14 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
   void dispose() {
     _posSub?.cancel();
     super.dispose();
+  }
+
+  /// «١١/٨ — ١٤:٤٢ (منذ ١٢ دقيقة)»: التاريخ للمراجعة، والساعة للمطابقة مع
+  /// شاشة المطعم، والعمر لأنه ما يهم في اللحظة نفسها.
+  String _orderTimeLabel(DateTime t) {
+    final clock =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    return '${t.day}/${t.month} — $clock (منذ ${formatRemaining(DateTime.now().difference(t))})';
   }
 
   @override
@@ -178,6 +187,24 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                       Text(o.restaurantName,
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w600)),
+                      // وقت الطلب وعمره (بلاغ المالك ٢٠٢٦-٠٨-١١): المذكرة
+                      // تُعرض على موظف المطعم، وأول ما يُسأل عنه «متى دخل
+                      // الطلب؟» — وكانت بلا أي زمن، فيبقى الجواب تخميناً
+                      // ويضيع الفصل في نزاع التأخير بين المطعم والكابتن.
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.schedule_rounded,
+                                  size: 14, color: AppColors.textGray),
+                              const SizedBox(width: 5),
+                              Text(_orderTimeLabel(o.createdAt),
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: AppColors.textGray)),
+                            ]),
+                      ),
                     ]),
                   ),
                 ),
