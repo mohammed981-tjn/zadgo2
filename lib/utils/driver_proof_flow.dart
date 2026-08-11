@@ -27,6 +27,15 @@ import 'location_guard.dart';
 class DriverProofFlow {
   DriverProofFlow._();
 
+  /// رسالة منع نطاق المطعم تُذيَّل بتفسير الاحتمال الأرجح حين يكون الكابتن
+  /// واقفاً عند المطعم فعلاً: النقطة المسجّلة على الخريطة خاطئة (حدث بعد
+  /// تعديل موقع فرعَي فطير ستيشن ٢٠٢٦-٠٨-١١، فبدا العطل وكأنه في التطبيق).
+  /// بلا هذا التذييل يقرأ الكابتن «أنت بعيد» وهو يرى لافتة المطعم أمامه،
+  /// فلا يعرف ماذا يفعل ولا تصل الإدارة أي إشارة إلى أن النقطة تحتاج تصحيحاً.
+  static String _restaurantRangeHint(String err) =>
+      '$err\n\nإن كنت عند المطعم الآن فموقعه المسجّل على الخريطة غير صحيح — '
+      'أبلغ الإدارة لتصحيحه من لوحة التحكم.';
+
   /// التقاط صورة من الكاميرا مضغوطة. `null` إن ألغى السائق التصوير.
   static Future<Uint8List?> _capturePhoto() async {
     try {
@@ -78,7 +87,7 @@ class DriverProofFlow {
       targetLabel: 'المطعم',
     );
     if (err != null) {
-      if (context.mounted) showError(context, err);
+      if (context.mounted) showError(context, _restaurantRangeHint(err));
       return false;
     }
     try {
@@ -109,7 +118,7 @@ class DriverProofFlow {
       targetLabel: 'المطعم',
     );
     if (err != null) {
-      if (context.mounted) showError(context, err);
+      if (context.mounted) showError(context, _restaurantRangeHint(err));
       return false;
     }
 

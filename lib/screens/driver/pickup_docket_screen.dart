@@ -374,12 +374,15 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
   }
 }
 
-/// زر ما قبل الوصول المتحوّل (اقتراح المالك ٢٠٢٦-٠٨-١١): بعيداً عن المطعم
-/// يعرض «توجه للمطعم» ويفتح خريطة الطلب (وفيها الملاحة الخارجية)، وعند
-/// دخول نطاق المطعم يتحوّل تلقائياً إلى «وصلتُ المطعم» فيسجّل الوصول.
-/// عتبة التحوّل هي نفس نطاق الحارس — زرٌ يظهر ثم يرفضه الحارس كان سيبدو
-/// عطلاً لا حمايةً. وموقعٌ مجهول (إذن مرفوض/داخل مبنى) يُعامل كبعيد:
-/// فتح الخريطة يعمل دائماً، والحارس يشرح مانع التسجيل بنفسه عند الحاجة.
+/// زر ما قبل الوصول (اقتراح المالك ٢٠٢٦-٠٨-١١): بعيداً عن المطعم يُضاف
+/// «توجه للمطعم» ويفتح خريطة الطلب بالملاحة الخارجية.
+///
+/// **تصحيح ٢٠٢٦-٠٨-١١ بعد بلاغ المالك**: كان الزر «متحوّلاً» — يحجب «وصلتُ
+/// المطعم» ما دام الجهاز بعيداً عن النقطة المسجّلة. والنقطة قد تكون خاطئة
+/// (حدث فعلاً بعد تعديل موقع فرعَي فطير ستيشن)، فيقف الكابتن **عند المطعم**
+/// ولا يجد الزر أصلاً ولا رسالةً تشرح المانع. القاعدة الآن: الحجب لا يكون
+/// في الواجهة أبداً — «وصلتُ المطعم» ظاهر دائماً، والحارس وحده يقرّر ويشرح
+/// بالمسافة الفعلية، فيتبيّن من الرسالة أن الخلل في النقطة لا في الكابتن.
 class _ApproachButton extends StatelessWidget {
   final Order order;
   final Position? pos;
@@ -397,34 +400,37 @@ class _ApproachButton extends StatelessWidget {
           order.restaurantLat!, order.restaurantLng!);
     }
     final near = meters != null && meters <= LocationGuard.proximityMeters;
+    final distanceLabel = meters == null
+        ? ''
+        : meters >= 1000
+            ? ' — ${(meters / 1000).toStringAsFixed(1)} كم'
+            : ' — ${meters.round()} م';
 
-    if (near) {
-      return SizedBox(
+    return Column(children: [
+      // «توجه للمطعم» يُضاف حين يكون بعيداً — إضافةً لا استبدالاً.
+      if (!near) ...[
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => OrderMapScreen(order: order, readOnly: false)),
+            ),
+            icon: const Icon(Icons.navigation_outlined),
+            label: Text('توجه للمطعم$distanceLabel'),
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+      SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: () => DriverProofFlow.recordArrival(context, service, order),
           icon: const Icon(Icons.where_to_vote_outlined),
           label: const Text('وصلتُ المطعم'),
         ),
-      );
-    }
-
-    final distanceLabel = meters == null
-        ? ''
-        : meters >= 1000
-            ? ' — ${(meters / 1000).toStringAsFixed(1)} كم'
-            : ' — ${meters.round()} م';
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => OrderMapScreen(order: order, readOnly: false)),
-        ),
-        icon: const Icon(Icons.navigation_outlined),
-        label: Text('توجه للمطعم$distanceLabel'),
       ),
-    );
+    ]);
   }
 }
