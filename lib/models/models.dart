@@ -1034,6 +1034,26 @@ class IncentiveSettings {
   /// إلى مهنة قائمة بذاتها.
   final int referralMonthlyCap;
 
+  // ————— سقف الإسناد المتزامن —————
+  //
+  // ليسا حافزين، لكن مكانهما هنا بقرار هندسي: قواعد Firestore المنشورة
+  // تقصر قراءة `delivery_settings/config` على المدير وحده، بينما مستند
+  // `incentives` يقرؤه **أي مسجَّل** — وهذان الرقمان يقرؤهما تطبيقا المطعم
+  // (وهو من يُسند) والكابتن. وضعهما في `config` كان يعني أن يقرأهما أحد
+  // إطلاقاً فيعملان بالافتراضي أبداً، ويصيران رقمين مبرمَجين تحايلاً على
+  // بند ج١ لا التزاماً به.
+  //
+  /// أقصى عدد طلبات متزامنة للكابتن الواحد — حدٌّ صارم لا يُخترق.
+  final int maxOrdersPerDriver;
+
+  /// نطاق «العنقود»: أقصى مسافة بين مطعم الطلب الجديد ومطعم أول طلب في
+  /// حمولة الكابتن حتى يُضمّ إليها — «مطاعم قريبة وليست بعيدة».
+  final double stackRadiusKm;
+
+  /// نسبة تعويض المطعم عن طلبٍ أُلغي بعد بدء تحضيره (١٠٠٪ افتراضاً —
+  /// المعيار العالمي). صفر يعني «لا تعويض».
+  final double restaurantCancelCompensationPercent;
+
   // ————— تحدي نهاية الأسبوع —————
   final bool challengeEnabled;
 
@@ -1068,6 +1088,9 @@ class IncentiveSettings {
     this.referralDeliveries = 30,
     this.referralWindowDays = 30,
     this.referralMonthlyCap = 3,
+    this.maxOrdersPerDriver = 3,
+    this.stackRadiusKm = 2.0,
+    this.restaurantCancelCompensationPercent = 100,
     this.challengeEnabled = true,
     this.challengeWeekdays = const [DateTime.thursday, DateTime.friday],
     this.tiers = const [
@@ -1094,6 +1117,13 @@ class IncentiveSettings {
           d.referralWindowDays,
       referralMonthlyCap: (map['referralMonthlyCap'] as num?)?.toInt() ??
           d.referralMonthlyCap,
+      maxOrdersPerDriver:
+          (map['maxOrdersPerDriver'] as num?)?.toInt() ?? d.maxOrdersPerDriver,
+      stackRadiusKm:
+          (map['stackRadiusKm'] as num?)?.toDouble() ?? d.stackRadiusKm,
+      restaurantCancelCompensationPercent:
+          (map['restaurantCancelCompensationPercent'] as num?)?.toDouble() ??
+              d.restaurantCancelCompensationPercent,
       challengeEnabled: map['challengeEnabled'] as bool? ?? d.challengeEnabled,
       challengeWeekdays: rawDays is List && rawDays.isNotEmpty
           ? rawDays.map((e) => (e as num).toInt()).toList()
@@ -1120,6 +1150,10 @@ class IncentiveSettings {
         'referralDeliveries': referralDeliveries,
         'referralWindowDays': referralWindowDays,
         'referralMonthlyCap': referralMonthlyCap,
+        'maxOrdersPerDriver': maxOrdersPerDriver,
+        'stackRadiusKm': stackRadiusKm,
+        'restaurantCancelCompensationPercent':
+            restaurantCancelCompensationPercent,
         'challengeEnabled': challengeEnabled,
         'challengeWeekdays': challengeWeekdays,
         'tiers': tiers.map((t) => t.toMap()).toList(),
@@ -1134,6 +1168,9 @@ class IncentiveSettings {
     int? referralDeliveries,
     int? referralWindowDays,
     int? referralMonthlyCap,
+    int? maxOrdersPerDriver,
+    double? stackRadiusKm,
+    double? restaurantCancelCompensationPercent,
     bool? challengeEnabled,
     List<int>? challengeWeekdays,
     List<ChallengeTier>? tiers,
@@ -1147,6 +1184,11 @@ class IncentiveSettings {
         referralDeliveries: referralDeliveries ?? this.referralDeliveries,
         referralWindowDays: referralWindowDays ?? this.referralWindowDays,
         referralMonthlyCap: referralMonthlyCap ?? this.referralMonthlyCap,
+        maxOrdersPerDriver: maxOrdersPerDriver ?? this.maxOrdersPerDriver,
+        stackRadiusKm: stackRadiusKm ?? this.stackRadiusKm,
+        restaurantCancelCompensationPercent:
+            restaurantCancelCompensationPercent ??
+                this.restaurantCancelCompensationPercent,
         challengeEnabled: challengeEnabled ?? this.challengeEnabled,
         challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
         tiers: tiers ?? this.tiers,
