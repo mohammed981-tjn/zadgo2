@@ -1992,6 +1992,8 @@ class Order {
     bool? isRated,
     String? rejectionReason,
     bool? driverAcknowledged,
+    double? restaurantLat,
+    double? restaurantLng,
   }) =>
       Order(
         id: id,
@@ -2022,8 +2024,8 @@ class Order {
         platformCommission: platformCommission ?? this.platformCommission,
         deliveryLat: deliveryLat,
         deliveryLng: deliveryLng,
-        restaurantLat: restaurantLat,
-        restaurantLng: restaurantLng,
+        restaurantLat: restaurantLat ?? this.restaurantLat,
+        restaurantLng: restaurantLng ?? this.restaurantLng,
         rejectionReason: rejectionReason ?? this.rejectionReason,
         paymentId: paymentId,
         walletUsed: walletUsed,

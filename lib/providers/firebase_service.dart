@@ -559,6 +559,44 @@ class FirebaseService {
     return models.Restaurant.fromMap(doc.data()!, doc.id);
   }
 
+  /// إحداثيات المطعم الحيّة بدل لقطة الطلب: الطلب يلتقط موقع المطعم لحظة
+  /// إنشائه، فإذا صحّح المدير الموقع بعدها بقي سائق الطلب الجاري يُقاد
+  /// للموقع القديم (ملاحظة المالك ٢٠٢٦-٠٨-١١ بعد تجربة فرع فطير ستيشن).
+  /// تُستدعى قبل كل استخدام ملاحي؛ الفشل أو غياب الإحداثيات يُبقي اللقطة —
+  /// ملاحة بموقع أمس خير من تعطّلها كلياً.
+  Future<models.Order> withLiveRestaurantCoords(models.Order o) async {
+    try {
+      final r = await getRestaurantOnce(o.restaurantId);
+      if (r?.lat != null && r?.lng != null) {
+        return o.copyWith(restaurantLat: r!.lat, restaurantLng: r.lng);
+      }
+    } catch (_) {}
+    return o;
+  }
+
+  /// نشر موقع المطعم المصحَّح على طلباته الجارية — تُستدعى من شاشة المدير
+  /// بعد حفظ تعديل الموقع، فتتصحح لقطات الطلبات النشطة دفعةً واحدة: خريطة
+  /// الكابتن ودبابيسها وخريطة متابعة العميل كلها تقرأ من مستند الطلب.
+  /// الطلبات المنتهية تُترك بلقطتها عمداً — سجلّ تاريخي لما جرى فعلاً.
+  Future<int> propagateRestaurantLocation(
+      String restaurantId, double lat, double lng) async {
+    final active = models.OrderStatus.values
+        .where((s) => s.isActive)
+        .map((s) => s.name)
+        .toList();
+    final snap = await _orders
+        .where('restaurantId', isEqualTo: restaurantId)
+        .where('status', whereIn: active)
+        .get();
+    if (snap.docs.isEmpty) return 0;
+    final batch = _db.batch();
+    for (final d in snap.docs) {
+      batch.update(d.reference, {'restaurantLat': lat, 'restaurantLng': lng});
+    }
+    await batch.commit();
+    return snap.docs.length;
+  }
+
   Stream<List<models.MenuCategory>> streamCategories(String rId) => _categories(rId)
       .snapshots()
       .map((s) {

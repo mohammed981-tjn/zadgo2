@@ -69,6 +69,9 @@ class DriverProofFlow {
     FirebaseService service,
     Order order,
   ) async {
+    // إحداثيات المطعم الحيّة لا لقطة الطلب — موقع صحّحه المدير بعد إنشاء
+    // الطلب يجب أن يحكم النطاق، وإلا رُفض سائق واقف أمام المطعم الفعلي.
+    order = await service.withLiveRestaurantCoords(order);
     final err = await LocationGuard.checkNear(
       targetLat: order.restaurantLat,
       targetLng: order.restaurantLng,
@@ -98,6 +101,8 @@ class DriverProofFlow {
     FirebaseService service,
     Order order,
   ) async {
+    // نفس مبدأ recordArrival: النطاق يُقاس على موقع المطعم الحالي لا لقطته.
+    order = await service.withLiveRestaurantCoords(order);
     final err = await LocationGuard.checkNear(
       targetLat: order.restaurantLat,
       targetLng: order.restaurantLng,
