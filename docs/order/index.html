@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>اطلب الآن — ZadGo زاد جو</title>
+<meta name="description" content="اطلب من مطاعم المدينة المنورة مباشرة من المتصفح — بلا تحميل تطبيق.">
+<meta name="theme-color" content="#0B3D2E">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   اطلب الآن — نسخة الويب من تطبيق العميل.
+   ألوانها ألوان «نكهة العميل» في التطبيق حرفياً (lib/utils/theme.dart):
+   الذهبي الفاخر × الأخضر الملكي — فمن رأى التطبيق عرف الموقع، ومن بدأ
+   على الموقع لم يستغرب التطبيق.
+   ============================================================ */
+:root {
+  --gold: #D4A017; --gold-dark: #B8860B; --gold-light: #E8C547;
+  --green: #0B3D2E; --green-2: #14523E;
+  --surface: #F3F5F4; --card: #fff; --line: #EAEAEC;
+  --text: #0B3D2E; --muted: #8A8A8E;
+  --success: #00D084; --success-bg: #E8F9F1;
+  --error: #E53935; --error-bg: #FDECEA; --warn: #FFB020;
+  --shadow: 0 2px 10px rgba(0,0,0,.07);
+  --head-h: 62px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'Tajawal', Tahoma, sans-serif; background: var(--surface); color: var(--text);
+  line-height: 1.6; overflow-x: hidden; }
+button, input, select, textarea { font-family: inherit; font-size: 1rem; }
+a { color: inherit; }
+
+/* ---------- الترويسة ---------- */
+header.top { position: sticky; top: 0; z-index: 50; height: var(--head-h);
+  background: var(--green); color: #fff; display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
+header.top .back { background: none; border: 0; color: #fff; font-size: 1.5rem; cursor: pointer;
+  width: 38px; height: 38px; border-radius: 10px; display: none; align-items: center; justify-content: center; }
+header.top .back:hover { background: rgba(255,255,255,.1); }
+header.top.has-back .back { display: flex; }
+header.top h1 { font-size: 1.05rem; font-weight: 800; flex: 1; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+header.top .brand-img { height: 26px; }
+header.top .head-act { background: rgba(255,255,255,.12); border: 0; color: #fff; cursor: pointer;
+  border-radius: 10px; padding: 7px 11px; font-size: .82rem; font-weight: 700; }
+header.top .head-act:hover { background: rgba(255,255,255,.2); }
+
+main { padding: 14px 14px 96px; max-width: 760px; margin: 0 auto; }
+
+/* ---------- الشريط السفلي ---------- */
+nav.bottom { position: fixed; bottom: 0; inset-inline: 0; z-index: 60; background: var(--card);
+  border-top: 1px solid var(--line); display: flex; padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -2px 14px rgba(0,0,0,.06); }
+nav.bottom button { flex: 1; border: 0; background: none; cursor: pointer; padding: 9px 4px 11px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--muted);
+  font-size: .7rem; font-weight: 700; position: relative; }
+nav.bottom button .ico { font-size: 1.3rem; line-height: 1; }
+nav.bottom button.active { color: var(--green); }
+nav.bottom button.active .ico { filter: drop-shadow(0 2px 4px rgba(212,160,23,.5)); }
+nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; background: var(--error);
+  color: #fff; font-size: .62rem; min-width: 17px; height: 17px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; padding: 0 4px; font-weight: 800; }
+
+/* ---------- عناصر عامة ---------- */
+.card { background: var(--card); border-radius: 14px; box-shadow: var(--shadow); padding: 14px;
+  margin-bottom: 12px; }
+.btn { background: var(--gold); color: var(--green); border: 0; border-radius: 12px;
+  padding: 13px 18px; font-weight: 800; cursor: pointer; font-size: .95rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.btn:hover { background: var(--gold-dark); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn.block { display: flex; width: 100%; }
+.btn.ghost { background: #fff; color: var(--green); border: 1.5px solid var(--line); }
+.btn.ghost:hover { background: var(--surface); }
+.btn.green { background: var(--green); color: #fff; }
+.btn.green:hover { background: var(--green-2); }
+.btn.sm { padding: 8px 13px; font-size: .82rem; border-radius: 10px; }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: .82rem; font-weight: 700; color: var(--muted);
+  margin-bottom: 5px; }
+.field input, .field textarea, .field select { width: 100%; border: 1.5px solid var(--line);
+  border-radius: 11px; padding: 12px 13px; background: #fff; color: var(--text); }
+.field input:focus, .field textarea:focus, .field select:focus { outline: 0; border-color: var(--gold); }
+.err { background: var(--error-bg); color: var(--error); border-radius: 11px; padding: 11px 13px;
+  font-size: .88rem; font-weight: 600; margin-bottom: 12px; }
+.ok { background: var(--success-bg); color: #067a4d; border-radius: 11px; padding: 11px 13px;
+  font-size: .88rem; font-weight: 600; margin-bottom: 12px; }
+.empty { text-align: center; padding: 56px 20px; color: var(--muted); }
+.empty .big { font-size: 3.4rem; margin-bottom: 10px; }
+.empty h3 { color: var(--text); font-size: 1.05rem; margin-bottom: 6px; }
+.muted { color: var(--muted); font-size: .82rem; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sec-title { font-weight: 800; font-size: 1rem; margin: 16px 2px 8px; display: flex;
+  align-items: center; gap: 7px; }
+.sec-title::before { content: ''; width: 4px; height: 17px; background: var(--gold); border-radius: 3px; }
+.spin { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--gold);
+  border-radius: 50%; animation: sp .8s linear infinite; margin: 40px auto; }
+@keyframes sp { to { transform: rotate(360deg); } }
+
+/* ---------- بطاقة مطعم ---------- */
+.resto { display: flex; gap: 12px; align-items: center; cursor: pointer; }
+.resto .ava { width: 58px; height: 58px; border-radius: 14px; background: linear-gradient(135deg,var(--gold-light),var(--gold));
+  display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex: 0 0 auto;
+  overflow: hidden; }
+.resto .ava img { width: 100%; height: 100%; object-fit: cover; }
+.resto .nm { font-weight: 800; font-size: .98rem; }
+.resto .br { color: var(--muted); font-size: .8rem; }
+.resto .meta { display: flex; gap: 10px; font-size: .76rem; color: var(--muted); margin-top: 3px;
+  flex-wrap: wrap; }
+.pill { border-radius: 999px; padding: 2px 9px; font-size: .7rem; font-weight: 800; }
+.pill.open { background: var(--success-bg); color: #067a4d; }
+.pill.closed { background: var(--error-bg); color: var(--error); }
+
+/* ---------- صنف ---------- */
+.item { display: flex; gap: 11px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.item:last-child { border-bottom: 0; }
+.item .ic { width: 46px; height: 46px; border-radius: 12px; background: var(--surface);
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex: 0 0 auto;
+  overflow: hidden; }
+.item .ic img { width: 100%; height: 100%; object-fit: cover; }
+.item .grow { flex: 1; min-width: 0; }
+.item .nm { font-weight: 700; font-size: .92rem; }
+.item .ds { color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.item .pr { font-weight: 800; color: var(--green); font-size: .9rem; white-space: nowrap; }
+.item.off { opacity: .5; }
+.qty { display: flex; align-items: center; gap: 8px; }
+.qty button { width: 31px; height: 31px; border-radius: 9px; border: 1.5px solid var(--line);
+  background: #fff; cursor: pointer; font-size: 1.1rem; font-weight: 800; color: var(--green);
+  display: flex; align-items: center; justify-content: center; }
+.qty button:hover { border-color: var(--gold); }
+.qty .n { min-width: 20px; text-align: center; font-weight: 800; }
+
+/* ---------- الفاتورة ---------- */
+.bill div { display: flex; justify-content: space-between; padding: 6px 0; font-size: .9rem; }
+.bill .tot { border-top: 1.5px dashed var(--line); margin-top: 6px; padding-top: 10px;
+  font-weight: 900; font-size: 1.06rem; color: var(--green); }
+.bill .disc { color: var(--success); }
+
+/* ---------- شريط الحالة ---------- */
+.track { display: flex; gap: 0; margin: 10px 0 4px; }
+.track .st { flex: 1; text-align: center; font-size: .64rem; color: var(--muted); position: relative; }
+.track .st .dot { width: 13px; height: 13px; border-radius: 50%; background: var(--line);
+  margin: 0 auto 5px; }
+.track .st.done .dot { background: var(--success); }
+.track .st.done { color: var(--green); font-weight: 800; }
+.track .st::before { content: ''; position: absolute; top: 6px; inset-inline-start: 50%;
+  width: 100%; height: 2px; background: var(--line); z-index: -1; }
+.track .st:last-child::before { display: none; }
+.track { position: relative; z-index: 0; }
+
+.ord-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 6px; }
+.ord-no { font-family: ui-monospace, monospace; font-weight: 900; color: var(--gold-dark);
+  background: #FDF6E3; border-radius: 8px; padding: 2px 9px; font-size: .85rem; }
+.st-chip { border-radius: 999px; padding: 3px 11px; font-size: .74rem; font-weight: 800; }
+.st-chip.live { background: #E7F0FF; color: #1147a6; }
+.st-chip.done { background: var(--success-bg); color: #067a4d; }
+.st-chip.bad { background: var(--error-bg); color: var(--error); }
+
+/* ---------- الشريط العائم للسلة ---------- */
+.cartbar { position: fixed; inset-inline: 0; bottom: calc(58px + env(safe-area-inset-bottom));
+  z-index: 55; padding: 0 12px 10px; max-width: 760px; margin: 0 auto; display: none; }
+.cartbar.on { display: block; }
+.cartbar .in { background: var(--green); color: #fff; border-radius: 14px; padding: 12px 16px;
+  display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+  box-shadow: 0 6px 22px rgba(11,61,46,.35); font-weight: 800; }
+.cartbar .in .amt { color: var(--gold-light); }
+
+/* ---------- شاشة الدخول ---------- */
+.auth-wrap { min-height: 100dvh; background: linear-gradient(160deg,#08211A,#04120D);
+  display: flex; align-items: center; justify-content: center; padding: 22px; }
+.auth-box { background: var(--card); border-radius: 20px; padding: 26px 22px; width: 100%;
+  max-width: 400px; box-shadow: 0 18px 50px rgba(0,0,0,.4); }
+.auth-box .logo { text-align: center; margin-bottom: 18px; }
+.auth-box .logo img { height: 46px; }
+.auth-box .logo p { color: var(--muted); font-size: .84rem; margin-top: 6px; }
+.tabs { display: flex; background: var(--surface); border-radius: 12px; padding: 4px; margin-bottom: 18px; }
+.tabs button { flex: 1; border: 0; background: none; padding: 9px; border-radius: 9px;
+  cursor: pointer; font-weight: 700; color: var(--muted); font-size: .9rem; }
+.tabs button.on { background: #fff; color: var(--green); box-shadow: var(--shadow); }
+
+.hide { display: none !important; }
+@media (min-width: 820px) { nav.bottom { max-width: 760px; margin: 0 auto; border-radius: 16px 16px 0 0; } }
+</style>
+</head>
+<body>
+
+<!-- ============ الدخول ============ -->
+<div id="authView" class="auth-wrap">
+  <div class="auth-box">
+    <div class="logo">
+      <img src="/images/zadgo-logo.png" alt="ZadGo">
+      <p>اطلب من مطاعم المدينة المنورة — مباشرة من المتصفح</p>
+    </div>
+    <div class="tabs">
+      <button id="tabLogin" class="on">دخول</button>
+      <button id="tabReg">حساب جديد</button>
+    </div>
+    <div id="authErr" class="err hide"></div>
+
+    <form id="loginForm">
+      <div class="field"><label for="lEmail">البريد الإلكتروني</label>
+        <input type="email" id="lEmail" autocomplete="email" required></div>
+      <div class="field"><label for="lPass">كلمة المرور</label>
+        <input type="password" id="lPass" autocomplete="current-password" required></div>
+      <button type="submit" class="btn block" id="lBtn">دخول</button>
+      <button type="button" class="btn ghost block" id="lReset" style="margin-top:9px">نسيت كلمة المرور</button>
+    </form>
+
+    <form id="regForm" class="hide">
+      <div class="field"><label for="rName">الاسم</label>
+        <input type="text" id="rName" autocomplete="name" required></div>
+      <div class="field"><label for="rPhone">رقم الجوال</label>
+        <input type="tel" id="rPhone" inputmode="numeric" placeholder="05xxxxxxxx" required></div>
+      <div class="field"><label for="rEmail">البريد الإلكتروني</label>
+        <input type="email" id="rEmail" autocomplete="email" required></div>
+      <div class="field"><label for="rPass">كلمة المرور (٦ أحرف فأكثر)</label>
+        <input type="password" id="rPass" autocomplete="new-password" minlength="6" required></div>
+      <button type="submit" class="btn block" id="rBtn">إنشاء الحساب</button>
+      <p class="muted" style="margin-top:10px;text-align:center">
+        بإنشائك الحساب توافق على <a href="/terms.html" style="color:var(--gold-dark)">الشروط</a>
+        و<a href="/privacy-policy.html" style="color:var(--gold-dark)">سياسة الخصوصية</a>.
+      </p>
+    </form>
+
+    <p style="text-align:center;margin-top:16px">
+      <a href="/" class="muted" style="text-decoration:none">→ العودة للصفحة الرئيسية</a>
+    </p>
+  </div>
+</div>
+
+<!-- ============ التطبيق ============ -->
+<div id="appView" class="hide">
+  <header class="top" id="topBar">
+    <button class="back" id="backBtn" aria-label="رجوع">→</button>
+    <h1 id="pageTitle">المطاعم</h1>
+    <button class="head-act" id="logoutBtn">خروج</button>
+  </header>
+
+  <main id="main"></main>
+
+  <div class="cartbar" id="cartBar"><div class="in" id="cartBarIn">
+    <span><span id="cbCount">0</span> صنف في سلتك</span>
+    <span class="amt" id="cbTotal">0.00 ر.س</span>
+  </div></div>
+
+  <nav class="bottom" id="bottomNav"></nav>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  onAuthStateChanged, signOut, sendPasswordResetEmail }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, limit,
+  getDocs, onSnapshot, Timestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const app = initializeApp({
+  apiKey: 'AIzaSyBuU7g3vG5enxaebwxGdGgavG5U8cftwd4',
+  authDomain: 'restaurant-app-ed699.firebaseapp.com',
+  projectId: 'restaurant-app-ed699',
+});
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = (id) => document.getElementById(id);
+
+/* ============================================================
+   التسعير — منقول حرفياً من lib/utils/helpers.dart (class Pricing).
+   أي اختلاف رقمٍ واحد هنا يعني فاتورتين مختلفتين لطلب واحد: ما يراه
+   العميل على الويب وما يقرؤه المطعم والسائق من Firestore. ولذلك تُنسخ
+   الثوابت كما هي ولا تُقرَّب ولا تُبسَّط.
+   ============================================================ */
+const PRICING = {
+  appCommissionRate: 0.15,
+  baseDeliveryFee: 9.0,
+  baseDeliveryKm: 7.0,
+  perExtraKmFee: 1.0,
+  fixedDeliveryCommission: 3.0,
+  maxDeliveryDistanceKm: 25.0,
+};
+/* كسر الكيلومتر يُجبر للأعلى (٩٫٨ كم ← ١٠) — كما في ceilExtraKm. */
+function ceilExtraKm(distanceKm, freeKm) {
+  const extra = distanceKm - freeKm;
+  return extra <= 0 ? 0 : Math.ceil(extra);
+}
+function deliveryFeeFor(distanceKm) {
+  return PRICING.baseDeliveryFee + ceilExtraKm(distanceKm, PRICING.baseDeliveryKm) * PRICING.perExtraKmFee;
+}
+function appCommission(itemsTotal) { return itemsTotal * PRICING.appCommissionRate; }
+function isOutOfRange(km) { return km > PRICING.maxDeliveryDistanceKm; }
+
+/* المسافة بخط مستقيم — نفس haversine المستخدم في التطبيق. */
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, rad = (d) => d * Math.PI / 180;
+  const dLat = rad(lat2 - lat1), dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const money = (n) => `${(Number(n) || 0).toFixed(2)} ر.س`;
+
+/* حالات الطلب — الأسماء كما تُكتب في Firestore، والعربية للعرض فقط. */
+const STATUS_AR = {
+  created: 'أُنشئ', restaurantPending: 'بانتظار قبول المطعم',
+  restaurantAccepted: 'قَبِل المطعم', preparing: 'قيد التحضير',
+  readyForPickup: 'جاهز للاستلام', searchingDriver: 'نبحث عن كابتن',
+  driverAssigned: 'أُسنِد لكابتن', pickedUp: 'استلمه الكابتن',
+  onTheWay: 'في الطريق إليك', delivered: 'تم التسليم',
+  restaurantRejected: 'اعتذر المطعم', noDriverFound: 'لم نجد كابتناً',
+  cancelled: 'أُلغي', refunded: 'مُسترجَع',
+};
+const ACTIVE = ['created','restaurantPending','restaurantAccepted','preparing','readyForPickup',
+  'searchingDriver','driverAssigned','pickedUp','onTheWay'];
+const BAD = ['restaurantRejected','noDriverFound','cancelled','refunded'];
+/* مراحل شريط التتبّع الأربع — كل حالة تنتمي لمرحلة. */
+const TRACK = [
+  ['استُلم طلبك', ['created','restaurantPending']],
+  ['يُحضَّر', ['restaurantAccepted','preparing']],
+  ['كابتن في الطريق', ['readyForPickup','searchingDriver','driverAssigned','pickedUp','onTheWay']],
+  ['وصل', ['delivered']],
+];
+
+/* ---------------- الحالة ---------------- */
+const S = {
+  user: null,            // مستند users الخاص بالداخل
+  page: 'home',
+  restaurants: [],
+  resto: null,           // المطعم المفتوح
+  menu: { cats: [], items: [] },
+  cart: [],              // {menuItemId,name,price,emoji,quantity}
+  cartResto: null,       // {id,name} — سلة واحدة لمطعم واحد
+  orders: [],
+  unsubOrders: null,
+  addr: { text: '', lat: null, lng: null },
+  busy: false,
+};
+
+/* السلة تعيش في المتصفح: من أضاف صنفاً ثم حدّث الصفحة لا يبدأ من الصفر. */
+function saveCart() {
+  try {
+    localStorage.setItem('zadgo_cart', JSON.stringify({ cart: S.cart, resto: S.cartResto }));
+  } catch (e) { /* وضع التصفح الخاص يمنع التخزين — السلة تبقى في الذاكرة */ }
+}
+function loadCart() {
+  try {
+    const raw = localStorage.getItem('zadgo_cart');
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    if (Array.isArray(d.cart)) { S.cart = d.cart; S.cartResto = d.resto || null; }
+  } catch (e) { /* بيانات تالفة: نبدأ بسلة فارغة بدل أن نُسقط الصفحة */ }
+}
+const cartCount = () => S.cart.reduce((s, i) => s + i.quantity, 0);
+const cartTotal = () => S.cart.reduce((s, i) => s + i.price * i.quantity, 0);
+
+/* ---------------- الدخول ---------------- */
+function authError(msg) { const e = $('authErr'); e.textContent = msg; e.classList.remove('hide'); }
+function clearAuthError() { $('authErr').classList.add('hide'); }
+
+const AUTH_AR = {
+  'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة',
+  'auth/invalid-email': 'صيغة البريد غير صحيحة',
+  'auth/user-not-found': 'لا يوجد حساب بهذا البريد',
+  'auth/wrong-password': 'كلمة المرور غير صحيحة',
+  'auth/email-already-in-use': 'هذا البريد مسجّل بالفعل — استخدم «دخول»',
+  'auth/weak-password': 'كلمة المرور قصيرة — ٦ أحرف فأكثر',
+  'auth/too-many-requests': 'محاولات كثيرة، انتظر قليلاً ثم أعد المحاولة',
+  'auth/network-request-failed': 'تعذّر الاتصال بالشبكة',
+};
+const authMsg = (e) => AUTH_AR[e && e.code] || 'تعذّر إتمام العملية، حاول مجدداً';
+
+$('tabLogin').onclick = () => {
+  $('tabLogin').classList.add('on'); $('tabReg').classList.remove('on');
+  $('loginForm').classList.remove('hide'); $('regForm').classList.add('hide'); clearAuthError();
+};
+$('tabReg').onclick = () => {
+  $('tabReg').classList.add('on'); $('tabLogin').classList.remove('on');
+  $('regForm').classList.remove('hide'); $('loginForm').classList.add('hide'); clearAuthError();
+};
+
+$('loginForm').onsubmit = async (e) => {
+  e.preventDefault(); clearAuthError();
+  const b = $('lBtn'); b.disabled = true; b.textContent = 'جارٍ الدخول…';
+  try {
+    await signInWithEmailAndPassword(auth, $('lEmail').value.trim(), $('lPass').value);
+  } catch (err) { authError(authMsg(err)); }
+  b.disabled = false; b.textContent = 'دخول';
+};
+
+$('lReset').onclick = async () => {
+  const em = $('lEmail').value.trim();
+  if (!em) { authError('اكتب بريدك في الحقل أعلاه أولاً'); return; }
+  try {
+    await sendPasswordResetEmail(auth, em);
+    const e = $('authErr'); e.className = 'ok'; e.textContent = 'أُرسل رابط الاستعادة إلى بريدك';
+  } catch (err) { authError(authMsg(err)); }
+};
+
+$('regForm').onsubmit = async (e) => {
+  e.preventDefault(); clearAuthError();
+  const name = $('rName').value.trim(), phone = $('rPhone').value.trim();
+  const email = $('rEmail').value.trim(), pass = $('rPass').value;
+  if (name.length < 2) { authError('اكتب اسمك كاملاً'); return; }
+  if (!/^0\d{9}$/.test(phone)) { authError('رقم الجوال عشرة أرقام يبدأ بصفر'); return; }
+  const b = $('rBtn'); b.disabled = true; b.textContent = 'جارٍ الإنشاء…';
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    // مستند المستخدم بنفس شكل AppUser.toMap في التطبيق — الدور «عميل»
+    // صراحةً، فقواعد Firestore تشترطه لإنشاء أي طلب.
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      name, email, phone, role: 'customer',
+      createdAt: Timestamp.fromDate(new Date()),
+      isActive: true, walletBalance: 0, savedAddresses: [],
+    });
+  } catch (err) { authError(authMsg(err)); b.disabled = false; b.textContent = 'إنشاء الحساب'; return; }
+  b.disabled = false; b.textContent = 'إنشاء الحساب';
+};
+
+$('logoutBtn').onclick = async () => { await signOut(auth); location.reload(); };
+
+onAuthStateChanged(auth, async (u) => {
+  if (!u) { $('authView').classList.remove('hide'); $('appView').classList.add('hide'); return; }
+  let snap;
+  try { snap = await getDoc(doc(db, 'users', u.uid)); }
+  catch (e) { authError('تعذّر قراءة حسابك — تحقّق من اتصالك'); return; }
+  if (!snap.exists()) {
+    // حساب دخول بلا مستند: لا نخمّن دوره ولا ننشئه — قد يكون حساب كابتن
+    // أو مطعم أُنشئ من مسارٍ آخر، وكتابة role هنا تُفسد صلاحياته.
+    await signOut(auth);
+    authError('لا يوجد ملف لهذا الحساب. إن كنت كابتناً أو مطعماً فاستخدم تطبيقك الخاص.');
+    return;
+  }
+  const d = snap.data();
+  if (d.role !== 'customer') {
+    await signOut(auth);
+    authError('هذه الصفحة للعملاء فقط. حسابك مسجّل بدور آخر — استخدم تطبيقك الخاص.');
+    return;
+  }
+  if (d.isActive === false) {
+    await signOut(auth);
+    authError('حسابك موقوف حالياً. تواصل مع الدعم.');
+    return;
+  }
+  S.user = { uid: u.uid, ...d };
+  $('authView').classList.add('hide');
+  $('appView').classList.remove('hide');
+  loadCart();
+  listenOrders();
+  loadRestaurants();
+  go('home');
+});
+
+/* ---------------- التنقل ---------------- */
+const PAGES = [
+  ['home', '🍽️', 'المطاعم'],
+  ['cart', '🛒', 'سلتي'],
+  ['orders', '🧾', 'طلباتي'],
+  ['account', '👤', 'حسابي'],
+];
+function renderNav() {
+  $('bottomNav').innerHTML = PAGES.map(([k, ico, lbl]) => {
+    const n = k === 'cart' ? cartCount()
+      : k === 'orders' ? S.orders.filter((o) => ACTIVE.includes(o.status)).length : 0;
+    return `<button data-nav="${k}" class="${S.page === k ? 'active' : ''}">
+      <span class="ico">${ico}</span>${lbl}${n ? `<span class="badge">${n}</span>` : ''}</button>`;
+  }).join('');
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-nav]');
+  if (b) go(b.dataset.nav);
+});
+$('backBtn').onclick = () => go(S.page === 'resto' ? 'home' : 'orders');
+$('cartBarIn').onclick = () => go('cart');
+
+function go(p) {
+  S.page = p;
+  const titles = { home: 'المطاعم', cart: 'سلتي', orders: 'طلباتي', account: 'حسابي',
+    resto: S.resto ? S.resto.name : 'المطعم', order: 'تفاصيل الطلب' };
+  $('pageTitle').textContent = titles[p] || 'اطلب الآن';
+  $('topBar').classList.toggle('has-back', p === 'resto' || p === 'order');
+  window.scrollTo(0, 0);
+  render();
+}
+function render() {
+  renderNav();
+  const bar = $('cartBar');
+  const show = S.cart.length > 0 && (S.page === 'home' || S.page === 'resto');
+  bar.classList.toggle('on', show);
+  if (show) { $('cbCount').textContent = cartCount(); $('cbTotal').textContent = money(cartTotal()); }
+  const R = { home: viewHome, resto: viewResto, cart: viewCart, orders: viewOrders,
+    order: viewOrder, account: viewAccount };
+  (R[S.page] || viewHome)();
+}
+const loading = () => { $('main').innerHTML = '<div class="spin"></div>'; };
+
+/* ---------------- المطاعم ---------------- */
+async function loadRestaurants() {
+  try {
+    const snap = await getDocs(collection(db, 'restaurants'));
+    S.restaurants = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      // المفتوح أولاً ثم الأعلى تقييماً — لا نُخفي المغلق بل نُنزله.
+      .sort((a, b) => (b.isOpen === false ? -1 : 1) - (a.isOpen === false ? -1 : 1)
+        || (b.rating || 0) - (a.rating || 0));
+  } catch (e) {
+    S.restaurants = [];
+  }
+  if (S.page === 'home') render();
+}
+
+function viewHome() {
+  if (!S.restaurants.length) {
+    $('main').innerHTML = `<div class="empty"><div class="big">🍽️</div>
+      <h3>لا توجد مطاعم متاحة الآن</h3><p>نضيف مطاعم المدينة تباعاً — عد إلينا قريباً.</p></div>`;
+    return;
+  }
+  $('main').innerHTML = `
+    <div class="field"><input type="search" id="q" placeholder="ابحث عن مطعم…"></div>
+    <div id="rlist"></div>`;
+  const paint = (term) => {
+    const t = term.trim();
+    const list = t ? S.restaurants.filter((r) =>
+      `${r.name || ''} ${r.branchName || ''} ${r.description || ''}`.includes(t)) : S.restaurants;
+    $('rlist').innerHTML = list.length ? list.map((r) => `
+      <div class="card"><div class="resto" data-resto="${r.id}">
+        <div class="ava">${r.imageUrl ? `<img src="${esc(r.imageUrl)}" alt="">` : (r.emoji || '🍽️')}</div>
+        <div class="grow" style="flex:1;min-width:0">
+          <div class="nm">${esc(r.name || 'مطعم')}</div>
+          ${r.branchName ? `<div class="br">${esc(r.branchName)}</div>` : ''}
+          <div class="meta">
+            <span>⭐ ${(r.rating ?? 5).toFixed(1)}</span>
+            <span>⏱️ ${r.estimatedTimeMin || 30} دقيقة</span>
+            <span>الحد الأدنى ${money(r.minOrder ?? 20)}</span>
+          </div>
+        </div>
+        <span class="pill ${r.isOpen === false ? 'closed' : 'open'}">${r.isOpen === false ? 'مغلق' : 'مفتوح'}</span>
+      </div></div>`).join('')
+      : `<div class="empty"><div class="big">🔍</div><h3>لا نتيجة</h3></div>`;
+  };
+  paint('');
+  $('q').oninput = (e) => paint(e.target.value);
+  $('rlist').onclick = (e) => {
+    const el = e.target.closest('[data-resto]');
+    if (el) openResto(el.dataset.resto);
+  };
+}
+
+async function openResto(id) {
+  S.resto = S.restaurants.find((r) => r.id === id) || null;
+  go('resto');
+  loading();
+  try {
+    const [cats, items] = await Promise.all([
+      getDocs(collection(db, 'restaurants', id, 'categories')),
+      getDocs(collection(db, 'restaurants', id, 'items')),
+    ]);
+    S.menu = {
+      cats: cats.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+      items: items.docs.map((d) => ({ id: d.id, ...d.data() })),
+    };
+  } catch (e) { S.menu = { cats: [], items: [] }; }
+  if (S.page === 'resto') render();
+}
+
+function viewResto() {
+  const r = S.resto;
+  if (!r) { go('home'); return; }
+  const closed = r.isOpen === false;
+  const cats = S.menu.cats.length ? S.menu.cats : [{ id: null, name: 'المنيو' }];
+  const body = cats.map((c) => {
+    const its = S.menu.items.filter((i) => (c.id === null ? true : i.categoryId === c.id));
+    if (!its.length) return '';
+    return `<div class="sec-title">${esc(c.name || 'قسم')}</div>
+      <div class="card">${its.map((i) => {
+        const off = i.isAvailable === false || (i.trackStock && (i.stockQuantity ?? 0) <= 0);
+        const inCart = S.cart.find((x) => x.menuItemId === i.id);
+        return `<div class="item ${off ? 'off' : ''}">
+          <div class="ic">${i.imageUrl ? `<img src="${esc(i.imageUrl)}" alt="">` : (i.emoji || '🍔')}</div>
+          <div class="grow">
+            <div class="nm">${esc(i.name || '')}</div>
+            ${i.description ? `<div class="ds">${esc(i.description)}</div>` : ''}
+            <div class="pr">${money(i.price)}</div>
+          </div>
+          ${off ? '<span class="pill closed">غير متوفر</span>'
+            : inCart ? `<div class="qty">
+                <button data-dec="${i.id}">−</button><span class="n">${inCart.quantity}</span>
+                <button data-inc="${i.id}">+</button></div>`
+            : `<button class="btn sm" data-add="${i.id}">إضافة</button>`}
+        </div>`;
+      }).join('')}</div>`;
+  }).join('');
+
+  $('main').innerHTML = `
+    <div class="card">
+      <div class="row-between">
+        <div><div style="font-weight:900;font-size:1.1rem">${esc(r.name || '')}</div>
+          ${r.branchName ? `<div class="muted">${esc(r.branchName)}</div>` : ''}</div>
+        <span class="pill ${closed ? 'closed' : 'open'}">${closed ? 'مغلق' : 'مفتوح'}</span>
+      </div>
+      <div class="meta muted" style="margin-top:7px">
+        ⭐ ${(r.rating ?? 5).toFixed(1)} · ⏱️ ${r.estimatedTimeMin || 30} دقيقة ·
+        الحد الأدنى ${money(r.minOrder ?? 20)}
+      </div>
+      ${closed ? `<div class="err" style="margin:11px 0 0">المطعم مغلق الآن — يمكنك التصفّح والطلب عند فتحه.</div>` : ''}
+    </div>
+    ${body || `<div class="empty"><div class="big">📋</div><h3>لا أصناف منشورة بعد</h3></div>`}`;
+
+  $('main').onclick = (e) => {
+    const add = e.target.closest('[data-add]'), inc = e.target.closest('[data-inc]'),
+      dec = e.target.closest('[data-dec]');
+    if (add) addToCart(add.dataset.add);
+    else if (inc) changeQty(inc.dataset.inc, +1);
+    else if (dec) changeQty(dec.dataset.dec, -1);
+  };
+}
+
+function addToCart(itemId) {
+  const it = S.menu.items.find((i) => i.id === itemId);
+  if (!it || !S.resto) return;
+  // سلة واحدة لمطعم واحد: الطلب يُسنَد لمطعم بعينه، فخلط مطعمين في سلة
+  // واحدة يُنتج طلباً لا يستطيع أي مطعم تحضيره.
+  if (S.cartResto && S.cartResto.id !== S.resto.id && S.cart.length) {
+    if (!confirm(`سلتك تحتوي أصنافاً من «${S.cartResto.name}». هل تُفرغها وتبدأ من «${S.resto.name}»؟`)) return;
+    S.cart = [];
+  }
+  S.cartResto = { id: S.resto.id, name: S.resto.name, branchName: S.resto.branchName || '' };
+  S.cart.push({ menuItemId: it.id, name: it.name, price: Number(it.price) || 0,
+    emoji: it.emoji || '🍔', quantity: 1 });
+  saveCart(); render();
+}
+function changeQty(itemId, delta) {
+  const line = S.cart.find((x) => x.menuItemId === itemId);
+  if (!line) return;
+  line.quantity += delta;
+  if (line.quantity <= 0) S.cart = S.cart.filter((x) => x.menuItemId !== itemId);
+  if (!S.cart.length) S.cartResto = null;
+  saveCart(); render();
+}
+
+/* ---------------- السلة والطلب ---------------- */
+function distanceKm() {
+  const r = S.resto && S.cartResto && S.resto.id === S.cartResto.id ? S.resto
+    : S.restaurants.find((x) => x.id === (S.cartResto || {}).id);
+  if (!r || r.lat == null || r.lng == null || S.addr.lat == null) return null;
+  return haversineKm(r.lat, r.lng, S.addr.lat, S.addr.lng);
+}
+
+function viewCart() {
+  if (!S.cart.length) {
+    $('main').innerHTML = `<div class="empty"><div class="big">🛒</div>
+      <h3>سلتك فارغة</h3><p>اختر مطعماً وابدأ الطلب.</p>
+      <button class="btn" data-nav="home" style="margin-top:14px">تصفّح المطاعم</button></div>`;
+    return;
+  }
+  const items = cartTotal();
+  const km = distanceKm();
+  const dFee = deliveryFeeFor(km ?? 0);
+  const fixed = PRICING.fixedDeliveryCommission;
+  const total = items + dFee + fixed;
+  const r = S.restaurants.find((x) => x.id === (S.cartResto || {}).id);
+  const minOrder = r ? (r.minOrder ?? 20) : 20;
+  const belowMin = items < minOrder;
+  const far = km != null && isOutOfRange(km);
+  const noLoc = S.addr.lat == null;
+
+  $('main').innerHTML = `
+    <div class="card">
+      <div class="row-between" style="margin-bottom:8px">
+        <b>${esc((S.cartResto || {}).name || '')}</b>
+        <button class="btn ghost sm" id="clearCart">إفراغ</button>
+      </div>
+      ${S.cart.map((l) => `<div class="item">
+        <div class="ic">${l.emoji}</div>
+        <div class="grow"><div class="nm">${esc(l.name)}</div>
+          <div class="pr">${money(l.price * l.quantity)}</div></div>
+        <div class="qty"><button data-dec="${l.menuItemId}">−</button>
+          <span class="n">${l.quantity}</span>
+          <button data-inc="${l.menuItemId}">+</button></div>
+      </div>`).join('')}
+    </div>
+
+    <div class="sec-title">عنوان التوصيل</div>
+    <div class="card">
+      <div class="field"><label for="addr">الوصف (الحي، الشارع، رقم المبنى)</label>
+        <textarea id="addr" rows="2" placeholder="مثال: حي الفتح، شارع السيح، مبنى 7538">${esc(S.addr.text)}</textarea></div>
+      <button class="btn ghost block" id="locBtn">
+        ${noLoc ? '📍 حدّد موقعي على الخريطة' : '✅ تم تحديد موقعك — اضغط للتحديث'}</button>
+      <p class="muted" style="margin-top:8px">
+        ${noLoc ? 'موقعك مطلوب لحساب أجرة التوصيل بدقة ولإيصال الكابتن إليك.'
+          : km != null ? `تبعد عن المطعم ${km.toFixed(1)} كم` : 'موقع المطعم غير مسجّل — ستُحتسب الأجرة الأساسية.'}
+      </p>
+    </div>
+
+    <div class="sec-title">طريقة الدفع</div>
+    <div class="card">
+      <div class="row-between"><b>💵 نقداً عند الاستلام</b><span class="pill open">متاح</span></div>
+      <p class="muted" style="margin-top:6px">الدفع بالبطاقة من المتصفح قادم قريباً — وهو متاح اليوم في التطبيق.</p>
+    </div>
+
+    <div class="sec-title">الفاتورة</div>
+    <div class="card bill">
+      <div><span>قيمة الأصناف</span><span>${money(items)}</span></div>
+      <div><span>أجرة التوصيل${km != null ? ` (${km.toFixed(1)} كم)` : ''}</span>
+        <span>${noLoc ? '<span class="muted">تُحسب بعد تحديد موقعك</span>' : money(dFee)}</span></div>
+      <div><span>رسم خدمة</span><span>${money(fixed)}</span></div>
+      <div class="tot"><span>الإجمالي</span>
+        <span>${noLoc ? `${money(items + fixed)} + التوصيل` : money(total)}</span></div>
+    </div>
+    ${noLoc ? '' : `<p class="muted" style="text-align:center;margin:-4px 0 12px">
+      هذا هو المبلغ النهائي — لا رسوم تُضاف عند الاستلام.</p>`}
+
+    ${belowMin ? `<div class="err">الحد الأدنى للطلب من هذا المطعم ${money(minOrder)} — أضف ${money(minOrder - items)} لتتمكن من الإرسال.</div>` : ''}
+    ${far ? `<div class="err">موقعك يبعد ${km.toFixed(1)} كم — خارج نطاق التوصيل (${PRICING.maxDeliveryDistanceKm} كم).</div>` : ''}
+    <div id="orderErr"></div>
+    <button class="btn block" id="placeBtn" ${belowMin || far ? 'disabled' : ''}>
+      ${noLoc ? 'إرسال الطلب' : `إرسال الطلب · ${money(total)}`}</button>
+    <p class="muted" style="text-align:center;margin-top:10px">
+      يصل طلبك للمطعم فوراً، ويصلك إشعار عند قبوله.</p>`;
+
+  $('main').onclick = (e) => {
+    const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]');
+    if (inc) changeQty(inc.dataset.inc, +1);
+    else if (dec) changeQty(dec.dataset.dec, -1);
+  };
+  $('addr').oninput = (e) => { S.addr.text = e.target.value; };
+  $('clearCart').onclick = () => {
+    if (!confirm('إفراغ السلة؟')) return;
+    S.cart = []; S.cartResto = null; saveCart(); render();
+  };
+  $('locBtn').onclick = pickLocation;
+  $('placeBtn').onclick = placeOrder;
+}
+
+function pickLocation() {
+  const b = $('locBtn');
+  if (!navigator.geolocation) {
+    showOrderErr('متصفحك لا يدعم تحديد الموقع — اكتب عنوانك بالتفصيل وسيتواصل الكابتن معك.');
+    return;
+  }
+  b.disabled = true; b.textContent = '⏳ جارٍ تحديد موقعك…';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => { S.addr.lat = pos.coords.latitude; S.addr.lng = pos.coords.longitude; render(); },
+    (err) => {
+      b.disabled = false;
+      showOrderErr(err.code === 1
+        ? 'رفض المتصفح إذن الموقع — فعّله من إعدادات الموقع ثم أعد المحاولة.'
+        : 'تعذّر تحديد موقعك، حاول مجدداً في مكان مكشوف.');
+      b.textContent = '📍 حدّد موقعي على الخريطة';
+    },
+    { enableHighAccuracy: true, timeout: 15000 },
+  );
+}
+function showOrderErr(msg) {
+  const box = $('orderErr');
+  if (box) { box.innerHTML = `<div class="err">${esc(msg)}</div>`; box.scrollIntoView({ block: 'center' }); }
+}
+
+/* معرّف الطلب: UUID v4 من مولّد المتصفح المعمّي — نفس شكل uuid.v4() في
+ * التطبيق، ورقم الطلب أول ستة محارف بحروف كبيرة تماماً كما هناك. */
+function uuid4() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+
+async function placeOrder() {
+  if (S.busy) return;
+  const addr = ($('addr').value || '').trim();
+  if (addr.length < 8) { showOrderErr('اكتب عنوان التوصيل بتفصيل يكفي الكابتن للوصول.'); return; }
+  if (S.addr.lat == null) { showOrderErr('حدّد موقعك أولاً — بدونه لا يعرف الكابتن أين يذهب.'); return; }
+  const r = S.restaurants.find((x) => x.id === (S.cartResto || {}).id);
+  if (!r) { showOrderErr('تعذّر التعرّف على المطعم — أعد تحميل الصفحة.'); return; }
+
+  const km = distanceKm();
+  if (km != null && isOutOfRange(km)) { showOrderErr('موقعك خارج نطاق التوصيل.'); return; }
+
+  S.busy = true;
+  const b = $('placeBtn'); b.disabled = true; b.textContent = 'جارٍ الإرسال…';
+
+  const orderId = uuid4();
+  const orderNumber = orderId.slice(0, 6).toUpperCase();
+  const items = S.cart.map((l) => ({ menuItemId: l.menuItemId, name: l.name,
+    price: l.price, emoji: l.emoji, quantity: l.quantity }));
+  const itemsTotal = cartTotal();
+  const driverShare = deliveryFeeFor(km ?? 0);
+  const appShare = PRICING.fixedDeliveryCommission;
+  const now = Timestamp.fromDate(new Date());
+
+  /* شكل المستند مطابق لـ Order.toMap في التطبيق حقلاً بحقل. الحقول المالية
+   * تُكتب مرة واحدة عند الإنشاء ولا يعدّلها العميل بعدها (تمنعه القواعد) —
+   * ولذلك يجب أن تكون صحيحة من أول كتابة. */
+  const payload = {
+    restaurantId: r.id,
+    restaurantName: r.name || '',
+    customerId: S.user.uid,
+    customerName: S.user.name || '',
+    customerPhone: S.user.phone || '',
+    deliveryAddress: addr,
+    items,
+    status: 'restaurantPending',
+    paymentMethod: 'cash',
+    isPaid: false,
+    createdAt: now,
+    updatedAt: null,
+    statusChangedAt: now,
+    driverId: null, driverName: null, driverPhone: null,
+    notes: null,
+    driverShare,
+    appShare,
+    deliveryFee: driverShare + appShare,
+    orderNumber,
+    customerRating: null, customerReview: null, driverRating: null,
+    isRated: false,
+    platformCommission: appCommission(itemsTotal),
+    deliveryLat: S.addr.lat, deliveryLng: S.addr.lng,
+    restaurantLat: r.lat ?? null, restaurantLng: r.lng ?? null,
+    rejectionReason: null,
+    walletUsed: 0,
+    driverAcknowledged: true,
+    custodyDebited: false,
+    discountAmount: 0,
+  };
+
+  try {
+    await setDoc(doc(db, 'orders', orderId), payload);
+    S.cart = []; S.cartResto = null; saveCart();
+    S.busy = false;
+    go('orders');
+  } catch (e) {
+    S.busy = false;
+    b.disabled = false; b.textContent = 'إرسال الطلب';
+    showOrderErr(e && e.code === 'permission-denied'
+      ? 'رفض الخادم إنشاء الطلب — تأكد أن حسابك حساب عميل، ثم أعد المحاولة.'
+      : 'تعذّر إرسال الطلب. تحقّق من اتصالك وأعد المحاولة — لم يُخصم منك شيء.');
+  }
+}
+
+/* ---------------- الطلبات ---------------- */
+function listenOrders() {
+  if (S.unsubOrders) S.unsubOrders();
+  const q = query(collection(db, 'orders'), where('customerId', '==', S.user.uid),
+    orderBy('createdAt', 'desc'), limit(50));
+  S.unsubOrders = onSnapshot(q,
+    (snap) => {
+      S.orders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (['orders', 'order', 'home', 'cart', 'account'].includes(S.page)) render();
+    },
+    () => { /* انقطاع التدفّق لا يُفرغ ما عُرض: نُبقي آخر نسخة ظاهرة */ });
+}
+
+const stChip = (s) => BAD.includes(s) ? 'bad' : s === 'delivered' ? 'done' : 'live';
+const fmtDate = (ts) => {
+  const d = ts && ts.toDate ? ts.toDate() : null;
+  if (!d) return '';
+  return d.toLocaleString('ar-SA', { day: 'numeric', month: 'numeric',
+    hour: '2-digit', minute: '2-digit' });
+};
+
+function viewOrders() {
+  if (!S.orders.length) {
+    $('main').innerHTML = `<div class="empty"><div class="big">🧾</div>
+      <h3>لا طلبات بعد</h3><p>أول طلب لك يظهر هنا مع تتبّعه لحظة بلحظة.</p>
+      <button class="btn" data-nav="home" style="margin-top:14px">اطلب الآن</button></div>`;
+    return;
+  }
+  const live = S.orders.filter((o) => ACTIVE.includes(o.status));
+  const past = S.orders.filter((o) => !ACTIVE.includes(o.status));
+  const card = (o) => `<div class="card" data-order="${o.id}" style="cursor:pointer">
+    <div class="ord-head">
+      <span class="ord-no">#${esc(o.orderNumber || '')}</span>
+      <span class="st-chip ${stChip(o.status)}">${STATUS_AR[o.status] || o.status}</span>
+    </div>
+    <div style="font-weight:700">${esc(o.restaurantName || '')}</div>
+    <div class="muted">${fmtDate(o.createdAt)} · ${(o.items || []).length} صنف</div>
+    <div class="row-between" style="margin-top:7px">
+      <span class="muted">${o.paymentMethod === 'cash' ? 'نقداً عند الاستلام' : 'مدفوع'}</span>
+      <b>${money(orderTotal(o))}</b>
+    </div>
+    ${ACTIVE.includes(o.status) ? trackHtml(o.status) : ''}
+  </div>`;
+  $('main').innerHTML =
+    (live.length ? `<div class="sec-title">جارية الآن</div>${live.map(card).join('')}` : '') +
+    (past.length ? `<div class="sec-title">سابقة</div>${past.map(card).join('')}` : '');
+  $('main').onclick = (e) => {
+    const el = e.target.closest('[data-order]');
+    if (el) { S.openOrder = el.dataset.order; go('order'); }
+  };
+}
+
+/* الإجمالي يُحسب من حقول المستند لا من نص محفوظ — فلو عدّلت الإدارة سطراً
+ * ظهر التعديل هنا كما هو في دفاتر المنصّة. */
+function orderTotal(o) {
+  const items = (o.items || []).reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+  const fee = (o.driverShare || 0) + (o.appShare || 0);
+  return items + fee - (o.discountAmount || 0);
+}
+
+function trackHtml(status) {
+  const idx = TRACK.findIndex(([, list]) => list.includes(status));
+  return `<div class="track">${TRACK.map(([lbl], i) =>
+    `<div class="st ${i <= idx ? 'done' : ''}"><div class="dot"></div>${lbl}</div>`).join('')}</div>`;
+}
+
+function viewOrder() {
+  const o = S.orders.find((x) => x.id === S.openOrder);
+  if (!o) { go('orders'); return; }
+  const items = (o.items || []);
+  const itemsTotal = items.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0);
+  $('main').innerHTML = `
+    <div class="card">
+      <div class="ord-head">
+        <span class="ord-no">#${esc(o.orderNumber || '')}</span>
+        <span class="st-chip ${stChip(o.status)}">${STATUS_AR[o.status] || o.status}</span>
+      </div>
+      <div style="font-weight:800;font-size:1.05rem">${esc(o.restaurantName || '')}</div>
+      <div class="muted">${fmtDate(o.createdAt)}</div>
+      ${ACTIVE.includes(o.status) ? trackHtml(o.status) : ''}
+      ${o.rejectionReason ? `<div class="err" style="margin-top:10px">السبب: ${esc(o.rejectionReason)}</div>` : ''}
+    </div>
+
+    ${o.driverName ? `<div class="sec-title">الكابتن</div>
+    <div class="card"><div class="row-between">
+      <div><b>🛵 ${esc(o.driverName)}</b><div class="muted">يوصل طلبك الآن</div></div>
+      ${o.driverPhone ? `<a class="btn sm" href="tel:${esc(o.driverPhone)}">اتصال</a>` : ''}
+    </div></div>` : ''}
+
+    <div class="sec-title">الأصناف</div>
+    <div class="card">${items.map((i) => `<div class="item">
+      <div class="ic">${i.emoji || '🍔'}</div>
+      <div class="grow"><div class="nm">${esc(i.name || '')}</div>
+        <div class="muted">${i.quantity || 1} × ${money(i.price)}</div></div>
+      <div class="pr">${money((i.price || 0) * (i.quantity || 1))}</div>
+    </div>`).join('')}</div>
+
+    <div class="sec-title">الفاتورة</div>
+    <div class="card bill">
+      <div><span>قيمة الأصناف</span><span>${money(itemsTotal)}</span></div>
+      <div><span>أجرة التوصيل</span><span>${money(o.driverShare || 0)}</span></div>
+      <div><span>رسم خدمة</span><span>${money(o.appShare || 0)}</span></div>
+      ${o.discountAmount ? `<div class="disc"><span>خصم ${esc(o.couponCode || '')}</span><span>−${money(o.discountAmount)}</span></div>` : ''}
+      ${o.walletUsed ? `<div class="disc"><span>من محفظتك</span><span>−${money(o.walletUsed)}</span></div>` : ''}
+      <div class="tot"><span>${o.isPaid ? 'المدفوع' : 'المطلوب عند الاستلام'}</span>
+        <span>${money(orderTotal(o) - (o.walletUsed || 0))}</span></div>
+    </div>
+
+    <div class="sec-title">التوصيل إلى</div>
+    <div class="card"><div>📍 ${esc(o.deliveryAddress || '')}</div></div>`;
+}
+
+/* ---------------- الحساب ---------------- */
+function viewAccount() {
+  const u = S.user;
+  const done = S.orders.filter((o) => o.status === 'delivered').length;
+  $('main').innerHTML = `
+    <div class="card" style="text-align:center">
+      <div style="width:64px;height:64px;border-radius:50%;background:#FDF6E3;color:var(--gold-dark);
+        display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:900;
+        margin:0 auto 10px">${esc((u.name || '؟').charAt(0))}</div>
+      <div style="font-weight:800;font-size:1.1rem">${esc(u.name || '')}</div>
+      <div class="muted">${esc(u.phone || '')}</div>
+      <div class="muted">${esc(u.email || '')}</div>
+    </div>
+    <div class="card">
+      <div class="row-between"><span>👛 رصيد محفظتك</span><b>${money(u.walletBalance || 0)}</b></div>
+      <p class="muted" style="margin-top:6px">الدفع من المحفظة متاح في التطبيق — وقادم هنا قريباً.</p>
+    </div>
+    <div class="card">
+      <div class="row-between"><span>🧾 طلبات مكتملة</span><b>${done}</b></div>
+    </div>
+    <div class="sec-title">روابط</div>
+    <div class="card">
+      <p style="padding:6px 0"><a href="/contact.html">التواصل والدعم</a></p>
+      <p style="padding:6px 0"><a href="/terms.html">الشروط والأحكام</a></p>
+      <p style="padding:6px 0"><a href="/privacy-policy.html">سياسة الخصوصية</a></p>
+      <p style="padding:6px 0"><a href="/delete-account.html">حذف الحساب</a></p>
+    </div>`;
+}
+
+/* نصوص المطاعم والأصناف يكتبها بشر في لوحة التحكم — تُهرَّب دائماً قبل
+ * الحقن في HTML، فاسم صنفٍ فيه وسم لا يصير شيفرة تعمل في متصفح العميل. */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+</script>
+</body>
+</html>

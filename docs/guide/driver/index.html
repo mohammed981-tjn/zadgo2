@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دليل الكابتن — ZadGo زاد جو</title>
+<meta name="description" content="خمسة دروس قصيرة تغطي رحلة كابتن زاد جو كاملة — من أول عرض إلى سحب أرباحه.">
+<meta name="theme-color" content="#0D47A1">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="دليل الكابتن — ZadGo">
+<meta property="og:description" content="خمسة دروس قصيرة تغطي رحلتك كاملة — من أول عرض إلى سحب أرباحك.">
+<meta property="og:url" content="https://zadgo.co/guide/driver/">
+<meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ألوان «نكهة السائق» في التطبيق (lib/utils/theme.dart) — أزرق الكابتن،
+   فمن قرأ الدليل هنا وجد التطبيق بلونه نفسه. */
+:root { --blue: #1976D2; --blue-dark: #0D47A1; --bg-dark: #0A1E38; --bg-darker: #050F1E;
+  --surface: #F3F5F4; --card: #fff; --line: #EAEAEC; --text: #10233d; --muted: #7b8794; --gold: #D4A017; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Tajawal', Tahoma, sans-serif; background: var(--surface); color: var(--text);
+  line-height: 1.85; }
+.hero { background: linear-gradient(160deg, var(--bg-dark), var(--bg-darker)); color: #fff;
+  padding: 44px 20px 38px; text-align: center; }
+.hero img { height: 40px; margin-bottom: 14px; }
+.hero h1 { font-size: clamp(1.7rem, 6vw, 2.5rem); font-weight: 900; }
+.hero p { color: #9fb3cd; margin-top: 10px; font-size: 1rem; max-width: 560px; margin-inline: auto; }
+main { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
+.banner { background: linear-gradient(135deg, var(--blue), var(--blue-dark)); color: #fff;
+  border-radius: 16px; padding: 18px 20px; display: flex; gap: 13px; align-items: center;
+  font-weight: 700; margin-bottom: 18px; box-shadow: 0 6px 20px rgba(13,71,161,.28); }
+.banner .g { font-size: 1.9rem; }
+.lesson { background: var(--card); border-radius: 15px; margin-bottom: 11px; overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.lesson summary { cursor: pointer; padding: 15px 18px; font-size: 1.05rem; display: flex;
+  align-items: center; gap: 11px; list-style: none; }
+.lesson summary::-webkit-details-marker { display: none; }
+.lesson summary::after { content: '⌄'; margin-inline-start: auto; color: var(--muted);
+  font-size: 1.4rem; line-height: 1; transition: transform .2s; }
+.lesson[open] summary::after { transform: rotate(180deg); }
+.lesson summary:hover { background: #f7f9fb; }
+.lesson .ic { width: 38px; height: 38px; border-radius: 50%; background: #E7F0FF;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 1.15rem; flex: 0 0 auto; }
+.lesson ul { padding: 0 20px 18px 20px; list-style: none; }
+.lesson li { position: relative; padding-inline-start: 20px; margin-bottom: 11px; font-size: .96rem; }
+.lesson li::before { content: ''; position: absolute; inset-inline-start: 0; top: 12px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
+.cta { background: var(--card); border-radius: 15px; padding: 20px; text-align: center;
+  margin-top: 22px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.cta a { display: inline-flex; background: var(--gold); color: #0B3D2E; text-decoration: none;
+  border-radius: 12px; padding: 13px 30px; font-weight: 800; margin-top: 12px; }
+.cta a:hover { background: #B8860B; }
+.note { color: var(--muted); font-size: .85rem; text-align: center; margin-top: 24px; }
+.note a { color: var(--blue-dark); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <img src="/images/zadgo-logo.png" alt="ZadGo">
+  <h1>دليل الكابتن</h1>
+  <p>كل ما تحتاج معرفته قبل أول توصيلة — وبعدها.</p>
+</div>
+
+<main>
+  <div class="banner"><span class="g">🎓</span>
+    <span>خمسة دروس قصيرة تغطي رحلتك كاملة — من أول عرض إلى سحب أرباحك</span></div>
+
+  <details class="lesson" open>
+    <summary><span class="ic">📡</span> <b>1. الاتصال والعروض</b></summary>
+    <ul>
+      <li>فعّل «متاح» من البطاقة أعلى الطلبات — لن يصلك أي عرض وأنت غير متصل.</li>
+      <li>عند إسناد طلب لك تظهر بطاقة عرض فيها: أجرتك، مسافة الالتقاط، مسافة التوصيل، ومبلغ التحصيل إن كان نقدياً.</li>
+      <li>معك 45 ثانية للقرار — انقضاؤها أو الرفض يمرّر الطلب لسائق آخر.</li>
+      <li>معدل قبولك محفوظ في حسابك ويظهر في «أرباحي» — حافظ عليه مرتفعاً.</li>
+    </ul>
+  </details>
+  <details class="lesson">
+    <summary><span class="ic">🧾</span> <b>2. الاستلام من المطعم</b></summary>
+    <ul>
+      <li>اضغط «وصلتُ المطعم» عند وصولك — يُسجَّل وقتك وموقعك وهو حجّتك في أي نزاع تأخير.</li>
+      <li>اعرض «مذكرة الاستلام» لموظف المطعم — رقم الطلب الضخم يقرؤه من بعيد.</li>
+      <li>القاعدة الذهبية: طابق رقم الطلب على ملصق الكيس وعدد الأصناف قبل المغادرة — تمنع «الطلب الخاطئ» من جذره.</li>
+      <li>زر «استلمت الطلب» يعمل فقط ضمن 100 متر من المطعم.</li>
+      <li>الصورة عند الاستلام اختيارية — لكنها تحميك في أي خلاف.</li>
+    </ul>
+  </details>
+  <details class="lesson">
+    <summary><span class="ic">🛵</span> <b>3. التوصيل والتسليم</b></summary>
+    <ul>
+      <li>«ابدأ الملاحة» يفتح خرائط جوجل نحو وجهتك الحالية: المطعم قبل الاستلام، والعميل بعده.</li>
+      <li>الطلب النقدي: لافتة حمراء تذكّرك بالمبلغ — حصّله كاملاً قبل تسليم الكيس.</li>
+      <li>زر «تأكيد التوصيل» يعمل فقط ضمن 150 متراً من عنوان العميل.</li>
+      <li>تعذّر الوصول للعميل؟ اتصل به من زر الهاتف، أو راسله من المحادثة — وكل ذلك مسجّل لصالحك.</li>
+    </ul>
+  </details>
+  <details class="lesson">
+    <summary><span class="ic">👛</span> <b>4. محفظتك والعُهدة</b></summary>
+    <ul>
+      <li>استلمت طلباً نقدياً؟ تُقيَّد قيمته على محفظتك (عُهدة) لأن البضاعة صارت بيدك — وعند التسليم تقبض كامل المبلغ: قيمة الطلب تسدّ العُهدة وأجرتك ربحك.</li>
+      <li>الطلب المدفوع إلكترونياً: لا عُهدة، وأجرتك تُضاف لرصيدك.</li>
+      <li>رصيدك موجب؟ اسحبه بنفسك من زر «اسحب أموالي» — الإدارة تصرف وتقيّد الحركة في سجلّك.</li>
+      <li>رصيدك سالب (عُهدة بيدك)؟ سدّده بتسليم نقدي أو تحويل للإدارة من «شحن المحفظة».</li>
+      <li>أُلغي طلب بعد استلامك؟ تُردّ عُهدته لمحفظتك تلقائياً — كل حركة لها سطر في السجلّ.</li>
+    </ul>
+  </details>
+  <details class="lesson">
+    <summary><span class="ic">🏅</span> <b>5. التقييم والسلوك</b></summary>
+    <ul>
+      <li>العميل يقيّمك بعد كل توصيلة — التقييم العالي يقدّمك في الإسناد التلقائي.</li>
+      <li>الإنذارات من الشكاوى المثبتة تتراكم — عند الثالث يُعلَّق حسابك حتى مراجعة الإدارة.</li>
+      <li>عندك مشكلة مع عميل أو مطعم؟ قدّم شكوى من أيقونة الدعم — تُدرس ويُردّ عليك خلال 24 ساعة.</li>
+      <li>لا تقبل عرضاً لن تلتزم به — الرفض المبكر أفضل للجميع من طلب معلّق.</li>
+    </ul>
+  </details>
+
+  <div class="cta">
+    <b>جاهز تبدأ؟</b>
+    <p style="color:var(--muted);font-size:.92rem">قدّم طلبك ونراجعه خلال ٢٤ ساعة.</p>
+    <a href="/join/">انضم كابتناً في زاد جو</a>
+  </div>
+
+  <p class="note">
+    هذا الدليل نفسه متاح داخل تطبيق الكابتن من أيقونة 🎓 أعلى الشاشة.<br>
+    <a href="/">الصفحة الرئيسية</a> · <a href="/contact.html">التواصل والدعم</a> ·
+    <a href="/terms.html">الشروط والأحكام</a>
+  </p>
+</main>
+
+</body>
+</html>
