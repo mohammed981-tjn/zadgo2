@@ -1178,10 +1178,20 @@ class FirebaseService {
     //   ٣) من له حمولة دون السقف أياً كانت المسافة — آخر الحلول حتى لا
     //      يبقى طلبٌ بلا كابتن، والكابتن نفسه يقبل أو يرفض.
     // ومن بلغ السقف لا يُرشَّح إطلاقاً — هذا هو الحد الذي لا يُخترق.
-    final cfg = await getDeliverySettings().catchError((_) =>
-        <String, dynamic>{});
-    final maxLoad = (cfg['maxOrdersPerDriver'] as num?)?.toInt() ?? 3;
-    final stackKm = (cfg['stackRadiusKm'] as num?)?.toDouble() ?? 2.0;
+    // من مستند `incentives` لا `config`: القواعد المنشورة تقصر قراءة
+    // `config` على المدير وحده، وهذه الدالة تعمل في **تطبيق المطعم** —
+    // فقراءتها من هناك ترتدّ برفض صامت، ويعمل الرقمان بالافتراضي أبداً
+    // فيصيران مبرمَجين فعلياً مهما ضبطهما المدير (خلاف بند ج١).
+    // اكتُشف بعد تنبيه مساعد الويب ٢٠٢٦-٠٨-١١ إلى القيد نفسه.
+    var maxLoad = 3;
+    var stackKm = 2.0;
+    try {
+      final s = await getIncentiveSettings();
+      maxLoad = s.maxOrdersPerDriver;
+      stackKm = s.stackRadiusKm;
+    } catch (_) {
+      // تعذّرت القراءة — الافتراضيات المعتمدة، والإسناد لا يتوقف لأجل رقم.
+    }
 
     final underCap = online.where((d) => d.activeOrders < maxLoad).toList();
     if (underCap.isEmpty) return false;
@@ -1312,8 +1322,7 @@ class FirebaseService {
   /// الكابتن ليحسب علم سعته بنفس القاعدة التي يرشّح بها المطعم.
   Future<int> maxOrdersPerDriver() async {
     try {
-      final cfg = await getDeliverySettings();
-      return (cfg['maxOrdersPerDriver'] as num?)?.toInt() ?? 3;
+      return (await getIncentiveSettings()).maxOrdersPerDriver;
     } catch (_) {
       return 3;
     }
@@ -2051,10 +2060,10 @@ class FirebaseService {
     if (!_wasCooked(order.status)) return;
     if (order.restaurantCompensation > 0) return; // لا يتكرر
     try {
-      final cfg = await getDeliverySettings();
-      final pct =
-          (cfg['restaurantCancelCompensationPercent'] as num?)?.toDouble() ??
-              100;
+      // من مستند الإعدادات نفسه الذي يضبطه المدير من لوحته (لا من `config`
+      // الذي لا واجهة له) — فيبقى الرقم بيده لا في الكود (بند ج١).
+      final pct = (await getIncentiveSettings())
+          .restaurantCancelCompensationPercent;
       if (pct <= 0) return;
       final amount = order.itemsTotal * (pct / 100);
       if (amount <= 0) return;

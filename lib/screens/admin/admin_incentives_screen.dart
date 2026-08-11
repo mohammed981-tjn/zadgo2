@@ -307,7 +307,7 @@ class _SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<_SettingsForm> {
   late bool _referralOn, _challengeOn;
   late final TextEditingController _referrer, _referee, _deliveries,
-      _windowDays, _cap, _joinUrl;
+      _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct;
   late bool _autoPay;
   late List<int> _days;
   late List<({TextEditingController d, TextEditingController b})> _tiers;
@@ -325,6 +325,10 @@ class _SettingsFormState extends State<_SettingsForm> {
     _windowDays = TextEditingController(text: '${s.referralWindowDays}');
     _cap = TextEditingController(text: '${s.referralMonthlyCap}');
     _joinUrl = TextEditingController(text: s.joinUrl);
+    _maxLoad = TextEditingController(text: '${s.maxOrdersPerDriver}');
+    _stackKm = TextEditingController(text: s.stackRadiusKm.toStringAsFixed(1));
+    _compPct = TextEditingController(
+        text: s.restaurantCancelCompensationPercent.toStringAsFixed(0));
     _autoPay = s.autoPay;
     _days = [...s.challengeWeekdays];
     _tiers = s.tiers
@@ -339,6 +343,7 @@ class _SettingsFormState extends State<_SettingsForm> {
   void dispose() {
     for (final c in [
       _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
+      _maxLoad, _stackKm, _compPct,
     ]) {
       c.dispose();
     }
@@ -382,6 +387,15 @@ class _SettingsFormState extends State<_SettingsForm> {
               tiers: tiers,
               autoPay: _autoPay,
               joinUrl: _joinUrl.text.trim(),
+              // السقف لا يقلّ عن ١ وإلا توقف الإسناد كلياً، والنطاق لا
+              // يقلّ عن صفر — حارسٌ يمنع رقماً يشلّ التشغيل بغلطة إدخال.
+              maxOrdersPerDriver:
+                  (int.tryParse(_maxLoad.text.trim()) ?? 3).clamp(1, 10),
+              stackRadiusKm:
+                  (double.tryParse(_stackKm.text.trim()) ?? 2.0).clamp(0.0, 50.0),
+              restaurantCancelCompensationPercent:
+                  (double.tryParse(_compPct.text.trim()) ?? 100)
+                      .clamp(0.0, 100.0),
             ),
           );
       if (mounted) {
@@ -450,6 +464,46 @@ class _SettingsFormState extends State<_SettingsForm> {
               isDense: true,
               border: OutlineInputBorder(),
             ),
+          ),
+
+          const Divider(height: 26),
+          // سقف الإسناد المتزامن — ليس حافزاً، لكنه يسكن هنا لأن هذا
+          // المستند وحده يقرؤه تطبيقا المطعم والكابتن (القواعد تقصر
+          // `delivery_settings/config` على المدير).
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('الطلبات المتزامنة للكابتن',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: _num(_maxLoad, 'أقصى طلبات معاً')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_stackKm, 'تقارب المطاعم (كم)')),
+          ]),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'الكابتن لا يحمل أكثر من العدد أعلاه، ولا يُضمّ إليه طلب '
+                'إلا إذا كان مطعمه ضمن مسافة التقارب من مطعم أول طلب بيده.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+          ),
+
+          const Divider(height: 26),
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('تعويض المطعم عند الإلغاء',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          _num(_compPct, 'نسبة التعويض بعد بدء التحضير (٪)'),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'طلبٌ أُلغي بعد «جاري التحضير» يُقيَّد للمطعم بهذه النسبة من '
+                'قيمة وجباته وبلا عمولة. ١٠٠٪ هو المعيار العالمي، وصفر يعني '
+                'لا تعويض. الإلغاء قبل التحضير لا يُعوَّض أصلاً.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),
