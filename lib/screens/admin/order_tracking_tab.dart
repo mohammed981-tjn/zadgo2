@@ -23,6 +23,7 @@ import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/complaint_window.dart' show formatRemaining;
 import '../customer/order_map_screen.dart';
 import '../customer/order_chat_screen.dart';
 
@@ -159,6 +160,18 @@ class _TrackedOrderCard extends StatelessWidget {
     return 'الوقت المتبقي المتوقع: ~$remaining د';
   }
 
+  /// وقت دخول الطلب — كان غائباً عن بطاقة المتابعة كلها (بلاغ المالك
+  /// ٢٠٢٦-٠٨-١١)، فلا يعرف المدير متى دخل الطلب إلا بحساب عكسي من
+  /// «المتبقي المتوقع». التاريخ والساعة والعمر معاً: الأول للمراجعة،
+  /// والثاني للمطابقة مع شاشتَي المطعم والكابتن، والثالث لقرار اللحظة.
+  String _placedLabel() {
+    final t = order.createdAt;
+    final clock =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    return 'دخل الطلب ${t.day}/${t.month} — $clock '
+        '(منذ ${formatRemaining(DateTime.now().difference(t))})';
+  }
+
   /// ✅ الخلل المُصلَح: كانت كل الطلبات (حتى الجديدة منها) تُحسب أحياناً
   /// "متأخرة" لأن الحد لم يتضمن أي سماحية فوق التقدير الخام، فكانت أي مرحلة
   /// لاحقة لمراحل الطلب (تحضير+بحث سائق+استلام+توصيل) تتجاوز الـ٣٠ دقيقة
@@ -291,6 +304,7 @@ class _TrackedOrderCard extends StatelessWidget {
             )
           else
             const InfoRow(icon: Icons.delivery_dining_outlined, text: 'لم يُعيّن سائق بعد'),
+          InfoRow(icon: Icons.event_available_outlined, text: _placedLabel()),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
           OrderTrackingTimeline(status: order.status),
           const SizedBox(height: 8),
