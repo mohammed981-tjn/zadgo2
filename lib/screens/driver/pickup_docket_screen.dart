@@ -406,31 +406,32 @@ class _ApproachButton extends StatelessWidget {
             ? ' — ${(meters / 1000).toStringAsFixed(1)} كم'
             : ' — ${meters.round()} م';
 
-    return Column(children: [
-      // «توجه للمطعم» يُضاف حين يكون بعيداً — إضافةً لا استبدالاً.
-      if (!near) ...[
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => OrderMapScreen(order: order, readOnly: false)),
-            ),
-            icon: const Icon(Icons.navigation_outlined),
-            label: Text('توجه للمطعم$distanceLabel'),
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
-      SizedBox(
+    // زر واحد يتحوّل (قرار المالك ٢٠٢٦-٠٨-١١، مؤكَّداً بعد تجربة الزرّين
+    // معاً): بعيداً «توجه للمطعم» بالمسافة، وضمن النطاق «وصلتُ المطعم».
+    // وموقعٌ مجهول (إذن مرفوض/GPS متعذّر) يعرض «وصلتُ المطعم» لا «توجه»،
+    // فالحارس عندها هو من يقرّر ويشرح — ولا يبقى الكابتن بلا مخرج إن تعذّر
+    // قياس موقعه أصلاً.
+    if (!near && meters != null) {
+      return SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
-          onPressed: () => DriverProofFlow.recordArrival(context, service, order),
-          icon: const Icon(Icons.where_to_vote_outlined),
-          label: const Text('وصلتُ المطعم'),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => OrderMapScreen(order: order, readOnly: false)),
+          ),
+          icon: const Icon(Icons.navigation_outlined),
+          label: Text('توجه للمطعم$distanceLabel'),
         ),
+      );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => DriverProofFlow.recordArrival(context, service, order),
+        icon: const Icon(Icons.where_to_vote_outlined),
+        label: const Text('وصلتُ المطعم'),
       ),
-    ]);
+    );
   }
 }
