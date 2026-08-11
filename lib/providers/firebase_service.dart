@@ -1148,12 +1148,19 @@ class FirebaseService {
         .toList();
     if (online.isEmpty) return false;
 
+    // ترتيب الترشيح ثلاث درجات — `isAvailable` صار **تفضيلاً لا مانعاً**
+    // (قرار المالك ٢٠٢٦-٠٨-١١: «الكابتن يستلم أكثر من طلب»):
+    //   ١) المتاحون فعلاً.
+    //   ٢) فإن لم يوجد: مصالحة العالقين — تعمل من لوحة الإدارة فقط لأن سرد
+    //      كل الطلبات صلاحية إدارية، فتفشل بهدوء من تطبيق المطعم.
+    //   ٣) فإن لم يوجد: **كل متصل ولو كان مشغولاً**.
+    // الدرجة الثالثة هي التي كانت ناقصة، وهي التي أوقفت التشغيل: كابتن
+    // واحد بعلم «مشغول» — حقيقةً أو عالقاً من طلب أُلغي — كان يعني أن كل
+    // طلبات المنصّة لا تجد من يحملها، وتطبيق المطعم عاجز عن مصالحة العلم.
+    // وكابتن مشغول يقرّر بنفسه (قبول/رفض) خيرٌ من طلبٍ لا يراه أحد.
     var available = online.where((d) => d.isAvailable).toList();
-    // لا متاح؟ قد يكون العائق وهمياً (خ٢) — تُصالَح الحالة قبل الاستسلام.
-    if (available.isEmpty) {
-      available = await _freeStuckDrivers(online);
-      if (available.isEmpty) return false;
-    }
+    if (available.isEmpty) available = await _freeStuckDrivers(online);
+    if (available.isEmpty) available = online;
 
     // الترشيح بالمسافة حين تتوفر النقطتان، وإلا بالتقييم — لا انسحاب.
     final located = order.restaurantLat != null && order.restaurantLng != null
