@@ -184,6 +184,13 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
   cursor: pointer; font-weight: 700; color: var(--muted); font-size: .9rem; }
 .tabs button.on { background: #fff; color: var(--green); box-shadow: var(--shadow); }
 
+.suggest { background: #FDF6E3; border: 1.5px solid var(--gold-light); border-radius: 11px;
+  padding: 11px 13px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
+  justify-content: space-between; font-size: .86rem; }
+.suggest b { color: var(--green); }
+.credit { text-align: center; color: var(--muted); font-size: .72rem; margin-top: 4px; }
+.credit a { color: var(--muted); }
+
 .hide { display: none !important; }
 @media (min-width: 820px) { nav.bottom { max-width: 760px; margin: 0 auto; border-radius: 16px 16px 0 0; } }
 </style>
@@ -338,7 +345,7 @@ const S = {
   cartResto: null,       // {id,name} — سلة واحدة لمطعم واحد
   orders: [],
   unsubOrders: null,
-  addr: { text: '', lat: null, lng: null },
+  addr: { text: '', lat: null, lng: null, auto: '', suggest: null, geoFailed: false },
   busy: false,
 };
 
@@ -687,15 +694,26 @@ function viewCart() {
 
     <div class="sec-title">عنوان التوصيل</div>
     <div class="card">
-      <div class="field"><label for="addr">الوصف (الحي، الشارع، رقم المبنى)</label>
-        <textarea id="addr" rows="2" placeholder="مثال: حي الفتح، شارع السيح، مبنى 7538">${esc(S.addr.text)}</textarea></div>
       <button class="btn ghost block" id="locBtn">
-        ${noLoc ? '📍 حدّد موقعي على الخريطة' : '✅ تم تحديد موقعك — اضغط للتحديث'}</button>
-      <p class="muted" style="margin-top:8px">
+        ${noLoc ? '📍 حدّد موقعي واكتب العنوان تلقائياً' : '✅ تم تحديد موقعك — اضغط للتحديث'}</button>
+      <p class="muted" style="margin:8px 0 12px">
         ${noLoc ? 'موقعك مطلوب لحساب أجرة التوصيل بدقة ولإيصال الكابتن إليك.'
           : km != null ? `تبعد عن المطعم ${km.toFixed(1)} كم` : 'موقع المطعم غير مسجّل — ستُحتسب الأجرة الأساسية.'}
       </p>
+      ${S.addr.suggest ? `<div class="suggest">
+        <div>📍 العنوان المكتشف من موقعك:<br><b>${esc(S.addr.suggest)}</b></div>
+        <button class="btn sm" id="useSuggest">استخدمه</button></div>` : ''}
+      ${S.addr.geoFailed && !noLoc ? `<div class="err">
+        حُدّد موقعك بدقة، لكن تعذّر قراءة اسم الشارع تلقائياً — اكتب العنوان بنفسك.
+        (الكابتن يصلك بالموقع على أي حال.)</div>` : ''}
+      <div class="field" style="margin-bottom:0">
+        <label for="addr">وصف العنوان — أضف رقم المبنى والدور والعلامة المميزة</label>
+        <textarea id="addr" rows="3" placeholder="مثال: حي الفتح، شارع السيح، مبنى 7538، الدور الثاني">${esc(S.addr.text)}</textarea></div>
+      ${!noLoc && !S.addr.geoFailed ? `<p class="muted" style="margin-top:7px">
+        كُتب العنوان من موقعك — أضف رقم المبنى أو الشقة، فالخريطة تدلّ على الشارع لا على بابك.</p>` : ''}
     </div>
+    ${noLoc ? '' : `<p class="credit">بيانات العناوين من
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a></p>`}
 
     <div class="sec-title">طريقة الدفع</div>
     <div class="card">
@@ -729,12 +747,53 @@ function viewCart() {
     else if (dec) changeQty(dec.dataset.dec, -1);
   };
   $('addr').oninput = (e) => { S.addr.text = e.target.value; };
+  if ($('useSuggest')) $('useSuggest').onclick = () => {
+    S.addr.text = S.addr.suggest; S.addr.auto = S.addr.suggest; S.addr.suggest = null; render();
+  };
   $('clearCart').onclick = () => {
     if (!confirm('إفراغ السلة؟')) return;
     S.cart = []; S.cartResto = null; saveCart(); render();
   };
   $('locBtn').onclick = pickLocation;
   $('placeBtn').onclick = placeOrder;
+}
+
+/* ---------------- تحويل الإحداثيات إلى عنوان ----------------
+ * يقابل _getAddressFromLatLng في تطبيق العميل (حزمة geocoding هناك،
+ * وخدمة OpenStreetMap هنا لأن المتصفح لا يملك مكافئاً محلياً).
+ *
+ * قاعدتان تحكمانه:
+ * ١. **الإخفاق لا يكتب شيئاً في الحقل.** كتابة نصٍّ مثل «تعذّر جلب العنوان»
+ *    مكان العنوان تمرّ من أي فحصٍ يكتفي بأن الحقل غير فارغ، فيصل الكابتن
+ *    عنوانٌ لا يدلّ على مكان. الصمت هنا أأمن من نصٍّ كاذب.
+ * ٢. **لا يمحو ما كتبه العميل بيده.** المكتشَف يملأ الحقل الفارغ أو يستبدل
+ *    اكتشافاً سابقاً؛ فإن كان العميل قد كتب تفصيلاً بنفسه عُرض عليه
+ *    المكتشَف اقتراحاً يقبله بضغطة.
+ */
+async function reverseGeocode(lat, lng) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 9000);
+  try {
+    const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2'
+      + `&lat=${lat}&lon=${lng}&zoom=18&accept-language=ar`;
+    const res = await fetch(url, { signal: ctl.signal, headers: { Accept: 'application/json' } });
+    if (!res.ok) return null;
+    const d = await res.json();
+    const a = (d && d.address) || {};
+    // الترتيب من الأدقّ إلى الأعمّ — كما يقرؤه الكابتن: الشارع فالحي فالمدينة.
+    // المنطقة الإدارية تُذكر فقط إن غابت المدينة: كابتن يعمل داخل المدينة لا
+    // تدلّه «منطقة المدينة المنورة» على شيء، بل تُطيل العنوان وتزحم المفيد.
+    const city = a.city || a.town || a.village || a.municipality;
+    const parts = [
+      a.road || a.pedestrian || a.residential,
+      a.neighbourhood || a.suburb || a.quarter || a.city_district,
+      city || a.state,
+    ].filter(Boolean);
+    // أقلّ من جزأين ليس عنواناً يُوصَل إليه — نتركه للعميل بدل أن نملأه بمدينةٍ وحدها.
+    return parts.length >= 2 ? [...new Set(parts)].join('، ') : null;
+  } catch (e) {
+    return null;   // انقطاع أو مهلة أو رفض الخدمة — لا شيء يُكتب
+  } finally { clearTimeout(t); }
 }
 
 function pickLocation() {
@@ -745,7 +804,24 @@ function pickLocation() {
   }
   b.disabled = true; b.textContent = '⏳ جارٍ تحديد موقعك…';
   navigator.geolocation.getCurrentPosition(
-    (pos) => { S.addr.lat = pos.coords.latitude; S.addr.lng = pos.coords.longitude; render(); },
+    async (pos) => {
+      S.addr.lat = pos.coords.latitude;
+      S.addr.lng = pos.coords.longitude;
+      S.addr.suggest = null;
+      b.textContent = '⏳ جارٍ قراءة العنوان…';
+      const found = await reverseGeocode(S.addr.lat, S.addr.lng);
+      if (found) {
+        const typed = (S.addr.text || '').trim();
+        if (!typed || typed === (S.addr.auto || '').trim()) {
+          S.addr.text = found;      // الحقل فارغ أو يحمل اكتشافاً سابقاً
+          S.addr.auto = found;
+        } else {
+          S.addr.suggest = found;   // العميل كتب بنفسه — نعرض ولا نمحو
+        }
+      }
+      S.addr.geoFailed = !found;
+      render();
+    },
     (err) => {
       b.disabled = false;
       showOrderErr(err.code === 1
