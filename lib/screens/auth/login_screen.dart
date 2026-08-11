@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show TextInput;
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/models.dart';
@@ -46,6 +47,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(_emailCtrl.text, _passCtrl.text);
     if (!mounted) return;
     if (ok && auth.user != null) {
+      // إغلاق سياق التعبئة التلقائية بعد نجاح الدخول هو ما يدفع مدير كلمات
+      // المرور (Google وغيره) لعرض «حفظ كلمة المرور؟» — بدونه كان السائق
+      // يعيد كتابتها في كل مرة (شكوى المالك ٢٠٢٦-٠٨-١١).
+      TextInput.finishAutofillContext();
       final restrict = AppFlavorConfig.restrictToRole;
       if (restrict != null && auth.user!.role != restrict) {
         await auth.logout();
@@ -187,9 +192,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                     const SizedBox(height: 40),
                     // النموذج — نفس الخلفية الداكنة، حقول شفافة بلون النكهة.
+                    // AutofillGroup + تلميحات الحقول = يعرض النظام كلمات
+                    // المرور المحفوظة ويقترح حفظ الجديدة.
                     Form(
                       key: _form,
-                      child: Column(
+                      child: AutofillGroup(
+                          child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Align(
@@ -208,6 +216,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _emailCtrl,
                             keyboardType: TextInputType.emailAddress,
                             textDirection: TextDirection.ltr,
+                            autofillHints: const [
+                              AutofillHints.username,
+                              AutofillHints.email,
+                            ],
                             style: const TextStyle(color: Colors.white),
                             decoration:
                                 _fieldDecoration('البريد الإلكتروني', Icons.email_outlined, fc.primaryLight),
@@ -218,6 +230,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: _passCtrl,
                             obscureText: _obscure,
                             textDirection: TextDirection.ltr,
+                            autofillHints: const [AutofillHints.password],
+                            onFieldSubmitted: (_) => _login(),
                             style: const TextStyle(color: Colors.white),
                             decoration: _fieldDecoration(
                               'كلمة المرور',
@@ -284,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                         ],
-                      ),
+                      )),
                     ),
                     const SizedBox(height: 24),
                   ],
