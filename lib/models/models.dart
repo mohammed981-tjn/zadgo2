@@ -1757,6 +1757,13 @@ class Order {
   /// ٧:٣٥ = التأخير من المطعم لا من السائق.
   final DateTime? arrivedAtRestaurantAt;
 
+  /// لحظة تأكيد **المطعم** تسليمَ الطلب للكابتن — الوجه الثاني للاستلام
+  /// (طلب المالك ٢٠٢٦-٠٨-١١): ضغطة الكابتن وحدها إقرارُ طرفٍ واحد، فإن
+  /// أنكر المطعم التسليم أو ادّعى تأخّر الكابتن لم يكن في السجل ما يفصل.
+  /// الحالة لا تتغيّر بهذه الضغطة — الانتقال يبقى بيد الكابتن كما هو —
+  /// وإنما تُختم لحظةُ التسليم من طرف المطعم لتظهر في الفاتورة كإثبات.
+  final DateTime? restaurantHandoverAt;
+
   /// كود الخصم المطبَّق على الطلب (إن وُجد) وقيمة خصمه بالريال. القيمة
   /// تُحفظ محسوبةً لا كنسبة، فتبقى الفاتورة صحيحة حتى لو عُدّل الكوبون
   /// أو حُذف لاحقاً.
@@ -1800,6 +1807,7 @@ class Order {
     this.driverAcknowledged = true,
     this.custodyDebited = false,
     this.arrivedAtRestaurantAt,
+    this.restaurantHandoverAt,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -1930,6 +1938,8 @@ class Order {
         custodyDebited: map['custodyDebited'] as bool? ?? false,
         arrivedAtRestaurantAt:
             (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
+        restaurantHandoverAt:
+            (map['restaurantHandoverAt'] as Timestamp?)?.toDate(),
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -1973,6 +1983,8 @@ class Order {
         'custodyDebited': custodyDebited,
         if (arrivedAtRestaurantAt != null)
           'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
+        if (restaurantHandoverAt != null)
+          'restaurantHandoverAt': Timestamp.fromDate(restaurantHandoverAt!),
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2032,6 +2044,7 @@ class Order {
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
         custodyDebited: custodyDebited,
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
+        restaurantHandoverAt: restaurantHandoverAt,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );

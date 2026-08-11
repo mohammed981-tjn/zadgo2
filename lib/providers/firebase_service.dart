@@ -835,6 +835,24 @@ class FirebaseService {
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
+  /// تأكيد المطعم تسليمَ الطلب للكابتن — **بلا تغيير حالة** (طلب المالك
+  /// ٢٠٢٦-٠٨-١١): الانتقال إلى «في الطريق» يبقى بضغطة الكابتن وحده كما
+  /// كان (ضغطة المطعم لا تُثبت استلاماً لم يقع)، وهذا الختم يسجّل الوجه
+  /// الثاني للتسليم فيصير في الطلب إقرارُ طرفين لا طرف واحد — وهو ما
+  /// يُحتكم إليه في نزاع «سلّمتُه» / «لم يصلني».
+  Future<void> confirmRestaurantHandover(String orderId) async {
+    final order = await getOrderOnce(orderId);
+    if (order == null) throw Exception('الطلب غير موجود');
+    if (order.restaurantHandoverAt != null) return; // ختمٌ لا يتكرر
+    if (order.status.isFinished) {
+      throw Exception('الطلب لم يعد نشطاً — حالته: ${order.status.label}');
+    }
+    await _orders.doc(orderId).update({
+      'restaurantHandoverAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> rejectOrderByRestaurant(String orderId, String reason) async {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
