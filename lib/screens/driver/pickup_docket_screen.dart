@@ -433,33 +433,31 @@ class _ApproachButton extends StatelessWidget {
             ? ' — ${(meters / 1000).toStringAsFixed(1)} كم'
             : ' — ${meters.round()} م';
 
-    // الزرّان معاً (قرار المالك النهائي ٢٠٢٦-٠٨-١١ بعد تجربة الصيغتين):
-    // «توجه للمطعم» بالمسافة ما دام بعيداً، و«وصلتُ المطعم» ظاهر دائماً —
-    // فلا يُحجب فعلٌ عن الكابتن في الواجهة، والحارس وحده يقرّر ويشرح.
-    return Column(children: [
-      if (!near && meters != null) ...[
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => OrderMapScreen(order: order, readOnly: false)),
-            ),
-            icon: const Icon(Icons.navigation_outlined),
-            label: Text('توجه للمطعم$distanceLabel'),
-          ),
-        ),
-        const SizedBox(height: 8),
-      ],
-      SizedBox(
+    // زر واحد يتحوّل (قرار المالك النهائي ٢٠٢٦-٠٨-١١ بعد تجربة الصيغتين):
+    // «توجه للمطعم — X» ما دام بعيداً، ويصير «وصلتُ المطعم» داخل النطاق.
+    // وموقعٌ مجهول (إذن مرفوض/GPS متعذّر) يعرض «وصلتُ المطعم» لا «توجه» —
+    // فلا يبقى الكابتن بلا مخرج حين يتعذّر قياس موقعه، والحارس يشرح المانع.
+    if (!near && meters != null) {
+      return SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
-          onPressed: () => DriverProofFlow.recordArrival(context, service, order),
-          icon: const Icon(Icons.where_to_vote_outlined),
-          label: const Text('وصلتُ المطعم'),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => OrderMapScreen(order: order, readOnly: false)),
+          ),
+          icon: const Icon(Icons.navigation_outlined),
+          label: Text('توجه للمطعم$distanceLabel'),
         ),
+      );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => DriverProofFlow.recordArrival(context, service, order),
+        icon: const Icon(Icons.where_to_vote_outlined),
+        label: const Text('وصلتُ المطعم'),
       ),
-    ]);
+    );
   }
 }

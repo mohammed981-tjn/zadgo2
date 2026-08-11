@@ -44,6 +44,17 @@ class OrderReceiptScreen extends StatelessWidget {
               Text('أُنشئ في ${_fmt(o.createdAt)}',
                   style: const TextStyle(
                       fontSize: 12, color: AppColors.textGray)),
+              // سلسلة العهدة موثّقة بطرفيها: وصول الكابتن للمطعم، وإقرار
+              // المطعم بالتسليم (ختمٌ يضغطه صاحب المطعم بنفسه) — بهما يُفصل
+              // في نزاع «متى خرج الطلب؟» بلا اجتهاد.
+              if (o.arrivedAtRestaurantAt != null)
+                Text('وصل الكابتن للمطعم ${_fmt(o.arrivedAtRestaurantAt!)}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textGray)),
+              if (o.restaurantHandoverAt != null)
+                Text('أقرّ المطعم بالتسليم ${_fmt(o.restaurantHandoverAt!)}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textGray)),
               if (o.status == OrderStatus.delivered && o.statusChangedAt != null)
                 Text('سُلّم في ${_fmt(o.statusChangedAt!)}',
                     style: const TextStyle(

@@ -526,6 +526,29 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     }
   }
 
+  Future<void> _confirmHandover(BuildContext context) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'تسليم الطلب للسائق',
+      content: 'هل سلّمتَ الطلب #${widget.order.orderNumber} للكابتن الآن؟\n\n'
+          'سيُسجَّل وقت التسليم من طرفك في الفاتورة — وهو إثباتك إن نشأ '
+          'خلاف حول موعد الاستلام.',
+      confirmLabel: 'سلّمتُه الآن',
+    );
+    if (ok != true) return;
+    setState(() => _actionLoading = true);
+    try {
+      await widget.service.confirmRestaurantHandover(widget.order.id);
+      if (context.mounted) showSuccess(context, 'سُجّل تسليمك للطلب');
+    } catch (e) {
+      if (context.mounted) {
+        showError(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
   Future<void> _runStatusChange(BuildContext context, OrderStatus to) async {
     setState(() => _actionLoading = true);
     try {
@@ -778,6 +801,31 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             onPressed: () => _confirmReady(context),
           ),
         ],
+        // إقرار الطرف الثاني بالتسليم (طلب المالك ٢٠٢٦-٠٨-١١): الطلب كان
+        // يبقى «جاهز — بانتظار استلام السائق» حتى بعد أن يأخذه الكابتن،
+        // فلا يملك المطعم ما يُثبت أنه سلّمه. الضغطة **لا تغيّر الحالة**
+        // (الانتقال بيد الكابتن كما هو — ضغطة المطعم لا تُثبت استلاماً لم
+        // يقع)، بل تختم لحظة التسليم من طرفه فيصير في الطلب إقرار طرفين
+        // يظهر في الفاتورة ويُحتكم إليه في نزاع «سلّمتُه»/«لم يصلني».
+        if (order.status == OrderStatus.readyForPickup) ...[
+          const SizedBox(height: 10),
+          if (order.restaurantHandoverAt == null)
+            _ActionButton(
+              label: 'سلّمتُ الطلب للسائق',
+              color: Colors.teal,
+              loading: _actionLoading,
+              onPressed: () => _confirmHandover(context),
+            )
+          else
+            _HandoverStamp(at: order.restaurantHandoverAt!),
+        ],
+        // بعد أن يؤكد الكابتن استلامه، يبقى ختم المطعم ظاهراً كإثبات.
+        if (order.status.index >= OrderStatus.pickedUp.index &&
+            order.status.isActive &&
+            order.restaurantHandoverAt != null) ...[
+          const SizedBox(height: 10),
+          _HandoverStamp(at: order.restaurantHandoverAt!),
+        ],
       ]),
     );
 
@@ -801,6 +849,37 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         child: child,
       ),
       child: cardContent,
+    );
+  }
+}
+
+/// ختم «سلّمتُه» — يحلّ محل الزر بعد الضغط، بالساعة لا بكلمة مجردة: الوقت
+/// هو محل النزاع لا واقعة التسليم نفسها.
+class _HandoverStamp extends StatelessWidget {
+  final DateTime at;
+  const _HandoverStamp({required this.at});
+
+  @override
+  Widget build(BuildContext context) {
+    final clock =
+        '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.success.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.success.withOpacity(0.5)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.verified_rounded, size: 18, color: AppColors.success),
+        const SizedBox(width: 8),
+        Text('سلّمتَ الطلب للسائق — $clock',
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.success)),
+      ]),
     );
   }
 }
