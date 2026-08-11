@@ -68,8 +68,12 @@ service cloud.firestore {
     /// التطبيق، وعمولته، وحالة السداد، وهوية أطراف الطلب. لا يجوز لأي طرف
     /// غير المدير العام تعديلها بعد إنشاء الطلب.
     function orderMoneyKeys() {
+      // restaurantCompensation: تعويض المطعم عن إلغاء بعد التحضير — مبلغ
+      // مالي يقيّده المدير وحده (بند د١: كل حقل مالي جديد يُحمى فور
+      // إضافته)، وإلا سكّه عميلٌ معدَّل البرمجية لصالح مطعمٍ يواطئه.
       return ['items', 'driverShare', 'appShare', 'platformCommission',
-              'isPaid', 'customerId', 'restaurantId', 'orderNumber'];
+              'isPaid', 'customerId', 'restaurantId', 'orderNumber',
+              'restaurantCompensation'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:

@@ -2026,6 +2026,45 @@ class FirebaseService {
     await _reverseCustodyIfNeeded(order);
     // ويعود متاحاً: بلا هذا كان يبقى «مشغولاً» بطلبٍ أُلغي فلا تصله عروض.
     await _releaseOrderDriver(order);
+    await _compensateRestaurantIfCooked(order);
+  }
+
+  /// هل بدأ المطعم التحضير فعلاً قبل الإلغاء؟ من «جاري التحضير» فصاعداً
+  /// تكون تكلفة الطعام قد وقعت — أما «بانتظار الموافقة» و«تم القبول» فلا
+  /// طبخ فيهما، والإلغاء عندها «كأن الطلب لم يكن» (قرار المالك).
+  static bool _wasCooked(models.OrderStatus s) =>
+      s == models.OrderStatus.preparing ||
+      s == models.OrderStatus.readyForPickup ||
+      s == models.OrderStatus.searchingDriver ||
+      s == models.OrderStatus.driverAssigned ||
+      s == models.OrderStatus.pickedUp ||
+      s == models.OrderStatus.onTheWay;
+
+  /// تعويض المطعم عن طلبٍ أُلغي بعد طبخه — بالمعيار العالمي (يوبر إيتس
+  /// ودور داش): يُدفع للمطعم متى قَبِل وطبخ ولم يكن الإلغاء بسببه. يُختم
+  /// على مستند الطلب نفسه (لا مجموعة جديدة تحتاج قواعد جديدة)، فتقرأه
+  /// دفاتر المطعم والإدارة مباشرةً.
+  ///
+  /// النسبة من إعدادات المدير لا من الكود (بند ج١)، و٠٪ تعني «لا تعويض»
+  /// فيبقى الباب مفتوحاً لسياسة أخرى بلا إصدار جديد.
+  Future<void> _compensateRestaurantIfCooked(models.Order order) async {
+    if (!_wasCooked(order.status)) return;
+    if (order.restaurantCompensation > 0) return; // لا يتكرر
+    try {
+      final cfg = await getDeliverySettings();
+      final pct =
+          (cfg['restaurantCancelCompensationPercent'] as num?)?.toDouble() ??
+              100;
+      if (pct <= 0) return;
+      final amount = order.itemsTotal * (pct / 100);
+      if (amount <= 0) return;
+      await _orders.doc(order.id).update({
+        'restaurantCompensation': amount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // فشل التعويض لا يُبطل الإلغاء — يُصحَّح بقيد تسوية من الدفتر.
+    }
   }
 
   /// إلغاء العميل لطلبه — مسموح فقط قبل أن يبدأ المطعم التحضير

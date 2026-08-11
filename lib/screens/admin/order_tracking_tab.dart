@@ -399,9 +399,21 @@ class _TrackedOrderCard extends StatelessWidget {
                 label: 'إلغاء الطلب',
                 color: AppColors.error,
                 onTap: () async {
+                  // مصارحة بالأثر المالي قبل الضغط لا بعده: الإلغاء بعد
+                  // بدء التحضير يُقيّد تعويضاً للمطعم على المنصّة.
+                  final cooked = order.status == OrderStatus.preparing ||
+                      order.status == OrderStatus.readyForPickup ||
+                      order.status == OrderStatus.searchingDriver ||
+                      order.status == OrderStatus.driverAssigned ||
+                      order.status == OrderStatus.pickedUp ||
+                      order.status == OrderStatus.onTheWay;
                   final ok = await showConfirmDialog(context,
                       title: 'إلغاء الطلب',
-                      content: 'هل تريد إلغاء هذا الطلب نهائياً؟ (كأنه لم يُطلب)',
+                      content: cooked
+                          ? 'المطعم بدأ التحضير — سيُقيَّد له تعويض بقيمة '
+                              '${formatCurrency(order.itemsTotal)} تتحمّله المنصّة، '
+                              'ويُعاد للعميل ما خُصم من محفظته.\n\nإلغاء الطلب؟'
+                          : 'هل تريد إلغاء هذا الطلب نهائياً؟ (كأنه لم يُطلب)',
                       confirmLabel: 'إلغاء الطلب');
                   if (ok == true) {
                     await service.cancelOrder(order.id);
