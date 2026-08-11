@@ -546,9 +546,12 @@ class _OfferBannerState extends State<_OfferBanner> {
                   color: Colors.white.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                    'نقدي — ستحصّل ${formatCurrency(o.payableTotal - o.walletUsed)} من العميل',
-                    style: const TextStyle(
+                // بلا مبلغ عمداً (قرار المالك ٢٠٢٦-٠٨-١١): إجمالي العميل
+                // يشمل عمولة المنصّة ولا شأن للسائق به لحظة القرار — أجرته
+                // أعلاه هي رقمه الوحيد، ومبلغ التحصيل الدقيق يظهر في مذكرة
+                // الاستلام بعد القبول حيث يحتاجه فعلاً.
+                child: const Text('الدفع نقدي — مبلغ التحصيل في مذكرة الاستلام',
+                    style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.w700)),

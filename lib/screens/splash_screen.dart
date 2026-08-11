@@ -43,13 +43,33 @@ class _SplashScreenState extends State<SplashScreen>
   late final Animation<double> _posterFade = CurvedAnimation(
       parent: _anim, curve: const Interval(0.0, 0.22, curve: Curves.easeOut));
 
+  /// هل تجاوزنا مشهد الثواني الثلاث وما زلنا ننتظر حكم المصادقة؟ يُظهر
+  /// مؤشراً صغيراً كي لا تبدو الشاشة معلّقة على شبكة بطيئة.
+  bool _waitingAuth = false;
+
   @override
   void initState() {
     super.initState();
-    // ثلاث ثوانٍ بقرار صريح من المالك (٢٠٢٦-٠٨-١٠) عدولاً عن قرار 1.2ث
-    // السابق: لحظة العلامة أهم عنده من سرعة الإقلاع، والمدة الآن مشغولة
-    // بمشهد متحرّك لا انتظاراً فارغاً كما كانت عليه في عهد الثانيتين.
-    Future.delayed(const Duration(milliseconds: 3000), _navigate);
+    _start();
+  }
+
+  /// ثلاث ثوانٍ بقرار صريح من المالك (٢٠٢٦-٠٨-١٠) عدولاً عن قرار 1.2ث
+  /// السابق: لحظة العلامة أهم عنده من سرعة الإقلاع، والمدة الآن مشغولة
+  /// بمشهد متحرّك لا انتظاراً فارغاً كما كانت عليه في عهد الثانيتين.
+  ///
+  /// لكنّ المهلة الثابتة وحدها كانت العلّة الخفية وراء «يطلب تسجيل الدخول
+  /// كل مرة»: استعادة الجلسة تحتاج جلب ملف المستخدم عبر الشبكة، وقد تتأخر
+  /// عن الثواني الثلاث فيُحكم على صاحب جلسة سليمة بأنه زائر. فالانتقال
+  /// الآن ينتظر الشرطين معاً: اكتمال المشهد **و**حكم المصادقة الفعلي —
+  /// بسقف ١٢ ثانية يمنع التعليق الأبدي لو انقطعت الشبكة كلياً.
+  Future<void> _start() async {
+    final auth = context.read<app_auth.AuthProvider>();
+    final scene = Future.delayed(const Duration(milliseconds: 3000));
+    await scene;
+    if (mounted && !_navigated) setState(() => _waitingAuth = true);
+    await auth.onAuthResolved
+        .timeout(const Duration(seconds: 12), onTimeout: () {});
+    _navigate();
   }
 
   @override
@@ -162,6 +182,7 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
               ),
+              if (_waitingAuth) const _AuthWaitIndicator(),
             ]),
           ),
         ),
@@ -191,7 +212,9 @@ class _SplashScreenState extends State<SplashScreen>
                   colors: [fc.bgDark, fc.bgDarker],
                 ),
         ),
-        child: Center(
+        child: Stack(children: [
+          if (_waitingAuth) const _AuthWaitIndicator(),
+          Center(
           child: AnimatedBuilder(
             animation: _anim,
             builder: (context, _) => Column(
@@ -281,7 +304,36 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
         ),
+        ]),
       ),
     );
   }
+}
+
+/// مؤشر «ما زلنا نستعيد جلستك» أسفل السبلاش — يظهر فقط إن امتد انتظار حكم
+/// المصادقة بعد انتهاء المشهد، فلا تبدو الشاشة معلّقة بلا تفسير.
+class _AuthWaitIndicator extends StatelessWidget {
+  const _AuthWaitIndicator();
+
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: Alignment.bottomCenter,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 48),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white.withOpacity(0.7),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text('جارٍ استعادة جلستك…',
+                style: TextStyle(
+                    fontSize: 12, color: Colors.white.withOpacity(0.7))),
+          ]),
+        ),
+      );
 }

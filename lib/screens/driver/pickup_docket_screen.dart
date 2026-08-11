@@ -8,21 +8,61 @@
 //   • الأصناف بكمياتها بخط كبير — تُطابَق مع محتوى الشنطة قبل الاستلام.
 //   • شريط الدفع بلون حاسم: أخضر «مدفوع» / برتقالي «حصّل نقداً X» —
 //     أخطر معلومة على السائق أن يخطئ فيها.
-//   • ثم أزرار الرحلة نفسها: «وصلتُ المطعم» و«استلمت الطلب» (بحارس
-//     النطاق والعُهدة والصورة) — فالمذكرة هي مركز ما قبل الاستلام كله.
+//   • ثم أزرار الرحلة نفسها: «توجه للمطعم» (يتحوّل «وصلتُ المطعم» عند
+//     الاقتراب) و«استلمت الطلب» (بحارس النطاق والعُهدة والصورة) —
+//     فالمذكرة هي مركز ما قبل الاستلام كله.
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/driver_proof_flow.dart';
+import '../../utils/location_guard.dart';
 import '../../widgets/common_widgets.dart';
 import '../customer/order_map_screen.dart';
 
-class PickupDocketScreen extends StatelessWidget {
+class PickupDocketScreen extends StatefulWidget {
   final String orderId;
   const PickupDocketScreen({super.key, required this.orderId});
+
+  @override
+  State<PickupDocketScreen> createState() => _PickupDocketScreenState();
+}
+
+class _PickupDocketScreenState extends State<PickupDocketScreen> {
+  /// آخر موقع معروف للجهاز — يقود تحوّل زر «توجه للمطعم» إلى «وصلتُ
+  /// المطعم» عند دخول نطاق المطعم (ملاحظة المالك: سائق بعيد عن المطعم لم
+  /// يكن أمامه زر يوجّهه إليه أصلاً). التتبّع محلي على الجهاز طوال عمر
+  /// الشاشة القصير فقط — لا كتابة Firestore جديدة فوق خنق الموقع القائم.
+  Position? _pos;
+  StreamSubscription<Position>? _posSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _posSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        // كل ~١٥ متراً لا كل ثانية: يكفي لالتقاط لحظة دخول النطاق دون
+        // استنزاف البطارية، والحارس يعيد القياس بدقة عالية عند الضغط.
+        distanceFilter: 15,
+      ),
+    ).listen(
+      (p) => setState(() => _pos = p),
+      // إذن مرفوض أو GPS معطّل: يبقى الزر «توجه للمطعم» — فتح الخريطة لا
+      // يحتاج موقعاً، وحارس «وصلتُ» سيشرح المانع بنفسه عند الحاجة.
+      onError: (_) {},
+    );
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +74,7 @@ class PickupDocketScreen extends StatelessWidget {
       // متابعة حيّة للطلب: لو ألغته الإدارة أو تغيّرت حالته وهو أمام
       // المطعم، تتحدث المذكرة فوراً بدل أن يستلم طلباً أُلغي.
       body: StreamBuilder<Order?>(
-        stream: service.streamOrder(orderId),
+        stream: service.streamOrder(widget.orderId),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
             return const AppLoading();
@@ -261,15 +301,7 @@ class PickupDocketScreen extends StatelessWidget {
                 child: Column(children: [
                   if (prePickup) ...[
                     if (o.arrivedAtRestaurantAt == null) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () =>
-                              DriverProofFlow.recordArrival(context, service, o),
-                          icon: const Icon(Icons.where_to_vote_outlined),
-                          label: const Text('وصلتُ المطعم'),
-                        ),
-                      ),
+                      _ApproachButton(order: o, pos: _pos, service: service),
                       const SizedBox(height: 8),
                     ],
                     ZadGradientButton(
@@ -311,6 +343,61 @@ class PickupDocketScreen extends StatelessWidget {
             ),
           ]);
         },
+      ),
+    );
+  }
+}
+
+/// زر ما قبل الوصول المتحوّل (اقتراح المالك ٢٠٢٦-٠٨-١١): بعيداً عن المطعم
+/// يعرض «توجه للمطعم» ويفتح خريطة الطلب (وفيها الملاحة الخارجية)، وعند
+/// دخول نطاق المطعم يتحوّل تلقائياً إلى «وصلتُ المطعم» فيسجّل الوصول.
+/// عتبة التحوّل هي نفس نطاق الحارس — زرٌ يظهر ثم يرفضه الحارس كان سيبدو
+/// عطلاً لا حمايةً. وموقعٌ مجهول (إذن مرفوض/داخل مبنى) يُعامل كبعيد:
+/// فتح الخريطة يعمل دائماً، والحارس يشرح مانع التسجيل بنفسه عند الحاجة.
+class _ApproachButton extends StatelessWidget {
+  final Order order;
+  final Position? pos;
+  final FirebaseService service;
+  const _ApproachButton(
+      {required this.order, required this.pos, required this.service});
+
+  @override
+  Widget build(BuildContext context) {
+    double? meters;
+    if (pos != null &&
+        order.restaurantLat != null &&
+        order.restaurantLng != null) {
+      meters = Geolocator.distanceBetween(pos!.latitude, pos!.longitude,
+          order.restaurantLat!, order.restaurantLng!);
+    }
+    final near = meters != null && meters <= LocationGuard.proximityMeters;
+
+    if (near) {
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () => DriverProofFlow.recordArrival(context, service, order),
+          icon: const Icon(Icons.where_to_vote_outlined),
+          label: const Text('وصلتُ المطعم'),
+        ),
+      );
+    }
+
+    final distanceLabel = meters == null
+        ? ''
+        : meters >= 1000
+            ? ' — ${(meters / 1000).toStringAsFixed(1)} كم'
+            : ' — ${meters.round()} م';
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => OrderMapScreen(order: order, readOnly: false)),
+        ),
+        icon: const Icon(Icons.navigation_outlined),
+        label: Text('توجه للمطعم$distanceLabel'),
       ),
     );
   }
