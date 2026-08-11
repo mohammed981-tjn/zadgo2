@@ -1166,19 +1166,46 @@ class FirebaseService {
         .toList();
     if (online.isEmpty) return false;
 
-    // ترتيب الترشيح ثلاث درجات — `isAvailable` صار **تفضيلاً لا مانعاً**
-    // (قرار المالك ٢٠٢٦-٠٨-١١: «الكابتن يستلم أكثر من طلب»):
-    //   ١) المتاحون فعلاً.
-    //   ٢) فإن لم يوجد: مصالحة العالقين — تعمل من لوحة الإدارة فقط لأن سرد
-    //      كل الطلبات صلاحية إدارية، فتفشل بهدوء من تطبيق المطعم.
-    //   ٣) فإن لم يوجد: **كل متصل ولو كان مشغولاً**.
-    // الدرجة الثالثة هي التي كانت ناقصة، وهي التي أوقفت التشغيل: كابتن
-    // واحد بعلم «مشغول» — حقيقةً أو عالقاً من طلب أُلغي — كان يعني أن كل
-    // طلبات المنصّة لا تجد من يحملها، وتطبيق المطعم عاجز عن مصالحة العلم.
-    // وكابتن مشغول يقرّر بنفسه (قبول/رفض) خيرٌ من طلبٍ لا يراه أحد.
-    var available = online.where((d) => d.isAvailable).toList();
+    // ── الترشيح بالحمولة والعنقود ───────────────────────────────────────
+    // قرار المالك ٢٠٢٦-٠٨-١١: «إمكانية استلام السائق لثلاث طلبات في نطاق
+    // مطاعم قريبة وليست بعيدة». فالسقف **حدٌّ صارم**، وقُرب المطاعم
+    // **تفضيل** لا مانع مطلق — وإلا عاد الانسداد الذي عطّل التشغيل اليوم
+    // (كابتن واحد بحمولة، فلا يجد الطلب من يحمله ويبقى بلا سائق للأبد).
+    //
+    //   ١) الفارغون (حمولة صفر) — الأقرب للمطعم أولاً.
+    //   ٢) من له حمولة دون السقف **ومطعمُه ضمن نطاق عنقوده** — التجميع
+    //      المقصود: ثلاثة مطاعم متجاورة في خط سير واحد.
+    //   ٣) من له حمولة دون السقف أياً كانت المسافة — آخر الحلول حتى لا
+    //      يبقى طلبٌ بلا كابتن، والكابتن نفسه يقبل أو يرفض.
+    // ومن بلغ السقف لا يُرشَّح إطلاقاً — هذا هو الحد الذي لا يُخترق.
+    final cfg = await getDeliverySettings().catchError((_) =>
+        <String, dynamic>{});
+    final maxLoad = (cfg['maxOrdersPerDriver'] as num?)?.toInt() ?? 3;
+    final stackKm = (cfg['stackRadiusKm'] as num?)?.toDouble() ?? 2.0;
+
+    final underCap = online.where((d) => d.activeOrders < maxLoad).toList();
+    if (underCap.isEmpty) return false;
+
+    bool inCluster(models.Driver d) {
+      if (d.activeOrders == 0) return true;
+      if (d.clusterLat == null ||
+          d.clusterLng == null ||
+          order.restaurantLat == null ||
+          order.restaurantLng == null) {
+        return false;
+      }
+      return haversineDistanceKm(d.clusterLat!, d.clusterLng!,
+              order.restaurantLat!, order.restaurantLng!) <=
+          stackKm;
+    }
+
+    var available = underCap.where((d) => d.activeOrders == 0).toList();
+    // الفارغ حسب العلم القديم قد يكون عالقاً — المصالحة تُصحّح متى أمكنت.
     if (available.isEmpty) available = await _freeStuckDrivers(online);
-    if (available.isEmpty) available = online;
+    if (available.isEmpty) {
+      available = underCap.where(inCluster).toList();
+    }
+    if (available.isEmpty) available = underCap;
 
     // الترشيح بالمسافة حين تتوفر النقطتان، وإلا بالتقييم — لا انسحاب.
     final located = order.restaurantLat != null && order.restaurantLng != null
@@ -1239,18 +1266,56 @@ class FirebaseService {
         final id = o.driverId ?? '';
         if (id.isNotEmpty && o.status.isActive) busy.add(id);
       }
-      final stuck =
-          online.where((d) => !d.isAvailable && !busy.contains(d.id)).toList();
+      final stuck = online
+          .where((d) =>
+              (!d.isAvailable || d.activeOrders > 0) && !busy.contains(d.id))
+          .toList();
       if (stuck.isEmpty) return [];
+      // المصالحة تصحّح العلم **والعدّاد** معاً: عدّادٌ متقادم من جهاز مغلق
+      // يمنع الترشيح تماماً كعلم عالق.
       final batch = _db.batch();
       for (final d in stuck) {
-        batch.update(_drivers.doc(d.id), {'isAvailable': true});
+        batch.update(_drivers.doc(d.id), {
+          'isAvailable': true,
+          'activeOrders': 0,
+        });
       }
       await batch.commit();
       return stuck;
     } catch (_) {
       // صلاحية سرد ناقصة أو انقطاع — لا نُفشل الإسناد بسبب محاولة إصلاح.
       return [];
+    }
+  }
+
+  /// بثّ حمولة الكابتن من **جهازه هو** (القواعد المنشورة لا تسمح لتطبيق
+  /// المطعم بكتابة غير `isAvailable` على مستند سائق آخر): عدد طلباته
+  /// الجارية، ومرساة عنقوده (مطعم أول طلب في الحمولة)، وعلم السعة.
+  /// تُستدعى من تدفّق طلباته، ولا تكتب إلا عند تغيّر فعلي — فلا كتابة
+  /// دورية تُضاف على خنق الموقع القائم.
+  Future<void> publishDriverLoad({
+    required String driverId,
+    required int activeOrders,
+    required bool hasCapacity,
+    double? clusterLat,
+    double? clusterLng,
+  }) async {
+    await _drivers.doc(driverId).update({
+      'activeOrders': activeOrders,
+      'isAvailable': hasCapacity,
+      'clusterLat': clusterLat,
+      'clusterLng': clusterLng,
+    });
+  }
+
+  /// سقف الطلبات المتزامنة كما ضبطه المدير (٣ افتراضاً) — يقرؤه تطبيق
+  /// الكابتن ليحسب علم سعته بنفس القاعدة التي يرشّح بها المطعم.
+  Future<int> maxOrdersPerDriver() async {
+    try {
+      final cfg = await getDeliverySettings();
+      return (cfg['maxOrdersPerDriver'] as num?)?.toInt() ?? 3;
+    } catch (_) {
+      return 3;
     }
   }
 

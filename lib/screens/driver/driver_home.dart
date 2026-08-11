@@ -71,6 +71,10 @@ class _DriverHomeState extends State<DriverHome> {
     // على تأكيد استلام. الفشل هنا مقبول بصمت — الحارس سيعيد الطلب عند الحاجة.
     LocationGuard.currentPosition().then((_) {}).catchError((_) {});
     _locationTimer = Timer.periodic(const Duration(seconds: 8), (_) => _pushLocation());
+    // سقف الحمولة من إعدادات الإدارة — يُقرأ مرة عند الفتح لا مع كل تدفّق.
+    context.read<FirebaseService>().maxOrdersPerDriver().then((v) {
+      if (mounted) _maxLoad = v;
+    }).catchError((_) {});
   }
 
   @override
@@ -139,6 +143,37 @@ class _DriverHomeState extends State<DriverHome> {
       HapticFeedback.vibrate();
       await Future.delayed(const Duration(milliseconds: 600));
     }
+  }
+
+  /// آخر حمولة بُثَّت — حارس يمنع كتابة متكررة بنفس القيم.
+  String _lastLoadSignature = '';
+
+  /// سقف الطلبات المتزامنة من إعدادات الإدارة (٣ افتراضاً)، يُقرأ مرة.
+  int _maxLoad = 3;
+
+  /// بثّ حمولة الكابتن لمستنده: عددها ومرساة عنقودها وعلم سعته — هي ما
+  /// يرشّح عليه تطبيقُ المطعم عند الإسناد (الطلبات المتعددة في نطاق مطاعم
+  /// متقاربة). تُكتب من هنا لأن القواعد لا تسمح للمطعم بكتابتها.
+  void _publishLoad(String driverId, List<Order> active) {
+    if (driverId.isEmpty) return;
+    final mine = active
+        .where((o) => o.driverId == driverId && !o.needsDriverAcknowledgement)
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final anchor = mine.isEmpty ? null : mine.first;
+    final sig = '${mine.length}|${anchor?.restaurantLat}|${anchor?.restaurantLng}';
+    if (sig == _lastLoadSignature) return;
+    _lastLoadSignature = sig;
+    context
+        .read<FirebaseService>()
+        .publishDriverLoad(
+          driverId: driverId,
+          activeOrders: mine.length,
+          hasCapacity: mine.length < _maxLoad,
+          clusterLat: anchor?.restaurantLat,
+          clusterLng: anchor?.restaurantLng,
+        )
+        .catchError((_) {});
   }
 
   void _checkForNotifications(List<Order> orders) {
@@ -376,6 +411,7 @@ class _DriverHomeState extends State<DriverHome> {
                   driverId: driverId,
                   driver: driver,
                   onOrdersChanged: _checkForNotifications,
+                  onLoadChanged: (o) => _publishLoad(driverId, o),
                 ),
                 _DriverEarningsTab(driver: driver),
               ]),
@@ -600,7 +636,13 @@ class _MyOrdersTab extends StatelessWidget {
   final String driverId;
   final Driver? driver;
   final void Function(List<Order> orders) onOrdersChanged;
-  const _MyOrdersTab({required this.driverId, this.driver, required this.onOrdersChanged});
+  final void Function(List<Order> orders) onLoadChanged;
+  const _MyOrdersTab({
+    required this.driverId,
+    this.driver,
+    required this.onOrdersChanged,
+    required this.onLoadChanged,
+  });
 
   /// تبديل الاتصال برسالة صريحة (نمط نينجا): «متاح — بالتوفيق» أو «لن تصلك
   /// طلبات» — تأكيدٌ يقطع الشك بدل مفتاح صامت قد لا يلحظ أثره.
@@ -689,6 +731,7 @@ class _MyOrdersTab extends StatelessWidget {
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           onOrdersChanged(active);
+          onLoadChanged(active);
         });
 
         final confirmedActive =

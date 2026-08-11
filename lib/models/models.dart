@@ -882,6 +882,19 @@ class Driver {
   /// تاريخ الانضمام — تُحسب منه نافذة شرط الإحالة (٣٠ يوماً افتراضياً).
   final DateTime? createdAt;
 
+  /// عدد الطلبات الجارية بيده الآن، و«مرساة العنقود»: نقطة مطعم أول طلب في
+  /// حمولته الحالية (طلب المالك ٢٠٢٦-٠٨-١١: «ثلاث طلبات في نطاق مطاعم
+  /// قريبة وليست بعيدة»).
+  ///
+  /// **يكتبها تطبيق الكابتن على مستنده هو** لا تطبيق المطعم: القواعد
+  /// المنشورة تسمح لغير العميل بتعديل حقل `isAvailable` وحده على مستند
+  /// سائق آخر، فلو كتبها المطعم لرُفضت الدفعة كلها وسقط الإسناد. وجهاز
+  /// الكابتن يعرف حمولته من تدفّق طلباته أصلاً، فهو مصدرها الطبيعي —
+  /// ومصالحة الإدارة تصحّحها إن بات جهازه مغلقاً وتقادمت.
+  final int activeOrders;
+  final double? clusterLat;
+  final double? clusterLng;
+
   /// كود إحالة السائق الذي يشاركه مع من يدعوهم. مشتقّ من معرّفه لا مخزَّن:
   /// لا مجموعة جديدة ولا خطر تعارض، وثابت مدى الحياة.
   String get referralCode =>
@@ -915,6 +928,9 @@ class Driver {
     this.referralRewarded = false,
     this.lastChallengeWindow = '',
     this.createdAt,
+    this.activeOrders = 0,
+    this.clusterLat,
+    this.clusterLng,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -941,6 +957,9 @@ class Driver {
         referralRewarded: map['referralRewarded'] as bool? ?? false,
         lastChallengeWindow: map['lastChallengeWindow'] as String? ?? '',
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+        activeOrders: (map['activeOrders'] as num?)?.toInt() ?? 0,
+        clusterLat: (map['clusterLat'] as num?)?.toDouble(),
+        clusterLng: (map['clusterLng'] as num?)?.toDouble(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -967,6 +986,9 @@ class Driver {
         'referralRewarded': referralRewarded,
         'lastChallengeWindow': lastChallengeWindow,
         if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
+        'activeOrders': activeOrders,
+        if (clusterLat != null) 'clusterLat': clusterLat,
+        if (clusterLng != null) 'clusterLng': clusterLng,
       };
 }
 
