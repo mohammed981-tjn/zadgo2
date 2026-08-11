@@ -1050,6 +1050,59 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
   }
 }
 
+/// سطر «زمن الطلب» — يعيد بناء نفسه كل دقيقة فيبقى العمر صادقاً بلا تحديث
+/// يدوي، ويحمرّ بعد نصف ساعة: طلبٌ تجاوزها يستحق استعجالاً أو اتصالاً.
+class _AgeRow extends StatefulWidget {
+  final DateTime createdAt;
+  const _AgeRow({required this.createdAt});
+
+  @override
+  State<_AgeRow> createState() => _AgeRowState();
+}
+
+class _AgeRowState extends State<_AgeRow> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(
+        const Duration(minutes: 1), (_) => mounted ? setState(() {}) : null);
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.createdAt;
+    final clock =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    final age = DateTime.now().difference(t);
+    final late = age.inMinutes >= 30;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Icon(late ? Icons.timer_off_outlined : Icons.schedule_rounded,
+            size: 15, color: late ? AppColors.error : AppColors.textGray),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'وقت الطلب $clock — منذ ${formatRemaining(age)}',
+            style: TextStyle(
+                fontSize: 13,
+                color: late ? AppColors.error : AppColors.textGray,
+                fontWeight: late ? FontWeight.w700 : FontWeight.normal),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 class _OrderCard extends StatelessWidget {
   final Order order;
   const _OrderCard({required this.order});
@@ -1128,6 +1181,12 @@ class _OrderCard extends StatelessWidget {
           InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
           InfoRow(icon: Icons.person_outline, text: '${order.customerName} — ${order.customerPhone}'),
           InfoRow(icon: Icons.location_on_outlined, text: order.deliveryAddress),
+          // زمن الطلب (بلاغ المالك ٢٠٢٦-٠٨-١١): البطاقة كانت بلا أي وقت،
+          // فلا يعرف الكابتن أطلبٌ للتوّ أم ينتظر نصف ساعة — وهو أول ما
+          // يرتّب به أولوياته حين يحمل أكثر من طلب. الساعة **وعمر الطلب**
+          // معاً: الساعة وحدها تحتاج حساباً ذهنياً، والعمر وحده يضيع منه
+          // وقت الاستلام حين يراجع.
+          _AgeRow(createdAt: order.createdAt),
           const Divider(height: 16),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(formatCurrency(order.payableTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
