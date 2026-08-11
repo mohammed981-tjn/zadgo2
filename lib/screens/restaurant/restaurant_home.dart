@@ -473,7 +473,14 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     setState(() => _actionLoading = true);
     try {
       await widget.service.updateOrderStatus(widget.order.id, OrderStatus.restaurantAccepted);
-      await widget.service.tryAutoAssignOnAcceptance(widget.order);
+      final assigned =
+          await widget.service.tryAutoAssignOnAcceptance(widget.order);
+      // إخفاق الإسناد لحظة القبول لم يعد صامتاً أيضاً (كان الصمت هنا يخفي
+      // العطل حتى لحظة الجهوزية، فيظن المطعم أن كابتناً في الطريق).
+      if (!assigned && context.mounted) {
+        showError(context,
+            'قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة');
+      }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
     } finally {
