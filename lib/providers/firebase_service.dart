@@ -1286,7 +1286,14 @@ class FirebaseService {
     await batch.commit();
   }
 
-  Future<void> rejectAssignedOrder(String orderId) async {
+  /// [dueToTimeout]: انقضت مهلة العرض دون قرار — وهي حالة مختلفة عن الرفض
+  /// الصريح: إن لم يوجد كابتن بديل يبقى العرض قائماً لدى صاحبه بدل أن
+  /// يُجرَّد الطلب من سائقه فيصير يتيماً لا يلتقطه أحد (لا خادم يعيد
+  /// المحاولة، والقواعد تمنع السائقين من سرد الطلبات بلا سائق). هذا هو ما
+  /// كان يبتلع طلبات أسطولٍ من كابتن واحد: مهلة تمرّ ← تجريد ← لا بديل ←
+  /// طلب معلّق للأبد.
+  Future<void> rejectAssignedOrder(String orderId,
+      {bool dueToTimeout = false}) async {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
     if (!doc.exists || doc.data() == null) {
@@ -1295,6 +1302,20 @@ class FirebaseService {
     final current = models.Order.fromMap(doc.data()!, doc.id);
     if (!current.needsDriverAcknowledgement) {
       throw Exception('لا يمكن رفض هذا الطلب في حالته الحالية');
+    }
+
+    if (dueToTimeout) {
+      // يُجرَّب البديل أولاً؛ فإن لم يوجد يُترك كل شيء كما هو.
+      final moved = await autoAssignNearestDriver(current,
+          excludeDriverId: current.driverId);
+      if (!moved) return;
+      if ((current.driverId ?? '').isNotEmpty) {
+        await _drivers.doc(current.driverId!).update({
+          'isAvailable': true,
+          'offersTotal': FieldValue.increment(1),
+        });
+      }
+      return;
     }
 
     final batch = _db.batch();

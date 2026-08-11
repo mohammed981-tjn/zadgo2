@@ -213,10 +213,11 @@ class _DriverHomeState extends State<DriverHome> {
           },
           onExpired: () async {
             // انقضت مهلة القرار: يُمرَّر الطلب لأقرب سائق آخر تلقائياً —
-            // بصمت، فقد يكون الهاتف في الجيب أصلاً.
+            // بصمت، فقد يكون الهاتف في الجيب أصلاً. وإن لم يوجد بديل بقي
+            // العرض في قائمته (dueToTimeout) بدل أن يُتَّم الطلب.
             dismiss();
             try {
-              await service.rejectAssignedOrder(order.id);
+              await service.rejectAssignedOrder(order.id, dueToTimeout: true);
             } catch (_) {
               // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
             }
@@ -691,6 +692,13 @@ class _MyOrdersTab extends StatelessWidget {
 
         final confirmedActive =
             active.where((o) => !o.needsDriverAcknowledgement).toList();
+        // العروض المعلّقة تظهر **في القائمة** لا في الشريط الطافي وحده
+        // (بلاغ المالك ٢٠٢٦-٠٨-١١: طلبات لم تصل الكابتن): الشريط يعيش ٤٥
+        // ثانية وداخل التطبيق المفتوح فقط، وبلا إشعارات خادم (المسار د) فإن
+        // كان الهاتف في الجيب فات العرضُ بلا أثر — والطلب كان مخفياً عن
+        // قائمته أصلاً لأنه «غير مُقَر». الآن يبقى العرض ظاهراً بقراره.
+        final pendingOffers =
+            active.where((o) => o.needsDriverAcknowledgement).toList();
 
         return Stack(children: [
           Positioned.fill(
@@ -728,7 +736,12 @@ class _MyOrdersTab extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (confirmedActive.isEmpty)
+                  if (pendingOffers.isNotEmpty) ...[
+                    const SectionHeader(title: 'عروض بانتظار قرارك'),
+                    ...pendingOffers.map((o) => _PendingOfferCard(order: o)),
+                    const SizedBox(height: 6),
+                  ],
+                  if (confirmedActive.isEmpty && pendingOffers.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 26),
                       child: Column(children: [
@@ -748,7 +761,7 @@ class _MyOrdersTab extends StatelessWidget {
                         ),
                       ]),
                     )
-                  else ...[
+                  else if (confirmedActive.isNotEmpty) ...[
                     const SectionHeader(title: 'طلباتي'),
                     ...confirmedActive.map((o) => _OrderCard(order: o)),
                   ],
@@ -925,6 +938,116 @@ class _MapPin extends StatelessWidget {
           ),
         ),
       ]);
+}
+
+/// بطاقة عرض معلّق داخل القائمة — النسخة الدائمة من الشريط الطافي: لا
+/// تختفي بانقضاء ٤٥ ثانية ولا تحتاج التطبيق مفتوحاً لحظة الإسناد، فالعرض
+/// يبقى حتى يقرّر الكابتن. بنفس معلومات القرار: أجرته، ومبلغ التحصيل
+/// كاملاً إن كان نقدياً، والمسار.
+class _PendingOfferCard extends StatefulWidget {
+  final Order order;
+  const _PendingOfferCard({required this.order});
+
+  @override
+  State<_PendingOfferCard> createState() => _PendingOfferCardState();
+}
+
+class _PendingOfferCardState extends State<_PendingOfferCard> {
+  bool _busy = false;
+
+  Future<void> _decide(bool accept) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final service = context.read<FirebaseService>();
+    try {
+      if (accept) {
+        await service.acceptAssignedOrder(widget.order.id);
+        if (mounted) {
+          navigatorKey.currentState?.push(MaterialPageRoute(
+              builder: (_) => PickupDocketScreen(orderId: widget.order.id)));
+        }
+      } else {
+        await service.rejectAssignedOrder(widget.order.id);
+      }
+    } catch (_) {
+      if (mounted) {
+        showError(context, 'تعذّر تنفيذ القرار — ربما تغيّرت حالة الطلب');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    final isCash = o.paymentMethod == PaymentMethod.cash;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning, width: 1.2),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.local_shipping_rounded,
+              size: 18, color: AppColors.warning),
+          const SizedBox(width: 8),
+          Text('عرض توصيل — طلب #${o.orderNumber}',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF8A6508))),
+        ]),
+        const SizedBox(height: 8),
+        if (isCash)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+                'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w800)),
+          ),
+        Text('أجرتك ${formatCurrency(o.driverShare)}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text('${o.restaurantName} ← ${o.deliveryAddress}',
+            style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _busy ? null : () => _decide(false),
+              child: const Text('رفض'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white),
+              onPressed: _busy ? null : () => _decide(true),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.check_rounded, size: 18),
+              label: const Text('قبول العرض',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
 }
 
 class _OrderCard extends StatelessWidget {
