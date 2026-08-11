@@ -485,7 +485,18 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     setState(() => _actionLoading = true);
     try {
       await widget.service.updateOrderStatus(widget.order.id, OrderStatus.readyForPickup);
-      await widget.service.retryAutoAssignIfNeeded(widget.order);
+      // الحالة تُقرأ من القاعدة لا من لقطة الشاشة: لقطة قديمة قد تحمل
+      // driverId لسائقٍ رفض الطلب بعدها، فيظن الجهاز أن الإسناد قائم
+      // ويصمت (بلاغ المالك: طلبات مطعم لم تصل أي سائق).
+      final fresh = await widget.service.getOrderOnce(widget.order.id);
+      final assigned =
+          await widget.service.retryAutoAssignIfNeeded(fresh ?? widget.order);
+      if (!assigned && context.mounted) {
+        // إخفاق الإسناد لم يعد صامتاً: المطعم يعرف أن الطلب ينتظر تدخّل
+        // الإدارة بدل أن يظنّ سائقاً في طريقه إليه.
+        showError(context,
+            'الطلب جاهز، لكن لا يوجد كابتن متاح الآن — أبلغنا الإدارة وستتولّى الإسناد');
+      }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
     } finally {

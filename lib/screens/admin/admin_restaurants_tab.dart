@@ -319,6 +319,33 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                       ? 'الموقع محدد ✓ (اضغط للتعديل)'
                       : 'اختر موقع المطعم من الخريطة'),
                 ),
+                // تحذير صريح بأثر تشغيلي لا مجرد «حقل ناقص»: مطعم بلا موقع
+                // كانت طلباته لا تُسنَد لأي سائق إطلاقاً (بلاغ المالك
+                // ٢٠٢٦-٠٨-١١). الإسناد صار يعمل بدونه، لكن باختيار أضعف —
+                // بالتقييم لا بالأقرب — وأجرة التوصيل تُحسب على مسافة صفر.
+                if (_lat == null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.warning),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.warning_amber_rounded,
+                          size: 18, color: AppColors.warning),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'بلا موقع: يُختار الكابتن بالتقييم لا بالأقرب، '
+                          'وأجرة التوصيل تُحسب بلا مسافة. حدِّد الموقع.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity, height: 50,
