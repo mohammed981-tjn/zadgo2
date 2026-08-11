@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
@@ -1107,6 +1108,27 @@ class _OrderCard extends StatelessWidget {
   final Order order;
   const _OrderCard({required this.order});
 
+  /// يفتح الملاحة الخارجية نحو وجهة المرحلة. الإحداثيات من لقطة الطلب —
+  /// وهي محدَّثة لأن تعديل المدير للموقع ينشرها على الطلبات الجارية.
+  Future<void> _navigate(BuildContext context) async {
+    final toCustomer = order.status == OrderStatus.pickedUp ||
+        order.status == OrderStatus.onTheWay;
+    final lat = toCustomer ? order.deliveryLat : order.restaurantLat;
+    final lng = toCustomer ? order.deliveryLng : order.restaurantLng;
+    if (lat == null || lng == null) {
+      showError(context,
+          toCustomer ? 'لا يوجد موقع محفوظ للعميل' : 'لا يوجد موقع محفوظ للمطعم');
+      return;
+    }
+    final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر فتح تطبيق الخرائط');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
@@ -1137,6 +1159,19 @@ class _OrderCard extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
+            ),
+            // ملاحة خارجية مباشرة (بلاغ المالك: «لا أستطيع التوجه للمطعم
+            // إلا بالخريطة الداخلية»): زرٌّ يفتح خرائط جوجل فوراً نحو
+            // الوجهة الصحيحة بحسب المرحلة — المطعم قبل الاستلام والعميل
+            // بعده — بلا مرور بشاشة الخريطة ثم زر «ابدأ الملاحة».
+            IconButton(
+              tooltip: order.status == OrderStatus.pickedUp ||
+                      order.status == OrderStatus.onTheWay
+                  ? 'الملاحة إلى العميل'
+                  : 'الملاحة إلى المطعم',
+              icon: const Icon(Icons.navigation_rounded,
+                  color: AppColors.primary),
+              onPressed: () => _navigate(context),
             ),
             IconButton(
               icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
@@ -1200,11 +1235,25 @@ class _OrderCard extends StatelessWidget {
   }
 
   Widget _buildAction(BuildContext ctx, FirebaseService service) {
+    // المذكرة تبقى في متناوله من لحظة الإسناد لا من لحظة الجهوزية فقط
+    // (طلب المالك ٢٠٢٦-٠٨-١١، نمط تويو): الكابتن يفتحها ليقرأ الأصناف
+    // ومبلغ التحصيل ويتحرك نحو المطعم قبل أن يجهز الطعام — وحجبها كان
+    // يتركه بسطرٍ نصّي واحد بلا أي فعل ممكن.
     if (order.status == OrderStatus.restaurantPending ||
         order.status == OrderStatus.restaurantAccepted ||
         order.status == OrderStatus.preparing) {
-      return const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
-          style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
+            style: TextStyle(
+                color: AppColors.textGray, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => navigatorKey.currentState?.push(MaterialPageRoute(
+              builder: (_) => PickupDocketScreen(orderId: order.id))),
+          icon: const Icon(Icons.receipt_long_rounded, size: 18),
+          label: const Text('مذكرة الاستلام'),
+        ),
+      ]);
     }
     if (order.status == OrderStatus.readyForPickup ||
         order.status == OrderStatus.searchingDriver ||
