@@ -65,7 +65,7 @@ git diff --name-only HEAD...origin/main -- lib/ firestore.rules test/ pubspec.ya
 
 ---
 
-## ٣) ما غيّرناه نحن منذ الافتراق (٣٦ دفعة)
+## ٣) ما غيّرناه نحن منذ الافتراق (٤٣ دفعة)
 
 ```
 git diff --name-only origin/main...HEAD | awk -F/ '{print $1}' | sort | uniq -c | sort -rn
@@ -102,7 +102,7 @@ git diff --name-only origin/main...HEAD | awk -F/ '{print $1}' | sort | uniq -c 
 على الأرقام أعلاه:
 
 1. **لا مبرر له**: لا تعارض أصلاً — `main` لم يمسّ `lib/`. فإعادة الكتابة
-   تصنع نسخة ثالثة من منطق الإسناد وتُبقي `main` متأخراً عن ٣٤ دفعة أخرى
+   تصنع نسخة ثالثة من منطق الإسناد وتُبقي `main` متأخراً عن ٤١ دفعة أخرى
    في نفس الملفات.
 2. **لا يصل المستخدم**: نسخ المالك المثبَّتة تُبنى من فرع التطوير ومن فرع
    الإصدار `copilot/split-customer-app` — لا من `main`. فإصلاحٌ على `main`
@@ -133,7 +133,7 @@ git diff --name-only origin/main...HEAD | awk -F/ '{print $1}' | sort | uniq -c 
 git fetch origin main
 git merge-base HEAD origin/main
 git rev-list --count HEAD..origin/main          # 118
-git rev-list --count origin/main..HEAD          # 36
+git rev-list --count origin/main..HEAD          # 43
 git diff --name-only HEAD...origin/main -- lib/ firestore.rules test/ pubspec.yaml   # فارغ
 git diff --stat  origin/main...HEAD -- lib/ firestore.rules                          # 43 ملفاً
 ```
