@@ -554,8 +554,7 @@ class _TrackedOrderCard extends StatelessWidget {
                 stream: service.streamDrivers,
                 builder: (ctx, allDrivers) {
                   final drivers = allDrivers.where((d) => d.isOnline).toList()
-                    ..sort((a, b) => (b.isAvailable ? 1 : 0)
-                        .compareTo(a.isAvailable ? 1 : 0));
+                    ..sort((a, b) => a.activeOrders.compareTo(b.activeOrders));
                   if (drivers.isEmpty) {
                     return const Text('لا يوجد كابتن متصل الآن',
                         style: TextStyle(color: Colors.orange));
@@ -566,9 +565,9 @@ class _TrackedOrderCard extends StatelessWidget {
                     items: drivers
                         .map((d) => DropdownMenuItem(
                             value: d.id,
-                            child: Text(d.isAvailable
+                            child: Text(d.activeOrders == 0
                                 ? d.name
-                                : '${d.name} — مشغول حالياً')))
+                                : '${d.name} — ${d.activeOrders} طلب بيده')))
                         .toList(),
                     onChanged: (v) {
                       selectedDriverId = v;
