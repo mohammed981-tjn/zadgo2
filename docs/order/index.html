@@ -97,23 +97,113 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
 .sec-title { font-weight: 800; font-size: 1rem; margin: 16px 2px 8px; display: flex;
   align-items: center; gap: 7px; }
 .sec-title::before { content: ''; width: 4px; height: 17px; background: var(--gold); border-radius: 3px; }
-.spin { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--gold);
-  border-radius: 50%; animation: sp .8s linear infinite; margin: 40px auto; }
-@keyframes sp { to { transform: rotate(360deg); } }
 
-/* ---------- بطاقة مطعم ---------- */
-.resto { display: flex; gap: 12px; align-items: center; cursor: pointer; }
-.resto .ava { width: 58px; height: 58px; border-radius: 14px; background: linear-gradient(135deg,var(--gold-light),var(--gold));
-  display: flex; align-items: center; justify-content: center; font-size: 1.8rem; flex: 0 0 auto;
-  overflow: hidden; }
-.resto .ava img { width: 100%; height: 100%; object-fit: cover; }
-.resto .nm { font-weight: 800; font-size: .98rem; }
-.resto .br { color: var(--muted); font-size: .8rem; }
-.resto .meta { display: flex; gap: 10px; font-size: .76rem; color: var(--muted); margin-top: 3px;
-  flex-wrap: wrap; }
+/* ---------- بطاقة مطعم (نمط البطاقة المصوّرة) ----------
+   الصورة تسبق الاسم لأن العين تختار بالصورة قبل الحرف — هذا ما تفعله
+   التطبيقات العالمية كلها. والبطاقة بلا صورة لا تنهار: تدرّجٌ ذهبي ورمز
+   المطعم مكانها، فمطعمٌ لم تُرفع صورته يبقى مقروءاً لا فارغاً. */
+.rcard { background: var(--card); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
+  margin-bottom: 13px; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.rcard:active { transform: scale(.985); }
+@media (hover: hover) { .rcard:hover { box-shadow: 0 6px 20px rgba(0,0,0,.12); } }
+.rcard .cover { position: relative; aspect-ratio: 16/7; background: linear-gradient(135deg,var(--gold-light),var(--gold-dark));
+  display: flex; align-items: center; justify-content: center; font-size: 3.2rem; }
+.rcard .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rcard .cover::after { content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.45), transparent 55%); }
+.rcard .chips { position: absolute; inset-inline-start: 10px; bottom: 9px; z-index: 2; display: flex;
+  gap: 6px; flex-wrap: wrap; }
+.rcard .chip { background: rgba(255,255,255,.94); color: var(--text); border-radius: 999px;
+  padding: 3px 10px; font-size: .72rem; font-weight: 800; backdrop-filter: blur(4px); }
+.rcard .chip.star { color: #9a6b00; }
+.rcard .body { padding: 11px 14px 13px; }
+.rcard .nm { font-weight: 900; font-size: 1.02rem; }
+.rcard .br { color: var(--muted); font-size: .8rem; }
+.rcard .ds { color: var(--muted); font-size: .8rem; margin-top: 3px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.rcard.shut .cover img, .rcard.shut .cover { filter: grayscale(.75); }
+.rcard .shutlbl { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center;
+  justify-content: center; }
+.rcard .shutlbl span { background: rgba(17,17,17,.78); color: #fff; border-radius: 999px;
+  padding: 6px 16px; font-weight: 800; font-size: .85rem; }
 .pill { border-radius: 999px; padding: 2px 9px; font-size: .7rem; font-weight: 800; }
 .pill.open { background: var(--success-bg); color: #067a4d; }
 .pill.closed { background: var(--error-bg); color: var(--error); }
+
+/* ---------- شريط البحث والمرشّحات ---------- */
+.searchbar { position: sticky; top: var(--head-h); z-index: 40; background: var(--surface);
+  padding: 10px 0 8px; margin: -14px -14px 0; padding-inline: 14px; }
+.searchbar input { width: 100%; border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; background: #fff; }
+.searchbar input:focus { outline: 0; border-color: var(--gold); }
+.filters { display: flex; gap: 7px; overflow-x: auto; margin-top: 9px; padding-bottom: 2px;
+  scrollbar-width: none; }
+.filters::-webkit-scrollbar { display: none; }
+.filters button { flex: 0 0 auto; border: 1.5px solid var(--line); background: #fff; color: var(--muted);
+  border-radius: 999px; padding: 7px 14px; font-size: .82rem; font-weight: 700; cursor: pointer;
+  white-space: nowrap; }
+.filters button.on { background: var(--green); color: #fff; border-color: var(--green); }
+
+/* ---------- ترويسة المطعم المصوّرة ---------- */
+.rhero { position: relative; margin: -14px -14px 0; aspect-ratio: 16/8;
+  background: linear-gradient(135deg,var(--gold-light),var(--gold-dark));
+  display: flex; align-items: center; justify-content: center; font-size: 4rem; }
+.rhero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.rhero::after { content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.05) 65%); }
+.rhero .txt { position: absolute; inset-inline: 16px; bottom: 12px; z-index: 2; color: #fff; }
+.rhero .txt h2 { font-size: 1.35rem; font-weight: 900; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+.rhero .txt .br { opacity: .9; font-size: .85rem; }
+.rstats { display: flex; background: var(--card); border-radius: 14px; margin: -18px 0 0;
+  position: relative; z-index: 3; box-shadow: var(--shadow); overflow: hidden; }
+.rstats div { flex: 1; text-align: center; padding: 11px 4px; }
+.rstats div + div { border-inline-start: 1px solid var(--line); }
+.rstats b { display: block; font-size: 1rem; color: var(--green); }
+.rstats span { font-size: .72rem; color: var(--muted); }
+
+/* ---------- تبويبات الأقسام اللاصقة ---------- */
+.cattabs { position: sticky; top: var(--head-h); z-index: 42; background: var(--surface);
+  margin: 14px -14px 4px; padding: 8px 14px; display: flex; gap: 7px; overflow-x: auto;
+  scrollbar-width: none; box-shadow: 0 6px 10px -8px rgba(0,0,0,.18); }
+.cattabs::-webkit-scrollbar { display: none; }
+.cattabs button { flex: 0 0 auto; border: 0; background: #fff; color: var(--muted); cursor: pointer;
+  border-radius: 999px; padding: 8px 15px; font-size: .85rem; font-weight: 800; white-space: nowrap;
+  box-shadow: var(--shadow); }
+.cattabs button.on { background: var(--gold); color: var(--green); }
+.catsec { scroll-margin-top: calc(var(--head-h) + 56px); }
+
+/* ---------- ورقة الصنف السفلية ---------- */
+.sheet-bg { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.5);
+  opacity: 0; pointer-events: none; transition: opacity .22s; }
+.sheet-bg.on { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; inset-inline: 0; bottom: 0; z-index: 71; background: var(--card);
+  border-radius: 22px 22px 0 0; max-height: 88dvh; overflow-y: auto; transform: translateY(101%);
+  transition: transform .26s cubic-bezier(.2,.8,.25,1); max-width: 760px; margin: 0 auto;
+  padding-bottom: env(safe-area-inset-bottom); }
+.sheet.on { transform: translateY(0); }
+.sheet .grab { width: 42px; height: 4px; background: var(--line); border-radius: 3px;
+  margin: 9px auto 0; }
+.sheet .pic { aspect-ratio: 16/9; background: var(--surface); display: flex; align-items: center;
+  justify-content: center; font-size: 4rem; margin: 10px 0 0; position: relative; overflow: hidden; }
+.sheet .pic img { width: 100%; height: 100%; object-fit: cover; }
+.sheet .in { padding: 15px 18px 20px; }
+.sheet h3 { font-size: 1.2rem; font-weight: 900; }
+.sheet .price { color: var(--gold-dark); font-weight: 900; font-size: 1.1rem; margin-top: 3px; }
+.sheet .desc { color: var(--muted); font-size: .92rem; margin-top: 8px; }
+.sheet .qrow { display: flex; align-items: center; justify-content: center; gap: 20px; margin: 18px 0; }
+.sheet .qrow button { width: 42px; height: 42px; border-radius: 12px; border: 1.5px solid var(--line);
+  background: #fff; font-size: 1.4rem; font-weight: 800; color: var(--green); cursor: pointer; }
+.sheet .qrow .n { font-size: 1.3rem; font-weight: 900; min-width: 32px; text-align: center; }
+
+/* ---------- هياكل التحميل ---------- */
+.sk { background: linear-gradient(90deg,#e9edeb 25%,#f3f6f4 50%,#e9edeb 75%);
+  background-size: 200% 100%; animation: shim 1.3s infinite; border-radius: 10px; }
+@keyframes shim { to { background-position: -200% 0; } }
+.skcard { background: var(--card); border-radius: 16px; overflow: hidden; margin-bottom: 13px;
+  box-shadow: var(--shadow); }
+.skcard .a { aspect-ratio: 16/7; }
+.skcard .b { padding: 13px 14px; }
+.skcard .b div { height: 12px; margin-bottom: 8px; }
 
 /* ---------- صنف ---------- */
 .item { display: flex; gap: 11px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
@@ -257,6 +347,9 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
   </div></div>
 
   <nav class="bottom" id="bottomNav"></nav>
+
+  <div class="sheet-bg" id="sheetBg"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 </div>
 
 <script type="module">
@@ -484,8 +577,14 @@ document.addEventListener('click', (e) => {
 });
 $('backBtn').onclick = () => go(S.page === 'resto' ? 'home' : 'orders');
 $('cartBarIn').onclick = () => go('cart');
+$('sheetBg').onclick = closeSheet;
+// زرّ رجوع المتصفح يغلق الورقة قبل أن يغادر الصفحة — سلوك متوقَّع على الجوال.
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.sheet) closeSheet(); });
 
 function go(p) {
+  // مراقب الأقسام مربوط بصفحة مطعمٍ بعينها ولا معنى لبقائه بعد مغادرتها.
+  if (S.catObs && p !== 'resto') { S.catObs.disconnect(); S.catObs = null; }
+  if (S.sheet) closeSheet();
   S.page = p;
   const titles = { home: 'المطاعم', cart: 'سلتي', orders: 'طلباتي', account: 'حسابي',
     resto: S.resto ? S.resto.name : 'المطعم', order: 'تفاصيل الطلب' };
@@ -504,10 +603,11 @@ function render() {
     order: viewOrder, account: viewAccount };
   (R[S.page] || viewHome)();
 }
-const loading = () => { $('main').innerHTML = '<div class="spin"></div>'; };
 
 /* ---------------- المطاعم ---------------- */
 async function loadRestaurants() {
+  S.loadingRestaurants = true;
+  if (S.page === 'home') render();
   try {
     const snap = await getDocs(collection(db, 'restaurants'));
     S.restaurants = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -517,41 +617,90 @@ async function loadRestaurants() {
   } catch (e) {
     S.restaurants = [];
   }
+  S.loadingRestaurants = false;
   if (S.page === 'home') render();
 }
 
+/* المرشّحات هي ما يسأل عنه العميل فعلاً قبل أن يطلب: أمفتوحٌ الآن؟ كم
+ * يستغرق؟ وكم أقلّ ما يجب أن أطلبه؟ — والأخير أكثر ما يُنهي الطلب عند
+ * السلة حين يُكتشف متأخراً. */
+const FILTERS = [
+  ['all', 'الكل'],
+  ['open', 'مفتوح الآن'],
+  ['fast', 'الأسرع'],
+  ['top', 'الأعلى تقييماً'],
+  ['low', 'أقل حد أدنى'],
+];
+function filterRestaurants(term, f) {
+  const t = (term || '').trim();
+  let list = t ? S.restaurants.filter((r) =>
+    `${r.name || ''} ${r.branchName || ''} ${r.description || ''}`.includes(t)) : [...S.restaurants];
+  if (f === 'open') list = list.filter((r) => r.isOpen !== false);
+  if (f === 'fast') list.sort((a, b) => (a.estimatedTimeMin || 30) - (b.estimatedTimeMin || 30));
+  if (f === 'top') list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  if (f === 'low') list.sort((a, b) => (a.minOrder ?? 20) - (b.minOrder ?? 20));
+  return list;
+}
+/* مطعمٌ لم يقيّمه أحد يحمل 5.0 افتراضيةً في قاعدة البيانات. عرضها نجمةً
+ * كاملة يناقض ما نَعِد به في الصفحة الرئيسية: «تقييمات من عملاء طلبوا فعلاً
+ * — لا مجاملات». فالجديد يُقال عنه جديد. */
+const ratingChip = (r) =>
+  (r.ratingCount || 0) > 0 ? `⭐ ${(r.rating ?? 5).toFixed(1)}` : '✨ جديد';
+
+function restoCard(r) {
+  const shut = r.isOpen === false;
+  return `<article class="rcard ${shut ? 'shut' : ''}" data-resto="${r.id}">
+    <div class="cover">
+      ${r.imageUrl ? `<img src="${esc(r.imageUrl)}" alt="" loading="lazy">` : (r.emoji || '🍽️')}
+      ${shut ? '<div class="shutlbl"><span>مغلق الآن</span></div>' : ''}
+      <div class="chips">
+        <span class="chip star">${ratingChip(r)}</span>
+        <span class="chip">⏱️ ${r.estimatedTimeMin || 30} د</span>
+        <span class="chip">أقلّ طلب ${money(r.minOrder ?? 20)}</span>
+      </div>
+    </div>
+    <div class="body">
+      <div class="nm">${esc(r.name || 'مطعم')}</div>
+      ${r.branchName ? `<div class="br">${esc(r.branchName)}</div>` : ''}
+      ${r.description ? `<div class="ds">${esc(r.description)}</div>` : ''}
+    </div>
+  </article>`;
+}
 function viewHome() {
+  if (S.loadingRestaurants) {
+    $('main').innerHTML = '<div class="searchbar"><input disabled placeholder="ابحث عن مطعم…"></div>'
+      + Array.from({ length: 3 }, () => `<div class="skcard"><div class="a sk"></div>
+        <div class="b"><div class="sk" style="width:55%"></div><div class="sk" style="width:35%"></div></div></div>`).join('');
+    return;
+  }
   if (!S.restaurants.length) {
     $('main').innerHTML = `<div class="empty"><div class="big">🍽️</div>
       <h3>لا توجد مطاعم متاحة الآن</h3><p>نضيف مطاعم المدينة تباعاً — عد إلينا قريباً.</p></div>`;
     return;
   }
   $('main').innerHTML = `
-    <div class="field"><input type="search" id="q" placeholder="ابحث عن مطعم…"></div>
+    <div class="searchbar">
+      <input type="search" id="q" placeholder="ابحث عن مطعم…" value="${esc(S.q || '')}">
+      <div class="filters">${FILTERS.map(([k, l]) =>
+        `<button data-filter="${k}" class="${(S.filter || 'all') === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    </div>
     <div id="rlist"></div>`;
-  const paint = (term) => {
-    const t = term.trim();
-    const list = t ? S.restaurants.filter((r) =>
-      `${r.name || ''} ${r.branchName || ''} ${r.description || ''}`.includes(t)) : S.restaurants;
-    $('rlist').innerHTML = list.length ? list.map((r) => `
-      <div class="card"><div class="resto" data-resto="${r.id}">
-        <div class="ava">${r.imageUrl ? `<img src="${esc(r.imageUrl)}" alt="">` : (r.emoji || '🍽️')}</div>
-        <div class="grow" style="flex:1;min-width:0">
-          <div class="nm">${esc(r.name || 'مطعم')}</div>
-          ${r.branchName ? `<div class="br">${esc(r.branchName)}</div>` : ''}
-          <div class="meta">
-            <span>⭐ ${(r.rating ?? 5).toFixed(1)}</span>
-            <span>⏱️ ${r.estimatedTimeMin || 30} دقيقة</span>
-            <span>الحد الأدنى ${money(r.minOrder ?? 20)}</span>
-          </div>
-        </div>
-        <span class="pill ${r.isOpen === false ? 'closed' : 'open'}">${r.isOpen === false ? 'مغلق' : 'مفتوح'}</span>
-      </div></div>`).join('')
-      : `<div class="empty"><div class="big">🔍</div><h3>لا نتيجة</h3></div>`;
+  const paint = () => {
+    const list = filterRestaurants(S.q, S.filter || 'all');
+    $('rlist').innerHTML = list.length ? list.map(restoCard).join('')
+      : `<div class="empty"><div class="big">🔍</div><h3>لا نتيجة</h3>
+         <p>جرّب اسماً آخر أو أزل المرشّح.</p></div>`;
   };
-  paint('');
-  $('q').oninput = (e) => paint(e.target.value);
-  $('rlist').onclick = (e) => {
+  paint();
+  $('q').oninput = (e) => { S.q = e.target.value; paint(); };
+  $('main').onclick = (e) => {
+    const f = e.target.closest('[data-filter]');
+    if (f) {
+      S.filter = f.dataset.filter;
+      [...document.querySelectorAll('[data-filter]')].forEach((b) =>
+        b.classList.toggle('on', b.dataset.filter === S.filter));
+      paint(); return;
+    }
     const el = e.target.closest('[data-resto]');
     if (el) openResto(el.dataset.resto);
   };
@@ -559,8 +708,9 @@ function viewHome() {
 
 async function openResto(id) {
   S.resto = S.restaurants.find((r) => r.id === id) || null;
+  S.loadingMenu = true;
+  S.menu = { cats: [], items: [] };
   go('resto');
-  loading();
   try {
     const [cats, items] = await Promise.all([
       getDocs(collection(db, 'restaurants', id, 'categories')),
@@ -572,6 +722,7 @@ async function openResto(id) {
       items: items.docs.map((d) => ({ id: d.id, ...d.data() })),
     };
   } catch (e) { S.menu = { cats: [], items: [] }; }
+  S.loadingMenu = false;
   if (S.page === 'resto') render();
 }
 
@@ -579,55 +730,144 @@ function viewResto() {
   const r = S.resto;
   if (!r) { go('home'); return; }
   const closed = r.isOpen === false;
-  const cats = S.menu.cats.length ? S.menu.cats : [{ id: null, name: 'المنيو' }];
-  const body = cats.map((c) => {
-    const its = S.menu.items.filter((i) => (c.id === null ? true : i.categoryId === c.id));
-    if (!its.length) return '';
-    return `<div class="sec-title">${esc(c.name || 'قسم')}</div>
-      <div class="card">${its.map((i) => {
+  const hero = `
+    <div class="rhero">
+      ${r.imageUrl ? `<img src="${esc(r.imageUrl)}" alt="">` : (r.emoji || '🍽️')}
+      <div class="txt"><h2>${esc(r.name || '')}</h2>
+        ${r.branchName ? `<div class="br">${esc(r.branchName)}</div>` : ''}</div>
+    </div>
+    <div class="rstats">
+      <div><b>${ratingChip(r)}</b><span>${(r.ratingCount || 0) > 0
+        ? `${r.ratingCount} تقييم` : 'لم يُقيَّم بعد'}</span></div>
+      <div><b>${r.estimatedTimeMin || 30} د</b><span>وقت التحضير</span></div>
+      <div><b>${money(r.minOrder ?? 20)}</b><span>أقلّ طلب</span></div>
+    </div>
+    ${closed ? `<div class="err" style="margin-top:12px">المطعم مغلق الآن — تصفّح المنيو، واطلب عند فتحه.</div>` : ''}`;
+
+  if (S.loadingMenu) {
+    $('main').innerHTML = hero + Array.from({ length: 4 }, () =>
+      `<div class="card"><div class="sk" style="height:52px"></div></div>`).join('');
+    return;
+  }
+
+  const cats = (S.menu.cats.length ? S.menu.cats : [{ id: null, name: 'المنيو' }])
+    .map((c) => ({ ...c, its: S.menu.items.filter((i) => (c.id === null ? true : i.categoryId === c.id)) }))
+    .filter((c) => c.its.length);
+
+  const body = cats.map((c, ci) => `
+    <section class="catsec" id="cat${ci}">
+      <div class="sec-title">${esc(c.name || 'قسم')}</div>
+      <div class="card">${c.its.map((i) => {
         const off = i.isAvailable === false || (i.trackStock && (i.stockQuantity ?? 0) <= 0);
         const inCart = S.cart.find((x) => x.menuItemId === i.id);
-        return `<div class="item ${off ? 'off' : ''}">
-          <div class="ic">${i.imageUrl ? `<img src="${esc(i.imageUrl)}" alt="">` : (i.emoji || '🍔')}</div>
+        return `<div class="item ${off ? 'off' : ''}" ${off ? '' : `data-open="${esc(i.id)}"`}
+                    style="${off ? '' : 'cursor:pointer'}">
+          <div class="ic">${i.imageUrl ? `<img src="${esc(i.imageUrl)}" alt="" loading="lazy">` : (i.emoji || '🍔')}</div>
           <div class="grow">
             <div class="nm">${esc(i.name || '')}</div>
             ${i.description ? `<div class="ds">${esc(i.description)}</div>` : ''}
+            ${i.kcal ? `<div class="ds">${i.kcal} سعرة</div>` : ''}
             <div class="pr">${money(i.price)}</div>
           </div>
           ${off ? '<span class="pill closed">غير متوفر</span>'
             : inCart ? `<div class="qty">
-                <button data-dec="${i.id}">−</button><span class="n">${inCart.quantity}</span>
-                <button data-inc="${i.id}">+</button></div>`
-            : `<button class="btn sm" data-add="${i.id}">إضافة</button>`}
+                <button data-dec="${esc(i.id)}">−</button><span class="n">${inCart.quantity}</span>
+                <button data-inc="${esc(i.id)}">+</button></div>`
+            : `<button class="btn sm" data-add="${esc(i.id)}">إضافة</button>`}
         </div>`;
-      }).join('')}</div>`;
-  }).join('');
+      }).join('')}</div>
+    </section>`).join('');
 
-  $('main').innerHTML = `
-    <div class="card">
-      <div class="row-between">
-        <div><div style="font-weight:900;font-size:1.1rem">${esc(r.name || '')}</div>
-          ${r.branchName ? `<div class="muted">${esc(r.branchName)}</div>` : ''}</div>
-        <span class="pill ${closed ? 'closed' : 'open'}">${closed ? 'مغلق' : 'مفتوح'}</span>
-      </div>
-      <div class="meta muted" style="margin-top:7px">
-        ⭐ ${(r.rating ?? 5).toFixed(1)} · ⏱️ ${r.estimatedTimeMin || 30} دقيقة ·
-        الحد الأدنى ${money(r.minOrder ?? 20)}
-      </div>
-      ${closed ? `<div class="err" style="margin:11px 0 0">المطعم مغلق الآن — يمكنك التصفّح والطلب عند فتحه.</div>` : ''}
-    </div>
-    ${body || `<div class="empty"><div class="big">📋</div><h3>لا أصناف منشورة بعد</h3></div>`}`;
+  const tabs = cats.length > 1 ? `<div class="cattabs" id="catTabs">${cats.map((c, ci) =>
+    `<button data-cat="${ci}" class="${ci === 0 ? 'on' : ''}">${esc(c.name || 'قسم')}</button>`).join('')}</div>` : '';
+
+  $('main').innerHTML = hero + tabs +
+    (body || `<div class="empty"><div class="big">📋</div><h3>لا أصناف منشورة بعد</h3></div>`);
 
   $('main').onclick = (e) => {
-    const add = e.target.closest('[data-add]'), inc = e.target.closest('[data-inc]'),
-      dec = e.target.closest('[data-dec]');
-    if (add) addToCart(add.dataset.add);
-    else if (inc) changeQty(inc.dataset.inc, +1);
-    else if (dec) changeQty(dec.dataset.dec, -1);
+    const tab = e.target.closest('[data-cat]');
+    if (tab) {
+      const sec = $('cat' + tab.dataset.cat);
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // التبويب يُضاء بالنيّة لا بالهندسة: قسمٌ قصير في آخر المنيو قد لا يبلغ
+      // منتصف الشاشة مهما مُرِّر (الصفحة تنتهي قبله)، فلو انتظرنا المراقب
+      // وحده لضغط العميل تبويباً ورأى غيره مضيئاً.
+      document.querySelectorAll('[data-cat]').forEach((b) =>
+        b.classList.toggle('on', b === tab));
+      S.tabLock = Date.now();
+      return;
+    }
+    // الزرّان يسبقان فتح الورقة: من ضغط + لا يريد ورقةً بل صنفاً أكثر.
+    const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]'),
+      add = e.target.closest('[data-add]');
+    if (inc) { changeQty(inc.dataset.inc, +1); return; }
+    if (dec) { changeQty(dec.dataset.dec, -1); return; }
+    if (add) { openSheet(add.dataset.add); return; }
+    const row = e.target.closest('[data-open]');
+    if (row) openSheet(row.dataset.open);
   };
+
+  // التبويب النشط يتبع ما تراه العين لا آخر ما ضُغط.
+  if (cats.length > 1) {
+    const obs = new IntersectionObserver((entries) => {
+      // نافذة الرصد الثلث العلوي لا شريطٌ رفيع في المنتصف: الشريط الرفيع
+      // يتخطّاه قسمٌ قصير بين لقطتَي تمرير فلا يُضيء تبويبه أبداً.
+      if (S.tabLock && Date.now() - S.tabLock < 900) return;  // قفزةٌ جارية بطلب العميل
+      const vis = entries.filter((x) => x.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (!vis) return;
+      const idx = vis.target.id.replace('cat', '');
+      document.querySelectorAll('[data-cat]').forEach((b) =>
+        b.classList.toggle('on', b.dataset.cat === idx));
+    }, { rootMargin: '-15% 0px -55% 0px' });
+    cats.forEach((_, ci) => { const el = $('cat' + ci); if (el) obs.observe(el); });
+    S.catObs = obs;
+  }
 }
 
-function addToCart(itemId) {
+/* ---------------- ورقة الصنف ----------------
+ * الإضافة المباشرة تصلح لصنفٍ لا خيار فيه، لكنها تحرم العميل من رؤية الصورة
+ * كاملة واختيار الكمية قبل الالتزام. الورقة تعطيه ذلك بلا مغادرة المنيو. */
+function openSheet(itemId) {
+  const it = S.menu.items.find((i) => i.id === itemId);
+  if (!it) return;
+  S.sheet = { item: it, qty: 1 };
+  paintSheet();
+  requestAnimationFrame(() => {
+    $('sheetBg').classList.add('on'); $('sheet').classList.add('on');
+  });
+}
+function closeSheet() {
+  $('sheetBg').classList.remove('on'); $('sheet').classList.remove('on');
+  S.sheet = null;
+}
+function paintSheet() {
+  const s = S.sheet;
+  if (!s) return;
+  const i = s.item;
+  $('sheet').innerHTML = `
+    <div class="grab"></div>
+    <div class="pic">${i.imageUrl ? `<img src="${esc(i.imageUrl)}" alt="">` : (i.emoji || '🍔')}</div>
+    <div class="in">
+      <h3>${esc(i.name || '')}</h3>
+      <div class="price">${money(i.price)}</div>
+      ${i.description ? `<p class="desc">${esc(i.description)}</p>` : ''}
+      ${i.kcal ? `<p class="desc">${i.kcal} سعرة حرارية</p>` : ''}
+      <div class="qrow">
+        <button id="shDec" aria-label="أنقص">−</button>
+        <span class="n">${s.qty}</span>
+        <button id="shInc" aria-label="زد">+</button>
+      </div>
+      <button class="btn block" id="shAdd">أضف للسلة · ${money((i.price || 0) * s.qty)}</button>
+      <button class="btn ghost block" id="shClose" style="margin-top:9px">إغلاق</button>
+    </div>`;
+  $('shDec').onclick = () => { if (s.qty > 1) { s.qty--; paintSheet(); } };
+  $('shInc').onclick = () => { s.qty++; paintSheet(); };
+  $('shClose').onclick = closeSheet;
+  $('shAdd').onclick = () => { addToCart(i.id, s.qty); closeSheet(); };
+}
+
+function addToCart(itemId, qty = 1) {
   const it = S.menu.items.find((i) => i.id === itemId);
   if (!it || !S.resto) return;
   // سلة واحدة لمطعم واحد: الطلب يُسنَد لمطعم بعينه، فخلط مطعمين في سلة
@@ -637,8 +877,10 @@ function addToCart(itemId) {
     S.cart = [];
   }
   S.cartResto = { id: S.resto.id, name: S.resto.name, branchName: S.resto.branchName || '' };
-  S.cart.push({ menuItemId: it.id, name: it.name, price: Number(it.price) || 0,
-    emoji: it.emoji || '🍔', quantity: 1 });
+  const line = S.cart.find((x) => x.menuItemId === it.id);
+  if (line) line.quantity += qty;
+  else S.cart.push({ menuItemId: it.id, name: it.name, price: Number(it.price) || 0,
+    emoji: it.emoji || '🍔', quantity: qty });
   saveCart(); render();
 }
 function changeQty(itemId, delta) {

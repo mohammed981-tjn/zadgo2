@@ -4005,6 +4005,23 @@ function renderSettingsPage() {
       <button class="btn" id="saveSettings">حفظ الإعدادات</button>
     </div>
     <div class="panel">
+      <h3>🧾 الحدّ الأدنى العام للطلب</h3>
+      <p class="meta" style="margin-bottom:12px">
+        سقفٌ أدنى لا ينزل تحته أي مطعم. طلبٌ بخمسة ريالات يكلّفك توصيلاً بأكثر من عشرة،
+        فالحدّ هنا يحمي هامشك من طلباتٍ تخسر عليها.</p>
+      <div class="card" style="border-inline-start:4px solid var(--blue);margin-bottom:12px">
+        <b>كيف يعمل؟</b>
+        <div class="meta">القيمة تُكتب في حقل <code>minOrder</code> داخل كل مطعم أقلّ منها —
+          وهو الحقل نفسه الذي يقرؤه التطبيق والموقع اليوم. فلا يحتاج الأمر تحديث تطبيق
+          ولا تغيير قواعد، والمطاعم الأعلى من الحدّ لا تُمسّ.</div>
+      </div>
+      <div class="field"><label>أقلّ قيمة طلب مسموح بها (${SAR})</label>
+        <input type="number" id="s_minorder" min="0" step="1"
+               value="${Number(s.minOrderFloor) || 0}"></div>
+      <div id="minOrderPreview" class="meta" style="margin-bottom:10px"></div>
+      <button class="btn" id="applyMinOrder">طبّقه على المطاعم</button>
+    </div>
+    <div class="panel">
       <h3>🚧 الحد الأدنى لنسخة التطبيق</h3>
       <p class="meta" style="margin-bottom:12px">أي تطبيق نسخته أقدم من هذا الرقم يُحجَب عن العمل
         ويُطلب من صاحبه التحديث. اتركه فارغاً لتعطيل البوابة.</p>
@@ -4026,6 +4043,52 @@ function renderSettingsPage() {
       <div class="kv"><span>مصدر البيانات</span><b>Firestore — لحظي</b></div>
       <div class="kv"><span>الدخول</span><b>حسابات المدير العام فقط</b></div>
     </div>`;
+  /* الحدّ الأدنى العام للطلب — سياسةٌ تُطبَّق ولا تُخزَّن وحدها.
+   *
+   * القيمة تُحفظ في delivery_settings/config للذاكرة، لكن **ما يفرضها فعلاً**
+   * هو كتابتها في حقل minOrder داخل كل مطعم أقلّ منها. والسبب أن هذا الحقل
+   * وحده هو ما يقرؤه التطبيق والموقع؛ أما مستند الإعدادات فقواعده تقصر
+   * قراءته على المدير العام، فلو تُرك الحدّ فيه وحده لما رآه عميل قط.
+   *
+   * ولذلك أيضاً لا يحتاج هذا تغييراً في القواعد ولا تحديثاً للتطبيق. */
+  const previewMinOrder = () => {
+    const floor = Math.max(0, Number(document.getElementById('s_minorder').value) || 0);
+    const below = S.restaurants.filter((r) => (Number(r.minOrder) || 0) < floor);
+    const box = document.getElementById('minOrderPreview');
+    box.innerHTML = !floor
+      ? 'صفر يعني بلا حدّ عام — يبقى لكل مطعم حدّه كما هو.'
+      : below.length
+        ? `<b style="color:var(--orange)">${below.length}</b> من ${S.restaurants.length} مطعماً تحت هذا الحدّ وسيُرفع حدّها: `
+          + below.slice(0, 6).map((r) => `${esc(r.name || '—')} (${fmtMoney(r.minOrder || 0)})`).join(' · ')
+          + (below.length > 6 ? ` و${below.length - 6} غيرها` : '')
+        : 'كل المطاعم عند هذا الحدّ أو فوقه — لا تغيير.';
+  };
+  document.getElementById('s_minorder').addEventListener('input', previewMinOrder);
+  previewMinOrder();
+
+  document.getElementById('applyMinOrder').addEventListener('click', async () => {
+    const floor = Math.max(0, Number(document.getElementById('s_minorder').value) || 0);
+    const below = S.restaurants.filter((r) => (Number(r.minOrder) || 0) < floor);
+    if (!confirm(floor
+      ? `رفع الحدّ الأدنى إلى ${fmtMoney(floor)} ${SAR} في ${below.length} مطعماً؟\n`
+        + 'المطاعم الأعلى من الحدّ لا تُمسّ. يمكنك خفض حدّ أي مطعم لاحقاً من صفحته.'
+      : 'حفظ الحدّ العام صفراً؟ لن تتغيّر حدود المطاعم الحالية.')) return;
+    const btn = document.getElementById('applyMinOrder');
+    btn.disabled = true;
+    try {
+      await setDoc(doc(db, 'delivery_settings', 'config'), { minOrderFloor: floor }, { merge: true });
+      for (const r of below) {
+        await updateDoc(doc(db, 'restaurants', r.id), { minOrder: floor });
+      }
+      audit('settings.save', `الحدّ الأدنى العام للطلب ${fmtMoney(floor)} ${SAR}`
+        + (below.length ? ` — رُفع حدّ ${below.length} مطعماً` : ' — بلا تغيير على المطاعم'),
+        { target: 'delivery_settings/config' });
+      toast(below.length ? `طُبِّق على ${below.length} مطعماً` : 'حُفظ الحدّ العام');
+      previewMinOrder();
+    } catch (err) { alert('تعذر التطبيق: ' + (err.code || err.message)); }
+    btn.disabled = false;
+  });
+
   document.getElementById('saveMinVer').addEventListener('click', async () => {
     const raw = document.getElementById('s_minver').value.trim();
     // الصيغة تُتحقَّق هنا لا في التطبيق: قيمة مشوّهة تجعل المقارنة تفشل عند
