@@ -752,6 +752,22 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
+  /// بحث مباشر عن طلب برقمه خارج نافذة الطلبات المحمّلة (٥٠٠ الأحدث) —
+  /// شبكة أمان لسجلّ الإدارة: رقم الطلب هو أول ٦ خانات من معرّف المستند
+  /// بأحرف كبيرة، فيكفي بحث مدى على المعرّف نفسه بلا حقل جديد ولا فهرس.
+  Future<List<models.Order>> findOrdersByNumber(String orderNumber) async {
+    final prefix = orderNumber.trim().toLowerCase().replaceAll('#', '');
+    if (prefix.isEmpty) return [];
+    final snap = await _orders
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: prefix)
+        .where(FieldPath.documentId, isLessThan: '$prefix\uF8FF')
+        .limit(10)
+        .get();
+    return snap.docs
+        .map((d) => models.Order.fromMap(d.data(), d.id))
+        .toList();
+  }
+
   Stream<List<models.Order>> streamActiveOrders() => _orders
       .orderBy('createdAt', descending: true)
       .limit(300)
