@@ -243,6 +243,22 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       await service.addRestaurant(r);
     } else {
       await service.updateRestaurant(r);
+      // موقع مصحَّح يلحق بالطلبات الجارية فوراً (ملاحظة المالك: سائق طلبٍ
+      // قائم ظل يُقاد للموقع القديم بعد التصحيح — لقطة الطلب لا تتحدث
+      // وحدها). فشل النشر لا يُفشل الحفظ: القراءة الحيّة في شاشات السائق
+      // خط الدفاع الثاني.
+      final moved = _lat != null &&
+          _lng != null &&
+          (widget.existing!.lat != _lat || widget.existing!.lng != _lng);
+      if (moved) {
+        try {
+          final n =
+              await service.propagateRestaurantLocation(_restaurantId, _lat!, _lng!);
+          if (n > 0 && mounted) {
+            showSuccess(context, 'حُدِّث الموقع في $n من الطلبات الجارية');
+          }
+        } catch (_) {}
+      }
     }
     if (mounted) Navigator.pop(context);
   }

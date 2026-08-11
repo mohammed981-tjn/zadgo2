@@ -40,6 +40,23 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
   Position? _pos;
   StreamSubscription<Position>? _posSub;
 
+  /// إحداثيات المطعم الحيّة من مستنده (تُجلب مرة لكل مطعم): لقطة الطلب قد
+  /// تسبق تصحيح المدير للموقع، فيقيس زر الاقتراب على المكان الخطأ.
+  double? _liveRestLat, _liveRestLng;
+  String? _liveFetchedFor;
+
+  void _maybeRefreshRestaurantCoords(FirebaseService service, Order o) {
+    if (_liveFetchedFor == o.restaurantId) return;
+    _liveFetchedFor = o.restaurantId;
+    service.getRestaurantOnce(o.restaurantId).then((r) {
+      if (!mounted || r?.lat == null || r?.lng == null) return;
+      setState(() {
+        _liveRestLat = r!.lat;
+        _liveRestLng = r.lng;
+      });
+    }).catchError((_) {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -89,6 +106,14 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                 title: 'الطلب لم يعد نشطاً',
                 subtitle: 'حالته الآن: ${o.status.label}');
           }
+
+          _maybeRefreshRestaurantCoords(service, o);
+          // نسخة الطلب التي تقيس زر الاقتراب — بإحداثيات المطعم الحيّة إن
+          // وصلت (بقية الشاشة عرضٌ لا يتأثر بالموقع).
+          final navOrder = _liveRestLat != null && _liveRestLng != null
+              ? o.copyWith(
+                  restaurantLat: _liveRestLat, restaurantLng: _liveRestLng)
+              : o;
 
           // «نقدي» يستحق شريط التحصيل فقط إن بقي على العميل ما يُحصَّل —
           // محفظته قد تكون غطّت المبلغ كله فيُعامل كالمدفوع إلكترونياً.
@@ -301,7 +326,8 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                 child: Column(children: [
                   if (prePickup) ...[
                     if (o.arrivedAtRestaurantAt == null) ...[
-                      _ApproachButton(order: o, pos: _pos, service: service),
+                      _ApproachButton(
+                          order: navOrder, pos: _pos, service: service),
                       const SizedBox(height: 8),
                     ],
                     ZadGradientButton(

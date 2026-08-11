@@ -27,7 +27,23 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
   final MapController _mapController = MapController();
   int _driverStreamRetryToken = 0;
 
-  Order get order => widget.order;
+  /// نسخة الطلب بإحداثيات المطعم الحيّة — تُجلب مرة عند الفتح: موقع صحّحه
+  /// المدير بعد إنشاء الطلب يجب أن يقود الدبوس والملاحة، لا لقطة الإنشاء.
+  Order? _liveOrder;
+  Order get order => _liveOrder ?? widget.order;
+
+  @override
+  void initState() {
+    super.initState();
+    context
+        .read<FirebaseService>()
+        .withLiveRestaurantCoords(widget.order)
+        .then((fresh) {
+      if (mounted && !identical(fresh, widget.order)) {
+        setState(() => _liveOrder = fresh);
+      }
+    });
+  }
 
   // وجهة الخريطة تتبع مرحلة الرحلة لا حالةً واحدة بعينها (ملاحظة المالك
   // ٢٠٢٦-٠٨-١١): كل ما قبل استلام الطلب من المطعم وجهتُه المطعم — حتى لو
