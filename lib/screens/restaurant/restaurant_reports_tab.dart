@@ -82,7 +82,13 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
             Builder(builder: (ctx) {
               final commission =
                   sold.fold(0.0, (s, o) => s + o.effectiveCommission);
-              final net = totalMealsValue - commission;
+              // تعويضات الإلغاء بعد الطبخ تُضاف للمستحق بلا عمولة: المنصّة
+              // تتحمّلها كاملة لأن المطعم أدّى ما عليه ولا ذنب له في
+              // الإلغاء (المعيار العالمي)، وخصم عمولة عليها يعني تحميله
+              // جزءاً من خطأ غيره.
+              final compensations =
+                  orders.fold(0.0, (s, o) => s + o.restaurantCompensation);
+              final net = totalMealsValue - commission + compensations;
               return AppStreamBuilder<List<RestaurantSettlement>>(
                 stream: () =>
                     service.streamRestaurantSettlements(widget.restaurantId),
@@ -107,6 +113,10 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         PriceRow(
                             label: 'عمولة المنصّة (15%)',
                             value: '- ${formatCurrency(commission)}'),
+                        if (compensations > 0)
+                          PriceRow(
+                              label: 'تعويض طلبات أُلغيت بعد التحضير',
+                              value: '+ ${formatCurrency(compensations)}'),
                         PriceRow(
                             label: 'صافي المستحق',
                             value: formatCurrency(net)),
@@ -224,6 +234,13 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                             value: formatCurrency(
                                 o.itemsTotal - o.effectiveCommission)),
                       ],
+                      // طلبٌ أُلغي بعد طبخه: يُعوَّض كاملاً بلا عمولة.
+                      if (o.restaurantCompensation > 0)
+                        PriceRow(
+                            label: 'تعويض إلغاء بعد التحضير',
+                            value:
+                                '+ ${formatCurrency(o.restaurantCompensation)}',
+                            bold: true),
                     ]),
                   ),
                 )),

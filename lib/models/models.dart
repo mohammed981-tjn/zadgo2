@@ -1779,6 +1779,13 @@ class Order {
   /// ٧:٣٥ = التأخير من المطعم لا من السائق.
   final DateTime? arrivedAtRestaurantAt;
 
+  /// تعويض المطعم عن طلبٍ أُلغي **بعد أن بدأ تحضيره** — صفرٌ في كل ما
+  /// عداه. المعيار العالمي (يوبر إيتس ودور داش): المطعم يُدفع له كاملاً
+  /// متى قبل الطلب وطبخه ولم يكن الإلغاء بسببه، فتكلفة الطعام وقعت فعلاً
+  /// ولا ذنب له فيها. النسبة يضبطها المدير (`restaurantCancelCompensationPercent`،
+  /// ١٠٠٪ افتراضاً) — لا رقم مبرمَج (بند ج١).
+  final double restaurantCompensation;
+
   /// لحظة تأكيد **المطعم** تسليمَ الطلب للكابتن — الوجه الثاني للاستلام
   /// (طلب المالك ٢٠٢٦-٠٨-١١): ضغطة الكابتن وحدها إقرارُ طرفٍ واحد، فإن
   /// أنكر المطعم التسليم أو ادّعى تأخّر الكابتن لم يكن في السجل ما يفصل.
@@ -1830,6 +1837,7 @@ class Order {
     this.custodyDebited = false,
     this.arrivedAtRestaurantAt,
     this.restaurantHandoverAt,
+    this.restaurantCompensation = 0,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -1962,6 +1970,8 @@ class Order {
             (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
         restaurantHandoverAt:
             (map['restaurantHandoverAt'] as Timestamp?)?.toDate(),
+        restaurantCompensation:
+            (map['restaurantCompensation'] as num?)?.toDouble() ?? 0,
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -2007,6 +2017,7 @@ class Order {
           'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
         if (restaurantHandoverAt != null)
           'restaurantHandoverAt': Timestamp.fromDate(restaurantHandoverAt!),
+        'restaurantCompensation': restaurantCompensation,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2067,6 +2078,7 @@ class Order {
         custodyDebited: custodyDebited,
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
         restaurantHandoverAt: restaurantHandoverAt,
+        restaurantCompensation: restaurantCompensation,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );
