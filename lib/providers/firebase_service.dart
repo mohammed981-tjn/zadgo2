@@ -801,6 +801,13 @@ class FirebaseService {
   Stream<models.Order?> streamOrder(String orderId) => _orders.doc(orderId).snapshots().map(
       (doc) => doc.exists && doc.data() != null ? models.Order.fromMap(doc.data()!, doc.id) : null);
 
+  /// قراءة لحظية لمستند الطلب — لقرارٍ لا يحتمل لقطةً قديمة (الإسناد مثلاً).
+  Future<models.Order?> getOrderOnce(String orderId) async {
+    final doc = await _orders.doc(orderId).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return models.Order.fromMap(doc.data()!, doc.id);
+  }
+
   Future<void> updateOrderStatus(String orderId, models.OrderStatus status) async {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
@@ -850,6 +857,7 @@ class FirebaseService {
     // رفض المطعم إنهاءٌ للطلب بلا خدمة، فيُعاد للعميل ما خُصم من محفظته تماماً
     // كالإلغاء — وإلا خسر رصيده بسبب رفضٍ لا ذنب له فيه.
     await _refundWalletOnCancel(current);
+    await _releaseOrderDriver(current);
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
@@ -1068,18 +1076,24 @@ class FirebaseService {
 
   Future<void> assignDriver(String orderId, String driverId, String driverName) async {
     final ref = _orders.doc(orderId);
-    final orderDoc = await ref.get();
-    if (orderDoc.exists && orderDoc.data() != null) {
-      final current = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+    var current = await getOrderOnce(orderId);
+    if (current == null) throw Exception('الطلب غير موجود');
+
+    // إسناد مبكر (الطلب ما زال عند المطعم): يُربط السائق **بلا تغيير حالة**،
+    // تماماً كما يفعل الإسناد التلقائي لحظة قبول المطعم. تحويل الحالة هنا
+    // كان يقفز فوق مرحلتَي التحضير والجهوزية ويُسقط دور المطعم من التتبّع —
+    // ولذلك كان الإسناد اليدوي يفشل أصلاً على طلبٍ عالق قبل الجهوزية.
+    final earlyStage = current.status == models.OrderStatus.restaurantPending ||
+        current.status == models.OrderStatus.restaurantAccepted ||
+        current.status == models.OrderStatus.preparing;
+
+    if (!earlyStage) {
       if (current.status == models.OrderStatus.readyForPickup) {
         await updateOrderStatus(orderId, models.OrderStatus.searchingDriver);
+        current = await getOrderOnce(orderId) ?? current;
       }
-    }
-
-    final refreshedDoc = await ref.get();
-    if (refreshedDoc.exists && refreshedDoc.data() != null) {
-      final current = models.Order.fromMap(refreshedDoc.data()!, refreshedDoc.id);
-      if (!_isValidStatusTransition(current.status, models.OrderStatus.driverAssigned)) {
+      if (!_isValidStatusTransition(
+          current.status, models.OrderStatus.driverAssigned)) {
         throw Exception(
             'انتقال حالة غير صالح: من ${current.status.name} إلى ${models.OrderStatus.driverAssigned.name}');
       }
@@ -1096,9 +1110,9 @@ class FirebaseService {
       'driverId': driverId,
       'driverName': driverName,
       'driverPhone': driverData?.phone,
-      'status': models.OrderStatus.driverAssigned.name,
+      if (!earlyStage) 'status': models.OrderStatus.driverAssigned.name,
       'updatedAt': FieldValue.serverTimestamp(),
-      'statusChangedAt': FieldValue.serverTimestamp(),
+      if (!earlyStage) 'statusChangedAt': FieldValue.serverTimestamp(),
       'driverAcknowledged': isDriverOnline,
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
@@ -1109,36 +1123,55 @@ class FirebaseService {
 
   static const int _driverCandidatesCount = 3;
 
+  /// الإسناد التلقائي — أُعيدت كتابته بعد بلاغ المالك (٢٠٢٦-٠٨-١١): طلبات
+  /// مطعم بعينه لم تصل أي سائق بعد قبول المطعم لها. كانت الدالة تنسحب
+  /// **صامتةً** في ثلاث حالات، وكلها واردة في التشغيل الحقيقي:
+  ///
+  ///   ١) المطعم بلا إحداثيات على الخريطة (يُضاف من اللوحة ويُنسى موقعه) —
+  ///      كان السطر الأول يُرجع false فوراً، فلا يرى الطلبَ سائقٌ أبداً.
+  ///   ٢) السائق «غير متاح» عالقاً: إلغاء طلبٍ مُسنَد لم يكن يحرّره، فيبقى
+  ///      مشغولاً بطلبٍ لم يعد قائماً — إلى الأبد.
+  ///   ٣) سائق بلا إحداثيات (إذن موقع مرفوض) — كان يُستبعَد كلياً.
+  ///
+  /// المبدأ الآن: **الطلب يخرج لسائقٍ ما دام هناك سائق متصل**؛ المسافة
+  /// تُحسّن الاختيار ولا تشترطه، والتقييم يحكم حين تغيب المسافة.
+  ///
   /// [excludeDriverId]: سائق يُستبعد من الترشيح — يُمرَّر عند إعادة الإسناد
   /// بعد رفضه للطلب، وإلا اختير «الأقرب» وهو الرافض نفسه فعاد إليه الطلب
   /// فوراً وبعلم إقرار مسبق فلا يظهر له شيء أصلاً.
   Future<bool> autoAssignNearestDriver(models.Order order,
       {String? excludeDriverId}) async {
-    if (order.restaurantLat == null || order.restaurantLng == null) return false;
     final driversSnap = await _drivers.get();
+    final online = driversSnap.docs
+        .map((doc) => models.Driver.fromMap(doc.data(), doc.id))
+        .where((d) => d.id != excludeDriverId && d.isOnline)
+        .toList();
+    if (online.isEmpty) return false;
 
-    final candidateDrivers = <models.Driver>[];
-    final candidateDistances = <double>[];
-    for (final doc in driversSnap.docs) {
-      final d = models.Driver.fromMap(doc.data(), doc.id);
-      if (d.id == excludeDriverId) continue;
-      if (!d.isOnline || !d.isAvailable) continue;
-      if (d.lat == null || d.lng == null) continue;
-      final distance =
-          haversineDistanceKm(order.restaurantLat!, order.restaurantLng!, d.lat!, d.lng!);
-      candidateDrivers.add(d);
-      candidateDistances.add(distance);
+    var available = online.where((d) => d.isAvailable).toList();
+    // لا متاح؟ قد يكون العائق وهمياً (خ٢) — تُصالَح الحالة قبل الاستسلام.
+    if (available.isEmpty) {
+      available = await _freeStuckDrivers(online);
+      if (available.isEmpty) return false;
     }
-    if (candidateDrivers.isEmpty) return false;
 
-    final indices = List<int>.generate(candidateDrivers.length, (i) => i);
-    indices.sort((a, b) => candidateDistances[a].compareTo(candidateDistances[b]));
+    // الترشيح بالمسافة حين تتوفر النقطتان، وإلا بالتقييم — لا انسحاب.
+    final located = order.restaurantLat != null && order.restaurantLng != null
+        ? (available.where((d) => d.lat != null && d.lng != null).toList()
+          ..sort((a, b) => haversineDistanceKm(
+                  order.restaurantLat!, order.restaurantLng!, a.lat!, a.lng!)
+              .compareTo(haversineDistanceKm(
+                  order.restaurantLat!, order.restaurantLng!, b.lat!, b.lng!))))
+        : <models.Driver>[];
+    final pool = located.isNotEmpty
+        ? located.take(_driverCandidatesCount).toList()
+        : (available.toList()..sort((a, b) => b.rating.compareTo(a.rating)))
+            .take(_driverCandidatesCount)
+            .toList();
 
-    final nearestIndices = indices.take(_driverCandidatesCount).toList();
-
-    nearestIndices.sort(
-        (a, b) => candidateDrivers[b].rating.compareTo(candidateDrivers[a].rating));
-    final chosen = candidateDrivers[nearestIndices.first];
+    // الأعلى تقييماً بين الأقرب — كما كان.
+    pool.sort((a, b) => b.rating.compareTo(a.rating));
+    final chosen = pool.first;
 
     final batch = _db.batch();
     batch.update(_orders.doc(order.id), {
@@ -1157,6 +1190,67 @@ class FirebaseService {
     // إشعار السائق المرشَّح — تطبيقه قد يكون بالخلفية لحظة العرض.
     NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
     return true;
+  }
+
+  /// تحرير السائقين العالقين على «غير متاح» بلا طلبٍ جارٍ فعلاً.
+  ///
+  /// `isAvailable` يُضبط false عند الإسناد ويعود true عند التسليم أو الرفض
+  /// أو التحويل — لكن **الإلغاء** كان ينسى تحريره، وكذلك أي انقطاع بين
+  /// الخطوتين. فيكفي طلب اختباري واحد أُلغي ليختفي سائق عن كل الطلبات
+  /// اللاحقة بلا أثر ظاهر. المصالحة تُشغَّل فقط حين لا يوجد متاح أصلاً —
+  /// استعلام واحد إضافي في أسوأ الحالات لا في كل إسناد.
+  /// سرد كل الطلبات مسموحٌ للمدير وحده في القواعد، فتفشل المصالحة بهدوء
+  /// حين تُستدعى من تطبيق المطعم — ولذلك تُشغَّلها لوحة الإدارة أيضاً عند
+  /// فتح «المتابعة الحية» ([reconcileDriverAvailability])، وهي البيئة التي
+  /// تملك الصلاحية فعلاً.
+  Future<List<models.Driver>> _freeStuckDrivers(
+      List<models.Driver> online) async {
+    try {
+      final busy = <String>{};
+      final snap =
+          await _orders.orderBy('createdAt', descending: true).limit(300).get();
+      for (final doc in snap.docs) {
+        final o = models.Order.fromMap(doc.data(), doc.id);
+        final id = o.driverId ?? '';
+        if (id.isNotEmpty && o.status.isActive) busy.add(id);
+      }
+      final stuck =
+          online.where((d) => !d.isAvailable && !busy.contains(d.id)).toList();
+      if (stuck.isEmpty) return [];
+      final batch = _db.batch();
+      for (final d in stuck) {
+        batch.update(_drivers.doc(d.id), {'isAvailable': true});
+      }
+      await batch.commit();
+      return stuck;
+    } catch (_) {
+      // صلاحية سرد ناقصة أو انقطاع — لا نُفشل الإسناد بسبب محاولة إصلاح.
+      return [];
+    }
+  }
+
+  /// مصالحة توافر السائقين من لوحة الإدارة — تُحرّر كل من عَلِق «غير متاح»
+  /// بلا طلب جارٍ. تُرجع عدد من حُرِّروا (صفر في الحالة السليمة).
+  Future<int> reconcileDriverAvailability() async {
+    final snap = await _drivers.get();
+    final online = snap.docs
+        .map((d) => models.Driver.fromMap(d.data(), d.id))
+        .where((d) => d.isOnline && !d.isAvailable)
+        .toList();
+    if (online.isEmpty) return 0;
+    return (await _freeStuckDrivers(online)).length;
+  }
+
+  /// تحرير سائق طلبٍ انتهى قبل أوانه (إلغاء/رفض) — الوقاية التي تُغني عن
+  /// المصالحة أعلاه: يُستدعى في كل مسار إنهاء لا يمرّ بالتسليم.
+  Future<void> _releaseOrderDriver(models.Order order) async {
+    final id = order.driverId ?? '';
+    if (id.isEmpty) return;
+    try {
+      await _drivers.doc(id).update({'isAvailable': true});
+    } catch (_) {
+      // فشل التحرير لا يُفشل الإلغاء نفسه — المصالحة ستلتقطه لاحقاً.
+    }
   }
 
   Future<bool> tryAutoAssignOnAcceptance(models.Order order) => autoAssignNearestDriver(order);
@@ -1819,6 +1913,8 @@ class FirebaseService {
     // إن كان السائق قد استلم الطلب فعُهدته مقيّدة عليه — تُردّ له، فالطلب
     // الملغى لن يحصّل قيمته من أحد.
     await _reverseCustodyIfNeeded(order);
+    // ويعود متاحاً: بلا هذا كان يبقى «مشغولاً» بطلبٍ أُلغي فلا تصله عروض.
+    await _releaseOrderDriver(order);
   }
 
   /// إلغاء العميل لطلبه — مسموح فقط قبل أن يبدأ المطعم التحضير
@@ -1832,6 +1928,7 @@ class FirebaseService {
     }
     await updateOrderStatus(orderId, models.OrderStatus.cancelled);
     await _refundWalletOnCancel(order);
+    await _releaseOrderDriver(order);
   }
 
   Future<models.Order> _getOrderOrThrow(String orderId) async {

@@ -90,6 +90,18 @@ class _OrderTrackingTabState extends State<OrderTrackingTab> {
     if (!mounted) return;
     setState(() => _timeouts = timeouts);
     await _flagOrdersWithNoDriverFound(service, timeouts);
+    // مصالحة توافر السائقين: سائق عَلِق «غير متاح» بعد إلغاء طلبٍ مُسنَد
+    // كان يختفي عن كل الطلبات اللاحقة بلا أثر ظاهر. تُشغَّل هنا لأن سرد كل
+    // الطلبات — شرط المصالحة — صلاحية إدارية، ولأن هذه أول شاشة يفتحها
+    // المدير حين يسأل «لماذا لم يصل الطلب لأي كابتن؟».
+    try {
+      final freed = await service.reconcileDriverAvailability();
+      if (freed > 0 && mounted) {
+        showSuccess(context, 'حُرِّر $freed كابتن كان عالقاً «غير متاح»');
+      }
+    } catch (_) {
+      // المصالحة تحسينٌ لا شرط لعمل الشاشة.
+    }
   }
 
   /// يحوّل آلياً أي طلب "جاري البحث عن سائق" تجاوز مهلة البحث دون أن يقبله
@@ -309,12 +321,17 @@ class _TrackedOrderCard extends StatelessWidget {
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
             ),
-            if (order.status == OrderStatus.noDriverFound)
+            // الإسناد اليدوي متاح لأي طلب بلا سائق لا لحالة «تعذّر إيجاد
+            // سائق» وحدها: طلبٌ عالق في «جاهز للاستلام» بلا سائق كان بلا
+            // مخرج حتى تنقضي مهلة البحث (بلاغ المالك ٢٠٢٦-٠٨-١١).
+            if ((order.driverId ?? '').isEmpty &&
+                (order.status.isActive ||
+                    order.status == OrderStatus.noDriverFound))
               _pill(
                 icon: Icons.person_add_alt_1,
                 label: 'إسناد سائق يدوياً',
                 color: Colors.deepOrange,
-                filled: true,
+                filled: order.status == OrderStatus.noDriverFound,
                 onTap: () => _showAssignDriverDialog(context, service, order),
               ),
             if ((order.status == OrderStatus.driverAssigned ||
@@ -516,19 +533,28 @@ class _TrackedOrderCard extends StatelessWidget {
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('الطلب #${order.orderNumber} — تعذّر إيجاد سائق تلقائياً.'),
               const SizedBox(height: 14),
+              // كل السائقين المتصلين لا المتاحين وحدهم: «غير متاح» قد يكون
+              // عالقاً من طلبٍ أُلغي، وحصر القائمة فيه كان يترك المدير بلا
+              // مخرج أمام رسالة «لا يوجد سائقون» بينما الكباتن متصلون.
               AppStreamBuilder<List<Driver>>(
                 stream: service.streamDrivers,
                 builder: (ctx, allDrivers) {
-                  final drivers = allDrivers.where((d) => d.isOnline && d.isAvailable).toList();
+                  final drivers = allDrivers.where((d) => d.isOnline).toList()
+                    ..sort((a, b) => (b.isAvailable ? 1 : 0)
+                        .compareTo(a.isAvailable ? 1 : 0));
                   if (drivers.isEmpty) {
-                    return const Text('لا يوجد سائقون متاحون حالياً',
+                    return const Text('لا يوجد كابتن متصل الآن',
                         style: TextStyle(color: Colors.orange));
                   }
                   return DropdownButtonFormField<String>(
                     value: selectedDriverId,
                     decoration: const InputDecoration(labelText: 'السائق'),
                     items: drivers
-                        .map((d) => DropdownMenuItem(value: d.id, child: Text(d.name)))
+                        .map((d) => DropdownMenuItem(
+                            value: d.id,
+                            child: Text(d.isAvailable
+                                ? d.name
+                                : '${d.name} — مشغول حالياً')))
                         .toList(),
                     onChanged: (v) {
                       selectedDriverId = v;
