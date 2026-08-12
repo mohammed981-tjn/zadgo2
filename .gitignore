@@ -14,3 +14,7 @@ android/key.properties
 # النسخة القابلة للرفع هي config.sample.php فقط.
 server/api/config.php
 service-account*.json
+
+# تبعيات دوال Cloud Functions — تُثبَّت عند النشر لا تُرفع.
+functions/node_modules/
+functions/package-lock.json
