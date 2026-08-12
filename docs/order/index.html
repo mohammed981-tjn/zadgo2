@@ -1312,6 +1312,12 @@ async function placeOrder() {
     driverAcknowledged: true,
     custodyDebited: false,
     discountAmount: 0,
+    // تعويض المطعم عن إلغاءٍ بعد التحضير — أضافه مساعد التطبيق (فرع
+    // split-customer-app). يُقرأ عنده بقيمةٍ افتراضية صفر، فطلباتي كانت
+    // تعمل بدونه؛ لكن الانضباط أن أكتب ما يكتبه حقلاً بحقل. وصفرٌ هو
+    // الصحيح دلالةً عند الإنشاء: لا تعويض قبل أن يُحضَّر شيء ويُلغى.
+    // (`restaurantHandoverAt` يُكتب عنده بشرط وجود قيمة، فأتركه كما يفعل.)
+    restaurantCompensation: 0,
   };
 
   try {
