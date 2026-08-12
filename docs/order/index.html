@@ -311,6 +311,23 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
   display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.1rem;
   flex: 0 0 auto; }
 
+/* ---------- التقييم والعناوين ---------- */
+.rrow { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--line); font-weight: 700; font-size: .92rem; }
+.rrow:last-of-type { border-bottom: 0; }
+.stars { display: flex; gap: 2px; }
+.stars button { border: 0; background: none; cursor: pointer; font-size: 1.65rem; line-height: 1;
+  color: var(--line); padding: 0 1px; }
+.stars button.on { color: var(--gold); }
+.stars button:hover { transform: scale(1.12); }
+.saved { margin-bottom: 12px; }
+.achip { display: flex; flex-direction: column; align-items: flex-start; width: 100%;
+  border: 1.5px solid var(--line); background: #fff; border-radius: 11px; padding: 9px 12px;
+  cursor: pointer; margin-bottom: 7px; text-align: start; }
+.achip:hover { border-color: var(--gold); background: #FDF6E3; }
+.achip b { font-size: .88rem; color: var(--green); }
+.achip span { font-size: .78rem; color: var(--muted); }
+
 .suggest { background: #FDF6E3; border: 1.5px solid var(--gold-light); border-radius: 11px;
   padding: 11px 13px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
   justify-content: space-between; font-size: .86rem; }
@@ -398,7 +415,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, sendPasswordResetEmail }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, limit,
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, limit,
   getDocs, onSnapshot, Timestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
@@ -1018,6 +1035,11 @@ function viewCart() {
         ${noLoc ? 'موقعك مطلوب لحساب أجرة التوصيل بدقة ولإيصال الكابتن إليك.'
           : km != null ? `تبعد عن المطعم ${km.toFixed(1)} كم` : 'موقع المطعم غير مسجّل — ستُحتسب الأجرة الأساسية.'}
       </p>
+      ${addrList().length ? `<div class="saved">
+        <div class="muted" style="margin-bottom:7px">عناوينك المحفوظة</div>
+        ${addrList().map((a, i) => `<button class="achip" data-addr="${i}">
+          <b>${esc(a.label || 'عنوان')}</b><span>${esc(a.address || '')}</span></button>`).join('')}
+      </div>` : ''}
       ${S.addr.suggest ? `<div class="suggest">
         <div>📍 العنوان المكتشف من موقعك:<br><b>${esc(S.addr.suggest)}</b></div>
         <button class="btn sm" id="useSuggest">استخدمه</button></div>` : ''}
@@ -1063,8 +1085,19 @@ function viewCart() {
 
   $('main').onclick = (e) => {
     const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]');
-    if (inc) changeQty(inc.dataset.inc, +1);
-    else if (dec) changeQty(dec.dataset.dec, -1);
+    if (inc) { changeQty(inc.dataset.inc, +1); return; }
+    if (dec) { changeQty(dec.dataset.dec, -1); return; }
+    const pick = e.target.closest('[data-addr]');
+    if (pick) {
+      const a = addrList()[Number(pick.dataset.addr)];
+      if (a) {
+        S.addr.text = a.address || '';
+        S.addr.auto = a.address || '';
+        S.addr.lat = a.lat ?? null; S.addr.lng = a.lng ?? null;
+        S.addr.suggest = null; S.addr.geoFailed = false;
+        render();
+      }
+    }
   };
   $('addr').oninput = (e) => { S.addr.text = e.target.value; };
   if ($('useSuggest')) $('useSuggest').onclick = () => {
@@ -1236,6 +1269,15 @@ async function placeOrder() {
     await setDoc(doc(db, 'orders', orderId), payload);
     S.cart = []; S.cartResto = null; saveCart();
     S.busy = false;
+    // العرض بعد نجاح الطلب لا قبله: لا نشغل العميل بسؤالٍ إداري وهو ينتظر.
+    // وفشل الحفظ لا يمسّ الطلب — الطلب تمّ وانتهى.
+    const known = addrList().some((a) => (a.address || '').trim() === addr);
+    if (!known) {
+      const label = prompt('احفظ هذا العنوان لطلباتك القادمة؟ اكتب اسماً له (البيت، العمل…) أو اتركه فارغاً للتجاهل:', 'البيت');
+      if (label && label.trim()) {
+        try { await saveCurrentAddress(label.trim()); } catch (e) {}
+      }
+    }
     go('orders');
   } catch (e) {
     S.busy = false;
@@ -1463,7 +1505,25 @@ function viewOrder() {
     </div>
 
     <div class="sec-title">التوصيل إلى</div>
-    <div class="card"><div>📍 ${esc(o.deliveryAddress || '')}</div></div>`;
+    <div class="card"><div>📍 ${esc(o.deliveryAddress || '')}</div></div>
+
+    ${o.status === 'delivered' && !o.isRated ? rateCard(o) : ''}
+    ${o.isRated ? `<div class="card" style="text-align:center">
+      <div style="font-size:1.6rem">${'★'.repeat(Math.round(o.customerRating || 0))}</div>
+      <div class="muted">شكراً لتقييمك</div></div>` : ''}`;
+
+  // نجوم التقييم: الضغط يلوّن ما دونها، والإرسال بعده.
+  $('main').onclick = (e) => {
+    const st = e.target.closest('[data-star]');
+    if (st) {
+      const group = st.closest('[data-stars]').dataset.stars;
+      S.rate = { ...(S.rate || {}), [group]: Number(st.dataset.star) };
+      [...st.closest('[data-stars]').querySelectorAll('[data-star]')].forEach((b) =>
+        b.classList.toggle('on', Number(b.dataset.star) <= Number(st.dataset.star)));
+      return;
+    }
+  };
+  if ($('rateSend')) $('rateSend').onclick = () => submitRating(o);
 }
 
 /* ---------------- الحساب ---------------- */
@@ -1493,6 +1553,16 @@ function viewAccount() {
     <div class="card">
       <div class="row-between"><span>🧾 طلبات مكتملة</span><b>${done}</b></div>
     </div>
+    <div class="sec-title">عناويني</div>
+    <div class="card">
+      ${addrList().length ? addrList().map((a, i) => `<div class="item">
+        <div class="ic">📍</div>
+        <div class="grow"><div class="nm">${esc(a.label || 'عنوان')}</div>
+          <div class="ds">${esc(a.address || '')}</div></div>
+        <button class="btn ghost sm" data-delAddr="${i}">حذف</button>
+      </div>`).join('')
+      : '<p class="muted">لا عناوين محفوظة بعد — يُعرض عليك حفظ عنوانك بعد أول طلب.</p>'}
+    </div>
     <div class="sec-title">روابط</div>
     <div class="card">
       <p style="padding:6px 0"><a href="/contact.html">التواصل والدعم</a></p>
@@ -1500,6 +1570,99 @@ function viewAccount() {
       <p style="padding:6px 0"><a href="/privacy-policy.html">سياسة الخصوصية</a></p>
       <p style="padding:6px 0"><a href="/delete-account.html">حذف الحساب</a></p>
     </div>`;
+
+  $('main').onclick = async (e) => {
+    const del = e.target.closest('[data-delAddr]');
+    if (!del) return;
+    const i = Number(del.dataset.deladdr);
+    const a = addrList()[i];
+    if (!a || !confirm(`حذف «${a.label || 'العنوان'}»؟`)) return;
+    const list = addrList().filter((_, n) => n !== i);
+    try { await saveAddresses(list); render(); }
+    catch (err) { alert('تعذّر الحذف، حاول مجدداً.'); }
+  };
+}
+
+/* ---------------- التقييم بعد التسليم ----------------
+ * منقول عن rateOrder و updateDriverRating و updateRestaurantRating في
+ * التطبيق: المتوسط يُقرَّب لخانة عشرية واحدة، **والمطعم بلا تقييمات سابقة
+ * يبدأ من التقييم الأول نفسه** لا من متوسطٍ مع الـ5.0 الافتراضية التي لم
+ * يمنحها أحد. لو خالفتُ هذا لاختلف متوسط المطعم بحسب من قيّمه: من التطبيق
+ * أم من الموقع.
+ *
+ * والقواعد تسمح بهذا كلّه بلا تعديل: العميل يعدّل طلبه في غير الحقول
+ * المالية، ويعدّل من المطعم والسائق حقلَي التقييم وحدهما. */
+function starsHtml(name, value) {
+  return `<div class="stars" data-stars="${name}">${[1, 2, 3, 4, 5].map((n) =>
+    `<button type="button" data-star="${n}" class="${n <= value ? 'on' : ''}">★</button>`).join('')}</div>`;
+}
+async function bumpRating(ref, newRating) {
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const d = snap.data();
+  const count = Number(d.ratingCount) || 0;
+  const newCount = count + 1;
+  const avg = count <= 0 ? newRating
+    : ((Number(d.rating) || 0) * count + newRating) / newCount;
+  await updateDoc(ref, { rating: Number(avg.toFixed(1)), ratingCount: newCount });
+}
+async function submitRating(o) {
+  const r = S.rate || {};
+  if (!r.restaurant) { alert('اختر تقييماً للمطعم أولاً'); return; }
+  const btn = $('rateSend'); btn.disabled = true; btn.textContent = 'جارٍ الإرسال…';
+  const review = ($('rateReview').value || '').trim();
+  try {
+    await updateDoc(doc(db, 'orders', o.id), {
+      customerRating: r.restaurant,
+      driverRating: r.driver || r.restaurant,
+      isRated: true,
+      ...(review ? { customerReview: review } : {}),
+    });
+    // تحديث المتوسّطات بعد ثبوت التقييم على الطلب: لو فشل أحدهما بقي الطلب
+    // مقيَّماً ولا يُطلب من العميل التقييم مرتين.
+    if (o.restaurantId) {
+      try { await bumpRating(doc(db, 'restaurants', o.restaurantId), r.restaurant); } catch (e) {}
+    }
+    if (o.driverId) {
+      try { await bumpRating(doc(db, 'drivers', o.driverId), r.driver || r.restaurant); } catch (e) {}
+    }
+    S.rate = null;
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'إرسال التقييم';
+    alert('تعذّر إرسال التقييم، حاول مجدداً.');
+  }
+}
+function rateCard(o) {
+  const r = S.rate || {};
+  return `<div class="sec-title">قيّم تجربتك</div>
+    <div class="card">
+      <p class="muted" style="margin-bottom:10px">تقييمك يساعد غيرك على الاختيار — ويصل للمطعم والكابتن.</p>
+      <div class="rrow"><span>🍽️ ${esc(o.restaurantName || 'المطعم')}</span>
+        ${starsHtml('restaurant', r.restaurant || 0)}</div>
+      ${o.driverName ? `<div class="rrow"><span>🛵 ${esc(o.driverName)}</span>
+        ${starsHtml('driver', r.driver || 0)}</div>` : ''}
+      <div class="field" style="margin:12px 0 10px">
+        <textarea id="rateReview" rows="2" placeholder="ملاحظة للمطعم أو الكابتن (اختياري)"></textarea></div>
+      <button class="btn block" id="rateSend">إرسال التقييم</button>
+    </div>`;
+}
+
+/* ---------------- العناوين المحفوظة ----------------
+ * الحقل `savedAddresses` موجود في مستند المستخدم منذ البداية ولم يُستعمل
+ * على الويب. العميل المتكرّر كان يعيد كتابة عنوانه وتحديد موقعه في كل طلب.
+ * والقواعد تسمح لصاحب المستند بتعديله ما لم يمسّ الدور أو التفعيل أو يزد
+ * رصيده — وهذا ليس منها. */
+const addrList = () => (S.user && Array.isArray(S.user.savedAddresses)) ? S.user.savedAddresses : [];
+async function saveAddresses(list) {
+  await updateDoc(doc(db, 'users', S.user.uid), { savedAddresses: list });
+  S.user.savedAddresses = list;
+}
+async function saveCurrentAddress(label) {
+  const entry = { label, address: S.addr.text.trim(), lat: S.addr.lat, lng: S.addr.lng };
+  // العنوان نفسه لا يُحفظ مرتين — يُستبدل بأحدث إحداثياته.
+  const list = addrList().filter((a) => (a.address || '').trim() !== entry.address);
+  list.unshift(entry);
+  await saveAddresses(list.slice(0, 6));   // ستة تكفي بيتاً وعملاً وأهلاً
 }
 
 /* نصوص المطاعم والأصناف يكتبها بشر في لوحة التحكم — تُهرَّب دائماً قبل
