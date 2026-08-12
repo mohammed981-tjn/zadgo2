@@ -221,11 +221,20 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         labelStyle: const TextStyle(fontFamily: 'Cairo', color: AppColors.textGray, fontSize: 14),
       ),
+      // دفعة ز4 (جزئياً، ٢٠٢٦-٠٨-١٢): البطاقة كانت بيضاء بلا ظل ولا حدّ
+      // على خلفية #F3F5F4 — والفرق بينهما ٣٪ إضاءة فقط، فتُقرأ الشاشة
+      // «غير مكتملة» ولا يُعرف سببها. ماتيريال ٣ حين يُصفّر الارتفاع
+      // يفترض بديلاً (حدّاً أو ظلاً) ولم يكن عندنا أيّهما. الحدّ الرفيع
+      // أرخص الاثنين: لا يكلّف رسماً إضافياً كالظل، ويعمل في كثافة
+      // البطاقات العالية عندنا (قوائم طلبات) حيث تتراكب الظلال فتتوسّخ.
       cardTheme: CardTheme(
         elevation: 0,
         color: Colors.white,
         shadowColor: AppColors.cardShadow,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.divider, width: 1),
+        ),
         margin: EdgeInsets.zero,
       ),
       switchTheme: SwitchThemeData(
