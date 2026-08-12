@@ -122,6 +122,21 @@ class DriverProofFlow {
       return false;
     }
 
+    // كابتنٌ اجتاز الحارس هو كابتنٌ **واصل** — فإن لم يكن سجّل وصوله
+    // (والزرّان معروضان معاً فقد يقفز مباشرةً للاستلام)، يُختم له الآن.
+    //
+    // بلا هذا يبقى `arrivedAtRestaurantAt` فارغاً، فلا يفتح زرّ «سلّمتُ
+    // الطلب» عند المطعم أبداً ويضيع إقرار الطرف الثاني — وهي فجوةٌ
+    // أحدثها شرطُ المالك نفسه (٢٠٢٦-٠٨-١٢) لو تُركت بلا سدّ.
+    //
+    // «أطلِق وانسَ»: ختمٌ إحصائي فائت لا يجوز أن يمنع استلاماً صحيحاً.
+    if (order.arrivedAtRestaurantAt == null) {
+      LocationGuard.currentPosition().then((p) {
+        service.recordArrivalAtRestaurant(
+            order: order, lat: p.latitude, lng: p.longitude);
+      }).catchError((_) {});
+    }
+
     if (!context.mounted) return false;
     final isCash = order.paymentMethod == PaymentMethod.cash;
     final ok = await showConfirmDialog(
