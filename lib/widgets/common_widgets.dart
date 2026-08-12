@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../models/models.dart';
 import '../utils/theme.dart';
 
@@ -375,7 +376,9 @@ class AppEmpty extends StatelessWidget {
             ),
             child: Icon(icon, size: 38, color: fc.primaryDark),
           )),
-        ),
+        ).animate().scale(
+            begin: const Offset(0.82, 0.82), end: const Offset(1, 1),
+            duration: 320.ms, curve: Curves.easeOutBack).fadeIn(duration: 220.ms),
         const SizedBox(height: 18),
         Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         if (subtitle != null) ...[
