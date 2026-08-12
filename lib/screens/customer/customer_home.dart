@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animations/animations.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
 import '../../models/models.dart';
@@ -84,11 +85,26 @@ class _CustomerHomeState extends State<CustomerHome> {
           ]),
         ),
       ]),
+      // أيقونات Phosphor (ز5) في شريط تنقّل العميل: المحدَّد duotone
+      // (ممتلئ جزئياً) وغيره regular — تمييزٌ بالامتلاء يبقى واضحاً حتى
+      // لعمى الألوان، والطابع مختلف عن أيقونات كل تطبيق أندرويد.
       bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), label: 'طلباتي'),
-          NavigationDestination(icon: Icon(Icons.person_outline), label: 'حسابي'),
+        destinations: [
+          NavigationDestination(
+              icon: PhosphorIcon(PhosphorIcons.storefront()),
+              selectedIcon:
+                  PhosphorIcon(PhosphorIcons.storefront(PhosphorIconsStyle.duotone)),
+              label: 'المطاعم'),
+          NavigationDestination(
+              icon: PhosphorIcon(PhosphorIcons.receipt()),
+              selectedIcon:
+                  PhosphorIcon(PhosphorIcons.receipt(PhosphorIconsStyle.duotone)),
+              label: 'طلباتي'),
+          NavigationDestination(
+              icon: PhosphorIcon(PhosphorIcons.user()),
+              selectedIcon:
+                  PhosphorIcon(PhosphorIcons.user(PhosphorIconsStyle.duotone)),
+              label: 'حسابي'),
         ]),
     );
   }
