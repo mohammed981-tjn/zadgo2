@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../providers/route_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
@@ -235,20 +236,41 @@ class _LiveTrackingCard extends StatelessWidget {
                 final p = moving ? _progress(d) : null;
                 return Column(children: [
                   if (km != null)
-                    Row(children: [
-                      const Icon(Icons.schedule_rounded,
-                          size: 17, color: AppColors.primary),
-                      const SizedBox(width: 6),
-                      Text(_eta(km),
-                          style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.primaryDark)),
-                      const SizedBox(width: 10),
-                      Text('يبعد عنك ${km.toStringAsFixed(1)} كم',
-                          style: const TextStyle(
-                              fontSize: 12.5, color: AppColors.textGray)),
-                    ]),
+                    // المسار الحقيقي (و3): زمن الطريق الفعلي من ORS حين
+                    // يتوفر المفتاح، وإلا مدى الخط المستقيم كما كان —
+                    // فالبطاقة لا تنتظر شبكةً لترسم، والرقم الأدق يحلّ
+                    // محل التقديري لحظة وصوله.
+                    FutureBuilder<RouteInfo?>(
+                      future: RouteService.isConfigured
+                          ? RouteService.drivingRoute(
+                              fromLat: d.lat!, fromLng: d.lng!,
+                              toLat: order.deliveryLat!,
+                              toLng: order.deliveryLng!)
+                          : Future.value(null),
+                      builder: (ctx3, routeSnap) {
+                        final r = routeSnap.data;
+                        final showKm = r?.distanceKm ?? km;
+                        final etaText = r != null
+                            ? '${(r.durationMinutes + 2).round()}–${(r.durationMinutes + 8).round()} دقيقة'
+                            : _eta(km);
+                        return Row(children: [
+                          const Icon(Icons.schedule_rounded,
+                              size: 17, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          Text(etaText,
+                              style: const TextStyle(
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryDark)),
+                          const SizedBox(width: 10),
+                          Text(
+                              'يبعد عنك ${showKm.toStringAsFixed(1)} كم'
+                              '${r != null ? " طريقاً" : ""}',
+                              style: const TextStyle(
+                                  fontSize: 12.5, color: AppColors.textGray)),
+                        ]);
+                      },
+                    ),
                   if (p != null) ...[
                     const SizedBox(height: 10),
                     _RoadBar(progress: p),

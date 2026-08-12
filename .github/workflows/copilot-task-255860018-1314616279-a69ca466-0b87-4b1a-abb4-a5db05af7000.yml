@@ -155,6 +155,7 @@ jobs:
           -t lib/main_${{ matrix.flavor }}.dart
           --dart-define=MOYASAR_PUBLISHABLE_KEY=${{ secrets.MOYASAR_PUBLISHABLE_KEY }}
           --dart-define=ZADGO_NOTIFY_URL=${{ vars.ZADGO_NOTIFY_URL }}
+          --dart-define=ORS_API_KEY=${{ secrets.ORS_API_KEY }}
           --dart-define=APP_VERSION=${{ env.APP_VERSION }}
         env:
           # build.gradle يقرأ هذه المتغيّرات حين لا يوجد key.properties،
