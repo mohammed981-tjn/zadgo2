@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ضمّ مطعمك — زادقو ZadGo</title>
+<meta name="description" content="اعرض مطعمك في زاد جو بالمدينة المنورة: منيو رقمي بصورك وأسعارك، وطلبات تصل مطبخك لحظة وقوعها، ومستحقات بحساب مكشوف. بلا تكلفة تأسيس.">
+<meta name="theme-color" content="#061024">
+<link rel="canonical" href="https://zadgo.co/partner/">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ضمّ مطعمك إلى زادقو ZadGo">
+<meta property="og:description" content="عملاء جدد من اليوم الأول — بلا تكلفة تأسيس. منيوك بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها.">
+<meta property="og:url" content="https://zadgo.co/partner/">
+<meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   صفحة ضمّ المطاعم.
+   ------------------------------------------------------------
+   لا تكتب في قاعدة البيانات — تؤلّف رسالة واتساب مرتّبة ببيانات المطعم
+   ويرسلها صاحبه بنفسه. والسبب أن مجموعة «طلبات المطاعم» غير موجودة في
+   قواعد Firestore، وإضافتها تخصّ ملفاً مشتركاً لا يُعدَّل من طرفٍ واحد.
+   وهذا ليس التفافاً: صاحب المطعم يريد أن **يكلّم إنساناً** لا أن يملأ
+   نموذجاً ويصمت، والرسالة المرتّبة تعطي الطرفين ما يريدان اليوم.
+   حين تُنشر القواعد يصير الإرسال مباشراً بلا تغيير في الشكل.
+   ============================================================ */
+:root { --navy: #0b1631; --navy-deep: #061024; --gold: #FFC107; --gold-2: #D4A017;
+  --ink: #f2f5fb; --muted: #9aa7bd; --line: rgba(255,255,255,.14); --ok: #25D366; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Tajawal', Tahoma, sans-serif; background: var(--navy-deep); color: var(--ink);
+  line-height: 1.9; overflow-x: hidden; }
+input, select, textarea, button { font-family: inherit; font-size: 1rem; }
+a { color: var(--gold); }
+
+.hero { position: relative; padding: 64px 6vw 48px; text-align: center; overflow: clip; }
+.hero::before { content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(rgba(6,16,36,.55), rgba(6,16,36,.8)),
+    url('/images/bg-kitchen.jpg') center/cover no-repeat,
+    linear-gradient(190deg, var(--navy) 0%, var(--navy-deep) 100%); }
+.hero > * { position: relative; z-index: 1; }
+.hero img.logo { height: 34px; margin-bottom: 18px; }
+.hero h1 { font-size: clamp(2rem, 7vw, 3.2rem); font-weight: 900; line-height: 1.3; }
+.hero h1 span { color: var(--gold); }
+.hero p { color: var(--muted); font-size: clamp(1rem, 3.4vw, 1.2rem); max-width: 620px;
+  margin: 16px auto 0; }
+.hero p b { color: var(--ink); }
+.hero .badge { display: inline-block; background: rgba(255,193,7,.14); color: var(--gold);
+  border: 1px solid rgba(255,193,7,.35); border-radius: 999px; padding: 6px 16px;
+  font-size: .85rem; font-weight: 800; margin-bottom: 16px; }
+
+main { max-width: 760px; margin: 0 auto; padding: 34px 18px 70px; }
+h2 { font-size: clamp(1.4rem, 5vw, 1.9rem); font-weight: 800; margin-bottom: 6px; }
+h2 span { color: var(--gold); }
+.lead { color: var(--muted); margin-bottom: 20px; }
+
+.grid { display: grid; gap: 12px; grid-template-columns: 1fr; margin-bottom: 34px; }
+@media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+.pt { background: rgba(255,255,255,.045); border: 1px solid var(--line); border-radius: 15px;
+  padding: 17px 18px; }
+.pt .ic { font-size: 1.5rem; }
+.pt b { display: block; margin-top: 6px; font-size: 1rem; }
+.pt span { color: var(--muted); font-size: .9rem; }
+
+.card { background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 18px;
+  padding: 22px 20px; }
+.field { margin-bottom: 15px; }
+.field label { display: block; font-size: .88rem; font-weight: 700; margin-bottom: 6px; }
+.field label i { color: var(--muted); font-style: normal; font-weight: 400; font-size: .82rem; }
+.field input, .field select, .field textarea {
+  width: 100%; background: rgba(0,0,0,.28); border: 1.5px solid var(--line); color: var(--ink);
+  border-radius: 12px; padding: 13px 14px; }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: 0; border-color: var(--gold); }
+.field select option { background: var(--navy); color: var(--ink); }
+.err { background: rgba(229,57,53,.16); border: 1px solid rgba(229,57,53,.45); color: #ffb4b1;
+  border-radius: 12px; padding: 11px 14px; font-size: .9rem; margin-bottom: 14px; }
+.hide { display: none !important; }
+
+.send { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%;
+  background: var(--ok); color: #06301a; border: 0; border-radius: 14px; padding: 16px;
+  font-weight: 900; font-size: 1.05rem; cursor: pointer; margin-top: 6px; }
+.send:hover { filter: brightness(1.07); }
+.alt { display: block; text-align: center; margin-top: 13px; color: var(--muted); font-size: .9rem; }
+
+.preview { background: rgba(0,0,0,.3); border: 1px dashed var(--line); border-radius: 13px;
+  padding: 14px 16px; margin-top: 16px; font-size: .87rem; color: var(--muted);
+  white-space: pre-wrap; max-height: 210px; overflow-y: auto; }
+
+.qa { border-top: 1px solid var(--line); padding: 15px 0; }
+.qa summary { cursor: pointer; font-weight: 800; list-style: none; display: flex;
+  justify-content: space-between; gap: 10px; }
+.qa summary::-webkit-details-marker { display: none; }
+.qa summary::after { content: '⌄'; color: var(--muted); font-size: 1.3rem; line-height: 1; }
+.qa[open] summary::after { transform: rotate(180deg); }
+.qa p { color: var(--muted); font-size: .93rem; margin-top: 9px; }
+
+footer { border-top: 1px solid var(--line); padding: 26px 18px 40px; text-align: center;
+  color: var(--muted); font-size: .85rem; }
+footer nav { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 12px; }
+footer a { text-decoration: none; }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <img class="logo" src="/images/zadgo-logo.png" alt="ZadGo">
+  <div class="badge">✦ بلا أي تكلفة تأسيس</div>
+  <h1>مطعمك في جيب<br><span>كل ساكن بالمدينة</span></h1>
+  <p><b>عملاء جدد يصلونك من اليوم الأول.</b> منيوك الرقمي بصورك وأسعارك،
+     وطلباتك تصل مطبخك لحظة وقوعها، ومستحقاتك بحساب مكشوف أمامك.</p>
+</section>
+
+<main>
+  <h2>ماذا تحصل <span>عليه</span></h2>
+  <p class="lead">لا وعوداً عامة — هذه أدواتٌ تعمل اليوم.</p>
+  <div class="grid">
+    <div class="pt"><div class="ic">📱</div><b>تطبيق للمطعم</b>
+      <span>الطلب يصل شاشتك فتقبله أو تعتذر، وتنقله بين «قيد التحضير» و«جاهز» بضغطة.</span></div>
+    <div class="pt"><div class="ic">🍔</div><b>منيو بصورك وأسعارك</b>
+      <span>تعدّل السعر أو توقف صنفاً نفد بضغطة — يظهر للعملاء في اللحظة نفسها.</span></div>
+    <div class="pt"><div class="ic">🛵</div><b>كباتننا يوصّلون</b>
+      <span>لا تحتاج مندوبين ولا دراجات — نحن نتكفّل بالتوصيل من بابك إلى العميل.</span></div>
+    <div class="pt"><div class="ic">🧾</div><b>حساب مكشوف</b>
+      <span>تقرير بكل طلب ومبلغه، ومستحقاتك مبيّنة سطراً سطراً بلا اجتهاد.</span></div>
+    <div class="pt"><div class="ic">⭐</div><b>تقييمات حقيقية</b>
+      <span>من عملاء طلبوا فعلاً — لا مجاملات ولا تقييمات مشتراة.</span></div>
+    <div class="pt"><div class="ic">🕐</div><b>أنت تقرّر متى تفتح</b>
+      <span>تضع حالتك «مغلق» فيتوقّف استقبال الطلبات فوراً — ولا يصلك طلبٌ وأنت مقفل.</span></div>
+  </div>
+
+  <h2>أرسل بيانات <span>مطعمك</span></h2>
+  <p class="lead">املأ ما تعرفه ونتواصل معك. لا يستغرق دقيقة.</p>
+
+  <div class="card">
+    <div id="err" class="err hide"></div>
+
+    <div class="field"><label for="f_name">اسم المطعم</label>
+      <input type="text" id="f_name" placeholder="مثال: فطير ستيشن" autocomplete="organization"></div>
+
+    <div class="field"><label for="f_branch">الحي أو الفرع <i>(اختياري)</i></label>
+      <input type="text" id="f_branch" placeholder="مثال: العزيزية"></div>
+
+    <div class="field"><label for="f_person">اسم المسؤول</label>
+      <input type="text" id="f_person" placeholder="من نتواصل معه" autocomplete="name"></div>
+
+    <div class="field"><label for="f_phone">رقم الجوال</label>
+      <!-- بلا maxlength عمداً: المتصفح يقصّ النصّ الملصوق قبل أن يصل الكود،
+           فمن لصق «+966 50 835 7833» يفقد نصف رقمه ولا يفهم لماذا رُفض.
+           التنظيف والقصّ في الكود أدناه بعد إزالة الرموز والمسافات. -->
+      <input type="tel" id="f_phone" inputmode="numeric" placeholder="05xxxxxxxx"
+             autocomplete="tel" style="direction:ltr;text-align:left"></div>
+
+    <div class="field"><label for="f_kind">نوع المطبخ</label>
+      <select id="f_kind">
+        <option value="">اختر…</option>
+        <option>مأكولات شعبية</option>
+        <option>مشاوي ولحوم</option>
+        <option>فطائر ومعجّنات</option>
+        <option>وجبات سريعة وبرغر</option>
+        <option>دجاج وبروست</option>
+        <option>مأكولات بحرية</option>
+        <option>حلويات ومخبوزات</option>
+        <option>قهوة ومشروبات</option>
+        <option>مطبخ آسيوي</option>
+        <option>أخرى</option>
+      </select></div>
+
+    <div class="field"><label for="f_items">عدد الأصناف تقريباً <i>(اختياري)</i></label>
+      <select id="f_items">
+        <option value="">اختر…</option>
+        <option>أقل من ١٠</option>
+        <option>١٠ – ٣٠</option>
+        <option>٣٠ – ٦٠</option>
+        <option>أكثر من ٦٠</option>
+      </select></div>
+
+    <div class="field"><label for="f_note">ملاحظة <i>(اختياري)</i></label>
+      <textarea id="f_note" rows="2" placeholder="أي شيء تحب أن نعرفه"></textarea></div>
+
+    <button class="send" id="sendWa">
+      <span style="font-size:1.25rem">💬</span> أرسل عبر واتساب</button>
+    <a class="alt" href="#" id="sendMail">أو أرسل بالبريد إلى info@zadgo.co</a>
+
+    <div class="preview hide" id="preview"></div>
+  </div>
+
+  <h2 style="margin-top:38px">أسئلة <span>يسألها الجميع</span></h2>
+  <details class="qa" open><summary>هل عليّ رسوم اشتراك أو تأسيس؟</summary>
+    <p>لا. لا رسوم تأسيس ولا اشتراك شهري. نتقاسم من الطلب المنفَّذ فقط — وتُشرح لك
+       التفاصيل كاملةً قبل أن توقّع شيئاً.</p></details>
+  <details class="qa"><summary>من يوصّل الطلبات؟</summary>
+    <p>كباتننا. لا تحتاج مندوبين ولا دراجات ولا تأميناً عليهم — يصل الكابتن إلى بابك
+       فيستلم ويوصّل.</p></details>
+  <details class="qa"><summary>كيف تصلني الطلبات؟</summary>
+    <p>على تطبيق المطعم. يظهر الطلب على شاشتك بأصنافه ومبلغه، فتقبله أو تعتذر بسببٍ
+       يراه العميل.</p></details>
+  <details class="qa"><summary>وإن أردت الإغلاق يوماً أو ساعة؟</summary>
+    <p>تضع حالتك «مغلق» من التطبيق فيتوقف استقبال الطلبات فوراً — ولا يستطيع أحد الطلب
+       منك وأنت مقفل، لا من التطبيق ولا من الموقع.</p></details>
+  <details class="qa"><summary>ومتى أستلم مستحقاتي؟</summary>
+    <p>تُحصر مستحقاتك في تسوية دورية مبيّنة سطراً سطراً: قيمة طلباتك، وما خُصم، والصافي.
+       ويُتفق على الدورة معك.</p></details>
+</main>
+
+<footer>
+  <nav>
+    <a href="/">الرئيسية</a>
+    <a href="/contact.html">التواصل والدعم</a>
+    <a href="/terms.html">الشروط والأحكام</a>
+    <a href="/privacy-policy.html">سياسة الخصوصية</a>
+  </nav>
+  <div>© 2026 زادقو ZadGo — zadgo.co</div>
+</footer>
+
+<script>
+(function () {
+  var WA = '966508357833';            // رقم واتساب الإدارة
+  var $ = function (id) { return document.getElementById(id); };
+
+  function showErr(m) { var e = $('err'); e.textContent = m; e.classList.remove('hide');
+    e.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  function clearErr() { $('err').classList.add('hide'); }
+
+  /* الرسالة تُبنى مرتّبةً بعناوين ثابتة، فتصل الإدارة قابلةً للقراءة والنسخ
+     إلى اللوحة بلا استجواب صاحب المطعم عن معلومةٍ نسيها. */
+  function compose() {
+    var L = [];
+    L.push('طلب ضمّ مطعم إلى زاد جو');
+    L.push('');
+    L.push('المطعم: ' + $('f_name').value.trim());
+    if ($('f_branch').value.trim()) L.push('الحي/الفرع: ' + $('f_branch').value.trim());
+    L.push('المسؤول: ' + $('f_person').value.trim());
+    L.push('الجوال: ' + $('f_phone').value.trim());
+    L.push('نوع المطبخ: ' + ($('f_kind').value || 'غير محدّد'));
+    if ($('f_items').value) L.push('عدد الأصناف: ' + $('f_items').value);
+    if ($('f_note').value.trim()) { L.push(''); L.push('ملاحظة: ' + $('f_note').value.trim()); }
+    L.push('');
+    L.push('(أُرسلت من zadgo.co/partner)');
+    return L.join('\n');
+  }
+
+  function validate() {
+    clearErr();
+    if ($('f_name').value.trim().length < 2) { showErr('اكتب اسم المطعم.'); return null; }
+    if ($('f_person').value.trim().length < 2) { showErr('اكتب اسم المسؤول الذي نتواصل معه.'); return null; }
+    if (!/^0\d{9}$/.test($('f_phone').value.trim())) {
+      showErr('رقم الجوال عشرة أرقام يبدأ بصفر — مثال: 0501234567'); return null; }
+    if (!$('f_kind').value) { showErr('اختر نوع المطبخ.'); return null; }
+    return compose();
+  }
+
+  $('sendWa').addEventListener('click', function () {
+    var msg = validate();
+    if (!msg) return;
+    // النص يُعرض أيضاً على الشاشة: لو حجب المتصفح فتح واتساب بقي أمام صاحب
+    // المطعم ما يستطيع نسخه وإرساله بنفسه بدل أن يخرج بلا شيء.
+    $('preview').textContent = msg;
+    $('preview').classList.remove('hide');
+    window.open('https://wa.me/' + WA + '?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+  });
+
+  $('sendMail').addEventListener('click', function (e) {
+    e.preventDefault();
+    var msg = validate();
+    if (!msg) return;
+    $('preview').textContent = msg;
+    $('preview').classList.remove('hide');
+    window.location.href = 'mailto:info@zadgo.co?subject='
+      + encodeURIComponent('طلب ضمّ مطعم — ' + $('f_name').value.trim())
+      + '&body=' + encodeURIComponent(msg);
+  });
+
+  // الجوال أرقام فقط — لصقُ رقمٍ بمسافات أو رمز دولة لا يُفشل الإرسال بلا سبب.
+  $('f_phone').addEventListener('input', function (e) {
+    var v = e.target.value.replace(/\D/g, '');
+    if (v.indexOf('966') === 0) v = '0' + v.slice(3);
+    e.target.value = v.slice(0, 10);
+  });
+})();
+</script>
+</body>
+</html>
