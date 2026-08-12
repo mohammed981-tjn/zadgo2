@@ -608,6 +608,18 @@ service cloud.firestore {
     // لحظة إنشاء طلبه — بزيادة مقدارها 1 فقط ودون مسّ أي حقل آخر، فلا
     // يستطيع تعطيل الكود ولا رفع قيمته ولا تصفير عدّاده.
     // ---------------------------------------------------------------------
+    // هل يحقّ لهذا المستخدم إنقاص عدّاد الكود؟ (إرجاع كوبون طلب ملغى —
+    // نفذ ٢): الإنقاص الحرّ يعني إعادة تعبئة أكواد مستنفدة وإعادة استخدام
+    // «مرة واحدة لكل عميل» بلا حدّ. فيُقيَّد بواقعة قابلة للتحقق: سجلُّ
+    // استخدام المستخدم نفسه يشير لطلبٍ **ملغى فعلاً** بهذا الكود وباسمه.
+    function couponReleaseJustified(code) {
+      let usage = get(/databases/$(database)/documents/coupon_usages/$(code + '_' + currentUid())).data;
+      let order = get(/databases/$(database)/documents/orders/$(usage.lastOrderId)).data;
+      return order.customerId == currentUid() &&
+             order.couponCode == code &&
+             (order.status == 'cancelled' || order.status == 'refunded');
+    }
+
     match /coupons/{code} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
@@ -627,6 +639,13 @@ service cloud.firestore {
             (resource.data.get('usageLimit', 0) <= 0 ||
                 request.resource.data.usedCount <=
                     resource.data.get('usageLimit', 0))
+          ) || (
+            // إنقاص بمقدار ١ فقط، لا دون الصفر، وبواقعة إلغاء مثبتة.
+            isSignedIn() &&
+            changedKeys().hasOnly(['usedCount']) &&
+            request.resource.data.usedCount == resource.data.usedCount - 1 &&
+            request.resource.data.usedCount >= 0 &&
+            couponReleaseJustified(code)
           );
     }
 
@@ -652,7 +671,13 @@ service cloud.firestore {
             isAdmin() ||
             (resource.data.userId == currentUid() &&
                 request.resource.data.userId == resource.data.userId &&
-                request.resource.data.count == resource.data.count + 1)
+                request.resource.data.count == resource.data.count + 1) ||
+            // إرجاع كوبون طلب ملغى (نفذ ٢) — نفس شرط coupons أعلاه.
+            (resource.data.userId == currentUid() &&
+                request.resource.data.userId == resource.data.userId &&
+                request.resource.data.count == resource.data.count - 1 &&
+                request.resource.data.count >= 0 &&
+                couponReleaseJustified(resource.data.code))
           );
       allow delete: if false;
     }
