@@ -4,12 +4,16 @@
 # ما دامت المنصّة في تجربة محدودة: أُخفيت أزرارها من الصفحة الرئيسية، فلا
 # معنى لأن يصلها عابرٌ من نتائج البحث.
 #
-# عند فتح المنصّة للجمهور: احذف سطر /order/ من هنا، واحذف وسم noindex من
-# docs/order/index.html، واضبط TRIAL_MODE = false في docs/index.html.
+# عند فتح المنصّة للجمهور، ثلاثة مواضع تُفتح معاً:
+#   ١. احذف سطرَي /order/ و/guide/customer/ من هنا
+#   ٢. احذف وسم noindex من docs/order/index.html و docs/guide/customer/index.html
+#   ٣. اضبط TRIAL_MODE = false في docs/index.html
+# وأضف الصفحتين إلى sitemap.xml.
 
 User-agent: *
 Disallow: /admin/
 Disallow: /order/
+Disallow: /guide/customer/
 Allow: /
 
 Sitemap: https://zadgo.co/sitemap.xml

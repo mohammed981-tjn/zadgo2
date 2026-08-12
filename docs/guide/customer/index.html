@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- يُخفى مع باب العميل ويظهران معاً: صفحة الطلب مخفيّة أثناء التجربة،
+     ودليلٌ يشرح شاشةً لا يستطيع الزائر بلوغها يوقعه في حيرة لا فائدة.
+     عند الفتح للجمهور: احذف هذا السطر، واحذف /guide/customer/ من
+     robots.txt، واضبط TRIAL_MODE = false في docs/index.html. -->
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دليل العميل — زادقو ZadGo</title>
+<meta name="description" content="كيف تطلب من زاد جو: خطوات الطلب، وتتبّع كابتنك، وقراءة فاتورتك، والإلغاء والاسترداد.">
+<meta name="theme-color" content="#08211A">
+<link rel="canonical" href="https://zadgo.co/guide/customer/">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="دليل العميل — زادقو ZadGo">
+<meta property="og:description" content="كيف تطلب من زاد جو: خطوات الطلب، وتتبّع كابتنك، وقراءة فاتورتك، والإلغاء والاسترداد.">
+<meta property="og:url" content="https://zadgo.co/guide/customer/">
+<meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root { --c:#D4A017; --c2:#B8860B; --dark:#08211A; --darker:#04120D;
+  --bg:#F3F5F4; --card:#fff; --line:#E6E9E8; --text:#16211c; --muted:#6f7b76; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Tajawal',Tahoma,sans-serif; background:var(--bg); color:var(--text);
+  line-height:1.95; }
+.hero { background:linear-gradient(160deg,var(--dark),var(--darker)); color:#fff;
+  padding:44px 20px 38px; text-align:center; }
+.hero img { height:38px; margin-bottom:14px; }
+.hero h1 { font-size:clamp(1.65rem,6vw,2.4rem); font-weight:900; }
+.hero p { color:rgba(255,255,255,.72); margin-top:9px; font-size:.98rem; }
+main { max-width:760px; margin:0 auto; padding:22px 16px 60px; }
+h2 { font-size:1.28rem; font-weight:900; margin:28px 0 10px; padding-inline-start:12px;
+  border-inline-start:4px solid var(--c); }
+h3 { font-size:1.06rem; font-weight:800; margin:20px 0 8px; color:var(--c2); }
+h4 { font-size:.98rem; font-weight:800; margin:16px 0 6px; }
+p { margin:10px 0; }
+ul, ol { margin:10px 0; padding-inline-start:22px; }
+li { margin-bottom:7px; }
+b { color:var(--c2); }
+code { background:#eceeed; border-radius:6px; padding:1px 6px; font-size:.9em;
+  font-family:ui-monospace,monospace; direction:ltr; display:inline-block; }
+pre { background:var(--darker); color:#e8efe9; border-radius:13px; padding:15px 17px;
+  overflow-x:auto; direction:ltr; text-align:left; font-family:ui-monospace,monospace;
+  font-size:.86rem; line-height:1.8; margin:14px 0; }
+blockquote { background:#fff; border-inline-start:4px solid var(--c); border-radius:11px;
+  padding:12px 16px; margin:14px 0; color:var(--muted); box-shadow:0 2px 8px rgba(0,0,0,.05); }
+.tw { overflow-x:auto; margin:14px 0; border-radius:13px; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+table { width:100%; border-collapse:collapse; background:var(--card); font-size:.93rem;
+  min-width:420px; }
+th { background:var(--c); color:#fff; padding:11px 13px; text-align:start; font-weight:800; }
+td { padding:11px 13px; border-top:1px solid var(--line); }
+hr { border:0; border-top:1px solid var(--line); margin:26px 0; }
+footer { border-top:1px solid var(--line); padding:24px 16px 40px; text-align:center;
+  color:var(--muted); font-size:.86rem; }
+footer nav { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:10px; }
+footer a { color:var(--c2); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <img src="/images/zadgo-logo.png" alt="ZadGo">
+  <h1>دليل العميل</h1>
+  <p>كيف تطلب من زاد جو: خطوات الطلب، وتتبّع كابتنك، وقراءة فاتورتك، والإلغاء والاسترداد.</p>
+</div>
+<main>
+<h2>أول مرة معك</h2>
+<p>تفتح التطبيق فتظهر لك المطاعم مباشرةً — <b>بلا تسجيل دخول</b>. تتصفّح وتضيف للسلة براحتك، ولا يُطلب منك حساب إلا عند تأكيد الطلب.</p>
+<hr>
+<h2>كيف تطلب</h2>
+<ol><li><b>اختر المطعم</b> من الرئيسية. المغلق يظهر بعلامة واضحة.</li><li><b>أضف الأصناف</b>. بعضها له خيارات (حجم، إضافات) وسعرها يتحدّث أمامك.</li><li><b>افتح السلة</b> وراجع الطلب.</li><li><b>حدّد موقعك</b> على الخريطة — كن دقيقاً، فالكابتن يصل إلى هذه النقطة بالضبط ولا يستطيع تأكيد التسليم إلا وهو ضمن ١٥٠ متراً منها.</li><li><b>اختر طريقة الدفع</b>: نقداً عند الاستلام، أو بطاقة، أو من رصيد محفظتك.</li><li><b>كود خصم؟</b> أدخله في السلة قبل التأكيد.</li><li><b>أكّد الطلب</b>.</li></ol>
+<hr>
+<h2>بعد الطلب — ماذا يحدث</h2>
+<div class="tw"><table><thead><tr><th>المرحلة</th><th>معناها</th></tr></thead><tbody><tr><td>بانتظار موافقة المطعم</td><td>وصل الطلب وينتظر قبول المطعم</td></tr><tr><td>تم قبول الطلب</td><td>المطعم قبله</td></tr><tr><td>جاري التحضير</td><td>بدأ الطبخ</td></tr><tr><td>جاهز للاستلام</td><td>الطعام جاهز وينتظر الكابتن</td></tr><tr><td>تم استلام الطلب من المطعم</td><td>الكابتن أخذه</td></tr><tr><td>في الطريق إليك</td><td>يمكنك متابعته على الخريطة لحظة بلحظة</td></tr><tr><td>تم التوصيل</td><td>وصلك</td></tr></tbody></table></div>
+<p><b>تتبّع الكابتن</b>: من «طلباتي» اضغط أيقونة الخريطة — ترى موقعه يتحرّك. <b>تواصل</b>: أيقونة المحادثة لمراسلته، وأيقونة الهاتف للاتصال به بعد استلامه الطلب.</p>
+<hr>
+<h2>الأسعار — بلا مفاجآت</h2>
+<ul><li><b>أسعار الأصناف شاملة الضريبة</b> (١٥٪ متضمَّنة، تراها مفصّلة في الفاتورة).</li><li><b>أجرة التوصيل</b> تُحسب بمسافتك من المطعم، وتظهر في السلة قبل التأكيد.</li><li><b>لا رسوم خفية</b> — ما تراه في السلة هو ما تدفعه.</li></ul>
+<hr>
+<h2>الإلغاء والاسترداد</h2>
+<ul><li><b>يمكنك الإلغاء</b> ما دام الطلب لم يدخل «جاري التحضير». بعدها يختفي الزر لأن المطعم بدأ يتكبّد تكلفة الطعام — تواصل مع الإدارة عبر الشكاوى.</li><li><b>رصيد المحفظة</b> المخصوم يعود إليك كاملاً عند الإلغاء.</li><li><b>الدفع بالبطاقة</b>: تواصل مع الإدارة لترتيب الاسترداد.</li></ul>
+<hr>
+<h2>المحفظة</h2>
+<p>رصيد تُضيفه الإدارة إليك (استرداد شكوى، تسوية…) ويُخصم تلقائياً من طلبك التالي. تجد سجلّ حركاتها في «حسابي».</p>
+<hr>
+<h2>الفاتورة</h2>
+<p>من «طلباتي» اضغط <b>رقم الطلب</b> فتفتح الفاتورة التفصيلية: الأصناف، تفصيل الرسوم، الضريبة المتضمَّنة، طريقة الدفع، وأزمنة الطلب كاملة (متى أُنشئ، متى وصل الكابتن للمطعم، متى أقرّ المطعم بالتسليم، متى وصلك).</p>
+<hr>
+<h2>عندك مشكلة؟</h2>
+<p>من «طلباتي» اضغط <b>قيّم</b> لتقييم التجربة، أو <b>شكوى</b> لرفع مشكلة (تأخّر، طلب خاطئ، جودة…). <b>المهلة ٢٤ ساعة</b> من انتهاء الطلب، والعدّاد ظاهر أمامك.</p>
+<p>ولمشكلة غير مرتبطة بطلب (مالية، تحديث بيانات، استفسار) استخدم <b>«تذكرة جديدة»</b> من شاشة الشكاوى.</p>
+<hr>
+<h2>حسابك</h2>
+<p>من «حسابي»: تعديل الاسم والجوال، تغيير كلمة المرور، عناوينك المحفوظة، ورصيد محفظتك.</p>
+<p><b>حذف الحساب</b>: زر «حذف الحساب نهائياً» أسفل الشاشة. يُحذف حساب الدخول وتُمحى بياناتك الشخصية، وتبقى الحركات المالية في السجل المحاسبي باسم «مستخدم محذوف» — كما يقتضي النظام المحاسبي.</p>
+</main>
+<footer>
+  <nav>
+    <a href="/">الرئيسية</a>
+    <a href="/partner/">ضمّ مطعمك</a>
+    <a href="/contact.html">التواصل والدعم</a>
+    <a href="/terms.html">الشروط والأحكام</a>
+  </nav>
+  <div>© 2026 زادقو ZadGo — zadgo.co</div>
+</footer>
+</body>
+</html>
