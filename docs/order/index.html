@@ -9,6 +9,23 @@
      فلا يصلها عابرٌ من جوجل بينما أُخفيت أزرارها من الصفحة الرئيسية.
      يُحذف هذا السطر مع TRIAL_MODE = false في docs/index.html. -->
 <meta name="robots" content="noindex">
+<!-- سياسة أمان المحتوى: تحصر ما تستطيع الصفحة تحميله والاتصال به.
+     فائدتها العملية أنها **تمنع تسريب البيانات**: لو تسلّل نصٌّ خبيث يوماً
+     من حقلٍ في لوحة التحكم، لا يستطيع إرسال شيء إلى خادمٍ غريب — الوجهات
+     محصورة فيما هو مذكور هنا.
+     `img-src https:` لازم لا تساهل: صور المطاعم والأصناف روابط خارجية
+     يضعها المدير بنفسه، وحصرها في 'self' يُفرغ المنيو من صوره.
+     `frame-ancestors` مذكور للتوثيق ولا أثر له في وسم meta (المتصفحات
+     تتجاهله خارج ترويسة HTTP) — ولذلك يمنع التأطير سطرُ جافاسكربت أسفل. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self';
+  script-src 'self' 'unsafe-inline' https://www.gstatic.com;
+  connect-src 'self' https://*.googleapis.com https://*.firebaseio.com
+    https://nominatim.openstreetmap.org;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src https://fonts.gstatic.com;
+  img-src 'self' data: https:;
+  base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#0B3D2E">
 <link rel="icon" href="/images/zadgo-logo-gold.png">
 <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
@@ -342,6 +359,13 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
 .hide { display: none !important; }
 @media (min-width: 820px) { nav.bottom { max-width: 760px; margin: 0 auto; border-radius: 16px 16px 0 0; } }
 </style>
+<script>
+/* منع التأطير — `frame-ancestors` في وسم meta تتجاهله المتصفحات (تعمل في
+ * ترويسة HTTP وحدها، وGitHub Pages لا تسمح بترويسات مخصصة). فلو أطّر أحدٌ
+ * هذه الصفحة داخل موقعه لأمكنه خداع المدير على النقر فيما لا يقصده. هذا
+ * السطر يكسر الإطار: الصفحة تُخرج نفسها إلى الأعلى إن وجدت نفسها بداخله. */
+if (window.top !== window.self) { window.top.location = window.self.location; }
+</script>
 </head>
 <body>
 

@@ -194,6 +194,13 @@
     background: var(--green-dark); color: #fff; border-radius: 999px; padding: 11px 22px; font-size: .9rem;
     z-index: 70; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
 </style>
+<script>
+/* منع التأطير — `frame-ancestors` في وسم meta تتجاهله المتصفحات (تعمل في
+ * ترويسة HTTP وحدها، وGitHub Pages لا تسمح بترويسات مخصصة). فلو أطّر أحدٌ
+ * هذه الصفحة داخل موقعه لأمكنه خداع المدير على النقر فيما لا يقصده. هذا
+ * السطر يكسر الإطار: الصفحة تُخرج نفسها إلى الأعلى إن وجدت نفسها بداخله. */
+if (window.top !== window.self) { window.top.location = window.self.location; }
+</script>
 </head>
 <body>
 
