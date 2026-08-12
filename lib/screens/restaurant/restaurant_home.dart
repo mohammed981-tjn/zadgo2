@@ -821,17 +821,32 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         // (الانتقال بيد الكابتن كما هو — ضغطة المطعم لا تُثبت استلاماً لم
         // يقع)، بل تختم لحظة التسليم من طرفه فيصير في الطلب إقرار طرفين
         // يظهر في الفاتورة ويُحتكم إليه في نزاع «سلّمتُه»/«لم يصلني».
+        //
+        // وقرار المالك ٢٠٢٦-٠٨-١٢: **لا يُضغط الزر إلا بعد أن يصل الكابتن
+        // فعلاً**. وإلا صار إقراراً بلا واقعة: مطعمٌ يضغطه والكيس ما زال
+        // على الرفّ يُنتج «إثباتاً» يناقض الحقيقة — وإثباتٌ يكذب أسوأ من
+        // لا إثبات، لأنه يُحتكم إليه في النزاع.
+        //
+        // والمرجع هو ختم وصول الكابتن (`arrivedAtRestaurantAt`) لا موقعه
+        // اللحظي: ذاك ختمٌ مرّ بحارس المئة متر وقت وقوعه، والموقع اللحظي
+        // قد يكون متقادماً دقائق فيقبل من ليس هناك أو يرفض من هو هناك.
+        //
+        // والزر لا يُخفى بل يُقفَل ويشرح — قاعدة اعتُمدت بعد عطل «الكابتن
+        // لا يجد زرّ الاستلام»: الحجب الصامت في الواجهة يُقرأ عطلاً في
+        // التطبيق لا شرطاً غير مستوفٍ.
         if (order.status == OrderStatus.readyForPickup) ...[
           const SizedBox(height: 10),
-          if (order.restaurantHandoverAt == null)
+          if (order.restaurantHandoverAt != null)
+            _HandoverStamp(at: order.restaurantHandoverAt!)
+          else if (order.arrivedAtRestaurantAt == null)
+            const _LockedHandoverHint()
+          else
             _ActionButton(
               label: 'سلّمتُ الطلب للسائق',
               color: Colors.teal,
               loading: _actionLoading,
               onPressed: () => _confirmHandover(context),
-            )
-          else
-            _HandoverStamp(at: order.restaurantHandoverAt!),
+            ),
         ],
         // بعد أن يؤكد الكابتن استلامه، يبقى ختم المطعم ظاهراً كإثبات.
         if (order.status.index >= OrderStatus.pickedUp.index &&
@@ -865,6 +880,38 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       child: cardContent,
     );
   }
+}
+
+/// الزرّ مقفلاً قبل وصول الكابتن — يشرح سببه بدل أن يختفي.
+///
+/// الاختفاء الصامت كان درساً مكلفاً في تطبيق الكابتن: زرٌّ غائب يُقرأ
+/// «التطبيق خربان» فيُتصل بالإدارة، بينما زرٌّ مقفلٌ بسطر تفسير يُقرأ
+/// «انتظر خطوةً واحدة» فينتظر.
+class _LockedHandoverHint extends StatelessWidget {
+  const _LockedHandoverHint();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(children: [
+          const Icon(Icons.lock_clock_rounded,
+              size: 18, color: AppColors.textGray),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'زرّ «سلّمتُ الطلب» يفتح فور تسجيل الكابتن وصوله للمطعم — '
+              'فالإقرار لا يسبق الواقعة.',
+              style: TextStyle(fontSize: 12, color: AppColors.textGray),
+            ),
+          ),
+        ]),
+      );
 }
 
 /// ختم «سلّمتُه» — يحلّ محل الزر بعد الضغط، بالساعة لا بكلمة مجردة: الوقت
