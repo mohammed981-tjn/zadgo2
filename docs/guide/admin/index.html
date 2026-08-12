@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<!-- صفحةٌ إدارية لا عامة: تشرح كيف يُصرف المال وتُدار الحسابات. لا تُفهرَس ولا تُربَط من صفحةٍ عامة؛ يبلغها المدير من لوحته وحدها. محجوبة أيضاً في robots.txt. -->
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>دليل الإدارة — زادقو ZadGo</title>
+<meta name="description" content="لوحة زاد جو للإدارة: المتابعة الحية، وسجلّ الطلبات، وقواعد المال والإلغاء، والمطاعم والكباتن، والشكاوى وسجلّ التدقيق.">
+<meta name="theme-color" content="#0b1631">
+<link rel="canonical" href="https://zadgo.co/guide/admin/">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<meta property="og:type" content="article">
+<meta property="og:title" content="دليل الإدارة — زادقو ZadGo">
+<meta property="og:description" content="لوحة زاد جو للإدارة: المتابعة الحية، وسجلّ الطلبات، وقواعد المال والإلغاء، والمطاعم والكباتن، والشكاوى وسجلّ التدقيق.">
+<meta property="og:url" content="https://zadgo.co/guide/admin/">
+<meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root { --c:#13224a; --c2:#26407f; --dark:#0b1631; --darker:#060e1f;
+  --bg:#F3F5F4; --card:#fff; --line:#E6E9E8; --text:#16211c; --muted:#6f7b76; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Tajawal',Tahoma,sans-serif; background:var(--bg); color:var(--text);
+  line-height:1.95; }
+.hero { background:linear-gradient(160deg,var(--dark),var(--darker)); color:#fff;
+  padding:44px 20px 38px; text-align:center; }
+.hero img { height:38px; margin-bottom:14px; }
+.hero h1 { font-size:clamp(1.65rem,6vw,2.4rem); font-weight:900; }
+.hero p { color:rgba(255,255,255,.72); margin-top:9px; font-size:.98rem; }
+main { max-width:760px; margin:0 auto; padding:22px 16px 60px; }
+h2 { font-size:1.28rem; font-weight:900; margin:28px 0 10px; padding-inline-start:12px;
+  border-inline-start:4px solid var(--c); }
+h3 { font-size:1.06rem; font-weight:800; margin:20px 0 8px; color:var(--c2); }
+h4 { font-size:.98rem; font-weight:800; margin:16px 0 6px; }
+p { margin:10px 0; }
+ul, ol { margin:10px 0; padding-inline-start:22px; }
+li { margin-bottom:7px; }
+b { color:var(--c2); }
+code { background:#eceeed; border-radius:6px; padding:1px 6px; font-size:.9em;
+  font-family:ui-monospace,monospace; direction:ltr; display:inline-block; }
+pre { background:var(--darker); color:#e8efe9; border-radius:13px; padding:15px 17px;
+  overflow-x:auto; direction:ltr; text-align:left; font-family:ui-monospace,monospace;
+  font-size:.86rem; line-height:1.8; margin:14px 0; }
+blockquote { background:#fff; border-inline-start:4px solid var(--c); border-radius:11px;
+  padding:12px 16px; margin:14px 0; color:var(--muted); box-shadow:0 2px 8px rgba(0,0,0,.05); }
+.tw { overflow-x:auto; margin:14px 0; border-radius:13px; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+table { width:100%; border-collapse:collapse; background:var(--card); font-size:.93rem;
+  min-width:420px; }
+th { background:var(--c); color:#fff; padding:11px 13px; text-align:start; font-weight:800; }
+td { padding:11px 13px; border-top:1px solid var(--line); }
+hr { border:0; border-top:1px solid var(--line); margin:26px 0; }
+footer { border-top:1px solid var(--line); padding:24px 16px 40px; text-align:center;
+  color:var(--muted); font-size:.86rem; }
+footer nav { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:10px; }
+footer a { color:var(--c2); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="hero">
+  <img src="/images/zadgo-logo.png" alt="ZadGo">
+  <h1>دليل الإدارة</h1>
+  <p>لوحة زاد جو للإدارة: المتابعة الحية، وسجلّ الطلبات، وقواعد المال والإلغاء، والمطاعم والكباتن، والشكاوى وسجلّ التدقيق.</p>
+</div>
+<main>
+<h2>خريطة الشاشات</h2>
+<p><b>الشريط السفلي</b> (يومي): الرئيسية · المتابعة الحية · الشكاوى · السائقون · المطاعم.</p>
+<p><b>القائمة الجانبية</b> (أقل تكراراً): سجلّ الطلبات · التقارير المالية · المستخدمون · البنرات · أكواد التسجيل · أكواد الخصم · طلبات سحب السائقين · طلبات انضمام الكباتن · الحوافز والإحالات · بث جماعي · تغيير كلمة المرور.</p>
+<hr>
+<h2>المتابعة الحية — مركز عملك</h2>
+<p>كل طلب نشط ببطاقة تحمل: الحالة، وقت دخوله وعمره، طرفَي الطلب بأرقامهما مع أزرار اتصال، خط زمني للمراحل، والمبلغ.</p>
+<p><b>أفعالك</b>: محادثة الطلب · إسناد سائق يدوياً · تحويل لسائق آخر · الخريطة · إنهاء الطلب · إلغاء الطلب.</p>
+<p><b>تنبيهات تلقائية:</b></p>
+<ul><li>🟠 <b>المطعم لم يستجب منذ X د</b> — تجاوز مهلة الاستجابة.</li><li>🔴 <b>تعذّر إيجاد سائق</b> — انقضت مهلة البحث، يلزم إسناد يدوي.</li><li>🔴 <b>متأخر</b> — تجاوز الطلب وقته المتوقع.</li></ul>
+<p><b>عند فتح الشاشة</b> تجري مصالحة تلقائية تحرّر أي كابتن عَلِق «غير متاح» بلا طلب جارٍ، وتخبرك: «حُرِّر N كابتن».</p>
+<p><b>قائمة الإسناد اليدوي</b> تعرض كل الكباتن المتصلين مع حمولة كلٍّ («٢ طلب بيده») — فتسند بعلم لا بتخمين.</p>
+<hr>
+<h2>سجلّ الطلبات — لماذا يوجد</h2>
+<p>«المتابعة الحية» تعرض النشط فقط، والتقارير تحسب المكتمل فقط. فالطلب الملغى أو المرفوض كان بلا مكان. هذه الشاشة تحلّ ذلك:</p>
+<ul><li><b>بحث حرّ</b>: رقم الطلب، اسم العميل، جواله، المطعم، الكابتن، العنوان.</li><li><b>فلاتر الحالة</b>: الكل · جارية · مكتملة · <b>ملغاة</b> · <b>متعثّرة</b> (رفض مطعم + تعذّر سائق).</li><li><b>فلاتر الفترة</b> + <b>سطر حصيلة</b>: «١٢ طلب • إجمالي قيمتها ٣٤٠ ر.س».</li><li><b>بحث عميق</b>: طلب أقدم من آخر ٥٠٠؟ يظهر زر يجلبه برقمه من القاعدة.</li></ul>
+<hr>
+<h2>المال — القواعد التي تحكمه</h2>
+<h3>الدورة المالية</h3>
+<pre>ما دفعه العملاء = صافي المطاعم + أجرة السائقين + دخل المنصّة
+دخل المنصّة = عمولة ١٥٪ على الوجبات + الرسم الثابت على التوصيل
+            − خصومات الكوبونات − تعويضات الإلغاء</pre>
+<h3>الإلغاء — من يتحمّل ماذا</h3>
+<div class="tw"><table><thead><tr><th>متى أُلغي</th><th>المطعم</th><th>العميل</th><th>الكابتن</th></tr></thead><tbody><tr><td>قبل بدء التحضير</td><td>لا شيء</td><td>يُعاد رصيد محفظته كاملاً</td><td>يُحرَّر</td></tr><tr><td><b>بعد بدء التحضير</b></td><td><b>يُعوَّض بقيمة وجباته كاملة بلا عمولة</b></td><td>يُعاد رصيده</td><td>تُعكس عُهدته إن استلم</td></tr></tbody></table></div>
+<p>النسبة قابلة للضبط (<code>restaurantCancelCompensationPercent</code>، ١٠٠٪ افتراضاً). وستحذّرك نافذة الإلغاء بالمبلغ <b>قبل</b> الضغط.</p>
+<p><b>⚠️ الدفع بالبطاقة لا يُستردّ آلياً بعد</b> — أضف المبلغ لمحفظة العميل، أو ردّه من لوحة ميسر. (الاسترداد الآلي ينتظر ترقية Blaze.)</p>
+<h3>دفاتر الأطراف</h3>
+<ul><li><b>المطعم</b>: المستحق = مبيعات − عمولة + تعويضات. سجّل ما دفعته له بزر «تسجيل دفعة» في بطاقته بالتقارير.</li><li><b>الكابتن</b>: رصيد بإشارة — سالب = نقدٌ بيده، موجب = مستحقّات له. من شاشة السائقين تفتح دفتره وتودع/تصرف/تسوّي وتمنح مكافأة.</li></ul>
+<hr>
+<h2>المطاعم</h2>
+<p><b>إضافة/تعديل مطعم</b>: الاسم والفرع والهاتف والعنوان والحد الأدنى ووقت التوصيل والغلاف.</p>
+<p><b>⚠️ الموقع على الخريطة — أخطر حقل في الشاشة.</b> الإحداثيات تظهر لك نصّاً تحت الزر:</p>
+<ul><li><b>بلا موقع</b>: يُختار الكابتن بالتقييم لا بالأقرب، وأجرة التوصيل تُحسب بلا مسافة.</li><li><b>بموقع خاطئ</b>: الكابتن <b>لا يستطيع تأكيد الاستلام</b> ولو كان واقفاً عند الباب (الحد ١٠٠ متر من النقطة المسجّلة).</li></ul>
+<p>قارن الإحداثيات الظاهرة بموقع المطعم في خرائط جوجل قبل الحفظ. وأي تعديل للموقع <b>يُنشر فوراً على الطلبات الجارية</b> ويخبرك: «حُدِّث الموقع في N من الطلبات الجارية».</p>
+<hr>
+<h2>الكباتن</h2>
+<ul><li><b>طلبات الانضمام</b>: راجع المستندات واقبل أو ارفض؛ القبول يولّد كود تسجيل.</li><li><b>أكواد التسجيل</b>: توليد بصلاحية (٢٤س/٧أيام/٣٠يوماً/بلا)، نسخ، إلغاء.</li><li><b>طلبات السحب</b>: صرف أو رفض بسبب — تظهر للكابتن في تطبيقه.</li><li><b>الحوافز</b>: مبالغ الإحالة وشروطها، وتحدي نهاية الأسبوع — <b>كل رقم تضبطه أنت</b>، ولا شيء مبرمج في الكود.</li><li><b>الإنذارات</b>: ٣ إنذارات من شكاوى محلولة ضده = تعليق تلقائي.</li></ul>
+<hr>
+<h2>الشكاوى</h2>
+<p>لكل شكوى: الطرف الشاكي والمشكو ضده، ونوعها، وتفاصيلها. عند الحل تختار: نسبة استرداد للعميل · إنذار للطرف · إعادة إسناد · ملاحظة.</p>
+<ul><li><b>الاسترداد الجزئي</b> يُحسب على <b>قيمة الوجبات</b> فقط (أجرة التوصيل خدمة أُدّيت فعلاً).</li><li><b>الاسترداد الكامل (١٠٠٪)</b> يشمل الإجمالي ويحوّل حالة الطلب إلى «تم الاسترداد» فيخرج من إيرادات التقارير.</li></ul>
+<hr>
+<h2>سجلّ التدقيق</h2>
+<p>كل فعل إداري حسّاس يُسجَّل باسم فاعله: توليد الأكواد، الكوبونات، الصرف والرفض، إعادة الإسناد، قبول ورفض الطلبات، تغيير الإعدادات، البث الجماعي.</p>
+<hr>
+<h2>أعمال دورية موصى بها</h2>
+<p><b>يومياً</b>: افتح المتابعة الحية (تجري المصالحة)، عالج التنبيهات الحمراء، راجع الشكاوى المفتوحة.</p>
+<p><b>أسبوعياً</b>: سوِّ دفاتر المطاعم والكباتن، راجع طلبات السحب والانضمام، افحص معدلات القبول.</p>
+<p><b>عند كل مطعم جديد</b>: تحقّق من موقعه على الخريطة قبل أول طلب.</p>
+</main>
+<footer>
+  <nav>
+    <a href="/">الرئيسية</a>
+    <a href="/partner/">ضمّ مطعمك</a>
+    <a href="/contact.html">التواصل والدعم</a>
+    <a href="/terms.html">الشروط والأحكام</a>
+  </nav>
+  <div>© 2026 زادقو ZadGo — zadgo.co</div>
+</footer>
+</body>
+</html>

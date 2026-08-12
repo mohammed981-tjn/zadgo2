@@ -68,6 +68,7 @@
     color: rgba(255,255,255,.4); }
   .nav-group:first-child { padding-top: 4px; }
   .nav-sep { height: 1px; background: rgba(255,255,255,.13); margin: 14px 18px 6px; }
+  a.nav-btn { text-decoration: none; }
   .side-foot { padding: 16px 20px 4px; font-size: .75rem; color: rgba(255,255,255,.45); }
 
   .content { flex: 1; margin-inline-start: var(--side-w); display: flex; flex-direction: column; min-width: 0; }
@@ -657,7 +658,14 @@ function navHtml() {
       ${n ? `<span class="cnt">${n}</span>` : ''}
     </button>`;
     }).join('');
-  }).join('');
+  }).join('')
+  /* الدليل رابطٌ لا صفحةً في اللوحة: يشرح شاشات التطبيق كما يشرح اللوحة،
+   * فمكانه صفحةٌ قائمة بذاتها. ويُفتح في تبويبٍ جديد كي لا يضيع عمل المدير
+   * إن كان في منتصف تسويةٍ أو إسناد. ولا يظهر في الشريط السفلي: ذاك للتنقّل
+   * بين شاشات اللوحة، ورابطٌ يخرج منها بينها يُربك. */
+  + '<div class="nav-sep"></div>'
+  + '<a class="nav-btn" href="/guide/admin/" target="_blank" rel="noopener">'
+  + '<span class="ico">📖</span><span>دليل الإدارة</span></a>';
 }
 function renderNav() {
   $('sideNav').innerHTML = navHtml();

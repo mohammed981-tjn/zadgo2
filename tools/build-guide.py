@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """يولّد صفحة دليلٍ منشورة من ملف Markdown في dev-docs/guides.
 
-    python3 tools/build-guide.py <مصدر.md> <وجهة/index.html> <النكهة> "<العنوان>" "<الوصف>"
+    python3 tools/build-guide.py <مصدر.md> <وجهة/index.html> <النكهة> \
+        "<العنوان>" "<الوصف>" ["<سبب حجب الفهرسة>"]
+
+المعامل السادس اختياري: إن مُرِّر أُضيف وسم `noindex` مسبوقاً بنصّه تعليقاً
+يشرح سبب الحجب. **ولماذا معاملٌ لا تحريرٌ بعد التوليد؟** لأن ما يُضاف باليد
+يضيع عند أول إعادة توليد، فتُفهرَس صفحةٌ كنّا قرّرنا حجبها ولا أحد ينتبه.
 
 **لماذا مولِّدٌ لا تحرير يدوي؟** لأن نصّ الأدلة يكتبه مساعد التطبيق وهو
 الأعلم بشاشاته، ونسخُه بيدي إلى HTML يعني مرجعين يفترقان عند أول تعديل —
@@ -20,6 +25,9 @@ FLAVORS = {                     # ألوان نكهات التطبيق من lib/
     'restaurant': ('#E8590C', '#BF4506', '#2A1204', '#160902'),
     'customer':   ('#D4A017', '#B8860B', '#08211A', '#04120D'),
     'driver':     ('#1976D2', '#0D47A1', '#0A1E38', '#050F1E'),
+    # الإدارة نكهةٌ لا وجود لها في التطبيق — ألوانها من لوحة التحكم نفسها
+    # (docs/admin/index.html) ليعرف المدير أنه في بيت لوحته لا في صفحة عامة.
+    'admin':      ('#13224a', '#26407f', '#0b1631', '#060e1f'),
 }
 
 
@@ -113,7 +121,7 @@ TPL = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
-<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="referrer" content="strict-origin-when-cross-origin">{noindex}
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title} — زادقو ZadGo</title>
 <meta name="description" content="{desc}">
@@ -193,6 +201,8 @@ footer a {{ color:var(--c2); text-decoration:none; }}
 
 if __name__ == '__main__':
     src, dest, flavor, title, desc = sys.argv[1:6]
+    hide = sys.argv[6] if len(sys.argv) > 6 else ''
+    noindex = ('\n<!-- ' + hide + ' -->\n<meta name="robots" content="noindex">') if hide else ''
     md = open(src, encoding='utf-8').read()
     # العنوان الأول ومذكّرة النسخة يُستبدلان بترويسة الصفحة، فلا يتكرّران.
     md = re.sub(r'^# .*?\n', '', md, count=1)
@@ -201,6 +211,7 @@ if __name__ == '__main__':
     c1, c2, dark, darker = FLAVORS[flavor]
     page = TPL.format(title=html.escape(title), desc=html.escape(desc),
                       path=dest.replace('docs/', '').replace('index.html', ''),
-                      c1=c1, c2=c2, dark=dark, darker=darker, body=convert(md))
+                      c1=c1, c2=c2, dark=dark, darker=darker, body=convert(md),
+                      noindex=noindex)
     open(dest, 'w', encoding='utf-8').write(page)
     print(f'{dest}: {len(page)} حرفاً')
