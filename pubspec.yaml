@@ -123,6 +123,12 @@ dependencies:
   # الحادة عند إعادة التمركز. متوافقة مع flutter_map 7 المثبّت عندنا.
   flutter_map_animations: 0.10.0
 
+  # انتقالات ماتيريال الرسمية (دفعة ز6): بطاقة المطعم «تتمدّد» لصفحته
+  # (Container Transform) بدل قفزة Navigator.push — أوضح فرق يلمسه
+  # العميل بين تطبيق عادي وتطبيقات التوصيل الكبرى. مثبّتة على 2.0.11:
+  # آخر ما يقبل قيدنا (2.1+ تشترط Dart 3.9). من فريق Flutter نفسه (BSD-3).
+  animations: 2.0.11
+
 dependency_overrides:
   geolocator_android: 4.6.0
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
 import '../../models/models.dart';
@@ -256,11 +257,23 @@ class _RestaurantCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = restaurant;
     final isPopular = r.totalOrders >= _popularOrdersThreshold;
-    return Card(
+    // تحوّل الحاوية (ز6): البطاقة «تتمدّد» إلى صفحة المطعم بدل قفزة
+    // push — الودجت نفسه هو الذي يكبر، فيبقى ذهن المستخدم على الشيء
+    // الذي ضغطه. المغلق بلا ظل ولا لون: البطاقة الداخلية (Card بحدّها)
+    // هي الشكل، وOpenContainer مجرد غلاف الحركة.
+    return OpenContainer(
+      closedElevation: 0,
+      closedColor: Colors.transparent,
+      openColor: Colors.white,
+      closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      transitionDuration: const Duration(milliseconds: 380),
+      tappable: r.isOpen,
+      openBuilder: (_, __) => RestaurantDetailScreen(restaurant: r),
+      closedBuilder: (ctx, open) => Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: r.isOpen ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => RestaurantDetailScreen(restaurant: r))) : null,
+        onTap: r.isOpen ? open : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -311,6 +324,7 @@ class _RestaurantCard extends StatelessWidget {
           ]),
         ),
       ),
+    ),
     );
   }
 }
