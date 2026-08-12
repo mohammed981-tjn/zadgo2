@@ -108,6 +108,12 @@ dependencies:
   # haversine كما كان، فلا كسر بانتظار المفتاح.
   open_route_service: 1.2.8
 
+  # إشعار محلي بصوت واهتزاز حقيقيين للعروض (دفعة و4) — بدل SystemSound
+  # الباهت الذي لا يظهر في لوحة الإشعارات أصلاً. مثبّتة على 19.5.0: آخر
+  # إصدار يقبل قيدنا (الأحدث 22.x يشترط Dart 3.10). تتطلب تفعيل
+  # desugaring في Gradle — مفعَّل في android/app/build.gradle.
+  flutter_local_notifications: 19.5.0
+
 dependency_overrides:
   geolocator_android: 4.6.0
 

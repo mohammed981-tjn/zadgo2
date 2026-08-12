@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/driver_keep_alive.dart';
+import '../../providers/local_alerts.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
@@ -205,6 +206,14 @@ class _DriverHomeState extends State<DriverHome> {
         if (!_acknowledgedNotified.contains(o.id)) {
           _acknowledgedNotified.add(o.id);
           _playAssignmentSound();
+          // إشعار لوحة النظام (و4): الشريط الداخلي يعيش داخل شاشتنا
+          // وحدها — والكابتن الحيّ في الخلفية (بفضل و2) كان يستقبل
+          // العرض بلا أي صوت يخرج إليه. هذه هي الحلقة الناقصة.
+          LocalAlerts.offerAlert(
+            title: '🛵 عرض توصيل جديد',
+            body:
+                'طلب #${o.orderNumber} من ${o.restaurantName} — افتح للقبول أو الرفض',
+          );
           _showDecisionBanner(o);
         }
       } else if (o.driverId != null &&
@@ -213,6 +222,10 @@ class _DriverHomeState extends State<DriverHome> {
         if (!_autoAssignedNotified.contains(o.id)) {
           _autoAssignedNotified.add(o.id);
           _playAssignmentSound();
+          LocalAlerts.offerAlert(
+            title: '📦 طلب مُسند إليك',
+            body: 'طلب #${o.orderNumber} من ${o.restaurantName}',
+          );
           _showInfoBanner(o);
         }
       }
@@ -244,6 +257,7 @@ class _DriverHomeState extends State<DriverHome> {
             dismiss();
             try {
               await service.acceptAssignedOrder(order.id);
+              LocalAlerts.clearOfferAlert();
             } catch (_) {
               if (mounted) showError(context, 'تعذّر قبول الطلب — ربما أُلغي أو أُعيد إسناده');
               return;
@@ -257,6 +271,7 @@ class _DriverHomeState extends State<DriverHome> {
             dismiss();
             try {
               await service.rejectAssignedOrder(order.id);
+              LocalAlerts.clearOfferAlert();
             } catch (_) {
               if (mounted) showError(context, 'تعذّر رفض الطلب — ربما تغيّرت حالته');
             }
@@ -268,6 +283,7 @@ class _DriverHomeState extends State<DriverHome> {
             dismiss();
             try {
               await service.rejectAssignedOrder(order.id, dueToTimeout: true);
+              LocalAlerts.clearOfferAlert();
             } catch (_) {
               // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
             }
@@ -1029,6 +1045,7 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
     try {
       if (accept) {
         await service.acceptAssignedOrder(widget.order.id);
+              LocalAlerts.clearOfferAlert();
         if (mounted) {
           navigatorKey.currentState?.push(MaterialPageRoute(
               builder: (_) => PickupDocketScreen(orderId: widget.order.id)));
