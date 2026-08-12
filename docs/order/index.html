@@ -262,10 +262,15 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
 .cartbar .in .amt { color: var(--gold-light); }
 
 /* ---------- شاشة الدخول ---------- */
-.auth-wrap { min-height: 100dvh; background: linear-gradient(160deg,#08211A,#04120D);
-  display: flex; align-items: center; justify-content: center; padding: 22px; }
+.auth-wrap { position: fixed; inset: 0; z-index: 90; background: rgba(4,18,13,.93);
+  backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center;
+  padding: 22px; overflow-y: auto; }
 .auth-box { background: var(--card); border-radius: 20px; padding: 26px 22px; width: 100%;
-  max-width: 400px; box-shadow: 0 18px 50px rgba(0,0,0,.4); }
+  max-width: 400px; box-shadow: 0 18px 50px rgba(0,0,0,.4); position: relative; }
+.auth-x { position: absolute; inset-inline-end: 12px; top: 12px; width: 34px; height: 34px;
+  border: 0; border-radius: 10px; background: var(--surface); color: var(--muted);
+  font-size: 1rem; cursor: pointer; }
+.auth-x:hover { background: #e6ebe8; }
 .auth-box .logo { text-align: center; margin-bottom: 18px; }
 .auth-box .logo img { height: 46px; }
 .auth-box .logo p { color: var(--muted); font-size: .84rem; margin-top: 6px; }
@@ -319,12 +324,16 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
 </head>
 <body>
 
-<!-- ============ الدخول ============ -->
-<div id="authView" class="auth-wrap">
+<!-- ============ الدخول ============
+     يظهر عند الحاجة لا عند الوصول: الزائر يتصفّح ويملأ سلته أولاً، ولا
+     يُطلب منه حساب إلا عند إتمام الطلب — لأن القواعد تشترط حساب عميل
+     لإنشاء الطلب وحده، أما المطاعم والمنيو فقراءتهما عامة. -->
+<div id="authView" class="auth-wrap hide">
   <div class="auth-box">
+    <button class="auth-x" id="authClose" aria-label="إغلاق">✕</button>
     <div class="logo">
       <img src="/images/zadgo-logo.png" alt="ZadGo">
-      <p>اطلب من مطاعم المدينة المنورة — مباشرة من المتصفح</p>
+      <p id="authWhy">اطلب من مطاعم المدينة المنورة — مباشرة من المتصفح</p>
     </div>
     <div class="tabs">
       <button id="tabLogin" class="on">دخول</button>
@@ -358,13 +367,13 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
     </form>
 
     <p style="text-align:center;margin-top:16px">
-      <a href="/" class="muted" style="text-decoration:none">→ العودة للصفحة الرئيسية</a>
+      <a href="#" class="muted" id="backToBrowse" style="text-decoration:none">→ أكمل التصفّح بلا حساب</a>
     </p>
   </div>
 </div>
 
 <!-- ============ التطبيق ============ -->
-<div id="appView" class="hide">
+<div id="appView">
   <header class="top" id="topBar">
     <button class="back" id="backBtn" aria-label="رجوع">→</button>
     <h1 id="pageTitle">المطاعم</h1>
@@ -492,8 +501,11 @@ const cartCount = () => S.cart.reduce((s, i) => s + i.quantity, 0);
 const cartTotal = () => S.cart.reduce((s, i) => s + i.price * i.quantity, 0);
 
 /* ---------------- الدخول ---------------- */
-function authError(msg) { const e = $('authErr'); e.textContent = msg; e.classList.remove('hide'); }
-function clearAuthError() { $('authErr').classList.add('hide'); }
+/* الصندوق نفسه يحمل الخطأ والبشارة، فتُعاد فئته في كل مرة صراحةً: بشارةُ
+ * «أُرسل رابط الاستعادة» كانت تُبقيه أخضر، فيظهر الخطأ التالي بلون النجاح. */
+function authError(msg) { const e = $('authErr'); e.className = 'err'; e.textContent = msg; }
+function authOk(msg) { const e = $('authErr'); e.className = 'ok'; e.textContent = msg; }
+function clearAuthError() { const e = $('authErr'); e.className = 'err hide'; e.textContent = ''; }
 
 const AUTH_AR = {
   'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة',
@@ -530,7 +542,7 @@ $('lReset').onclick = async () => {
   if (!em) { authError('اكتب بريدك في الحقل أعلاه أولاً'); return; }
   try {
     await sendPasswordResetEmail(auth, em);
-    const e = $('authErr'); e.className = 'ok'; e.textContent = 'أُرسل رابط الاستعادة إلى بريدك';
+    authOk('أُرسل رابط الاستعادة إلى بريدك');
   } catch (err) { authError(authMsg(err)); }
 };
 
@@ -554,10 +566,37 @@ $('regForm').onsubmit = async (e) => {
   b.disabled = false; b.textContent = 'إنشاء الحساب';
 };
 
-$('logoutBtn').onclick = async () => { await signOut(auth); location.reload(); };
+$('logoutBtn').onclick = async () => {
+  if (!S.user) { showAuth(); return; }        // زائر: الزر يقول «دخول»
+  if (!confirm('تسجيل الخروج؟ سلتك تبقى محفوظة على هذا الجهاز.')) return;
+  await signOut(auth);
+  location.reload();
+};
+
+/* بوابة الحساب تُفتح بنيّة معلومة: من ضغط «إرسال الطلب» يعود إلى سلته بعد
+ * دخوله لا إلى الصفحة الأولى — فلا يُعاقَب بإعادة الطريق من أوله. */
+function showAuth(why, next) {
+  S.authNext = next || null;
+  $('authWhy').textContent = why || 'ادخل بحسابك أو أنشئ حساباً جديداً';
+  clearAuthError();
+  $('authView').classList.remove('hide');
+}
+// إغلاق البوابة يُلغي النيّة معها — وإلا قفزت بالعميل لاحقاً إلى وجهةٍ نسيها.
+function hideAuth() { $('authView').classList.add('hide'); S.authNext = null; }
+$('authClose').onclick = hideAuth;
+$('backToBrowse').onclick = (e) => { e.preventDefault(); hideAuth(); };
 
 onAuthStateChanged(auth, async (u) => {
-  if (!u) { $('authView').classList.remove('hide'); $('appView').classList.add('hide'); return; }
+  if (!u) {
+    // وضع الزائر: التطبيق مفتوح للتصفّح، والبوابة مغلقة حتى يُطلب منها شيء.
+    S.user = null;
+    if (S.unsubOrders) { S.unsubOrders(); S.unsubOrders = null; }
+    S.orders = [];
+    hideAuth();
+    if (!S.booted) { S.booted = true; loadCart(); loadRestaurants(); go('home'); }
+    else render();
+    return;
+  }
   let snap;
   try { snap = await getDoc(doc(db, 'users', u.uid)); }
   catch (e) { authError('تعذّر قراءة حسابك — تحقّق من اتصالك'); return; }
@@ -580,12 +619,12 @@ onAuthStateChanged(auth, async (u) => {
     return;
   }
   S.user = { uid: u.uid, ...d };
-  $('authView').classList.add('hide');
-  $('appView').classList.remove('hide');
-  loadCart();
+  hideAuth();
+  if (!S.booted) { S.booted = true; loadCart(); loadRestaurants(); }
   listenOrders();
-  loadRestaurants();
-  go('home');
+  // نيّةٌ كانت معلّقة قبل الدخول تُستأنف الآن؛ وإلا نبقى حيث كان الزائر.
+  const next = S.authNext; S.authNext = null;
+  go(next || S.page || 'home');
 });
 
 /* ---------------- التنقل ---------------- */
@@ -631,6 +670,7 @@ function go(p) {
 }
 function render() {
   renderNav();
+  $('logoutBtn').textContent = S.user ? 'خروج' : 'دخول';
   const bar = $('cartBar');
   const show = S.cart.length > 0 && (S.page === 'home' || S.page === 'resto');
   bar.classList.toggle('on', show);
@@ -1015,9 +1055,11 @@ function viewCart() {
     ${far ? `<div class="err">موقعك يبعد ${km.toFixed(1)} كم — خارج نطاق التوصيل (${PRICING.maxDeliveryDistanceKm} كم).</div>` : ''}
     <div id="orderErr"></div>
     <button class="btn block" id="placeBtn" ${belowMin || far ? 'disabled' : ''}>
-      ${noLoc ? 'إرسال الطلب' : `إرسال الطلب · ${money(total)}`}</button>
+      ${!S.user ? 'متابعة — دخول ثم إرسال'
+        : noLoc ? 'إرسال الطلب' : `إرسال الطلب · ${money(total)}`}</button>
     <p class="muted" style="text-align:center;margin-top:10px">
-      يصل طلبك للمطعم فوراً، ويصلك إشعار عند قبوله.</p>`;
+      ${S.user ? 'يصل طلبك للمطعم فوراً، ويصلك إشعار عند قبوله.'
+        : 'تحتاج حساباً للإرسال فقط — سلتك وعنوانك محفوظان.'}</p>`;
 
   $('main').onclick = (e) => {
     const inc = e.target.closest('[data-inc]'), dec = e.target.closest('[data-dec]');
@@ -1127,6 +1169,13 @@ function uuid4() {
 
 async function placeOrder() {
   if (S.busy) return;
+  // البوابة هنا لا عند الباب: الزائر ملأ سلته وعنوانه، وما ينقصه حسابٌ
+  // يُنشئه الآن ثم يُتمّ طلبه من حيث وقف.
+  if (!S.user) {
+    S.addr.text = ($('addr').value || '').trim();   // لا يضيع ما كتبه أثناء الدخول
+    showAuth('بقيت خطوة واحدة — ادخل بحسابك لإتمام طلبك', 'cart');
+    return;
+  }
   const addr = ($('addr').value || '').trim();
   if (addr.length < 8) { showOrderErr('اكتب عنوان التوصيل بتفصيل يكفي الكابتن للوصول.'); return; }
   if (S.addr.lat == null) { showOrderErr('حدّد موقعك أولاً — بدونه لا يعرف الكابتن أين يذهب.'); return; }
@@ -1222,7 +1271,27 @@ const fmtTime = (ts) => {
   return d ? d.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }) : '';
 };
 
+/* شاشةٌ واحدة تُعرض للزائر مكان ما يحتاج حساباً — بنصٍّ يقول لماذا، لا
+ * بجدارٍ مسدود. */
+function guestGate(icon, title, line, cta) {
+  return `<div class="empty"><div class="big">${icon}</div>
+    <h3>${title}</h3><p>${line}</p>
+    <button class="btn" id="gateBtn" style="margin-top:14px">${cta}</button>
+    <p class="muted" style="margin-top:10px">أو <a href="#" id="gateBrowse"
+      style="color:var(--gold-dark)">تابع التصفّح بلا حساب</a></p></div>`;
+}
+function wireGate(why, next) {
+  if ($('gateBtn')) $('gateBtn').onclick = () => showAuth(why, next);
+  if ($('gateBrowse')) $('gateBrowse').onclick = (e) => { e.preventDefault(); go('home'); };
+}
+
 function viewOrders() {
+  if (!S.user) {
+    $('main').innerHTML = guestGate('🧾', 'طلباتك تحتاج حساباً',
+      'بحسابك تتابع طلبك لحظة بلحظة وتحفظ عنوانك للمرّات القادمة.', 'دخول أو حساب جديد');
+    wireGate('ادخل لترى طلباتك وتتابعها', 'orders');
+    return;
+  }
   if (!S.orders.length) {
     $('main').innerHTML = `<div class="empty"><div class="big">🧾</div>
       <h3>لا طلبات بعد</h3><p>أول طلب لك يظهر هنا مع تتبّعه لحظة بلحظة.</p>
@@ -1399,6 +1468,13 @@ function viewOrder() {
 
 /* ---------------- الحساب ---------------- */
 function viewAccount() {
+  if (!S.user) {
+    $('main').innerHTML = guestGate('👤', 'لا حساب بعد',
+      'أنشئ حسابك في نصف دقيقة — الاسم والجوال والبريد، ولا شيء غير ذلك.',
+      'دخول أو حساب جديد');
+    wireGate('أنشئ حسابك أو ادخل به', 'account');
+    return;
+  }
   const u = S.user;
   const done = S.orders.filter((o) => o.status === 'delivered').length;
   $('main').innerHTML = `
