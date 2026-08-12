@@ -5,6 +5,12 @@ import '../utils/theme.dart';
 
 String formatCurrency(double amount) => '${amount.toStringAsFixed(2)} ر.س';
 
+/// تاريخ ووقت بصيغة موجزة «11/8 — 14:52» — للطوابع الزمنية في البطاقات
+/// والسجلّات حيث السنة معلومة من السياق ولا تستحق عرضها.
+String formatDateTime(DateTime t) =>
+    '${t.day}/${t.month} — '
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
 // ScaffoldMessenger الجذري (الذي يوفّره MaterialApp) يبقي الرسالة ظاهرة
 // عبر أي تنقّل بين الشاشات لا يُغلقها صراحة — فمن أخطأ كود كوبون عدّة مرات
 // متتالية (كل خطأ يُضيف 4 ثوانٍ للطابور) ثم انتقل فوراً لشاشة أخرى تماماً
