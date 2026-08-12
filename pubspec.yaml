@@ -129,6 +129,13 @@ dependencies:
   # آخر ما يقبل قيدنا (2.1+ تشترط Dart 3.9). من فريق Flutter نفسه (BSD-3).
   animations: 2.0.11
 
+  # إثبات الاستلام بمسح رمز (دفعة و7): المطعم يعرض QR والكابتن يمسحه —
+  # إثبات مادي أقوى من زرّين متزامنين. mobile_scanner للمسح (6.0.11 آخر
+  # ما يقبل قيدنا؛ 7.x تشترط Dart 3.7) وqr_flutter للعرض (تبعياتها حزمة
+  # qr النقية وحدها).
+  mobile_scanner: 6.0.11
+  qr_flutter: 4.1.0
+
 dependency_overrides:
   geolocator_android: 4.6.0
 
