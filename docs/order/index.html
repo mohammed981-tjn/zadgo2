@@ -1010,6 +1010,10 @@ function viewCart() {
   const belowMin = items < minOrder;
   const far = km != null && isOutOfRange(km);
   const noLoc = S.addr.lat == null;
+  // مطعمٌ مغلق لا يرى الطلب أصلاً: لا شاشة مفتوحة في مطبخه ولا أحد ينتظره.
+  // فالطلب إليه ليس خدمةً بطيئة بل عميلٌ ينتظر ما لن يأتي — والسلة تبقى
+  // كما هي ليُرسلها حين يفتح.
+  const shut = r ? r.isOpen === false : false;
 
   $('main').innerHTML = `
     <div class="card">
@@ -1073,11 +1077,14 @@ function viewCart() {
     ${noLoc ? '' : `<p class="muted" style="text-align:center;margin:-4px 0 12px">
       هذا هو المبلغ النهائي — لا رسوم تُضاف عند الاستلام.</p>`}
 
+    ${shut ? `<div class="err">🔒 <b>${esc((S.cartResto || {}).name || 'المطعم')}</b> مغلق الآن،
+      ولن يصله طلبك. سلتك محفوظة — أرسلها حين يفتح.</div>` : ''}
     ${belowMin ? `<div class="err">الحد الأدنى للطلب من هذا المطعم ${money(minOrder)} — أضف ${money(minOrder - items)} لتتمكن من الإرسال.</div>` : ''}
     ${far ? `<div class="err">موقعك يبعد ${km.toFixed(1)} كم — خارج نطاق التوصيل (${PRICING.maxDeliveryDistanceKm} كم).</div>` : ''}
     <div id="orderErr"></div>
-    <button class="btn block" id="placeBtn" ${belowMin || far ? 'disabled' : ''}>
-      ${!S.user ? 'متابعة — دخول ثم إرسال'
+    <button class="btn block" id="placeBtn" ${shut || belowMin || far ? 'disabled' : ''}>
+      ${shut ? 'المطعم مغلق الآن'
+        : !S.user ? 'متابعة — دخول ثم إرسال'
         : noLoc ? 'إرسال الطلب' : `إرسال الطلب · ${money(total)}`}</button>
     <p class="muted" style="text-align:center;margin-top:10px">
       ${S.user ? 'يصل طلبك للمطعم فوراً، ويصلك إشعار عند قبوله.'
@@ -1214,6 +1221,20 @@ async function placeOrder() {
   if (S.addr.lat == null) { showOrderErr('حدّد موقعك أولاً — بدونه لا يعرف الكابتن أين يذهب.'); return; }
   const r = S.restaurants.find((x) => x.id === (S.cartResto || {}).id);
   if (!r) { showOrderErr('تعذّر التعرّف على المطعم — أعد تحميل الصفحة.'); return; }
+  // الفحص الحاسم يقرأ المطعم **من الخادم لحظتَه** لا من النسخة المحمَّلة عند
+  // فتح الصفحة: قائمة المطاعم تُقرأ مرة واحدة، فلو أغلق المطعم بعدها بساعة
+  // بقيت النسخة في الذاكرة تقول «مفتوح» — والزرّ المعطَّل في الواجهة مرسومٌ
+  // على تلك النسخة نفسها، فلا يحمي من شيء. قراءةٌ واحدة هنا تحسم.
+  try {
+    const fresh = await getDoc(doc(db, 'restaurants', r.id));
+    if (fresh.exists() && fresh.data().isOpen === false) {
+      r.isOpen = false;            // نُحدِّث النسخة فتُصحَّح الشاشة أيضاً
+      S.busy = false;
+      render();
+      showOrderErr('أغلق المطعم للتوّ — لن يصله طلبك. سلتك محفوظة، أرسلها حين يفتح.');
+      return;
+    }
+  } catch (e) { /* تعذّرت القراءة: نمضي بما لدينا بدل منع طلبٍ ربما كان صحيحاً */ }
 
   const km = distanceKm();
   if (km != null && isOutOfRange(km)) { showOrderErr('موقعك خارج نطاق التوصيل.'); return; }
