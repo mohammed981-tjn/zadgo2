@@ -98,12 +98,21 @@ flutter:
     - assets/images/banner_promo_1.jpg
     # خلفية افتتاح تطبيق الكابتن (طريق ليلي بهوية النكهة الكحلية).
     - assets/images/bg_splash_driver.jpg
+    # خط التصدير (PDF): يبقى الملف المتغيّر مُعلَناً كأصل عادي لأن حزمة
+    # pdf تقرؤه مباشرة بـrootBundle ولا تمرّ بنظام خطوط Flutter، فلا
+    # يصيبها عطل الأوزان الذي عطّل الخط في الواجهة.
+    - assets/fonts/Cairo-Variable.ttf
   fonts:
+    # أربعة **ملفات ثابتة** مستخرَجة من الملف المتغيّر (wght مثبَّت وslnt=0)
+    # لا ملفٌ واحد مكرَّر بثلاثة أوزان — وذاك التكرار هو ما عطّل رسم النص
+    # صامتاً على أندرويد فعُطِّل الخط كلّه، فبقي التطبيق بخط النظام.
     - family: Cairo
       fonts:
-        - asset: assets/fonts/Cairo-Variable.ttf
+        - asset: assets/fonts/Cairo-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Cairo-Variable.ttf
+        - asset: assets/fonts/Cairo-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Cairo-Variable.ttf
+        - asset: assets/fonts/Cairo-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Cairo-ExtraBold.ttf
+          weight: 800
