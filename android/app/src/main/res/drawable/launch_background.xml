@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- شاشة الإقلاع الأصلية — لونٌ مصمت فقط بلا شعار: الشعار هنا سيظهر ثم
+     يقفز حين يرسم Flutter سبلاشه المتحرك فوقه، وقفزة شعار أسوأ من لحظة
+     لونٍ هادئ. اللون وحده يجعل الانتقال للسبلاش الداكن بلا قطع. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
+    <item android:drawable="@color/launch_background" />
 </layer-list>
