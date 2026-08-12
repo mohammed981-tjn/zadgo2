@@ -1,0 +1,15 @@
+# zadgo.co — ما يُفهرس وما لا يُفهرس
+#
+# لوحة التحكم محجوبة لأنها إدارية لا عامة. وصفحة الطلب محجوبة **مؤقتاً**
+# ما دامت المنصّة في تجربة محدودة: أُخفيت أزرارها من الصفحة الرئيسية، فلا
+# معنى لأن يصلها عابرٌ من نتائج البحث.
+#
+# عند فتح المنصّة للجمهور: احذف سطر /order/ من هنا، واحذف وسم noindex من
+# docs/order/index.html، واضبط TRIAL_MODE = false في docs/index.html.
+
+User-agent: *
+Disallow: /admin/
+Disallow: /order/
+Allow: /
+
+Sitemap: https://zadgo.co/sitemap.xml
