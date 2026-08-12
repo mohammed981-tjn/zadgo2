@@ -8,6 +8,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'app_flavor.dart';
+import 'crash_reporting.dart';
 import 'navigator_key.dart';
 import 'widgets/connectivity_banner.dart';
 import 'widgets/min_version_gate.dart';
@@ -45,6 +46,10 @@ void main() async {
       storageBucket: 'restaurant-app-ed699.firebasestorage.app',
     ),
   );
+
+  // تسجيل الانهيارات يُوصَّل **قبل** أي شيفرة أخرى بعد تهيئة Firebase:
+  // ما ينهار في أثناء الإقلاع نفسه هو أعصى ما يُشخَّص بلا تقرير.
+  await initCrashReporting(flavor: 'driver');
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
