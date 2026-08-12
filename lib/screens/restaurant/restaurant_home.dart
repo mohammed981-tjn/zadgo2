@@ -432,7 +432,21 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       case OrderStatus.preparing:
         return ('جاري التحضير', AppColors.primary, Icons.restaurant_rounded);
       case OrderStatus.readyForPickup:
-        return ('جاهز — بانتظار استلام السائق', Colors.teal, Icons.shopping_bag_rounded);
+        // بلاغ المالك ٢٠٢٦-٠٨-١٢: البطاقة كانت تقول «بانتظار استلام
+        // السائق» بينما تحتها ختمُ «سلّمتُ الطلب للسائق» — سطران
+        // متناقضان ظاهرياً في بطاقة واحدة، فظنّ المالك أن الكابتن أكّد
+        // استلامه من بُعد وأن حارس المئة متر انخرم.
+        //
+        // ولا تناقض في الحقيقة: ختمُ المطعم إقرارٌ من طرفه وحده ولا
+        // يغيّر الحالة (وهذا مقصود — ضغطة المطعم لا تُثبت استلاماً لم
+        // يقع)، والحالة لا تنتقل إلا بتأكيد الكابتن وهو محكومٌ بالحارس.
+        // فالعلّة في **الصياغة** لا في المنطق: العنوان الآن يقول أي
+        // الطرفين أقرّ وأيّهما ينتظر.
+        return widget.order.restaurantHandoverAt == null
+            ? ('جاهز — بانتظار استلام السائق', Colors.teal,
+                Icons.shopping_bag_rounded)
+            : ('سلّمته — بانتظار تأكيد الكابتن', Colors.teal,
+                Icons.hourglass_bottom_rounded);
       case OrderStatus.restaurantRejected:
         return ('تم رفض الطلب', AppColors.error, Icons.block_rounded);
       case OrderStatus.searchingDriver:
