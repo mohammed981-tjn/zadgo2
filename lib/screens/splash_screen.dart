@@ -134,12 +134,23 @@ class _SplashScreenState extends State<SplashScreen>
     // الكتابي على «ليل» هويتها — أسرع وأقل تشتيتاً لمن يفتحها عشرات
     // المرات يومياً.
     if (AppFlavorConfig.flavor == AppFlavor.customer) {
-      // البوستر يحمل الشعار مخبوزاً في أعلاه والدرّاج في أسفله، وعرضه
-      // بـcover على نسبة الجوال كان يقصّ الطرفين معاً (ملاحظة من فرع
-      // إعادة تصميم شاشات العميل، نُقلت فكرتها هنا): المحاذاة السفلية
-      // تُبقي الدرّاج كاملاً ويُقتطع الفراغ العلوي وحده — حتى مع تقريب
-      // «كن بيرنز» — والشعار الكتابي يُرسم فوقه من أصله الشفاف فلا يُقصّ
-      // مهما اختلفت الشاشة، وتحته تعتيم متدرّج يضمن قراءته.
+      // البوستر أُعيد تركيبه على نسبة الجوال (1242×2688) بدل نسبة المطبوعة
+      // الأصلية (748×1286)، وذلك بعد بلاغ المالك ٢٠٢٦-٠٨-١٢ («صورة العميل
+      // زبالة») — والعلّة كانت في **تركيبنا** لا في المطبوعة:
+      //
+      //   ١) شعارٌ مزدوج: المطبوعة تحمل «ZadGo» مخبوزاً في أعلاها، وكنّا
+      //      نرسم فوقه `logo_wordmark.png` بإزاحة يسيرة — فيظهر شعارٌ
+      //      شبحيّ خلف شعارٍ حقيقي، وهو ما يقرأه العين لطخةً لا هوية.
+      //   ٢) تعتيمٌ ثقيل (92%) على أعلى الكادر كان لازماً لإقحام ذلك
+      //      الشعار، فيطمس الشعار المخبوز نصف طمسٍ ويوحل الكحلي.
+      //   ٣) قصٌّ جانبي: نسبة المطبوعة 0.58 ونسبة الجوال 0.46، فـcover
+      //      كان يقتطع 13% من كل جانب — تذهب معها دبّوس الموقع وطرف
+      //      الدرّاجة.
+      //
+      // الحلّ في الأصل لا في الشاشة: الشعار يُخبز مرة واحدة من ملفه
+      // الشفّاف (تكبير 1.2× بدل 1.66×، فهو أحدّ لا أنعم)، والكحلي يُمدّ
+      // من شريط المطبوعة نفسها فلا يظهر خطّ وصل. فلم يبقَ للشاشة إلا
+      // عرضه كاملاً وتقريب «كن بيرنز» — ولا تعتيم ولا طبقة فوقه إطلاقاً.
       return Scaffold(
         body: Container(
           width: double.infinity,
@@ -150,36 +161,9 @@ class _SplashScreenState extends State<SplashScreen>
             child: Stack(fit: StackFit.expand, children: [
               ScaleTransition(
                 scale: _posterZoom,
-                alignment: Alignment.bottomCenter,
                 child: Image.asset(
                   'assets/images/splash_customer.jpg',
                   fit: BoxFit.cover,
-                  alignment: Alignment.bottomCenter,
-                ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      fc.bgDarker.withOpacity(0.92),
-                      fc.bgDarker.withOpacity(0.55),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.18, 0.42],
-                  ),
-                ),
-              ),
-              Align(
-                alignment: const Alignment(0, -0.72),
-                child: FadeTransition(
-                  opacity: _word,
-                  child: Image.asset(
-                    'assets/images/logo_wordmark.png',
-                    width: screenWidth * 0.58,
-                    fit: BoxFit.contain,
-                  ),
                 ),
               ),
               if (_waitingAuth) const _AuthWaitIndicator(),

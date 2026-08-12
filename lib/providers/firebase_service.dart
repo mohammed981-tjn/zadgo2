@@ -1193,8 +1193,19 @@ class FirebaseService {
       // تعذّرت القراءة — الافتراضيات المعتمدة، والإسناد لا يتوقف لأجل رقم.
     }
 
-    final underCap = online.where((d) => d.activeOrders < maxLoad).toList();
-    if (underCap.isEmpty) return false;
+    var underCap = online.where((d) => d.activeOrders < maxLoad).toList();
+    // عدّاد الحمولة يكتبه **جهاز الكابتن**، فإن أُغلق التطبيق بعد آخر طلب
+    // بقي العدّاد على قيمته الأخيرة إلى الأبد. وكابتنٌ عالقٌ على السقف
+    // يُخرج نفسه من كل ترشيح لاحق — وبأسطولٍ من كابتن واحد يعني ذلك أن
+    // **كل** طلب تالٍ يبقى بلا سائق بلا أثر ظاهر. فقبل الاستسلام تُجرَّب
+    // المصالحة (تُصفّر عدّاد من لا طلب جارياً له فعلاً)؛ وهي تنجح في لوحة
+    // الإدارة وترتدّ بهدوء في تطبيق المطعم — فلا تُكلّف شيئاً حين تتعذّر.
+    var reconciled = false;
+    if (underCap.isEmpty) {
+      underCap = await _freeStuckDrivers(online);
+      if (underCap.isEmpty) return false;
+      reconciled = true;
+    }
 
     bool inCluster(models.Driver d) {
       if (d.activeOrders == 0) return true;
@@ -1209,7 +1220,12 @@ class FirebaseService {
           stackKm;
     }
 
-    var available = underCap.where((d) => d.activeOrders == 0).toList();
+    // بعد مصالحةٍ ناجحة صار المحرَّرون فارغين فعلاً في القاعدة، ونسخُهم في
+    // الذاكرة وحدها هي المتقادمة — فلا تُعاد المصالحة ولا يُستبعدون بعدّاد
+    // بطل مفعوله.
+    var available = reconciled
+        ? underCap
+        : underCap.where((d) => d.activeOrders == 0).toList();
     // الفارغ حسب العلم القديم قد يكون عالقاً — المصالحة تُصحّح متى أمكنت.
     if (available.isEmpty) available = await _freeStuckDrivers(online);
     if (available.isEmpty) {
