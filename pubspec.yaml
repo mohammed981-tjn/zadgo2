@@ -102,6 +102,12 @@ dependencies:
   # فقط — لا حركات دائمة تستهلك بطارية ولا تكرار عند كل إعادة بناء.
   flutter_animate: 4.5.2
 
+  # المسارات الحقيقية (دفعة و3): مسافة الطريق وزمنه من openrouteservice
+  # بدل الخط المستقيم × ٢٠ كم/س. مثبّتة على 1.2.8 (MIT، تقبل Dart 3.0+).
+  # تعمل فقط إن مُرّر ORS_API_KEY وقت البناء — وإلا سقط كل شيء على
+  # haversine كما كان، فلا كسر بانتظار المفتاح.
+  open_route_service: 1.2.8
+
 dependency_overrides:
   geolocator_android: 4.6.0
 
