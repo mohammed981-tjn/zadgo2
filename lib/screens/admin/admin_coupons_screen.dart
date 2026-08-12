@@ -44,6 +44,71 @@ class AdminCouponsScreen extends StatelessWidget {
   }
 }
 
+/// تقرير أداء كوبون واحد (نفذ ٣): كان المتاح رقماً مخلوطاً واحداً
+/// (usedCount) لا يجيب سؤال الحملة الحقيقي — «كم كلّفني الكود وكم جلب؟».
+/// يُحسب من الطلبات نفسها (couponCode/discountAmount) لا من العدّاد،
+/// فالملغى يُستبعد ويظهر أثره صريحاً.
+Future<void> _showPerformanceSheet(BuildContext context, Coupon c) async {
+  final service = context.read<FirebaseService>();
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (sheetCtx) => Padding(
+      padding: const EdgeInsets.all(20),
+      child: FutureBuilder<List<Order>>(
+        future: service.streamAllOrders().first,
+        builder: (ctx, snap) {
+          if (!snap.hasData) {
+            return const SizedBox(height: 160, child: AppLoading());
+          }
+          final all = snap.data!
+              .where((o) => o.couponCode == c.code && o.discountAmount > 0)
+              .toList();
+          final delivered =
+              all.where((o) => o.status == OrderStatus.delivered).toList();
+          final cancelled = all.length - delivered.length -
+              all.where((o) => o.status.isActive).length;
+          final cost = delivered.fold(0.0, (s, o) => s + o.discountAmount);
+          final revenue = delivered.fold(0.0, (s, o) => s + o.itemsTotal);
+          final uniqueCustomers = all.map((o) => o.customerId).toSet().length;
+          return Column(mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text('أداء ${c.code}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16)),
+              const Spacer(),
+              Text('آخر ${snap.data!.length} طلب',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textGray)),
+            ]),
+            const SizedBox(height: 12),
+            PriceRow(label: 'طلبات مكتملة بالكود', value: '${delivered.length}'),
+            PriceRow(label: 'عملاء فريدون', value: '$uniqueCustomers'),
+            if (cancelled > 0)
+              PriceRow(label: 'أُلغيت (أُرجع كودها)', value: '$cancelled'),
+            const Divider(height: 20),
+            PriceRow(
+                label: 'كلفة الخصومات (تتحمّلها المنصّة)',
+                value: '- ${formatCurrency(cost)}'),
+            PriceRow(
+                label: 'مبيعات جلبتها الطلبات المكتملة',
+                value: formatCurrency(revenue), bold: true),
+            const SizedBox(height: 8),
+            Text(
+              cost > 0
+                  ? 'كل ريال خصم جلب ${(revenue / cost).toStringAsFixed(1)} ريال مبيعات'
+                  : 'لا خصومات مكتملة بعد',
+              style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+            ),
+          ]);
+        },
+      ),
+    ),
+  );
+}
+
 class _CouponCard extends StatelessWidget {
   final Coupon coupon;
   const _CouponCard({required this.coupon});
@@ -113,6 +178,11 @@ class _CouponCard extends StatelessWidget {
               icon: Icon(c.isActive ? Icons.pause : Icons.play_arrow, size: 16),
               label: Text(c.isActive ? 'إيقاف' : 'تفعيل',
                   style: const TextStyle(fontSize: 12.5)),
+            ),
+            TextButton.icon(
+              onPressed: () => _showPerformanceSheet(context, c),
+              icon: const Icon(Icons.insights_outlined, size: 16),
+              label: const Text('أداء', style: TextStyle(fontSize: 12.5)),
             ),
             const Spacer(),
             IconButton(
