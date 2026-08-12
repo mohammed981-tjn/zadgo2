@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../providers/driver_keep_alive.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
@@ -142,6 +143,19 @@ class _DriverHomeState extends State<DriverHome> {
       SystemSound.play(SystemSoundType.alert);
       HapticFeedback.vibrate();
       await Future.delayed(const Duration(milliseconds: 600));
+    }
+  }
+
+  /// آخر حالة اتصال زُوملت بها الخدمة — حارس يمنع نداءً مع كل إعادة بناء.
+  bool? _keepAliveOn;
+
+  void _syncKeepAlive(bool online) {
+    if (_keepAliveOn == online) return;
+    _keepAliveOn = online;
+    if (online) {
+      DriverKeepAlive.start();
+    } else {
+      DriverKeepAlive.stop();
     }
   }
 
@@ -342,6 +356,11 @@ class _DriverHomeState extends State<DriverHome> {
         // من يقرؤها، وbuild هذا سيُعاد أصلاً مع كل تغيّر في المستند.
         _isOnline = driver?.isOnline ?? false;
         _driver = driver;
+        // الخدمة الأمامية تتبع **حالة المستند** لا ضغطة الزر: الحالة
+        // تتغيّر من ثلاثة مواضع (مفتاح الشريط، بطاقة الحالة، الخروج)،
+        // ورَبطُها بكل موضع يعني نسياناً في أحدها يوماً. وهنا نقطة
+        // واحدة يمرّ بها كل تغيير مهما كان مصدره.
+        _syncKeepAlive(_isOnline);
         return Scaffold(
           appBar: AppBar(
             title: Text('مرحباً ${auth.user?.name ?? ""}'),
@@ -384,6 +403,10 @@ class _DriverHomeState extends State<DriverHome> {
               ),
               IconButton(icon: const Icon(Icons.logout), onPressed: () async {
                 if (driver != null) await service.setDriverOnline(driverId, false);
+                // إيقافٌ صريح لا اتّكالاً على تدفّق المستند: الخروج
+                // يهدم الشاشة فوراً، فقد لا تصل قراءةُ الحالة الجديدة
+                // ويبقى الإشعار معلّقاً لكابتنٍ خرج.
+                await DriverKeepAlive.stop();
                 await auth.logout();
                 if (mounted) {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
