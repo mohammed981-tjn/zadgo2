@@ -50,6 +50,10 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        // تشترطه flutter_local_notifications (دفعة و4): تحويل واجهات
+        // java.time الحديثة لتعمل على أندرويد القديم. يلزم حتى بلا
+        // إشعارات مجدولة — الحزمة ترفض العمل بدونه.
+        coreLibraryDesugaringEnabled true
     }
     kotlinOptions { jvmTarget = '17' }
 
@@ -118,4 +122,5 @@ android {
 dependencies {
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
 }

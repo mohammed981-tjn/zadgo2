@@ -21,6 +21,45 @@ class AppColors {
   static const cardShadow = Color(0x14000000);
 }
 
+/// المقياس الطباعي المعتمد (دفعة ز4) — سبع درجات لا تسعٌ وعشرون.
+///
+/// جرد ٢٠٢٦-٠٨-١٢ وجد ٢٩ قيمة fontSize مختلفة في الشاشات: كل شاشة
+/// اجتهدت وحدها فلا إيقاع واحد يقع عليه النظر. هذه الدرجات السبع هي
+/// المرجع لكل نصٍّ جديد، والقديم يُهاجَر إليها شاشةً شاشة لا دفعةً واحدة.
+///
+/// الارتفاعات مضبوطة للعربية: الحرف العربي متصل وله نقاط فوق السطر
+/// وتحته، فيحتاج ارتفاع سطر ~1.6 للمتن (مقابل 1.4 للاتينية) وإلا
+/// تلاصقت الأسطر. العناوين أقصر لأنها نادراً ما تتعدد أسطرها.
+class AppText {
+  AppText._();
+
+  /// عنوان شاشة/بطاقة بارز.
+  static const display = TextStyle(
+      fontSize: 22, fontWeight: FontWeight.w800, height: 1.35);
+
+  /// عنوان قسم.
+  static const title = TextStyle(
+      fontSize: 17, fontWeight: FontWeight.w700, height: 1.4);
+
+  /// عنوان بطاقة/سطر بارز.
+  static const heading = TextStyle(
+      fontSize: 14.5, fontWeight: FontWeight.w700, height: 1.5);
+
+  /// متن أساسي.
+  static const body = TextStyle(fontSize: 13.5, height: 1.6);
+
+  /// متن ثانوي (شروح، ملاحظات).
+  static const secondary =
+      TextStyle(fontSize: 12.5, height: 1.6, color: AppColors.textGray);
+
+  /// تسمية صغيرة (شارات، أوسمة، أعمدة).
+  static const label = TextStyle(fontSize: 11.5, height: 1.45);
+
+  /// أصغر المسموح — لا شيء دونه مهما ضاق المكان.
+  static const caption =
+      TextStyle(fontSize: 10.5, height: 1.4, color: AppColors.textGray);
+}
+
 /// مجموعة ألوان هوية كاملة لنكهة واحدة (أساسي/أغمق/أفتح)، لبناء ثيم مخصص
 /// عبرها بدل الاعتماد على ColorScheme.fromSeed التلقائي الذي قد ينتج ألواناً
 /// باهتة أو غير متّسقة مع الهوية البصرية المقصودة لكل نكهة.
@@ -148,11 +187,25 @@ class AppTheme {
       // مباشرة بـrootBundle للتصدير العربي ولا تمرّ بنظام خطوط Flutter.
       // ═══════════════════════════════════════════════════════════════
       fontFamily: 'Cairo',
-      textTheme: Typography.material2021().black.apply(
-        fontFamily: 'Cairo',
-        bodyColor: AppColors.textDark,
-        displayColor: AppColors.textDark,
-      ),
+      // ارتفاع السطر العربي (ز4): مقاسات ماتيريال مضبوطة للاتينية،
+      // والعربي يحتاج ~1.6 للمتن وإلا تلاصقت نقاط الأسطر المتتالية.
+      // يُضبط على أنماط المتن الثلاثة وحدها — العناوين نادراً ما تتعدد
+      // أسطرها ورفعُها يبعثر تمركزها في الأشرطة والأزرار.
+      textTheme: Typography.material2021()
+          .black
+          .apply(
+            fontFamily: 'Cairo',
+            bodyColor: AppColors.textDark,
+            displayColor: AppColors.textDark,
+          )
+          .copyWith(
+            bodyLarge: Typography.material2021().black.bodyLarge?.copyWith(
+                fontFamily: 'Cairo', color: AppColors.textDark, height: 1.6),
+            bodyMedium: Typography.material2021().black.bodyMedium?.copyWith(
+                fontFamily: 'Cairo', color: AppColors.textDark, height: 1.6),
+            bodySmall: Typography.material2021().black.bodySmall?.copyWith(
+                fontFamily: 'Cairo', color: AppColors.textDark, height: 1.55),
+          ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textDark,

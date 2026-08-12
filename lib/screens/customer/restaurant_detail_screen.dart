@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
@@ -101,7 +102,26 @@ class RestaurantDetailScreen extends StatelessWidget {
                     );
                   }
                   if (!itemSnap.hasData) {
-                    return const Center(child: CircularProgressIndicator());
+                    // هيكل تحميل (و5) من بنية بطاقة الصنف الحقيقية لا
+                    // دوّامة: العين تحجز أماكن المحتوى قبل وصوله فلا
+                    // «تقفز» الشاشة، وSkeletonizer يرمّد أي ودجت يُغلَّف
+                    // به — فلا هيكل موازٍ يتقادم مع كل تعديل تصميم.
+                    return Skeletonizer(
+                      enabled: true,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: 6,
+                        itemBuilder: (_, __) => Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            leading: const CircleAvatar(radius: 26),
+                            title: Text('اسم صنف للتحميل'),
+                            subtitle: Text('وصف مؤقت يشغل سطراً كاملاً هنا'),
+                            trailing: Text('00.0 ر.س'),
+                          ),
+                        ),
+                      ),
+                    );
                   }
                   final items = itemSnap.data!;
 

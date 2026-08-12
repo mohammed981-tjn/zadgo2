@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/driver_keep_alive.dart';
+import '../../providers/local_alerts.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
@@ -205,6 +206,14 @@ class _DriverHomeState extends State<DriverHome> {
         if (!_acknowledgedNotified.contains(o.id)) {
           _acknowledgedNotified.add(o.id);
           _playAssignmentSound();
+          // إشعار لوحة النظام (و4): الشريط الداخلي يعيش داخل شاشتنا
+          // وحدها — والكابتن الحيّ في الخلفية (بفضل و2) كان يستقبل
+          // العرض بلا أي صوت يخرج إليه. هذه هي الحلقة الناقصة.
+          LocalAlerts.offerAlert(
+            title: '🛵 عرض توصيل جديد',
+            body:
+                'طلب #${o.orderNumber} من ${o.restaurantName} — افتح للقبول أو الرفض',
+          );
           _showDecisionBanner(o);
         }
       } else if (o.driverId != null &&
@@ -213,6 +222,10 @@ class _DriverHomeState extends State<DriverHome> {
         if (!_autoAssignedNotified.contains(o.id)) {
           _autoAssignedNotified.add(o.id);
           _playAssignmentSound();
+          LocalAlerts.offerAlert(
+            title: '📦 طلب مُسند إليك',
+            body: 'طلب #${o.orderNumber} من ${o.restaurantName}',
+          );
           _showInfoBanner(o);
         }
       }
@@ -244,6 +257,7 @@ class _DriverHomeState extends State<DriverHome> {
             dismiss();
             try {
               await service.acceptAssignedOrder(order.id);
+              LocalAlerts.clearOfferAlert();
             } catch (_) {
               if (mounted) showError(context, 'تعذّر قبول الطلب — ربما أُلغي أو أُعيد إسناده');
               return;
@@ -257,6 +271,7 @@ class _DriverHomeState extends State<DriverHome> {
             dismiss();
             try {
               await service.rejectAssignedOrder(order.id);
+              LocalAlerts.clearOfferAlert();
             } catch (_) {
               if (mounted) showError(context, 'تعذّر رفض الطلب — ربما تغيّرت حالته');
             }
@@ -268,6 +283,7 @@ class _DriverHomeState extends State<DriverHome> {
             dismiss();
             try {
               await service.rejectAssignedOrder(order.id, dueToTimeout: true);
+              LocalAlerts.clearOfferAlert();
             } catch (_) {
               // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
             }
@@ -1029,6 +1045,7 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
     try {
       if (accept) {
         await service.acceptAssignedOrder(widget.order.id);
+              LocalAlerts.clearOfferAlert();
         if (mounted) {
           navigatorKey.currentState?.push(MaterialPageRoute(
               builder: (_) => PickupDocketScreen(orderId: widget.order.id)));
@@ -1552,15 +1569,51 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               }
             }
           }
-          return Row(children: [
-            Expanded(
-                child: _incomeCard('دخل اليوم', today, todayCount,
-                    Icons.today_rounded, context.flavorColors.primary)),
-            const SizedBox(width: 12),
-            Expanded(
-                child: _incomeCard('آخر ٧ أيام', week, weekCount,
-                    Icons.date_range_rounded, AppColors.success)),
-          ]);
+          // المكافآت تُحسب في الدخل (نفذ ٣): كانت تظهر سطراً في الدفتر
+          // فقط، فمكافأة ٥٠ ر.س لا تحرّك «دخل اليوم» — والسائق يقيس
+          // يومه بهذا الرقم لا بسطور الدفتر. تُجمع من نفس دفتر الحركات
+          // (نوع bonus وحده) على نفس النافذتين الزمنيتين.
+          return AppStreamBuilder<List<DriverTransaction>>(
+            stream: () => context
+                .read<FirebaseService>()
+                .streamDriverTransactions(d.id),
+            loading: const SizedBox.shrink(),
+            builder: (ctx2, txs) {
+              double bonusToday = 0, bonusWeek = 0;
+              for (final tx in txs) {
+                if (tx.type != DriverTransactionType.bonus) continue;
+                if (!tx.createdAt.isBefore(weekStart)) {
+                  bonusWeek += tx.amount.abs();
+                  if (!tx.createdAt.isBefore(todayStart)) {
+                    bonusToday += tx.amount.abs();
+                  }
+                }
+              }
+              return Column(children: [
+                Row(children: [
+                  Expanded(
+                      child: _incomeCard('دخل اليوم', today + bonusToday,
+                          todayCount, Icons.today_rounded,
+                          context.flavorColors.primary)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: _incomeCard('آخر ٧ أيام', week + bonusWeek,
+                          weekCount, Icons.date_range_rounded,
+                          AppColors.success)),
+                ]),
+                if (bonusWeek > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'منها مكافآت: ${formatCurrency(bonusWeek)} هذا الأسبوع'
+                      '${bonusToday > 0 ? " (${formatCurrency(bonusToday)} اليوم)" : ""} 🎁',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textGray),
+                    ),
+                  ),
+              ]);
+            },
+          );
         },
       ),
       const SizedBox(height: 14),
