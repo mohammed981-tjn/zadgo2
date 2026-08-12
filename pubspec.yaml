@@ -114,6 +114,15 @@ dependencies:
   # desugaring في Gradle — مفعَّل في android/app/build.gradle.
   flutter_local_notifications: 19.5.0
 
+  # هياكل تحميل من الواجهة الحقيقية نفسها (دفعة و5) — تغليف الودجت
+  # الفعلي بدل صيانة ودجت هيكل موازٍ يتقادم مع كل تعديل تصميم.
+  # مثبّتة على 1.4.3: آخر ما يقبل قيدنا (2.x تشترط Dart 3.7).
+  skeletonizer: 1.4.3
+
+  # حركة كاميرا سلسة على خرائط flutter_map (دفعة و5) — بدل قفزة move()
+  # الحادة عند إعادة التمركز. متوافقة مع flutter_map 7 المثبّت عندنا.
+  flutter_map_animations: 0.10.0
+
 dependency_overrides:
   geolocator_android: 4.6.0
 

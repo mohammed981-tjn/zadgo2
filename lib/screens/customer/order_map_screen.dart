@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_animations/flutter_map_animations.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
@@ -23,14 +24,25 @@ class OrderMapScreen extends StatefulWidget {
   State<OrderMapScreen> createState() => _OrderMapScreenState();
 }
 
-class _OrderMapScreenState extends State<OrderMapScreen> {
-  final MapController _mapController = MapController();
+class _OrderMapScreenState extends State<OrderMapScreen>
+    with TickerProviderStateMixin {
+  // كاميرا متحركة (و5): move() كانت قفزة حادة تفقد المستخدم سياقه
+  // المكاني — أين كان وأين صار. الانزلاق يبقي الخريطة «مكاناً واحداً».
+  late final AnimatedMapController _animatedMap =
+      AnimatedMapController(vsync: this);
+  MapController get _mapController => _animatedMap.mapController;
   int _driverStreamRetryToken = 0;
 
   /// نسخة الطلب بإحداثيات المطعم الحيّة — تُجلب مرة عند الفتح: موقع صحّحه
   /// المدير بعد إنشاء الطلب يجب أن يقود الدبوس والملاحة، لا لقطة الإنشاء.
   Order? _liveOrder;
   Order get order => _liveOrder ?? widget.order;
+
+  @override
+  void dispose() {
+    _animatedMap.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -220,7 +232,8 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
             child: FloatingActionButton.small(
               heroTag: 'recenter',
               backgroundColor: Colors.white,
-              onPressed: () => _mapController.move(targetPoint, 15),
+              onPressed: () =>
+                  _animatedMap.animateTo(dest: targetPoint, zoom: 15),
               child: const Icon(Icons.my_location, color: AppColors.dark),
             ),
           ),
