@@ -1,4 +1,5 @@
 // lib/providers/auth_provider.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/models.dart';
@@ -10,6 +11,13 @@ class AuthProvider extends ChangeNotifier {
   AppUser? _user;
   bool _loading = false;
   String? _error;
+
+  /// يكتمل بعد أول حكم فعلي لتدفّق المصادقة (جلسة مستعادة أو لا جلسة).
+  /// السبلاش ينتظره بدل مهلة ثابتة: الفحص قبل اكتمال الاستعادة كان يرمي
+  /// صاحبَ جلسةٍ سليمة إلى شاشة الدخول لمجرد بطء الشبكة (شكوى المالك:
+  /// «كل عودة من الخلفية تطلب تسجيل الدخول من جديد»).
+  final Completer<void> _firstAuthEvent = Completer<void>();
+  Future<void> get onAuthResolved => _firstAuthEvent.future;
 
   AppUser? get user => _user;
   bool get loading => _loading;
@@ -25,7 +33,7 @@ class AuthProvider extends ChangeNotifier {
       _user = null;
     } else {
       try {
-        final fetched = await _service.getUser(firebaseUser.uid);
+        final fetched = await _fetchUserWithRetry(firebaseUser.uid);
         if (fetched != null && !fetched.isActive) {
           await _service.signOut();
           _user = null;
@@ -43,7 +51,24 @@ class AuthProvider extends ChangeNotifier {
         _user = null;
       }
     }
+    if (!_firstAuthEvent.isCompleted) _firstAuthEvent.complete();
     notifyListeners();
+  }
+
+  /// جلب ملف المستخدم بثلاث محاولات متباعدة: تعثّر شبكة عابر لحظة العودة
+  /// من الخلفية كان يُفرِّغ _user فيُطرد صاحبُ جلسةٍ صالحة لشاشة الدخول —
+  /// وإعادة إدخاله كلمة المرور على نفس الشبكة المتعثرة لن تنجح أصلاً.
+  Future<AppUser?> _fetchUserWithRetry(String uid) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await Future.delayed(Duration(seconds: attempt));
+      try {
+        return await _service.getUser(uid);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError!;
   }
 
   /// ينتظر فعلياً حتى تمتلئ بيانات المستخدم الكاملة (_user) بعد نجاح
@@ -170,6 +195,7 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     String? nationalId,
     UserRole? expectedRole,
+    String? referredByCode,
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
@@ -181,6 +207,7 @@ class AuthProvider extends ChangeNotifier {
         phone: phone.trim(),
         nationalId: nationalId?.trim(),
         expectedRole: expectedRole,
+        referredByCode: referredByCode?.trim(),
       );
       _user = user; _loading = false; notifyListeners();
       return true;

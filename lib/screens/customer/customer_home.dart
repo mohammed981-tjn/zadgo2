@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
 import '../../models/models.dart';
@@ -230,7 +231,15 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
           if (filtered.isEmpty) return const AppEmpty(emoji: '🔍', title: 'لا توجد نتائج مطابقة');
           return ListView.builder(padding: const EdgeInsets.all(16), itemCount: filtered.length, itemBuilder: (_, i) {
-            return _RestaurantCard(restaurant: filtered[i]);
+            // دخول متعاقب لأول ثماني بطاقات فقط: التتابع بعدها لا يُرى
+            // (خارج الشاشة)، وتأخيرُ عنصرٍ في أسفل قائمة طويلة بحساب
+            // ترتيبه يجعله يظهر متأخراً بلا سبب مرئي عند القفز إليه.
+            final card = _RestaurantCard(restaurant: filtered[i]);
+            if (i >= 8) return card;
+            return card
+                .animate(delay: (55 * i).ms)
+                .fadeIn(duration: 260.ms, curve: Curves.easeOut)
+                .slideY(begin: 0.06, end: 0, duration: 300.ms, curve: Curves.easeOut);
           });
         }),
       ),

@@ -365,6 +365,17 @@ class _AddOrCounter extends StatelessWidget {
       }
     }
 
+    // بلاغ المالك ٢٠٢٦-٠٨-١٢ («الألوان متطابقة… أعطها لوناً أغمق»):
+    //
+    //   • زرّ «أضف» كان ذهبياً بحرفٍ **أبيض** — ونسبة تباينهما ٢٫٢:١،
+    //     دون الحدّ المقروء (٤٫٥:١). والأخضر الداكن على الذهبي يعطي
+    //     ٤٫٩:١ — وهو نفسه `onPrimary` الذي قرّره الثيم لهذه الهوية،
+    //     فالبياض كان مخالفةً محلية لقاعدة عامة صحيحة.
+    //   • وعدّاد الكمية بعد الإضافة كان ذهبياً بشفافية **٨٪** على بطاقة
+    //     بيضاء — أي كريميٌّ يكاد لا يُرى، فلا يعرف العميل أن الصنف
+    //     دخل سلّته أصلاً. صار ذهبياً مصمتاً: تأكيدٌ بصري لا يُخطأ.
+    const onGold = AppColors.dark;
+
     if (qty == 0) {
       return SizedBox(
         height: 32,
@@ -372,13 +383,13 @@ class _AddOrCounter extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            foregroundColor: onGold,
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           onPressed: addToCart,
           child: Text(item.hasOptions ? 'أضف +' : 'أضف',
-              style: const TextStyle(fontSize: 13)),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
         ),
       );
     }
@@ -386,7 +397,7 @@ class _AddOrCounter extends StatelessWidget {
       height: 32,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.08),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -394,7 +405,7 @@ class _AddOrCounter extends StatelessWidget {
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           iconSize: 18,
-          icon: const Icon(Icons.remove, color: AppColors.primary),
+          icon: const Icon(Icons.remove, color: onGold),
           onPressed: () => context.read<CartProvider>().remove(item.id),
         ),
         SizedBox(
@@ -404,13 +415,13 @@ class _AddOrCounter extends StatelessWidget {
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
-                  color: AppColors.textDark)),
+                  color: onGold)),
         ),
         IconButton(
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           iconSize: 18,
-          icon: const Icon(Icons.add, color: AppColors.primary),
+          icon: const Icon(Icons.add, color: onGold),
           onPressed: addToCart,
         ),
       ]),

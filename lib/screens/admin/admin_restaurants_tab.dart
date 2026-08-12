@@ -243,6 +243,22 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       await service.addRestaurant(r);
     } else {
       await service.updateRestaurant(r);
+      // موقع مصحَّح يلحق بالطلبات الجارية فوراً (ملاحظة المالك: سائق طلبٍ
+      // قائم ظل يُقاد للموقع القديم بعد التصحيح — لقطة الطلب لا تتحدث
+      // وحدها). فشل النشر لا يُفشل الحفظ: القراءة الحيّة في شاشات السائق
+      // خط الدفاع الثاني.
+      final moved = _lat != null &&
+          _lng != null &&
+          (widget.existing!.lat != _lat || widget.existing!.lng != _lng);
+      if (moved) {
+        try {
+          final n =
+              await service.propagateRestaurantLocation(_restaurantId, _lat!, _lng!);
+          if (n > 0 && mounted) {
+            showSuccess(context, 'حُدِّث الموقع في $n من الطلبات الجارية');
+          }
+        } catch (_) {}
+      }
     }
     if (mounted) Navigator.pop(context);
   }
@@ -303,6 +319,47 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                       ? 'الموقع محدد ✓ (اضغط للتعديل)'
                       : 'اختر موقع المطعم من الخريطة'),
                 ),
+                // الإحداثيات مكتوبة صراحةً: نقطة خاطئة على الخريطة تبدو
+                // «محددة ✓» تماماً كالصحيحة، وقد عطّلت تأكيد الاستلام عند
+                // الكابتن (٢٠٢٦-٠٨-١١) — والرقم الظاهر يُقارَن بموقع المطعم
+                // في خرائط جوجل بثوانٍ ويكشف الخطأ قبل أن يقع.
+                if (_lat != null && _lng != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'الإحداثيات: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
+                      '  —  الكابتن لا يستطيع تأكيد الاستلام إلا ضمن ١٠٠ متر من هذه النقطة',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textGray),
+                    ),
+                  ),
+                // تحذير صريح بأثر تشغيلي لا مجرد «حقل ناقص»: مطعم بلا موقع
+                // كانت طلباته لا تُسنَد لأي سائق إطلاقاً (بلاغ المالك
+                // ٢٠٢٦-٠٨-١١). الإسناد صار يعمل بدونه، لكن باختيار أضعف —
+                // بالتقييم لا بالأقرب — وأجرة التوصيل تُحسب على مسافة صفر.
+                if (_lat == null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.warning),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.warning_amber_rounded,
+                          size: 18, color: AppColors.warning),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'بلا موقع: يُختار الكابتن بالتقييم لا بالأقرب، '
+                          'وأجرة التوصيل تُحسب بلا مسافة. حدِّد الموقع.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity, height: 50,

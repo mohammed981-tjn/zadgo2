@@ -144,11 +144,78 @@ class AccountScreen extends StatelessWidget {
                 },
               ),
             ),
+            const SizedBox(height: 10),
+            // حذف الحساب داخل التطبيق (هـ٤) — تلزم به قاعدة آبل 5.1.1(v)
+            // وسياسة Google Play قبل النشر. إخفاء هوية لا حذف سجلّ:
+            // الدفاتر المالية تبقى باسم «مستخدم محذوف».
+            Center(
+              child: TextButton.icon(
+                icon: const Icon(Icons.delete_forever_outlined,
+                    size: 17, color: AppColors.textGray),
+                label: const Text('حذف الحساب نهائياً',
+                    style:
+                        TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+                onPressed: () => _deleteAccount(context),
+              ),
+            ),
           ],
         );
       },
     );
   }
+  /// حوار حذف الحساب: شرح صريح لما يبقى وما يُمحى + كلمة المرور لإعادة
+  /// المصادقة (يشترطها Firebase لحذف الحساب) — ثم خروج نهائي لشاشة الدخول.
+  Future<void> _deleteAccount(BuildContext context) async {
+    final pwCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الحساب نهائياً'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+            'سيُحذف حساب دخولك وتُمحى بياناتك التعريفية (الاسم والجوال '
+            'والبريد) نهائياً ولا يمكن التراجع. سجلّ الطلبات والحركات '
+            'المالية يبقى محفوظاً باسم «مستخدم محذوف» كما تُلزمنا الأنظمة '
+            'المحاسبية.\n\nأدخل كلمة مرورك للتأكيد:',
+            style: TextStyle(fontSize: 13, height: 1.7),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: pwCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'كلمة المرور'),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('تراجع')),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('احذف حسابي')),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await context
+          .read<FirebaseService>()
+          .deleteMyAccount(password: pwCtrl.text);
+      if (!context.mounted) return;
+      await context.read<app_auth.AuthProvider>().logout();
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
+      }
+    } catch (_) {
+      if (context.mounted) {
+        showError(context,
+            'تعذّر الحذف — تأكد من كلمة المرور واتصالك بالإنترنت');
+      }
+    }
+  }
+
 }
 
 class _ProfileCard extends StatelessWidget {

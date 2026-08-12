@@ -97,6 +97,14 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
       showError(context, 'يرجى كتابة تفاصيل الشكوى');
       return;
     }
+    // حارس المهلة عند الإرسال لا عند الفتح: من فتح الشاشة قبل انقضائها ثم
+    // أطال الكتابة كان يُرسل شكوى بعد إغلاق النافذة. تُردّ هنا برسالة
+    // مفهومة بدل أن تُقبل ثم تُرفض إدارياً.
+    if (!widget.order.canSubmitComplaint) {
+      showError(context, 'انتهت مهلة تقديم الشكوى على هذا الطلب (٢٤ ساعة)');
+      Navigator.pop(context);
+      return;
+    }
     setState(() => _submitting = true);
     try {
       final service = context.read<FirebaseService>();

@@ -3,6 +3,7 @@ plugins {
     id "org.jetbrains.kotlin.android"
     id "dev.flutter.flutter-gradle-plugin"
     id "com.google.gms.google-services"
+    id "com.google.firebase.crashlytics"
 }
 
 def localProperties = new Properties()
@@ -105,6 +106,11 @@ android {
             signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
             minifyEnabled false
             shrinkResources false
+            // رفع ملف الخرائط (mapping) معطَّل عمداً: التصغير مُطفأ أصلاً
+            // فلا أسماء مُبهَمة تحتاج فكّاً، وتركه مفعَّلاً يجعل كل بناء
+            // متوقّفاً على نداء شبكة لخوادم Firebase — فشلُه يُسقط البناء
+            // كلّه لأجل خطوة تحسينٍ لا نحتاجها. آثار Dart تصل كاملة بدونه.
+            firebaseCrashlytics { mappingFileUploadEnabled false }
         }
     }
 }

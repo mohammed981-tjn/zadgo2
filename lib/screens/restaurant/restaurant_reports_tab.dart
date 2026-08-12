@@ -82,7 +82,13 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
             Builder(builder: (ctx) {
               final commission =
                   sold.fold(0.0, (s, o) => s + o.effectiveCommission);
-              final net = totalMealsValue - commission;
+              // تعويضات الإلغاء بعد الطبخ تُضاف للمستحق بلا عمولة: المنصّة
+              // تتحمّلها كاملة لأن المطعم أدّى ما عليه ولا ذنب له في
+              // الإلغاء (المعيار العالمي)، وخصم عمولة عليها يعني تحميله
+              // جزءاً من خطأ غيره.
+              final compensations =
+                  orders.fold(0.0, (s, o) => s + o.restaurantCompensation);
+              final net = totalMealsValue - commission + compensations;
               return AppStreamBuilder<List<RestaurantSettlement>>(
                 stream: () =>
                     service.streamRestaurantSettlements(widget.restaurantId),
@@ -107,6 +113,10 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         PriceRow(
                             label: 'عمولة المنصّة (15%)',
                             value: '- ${formatCurrency(commission)}'),
+                        if (compensations > 0)
+                          PriceRow(
+                              label: 'تعويض طلبات أُلغيت بعد التحضير',
+                              value: '+ ${formatCurrency(compensations)}'),
                         PriceRow(
                             label: 'صافي المستحق',
                             value: formatCurrency(net)),
@@ -187,6 +197,10 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
             ]),
             const SizedBox(height: 16),
             const SectionHeader(title: 'تفاصيل الطلبات'),
+            // تفصيل سطري قابل للتدقيق (بطلب المالك بعد شكّه في أساس
+            // العمولة): كل طلب يعرض أصنافه وقيمة وجباته وعمولته وصافيه —
+            // فمجموع الأعمدة يطابق الدفتر أعلاه رقماً رقماً، وأي طلبٍ
+            // «قيمة وجباته» تشمل توصيلاً بالخطأ ينكشف من سطر أصنافه فوراً.
             ...sorted.map((o) => Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   child: Padding(
@@ -197,11 +211,47 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         const Spacer(),
                         StatusBadge(label: o.status.label, color: o.status.color),
                       ]),
+                      if (o.items.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          o.items
+                              .map((i) => '${i.name} ×${i.quantity}')
+                              .join('، '),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                       const SizedBox(height: 6),
                       PriceRow(label: 'قيمة الوجبات', value: formatCurrency(o.itemsTotal), bold: true),
+                      if (o.status == OrderStatus.delivered) ...[
+                        PriceRow(
+                            label: 'عمولة المنصّة (15%)',
+                            value: '- ${formatCurrency(o.effectiveCommission)}'),
+                        PriceRow(
+                            label: 'صافيك من الطلب',
+                            value: formatCurrency(
+                                o.itemsTotal - o.effectiveCommission)),
+                      ],
+                      // طلبٌ أُلغي بعد طبخه: يُعوَّض كاملاً بلا عمولة.
+                      if (o.restaurantCompensation > 0)
+                        PriceRow(
+                            label: 'تعويض إلغاء بعد التحضير',
+                            value:
+                                '+ ${formatCurrency(o.restaurantCompensation)}',
+                            bold: true),
                     ]),
                   ),
                 )),
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(
+                'قيمة الوجبات = مجموع الأصناف فقط — أجرة التوصيل لا تدخل في '
+                'مبيعاتك ولا تُحتسب عليها عمولة.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray),
+              ),
+            ),
           ],
         );
       },
