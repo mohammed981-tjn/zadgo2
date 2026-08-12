@@ -321,16 +321,72 @@ class _AppFutureBuilderState<T> extends State<AppFutureBuilder<T>> {
 class AppEmpty extends StatelessWidget {
   final String emoji; final String title; final String? subtitle; final Widget? action;
   const AppEmpty({super.key, required this.emoji, required this.title, this.subtitle, this.action});
+
+  /// الإيموجي → أيقونة (دفعة ز2، ٢٠٢٦-٠٨-١٢): الإيموجي يُرسم بخط النظام
+  /// فيختلف شكله بين أندرويد وآيفون وبين إصدارات أندرويد نفسها — وكان
+  /// أوضح موضع «رخص» في التطبيق (٣٣ شاشة). الأيقونة تُرسم من خطّنا نحن،
+  /// فتخرج واحدةً على كل جهاز وبلون الهوية.
+  ///
+  /// المعامل بقي `emoji` نصاً عمداً: تغييره لأيقونة يعني لمس ٣٣ موضع
+  /// نداء، بينما الخريطة هنا تُغيّرها كلها من سطر واحد — وأي إيموجي جديد
+  /// لم يُسجَّل بعدُ يسقط على أيقونة «صندوق فارغ» بدل أن يكسر شيئاً.
+  static const Map<String, IconData> _icons = {
+    '🛒': Icons.shopping_cart_outlined,
+    '🍽️': Icons.restaurant_outlined,
+    '🔍': Icons.search_off_rounded,
+    '👤': Icons.person_outline_rounded,
+    '👥': Icons.group_outlined,
+    '⚠️': Icons.error_outline_rounded,
+    '✅': Icons.check_circle_outline_rounded,
+    '❓': Icons.help_outline_rounded,
+    '📮': Icons.forum_outlined,
+    '💬': Icons.chat_bubble_outline_rounded,
+    '📢': Icons.campaign_outlined,
+    '📊': Icons.insert_chart_outlined_rounded,
+    '📋': Icons.assignment_outlined,
+    '🧾': Icons.receipt_long_outlined,
+    '🛵': Icons.delivery_dining_outlined,
+    '🛰️': Icons.satellite_alt_outlined,
+    '🎟️': Icons.confirmation_number_outlined,
+    '💸': Icons.payments_outlined,
+    '🔑': Icons.vpn_key_outlined,
+    '🖼️': Icons.image_outlined,
+  };
+
   @override
-  Widget build(BuildContext context) => Center(child: Padding(padding: const EdgeInsets.all(32),
-    child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(emoji, style: const TextStyle(fontSize: 64)),
-      const SizedBox(height: 16),
-      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      if (subtitle != null) ...[const SizedBox(height: 8), Text(subtitle!, textAlign: TextAlign.center)],
-      if (action != null) ...[const SizedBox(height: 16), action!],
-    ]),
-  ));
+  Widget build(BuildContext context) {
+    final fc = context.flavorColors;
+    final icon = _icons[emoji] ?? Icons.inbox_outlined;
+    return Center(child: Padding(padding: const EdgeInsets.all(32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        // قرصان متداخلان بلون النكهة خلف الأيقونة — عمقٌ بصري رخيص يجعل
+        // الحالة الفارغة تُقرأ «تصميماً مقصوداً» لا «شاشة لم تكتمل».
+        Container(
+          width: 108, height: 108,
+          decoration: BoxDecoration(
+            color: fc.primary.withOpacity(0.07),
+            shape: BoxShape.circle,
+          ),
+          child: Center(child: Container(
+            width: 78, height: 78,
+            decoration: BoxDecoration(
+              color: fc.primary.withOpacity(0.11),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 38, color: fc.primaryDark),
+          )),
+        ),
+        const SizedBox(height: 18),
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        if (subtitle != null) ...[
+          const SizedBox(height: 8),
+          Text(subtitle!, textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: AppColors.textGray, height: 1.6)),
+        ],
+        if (action != null) ...[const SizedBox(height: 16), action!],
+      ]),
+    ));
+  }
 }
 
 /// شارة حالة ملوّنة (مفتوح/مغلق، حالة الطلب... إلخ).
