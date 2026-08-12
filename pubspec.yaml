@@ -136,6 +136,12 @@ dependencies:
   mobile_scanner: 6.0.11
   qr_flutter: 4.1.0
 
+  # أيقونات Phosphor لواجهة العميل وحدها (دفعة ز5): أيقونات Material
+  # الافتراضية هي نفسها في كل تطبيق أندرويد — التمايز في واجهة الجمهور
+  # حيث الانطباع الأول، ولوحات التشغيل الداخلية تبقى على Material.
+  # duotone للمحدَّد وregular لغيره: التمييز بالامتلاء لا باللون وحده.
+  phosphor_flutter: 2.1.0
+
 dependency_overrides:
   geolocator_android: 4.6.0
 
