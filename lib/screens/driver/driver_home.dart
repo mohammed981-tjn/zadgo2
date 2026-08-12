@@ -1552,15 +1552,51 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               }
             }
           }
-          return Row(children: [
-            Expanded(
-                child: _incomeCard('دخل اليوم', today, todayCount,
-                    Icons.today_rounded, context.flavorColors.primary)),
-            const SizedBox(width: 12),
-            Expanded(
-                child: _incomeCard('آخر ٧ أيام', week, weekCount,
-                    Icons.date_range_rounded, AppColors.success)),
-          ]);
+          // المكافآت تُحسب في الدخل (نفذ ٣): كانت تظهر سطراً في الدفتر
+          // فقط، فمكافأة ٥٠ ر.س لا تحرّك «دخل اليوم» — والسائق يقيس
+          // يومه بهذا الرقم لا بسطور الدفتر. تُجمع من نفس دفتر الحركات
+          // (نوع bonus وحده) على نفس النافذتين الزمنيتين.
+          return AppStreamBuilder<List<DriverTransaction>>(
+            stream: () => context
+                .read<FirebaseService>()
+                .streamDriverTransactions(d.id),
+            loading: const SizedBox.shrink(),
+            builder: (ctx2, txs) {
+              double bonusToday = 0, bonusWeek = 0;
+              for (final tx in txs) {
+                if (tx.type != DriverTransactionType.bonus) continue;
+                if (!tx.createdAt.isBefore(weekStart)) {
+                  bonusWeek += tx.amount.abs();
+                  if (!tx.createdAt.isBefore(todayStart)) {
+                    bonusToday += tx.amount.abs();
+                  }
+                }
+              }
+              return Column(children: [
+                Row(children: [
+                  Expanded(
+                      child: _incomeCard('دخل اليوم', today + bonusToday,
+                          todayCount, Icons.today_rounded,
+                          context.flavorColors.primary)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: _incomeCard('آخر ٧ أيام', week + bonusWeek,
+                          weekCount, Icons.date_range_rounded,
+                          AppColors.success)),
+                ]),
+                if (bonusWeek > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'منها مكافآت: ${formatCurrency(bonusWeek)} هذا الأسبوع'
+                      '${bonusToday > 0 ? " (${formatCurrency(bonusToday)} اليوم)" : ""} 🎁',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textGray),
+                    ),
+                  ),
+              ]);
+            },
+          );
         },
       ),
       const SizedBox(height: 14),
