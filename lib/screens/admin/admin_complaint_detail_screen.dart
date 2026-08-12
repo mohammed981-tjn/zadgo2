@@ -65,6 +65,11 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     double? refundPercentage;
     bool warnParty = false;
     Driver? reassignTo;
+    // خانة الردّ النصّي (نفذ ٢): كان مقدّم الشكوى يرى نصاً آلياً «تم الحل
+    // بلا إجراء إضافي» — جوابٌ يُقرأ استخفافاً. الخانة اختيارية عمداً:
+    // الإجراءات (استرداد/إنذار/نقل) تُلخَّص آلياً إن سكت المدير، لكن
+    // كلمةً منه تسبقها أفضل أثراً من أدقّ تلخيص آلي.
+    final resolutionCtrl = TextEditingController();
     final service = context.read<FirebaseService>();
     final auth = context.read<app_auth.AuthProvider>();
 
@@ -75,6 +80,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
           title: const Text('حل الشكوى'),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextField(
+                controller: resolutionCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'ردّك على مقدّم الشكوى (اختياري)',
+                  hintText: 'مثال: تحقّقنا مع الكابتن وأعدنا لك قيمة الوجبة',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 12),
               const Text('استرداد جزئي (نسبة من قيمة الطلب)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [0, 10, 20, 50, 100].map((pct) {
@@ -152,6 +167,9 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
         warnAgainstParty: warnParty,
         reassignToDriverId: reassignTo?.id,
         reassignToDriverName: reassignTo?.name,
+        resolution: resolutionCtrl.text.trim().isEmpty
+            ? null
+            : resolutionCtrl.text.trim(),
       );
       if (mounted) {
         showSuccess(context, 'تم حل الشكوى بنجاح');
@@ -242,6 +260,59 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   const Spacer(),
                   Chip(label: Text(c.type.label)),
                 ]),
+                const SizedBox(height: 8),
+                // تاريخ التقديم ومهلة الرد (نفذ ٢): كان المدير يقرّر أولوية
+                // الشكاوى بلا أن يرى أيّها أوشك على خرق وعد «نردّ خلال ٢٤
+                // ساعة» — فالمتأخرة تُعلَّم بالأحمر لتُقدَّم على غيرها.
+                Builder(builder: (_) {
+                  final overdue = c.isAwaitingAction &&
+                      DateTime.now().isAfter(c.expectedResponseBy);
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(children: [
+                        Icon(overdue ? Icons.alarm_on_rounded : Icons.schedule_rounded,
+                            size: 18,
+                            color: overdue ? AppColors.error : AppColors.textGray),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'قُدّمت: ${formatDateTime(c.createdAt)}\n'
+                            '${overdue ? "⚠️ تجاوزت مهلة الرد (٢٤ ساعة)" : "مهلة الرد تنتهي: ${formatDateTime(c.expectedResponseBy)}"}',
+                            style: TextStyle(
+                                fontSize: 12,
+                                height: 1.6,
+                                color: overdue ? AppColors.error : AppColors.textGray,
+                                fontWeight: overdue ? FontWeight.bold : FontWeight.normal),
+                          ),
+                        ),
+                        // «قيد المعالجة» (نفذ ٢): الحالة كانت معرَّفة ولا
+                        // تُستخدم أبداً — فيظل الشاكي يرى «مفتوحة» ولو كان
+                        // المدير يعمل عليها فعلاً. ضغطة تطمئنه أن شكواه بيد أحد.
+                        if (c.status == ComplaintStatus.open)
+                          TextButton.icon(
+                            icon: const Icon(Icons.play_circle_outline_rounded, size: 17),
+                            label: const Text('بدء المعالجة', style: TextStyle(fontSize: 12)),
+                            onPressed: () async {
+                              try {
+                                await service.updateComplaintStatus(
+                                    c.id, ComplaintStatus.inProgress);
+                                if (context.mounted) {
+                                  showSuccess(context,
+                                      'صارت «قيد المعالجة» — يراها مقدّمها كذلك');
+                                  Navigator.pop(context);
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  showError(context, 'تعذّر تغيير الحالة');
+                                }
+                              }
+                            },
+                          ),
+                      ]),
+                    ),
+                  );
+                }),
                 const SizedBox(height: 12),
                 Card(
                   child: Padding(

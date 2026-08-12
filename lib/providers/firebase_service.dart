@@ -1247,8 +1247,18 @@ class FirebaseService {
             .take(_driverCandidatesCount)
             .toList();
 
-    // الأعلى تقييماً بين الأقرب — كما كان.
-    pool.sort((a, b) => b.rating.compareTo(a.rating));
+    // أثر معدل القبول (نفذ ٣): كان الرقم يُعرض للكابتن بلا أي أثر — حافز
+    // بلا مفعول يفقد معناه سريعاً. الآن يدخل الاختيار بين الأقرب: درجة
+    // مركّبة ثلثاها معدل القبول وثلثها التقييم (من ٥ إلى ٠..١) — القبول
+    // أثقل لأنه سلوكٌ تجاه المنصّة يومياً والتقييم انطباع عملاء يتجمّد
+    // بعد حين. ومن لا تاريخ عروض له يُحسب كاملاً (1.0) لا صفراً ظالماً —
+    // نفس مبدأ «—» في شاشة أرباحه. ولا مساس بالمال: الأجرة واحدة للجميع،
+    // الأثر في أولوية الترشيح وحدها (بند ج١ سليم).
+    pool.sort((a, b) {
+      double score(models.Driver d) =>
+          (d.acceptanceRate ?? 1.0) * 2 + (d.rating / 5.0);
+      return score(b).compareTo(score(a));
+    });
     final chosen = pool.first;
 
     final batch = _db.batch();
@@ -2052,6 +2062,30 @@ class FirebaseService {
     // ويعود متاحاً: بلا هذا كان يبقى «مشغولاً» بطلبٍ أُلغي فلا تصله عروض.
     await _releaseOrderDriver(order);
     await _compensateRestaurantIfCooked(order);
+    await _releaseCouponOnCancel(order);
+  }
+
+  /// إرجاع كوبون الطلب الملغى (نفذ ٢): الاستخدام قُيّد لحظة إنشاء الطلب،
+  /// فإن أُلغي الطلب خسر العميل كوبونه نهائياً بلا علاج — عقوبة على شيء
+  /// ليس ذنبه غالباً (مطعم اعتذر، إدارة ألغت). يُنقَص العدّادان معاً:
+  /// عدّاد الكوبون العام وسجلّ استخدام العميل.
+  ///
+  /// «أفضل جهد» عمداً: القواعد المنشورة اليوم تسمح بالإنقاص للمدير وحده،
+  /// فالإرجاع ينجح في إلغاء الإدارة (وهو أكثر الإلغاءات) ويرتدّ صامتاً في
+  /// إلغاء العميل المبكر حتى تُنشر القواعد المحدَّثة — وفشله لا يمسّ
+  /// الإلغاء نفسه.
+  Future<void> _releaseCouponOnCancel(models.Order order) async {
+    final code = order.couponCode;
+    if (code == null || code.isEmpty || order.discountAmount <= 0) return;
+    try {
+      final batch = _db.batch();
+      batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(-1)});
+      batch.update(_couponUsages.doc(_usageId(code, order.customerId)),
+          {'count': FieldValue.increment(-1)});
+      await batch.commit();
+    } catch (e) {
+      debugPrint('⚠️ تعذّر إرجاع الكوبون $code: $e');
+    }
   }
 
   /// هل بدأ المطعم التحضير فعلاً قبل الإلغاء؟ من «جاري التحضير» فصاعداً
@@ -2104,6 +2138,7 @@ class FirebaseService {
     await updateOrderStatus(orderId, models.OrderStatus.cancelled);
     await _refundWalletOnCancel(order);
     await _releaseOrderDriver(order);
+    await _releaseCouponOnCancel(order);
   }
 
   Future<models.Order> _getOrderOrThrow(String orderId) async {
@@ -2435,6 +2470,7 @@ class FirebaseService {
     String? reassignToDriverId,
     String? reassignToDriverName,
     String? adminNote,
+    String? resolution,
   }) async {
     // حارس المضاعفة: الحل يُنفَّذ مرة واحدة. ضغطتان متتاليتان على «تأكيد
     // الحل» (أو نقرة من جهازين) كانتا تضيفان الاسترداد مرتين لمحفظة العميل.
@@ -2514,8 +2550,16 @@ class FirebaseService {
       if (reassignToDriverId != null) 'نقل الطلب لسائق آخر',
     ].join(' + ');
 
+    // الردّ الذي يقرؤه الشاكي (نفذ ٢): كلمة المدير أولاً إن كتبها، ثم
+    // ملخّص الإجراءات — فلا يرى «تم الحل بلا إجراء إضافي» إلا إذا صمت
+    // المدير ولم يُتَّخذ أي إجراء فعلاً.
+    final reply = [
+      if (resolution != null && resolution.isNotEmpty) resolution,
+      if (actionsSummary.isNotEmpty) actionsSummary,
+    ].join(' — ');
     await _complaints.doc(complaint.id).update({
       'status': models.ComplaintStatus.resolved.name,
+      'resolution': reply.isEmpty ? 'تم الحل بلا إجراء إضافي' : reply,
       'adminNote': adminNote ??
           (actionsSummary.isEmpty ? 'تم الحل بلا إجراء إضافي' : actionsSummary),
     });

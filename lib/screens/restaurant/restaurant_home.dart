@@ -12,6 +12,7 @@
 // شاشة المطعم تعرض تلقائياً شارة "تم التسليم" دون أي إجراء من طرفها.
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter/services.dart'
     show HapticFeedback, SystemSound, SystemSoundType;
 import 'package:provider/provider.dart';
@@ -840,13 +841,39 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             _HandoverStamp(at: order.restaurantHandoverAt!)
           else if (order.arrivedAtRestaurantAt == null)
             const _LockedHandoverHint()
-          else
+          else ...[
             _ActionButton(
               label: 'سلّمتُ الطلب للسائق',
               color: Colors.teal,
               loading: _actionLoading,
               onPressed: () => _confirmHandover(context),
             ),
+            const SizedBox(height: 6),
+            // رمز الاستلام (و7): إثبات مادي — الكابتن يمسحه بكاميرته
+            // فيؤكد أن الجهازين تواجها فعلاً في نفس المكان واللحظة،
+            // وهو أقوى من زرّين يُضغطان كلٌّ من مكانه.
+            OutlinedButton.icon(
+              icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+              label: const Text('رمز الاستلام — يمسحه الكابتن',
+                  style: TextStyle(fontSize: 12.5)),
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: Text('طلب #${order.orderNumber}'),
+                  content: SizedBox(
+                    width: 240,
+                    height: 240,
+                    // المحتوى معرّف الطلب لا رقمه: الرقم ٦ خانات يُخمَّن،
+                    // والمعرّف الكامل لا يُزوَّر بالتخمين.
+                    child: QrImageView(
+                      data: 'zadgo:pickup:${order.id}',
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
         // بعد أن يؤكد الكابتن استلامه، يبقى ختم المطعم ظاهراً كإثبات.
         if (order.status.index >= OrderStatus.pickedUp.index &&

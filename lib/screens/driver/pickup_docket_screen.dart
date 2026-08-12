@@ -20,6 +20,7 @@ import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/driver_proof_flow.dart';
+import 'scan_pickup_screen.dart';
 import '../../utils/location_guard.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/complaint_window.dart' show formatRemaining;
@@ -357,6 +358,40 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                           order: navOrder, pos: _pos, service: service),
                       const SizedBox(height: 8),
                     ],
+                    // مسح رمز المطعم (و7): نجاحه يثبت تواجه الجهازين في
+                    // المكان واللحظة، ثم يمرّ بنفس تدفّق التأكيد كاملاً —
+                    // اختصار طريق لا تجاوز حراسة.
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                      label: const Text('امسح رمز المطعم للاستلام'),
+                      onPressed: () async {
+                        final matched = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => ScanPickupScreen(order: o)),
+                        );
+                        if (matched == true && context.mounted) {
+                          final done = await DriverProofFlow.confirmPickup(
+                              context, service, o);
+                          if (done && context.mounted) {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => OrderMapScreen(
+                                  order: o.copyWith(
+                                    status: OrderStatus.onTheWay,
+                                    updatedAt: DateTime.now(),
+                                    statusChangedAt: DateTime.now(),
+                                  ),
+                                  readOnly: false,
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
                     ZadGradientButton(
                       label: 'استلمت الطلب — في الطريق',
                       icon: Icons.delivery_dining,
