@@ -255,10 +255,37 @@ class AppTheme {
         titleTextStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
         contentTextStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 14, color: AppColors.textGray),
       ),
+      // بلاغ المالك ٢٠٢٦-٠٨-١٢ («الألوان متطابقة وغير واضح»): رقائق نافذة
+      // «حل الشكوى» كان نصّها شبه غير مرئي — رماديٌّ فاتح على رمادي
+      // `surface` الفاتح. والعلّة أن `labelStyle` هنا كان **بلا لون**،
+      // فيرتدّ الحرف للون ماتيريال الافتراضي وهو محسوبٌ لخلفية بيضاء لا
+      // لخلفيتنا الرمادية.
+      //
+      // ولم تظهر إلا هناك لأن كل شاشات العميل تضبط لون الرقاقة محلياً —
+      // وهذا بالضبط ما يجعل الخطأ خبيثاً: يبدو النظام سليماً لأن أربعة
+      // مواضع رقّعت نفسها، ويظهر العطل في الموضع الوحيد الذي وثق بالثيم.
+      // فالإصلاح هنا لا هناك، ليشمل كل رقاقة تُكتب بعد اليوم.
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surface,
+        selectedColor: primary,
+        checkmarkColor: palette.onPrimary,
+        side: const BorderSide(color: AppColors.divider),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        labelStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(
+          fontFamily: 'Cairo',
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textDark,
+        ),
+        // نمط المحدَّد يُقرأ من `secondaryLabelStyle` لا من `labelStyle` —
+        // ولولا ضبطه لبقي الحرف داكناً على خلفية النكهة الداكنة فانقلب
+        // العطل ولم يزُل.
+        secondaryLabelStyle: TextStyle(
+          fontFamily: 'Cairo',
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: palette.onPrimary,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       scaffoldBackgroundColor: AppColors.surface,
