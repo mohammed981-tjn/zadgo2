@@ -1,16 +1,21 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
-    show HapticFeedback, SystemSound, SystemSoundType;
+    show Clipboard, ClipboardData, HapticFeedback, SystemSound, SystemSoundType;
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../providers/driver_keep_alive.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/complaint_window.dart';
 import '../auth/login_screen.dart';
 import '../auth/change_password_screen.dart';
 import '../auth/edit_profile_screen.dart';
@@ -47,6 +52,15 @@ class _DriverHomeState extends State<DriverHome> {
   /// آخر لقطة لمستند السائق — تغذّي بطاقة العرض بموقعه لحساب مسافة الالتقاط.
   Driver? _driver;
 
+  /// هل بيده طلب جارٍ (أو عرض بانتظار قراره)؟ يحدّد كثافة بثّ الموقع:
+  /// التتبّع اللحظي يخدم عميلاً ينتظر، ومن لا طلب لديه يكفيه نبض متباعد
+  /// يُبقيه مرشّحاً للإسناد بالمسافة.
+  bool _hasActiveOrder = false;
+
+  /// آخر موقع أُرسل فعلاً ووقته — أساس خنق الكتابات.
+  double? _sentLat, _sentLng;
+  DateTime? _sentAt;
+
   final Set<String> _acknowledgedNotified = {};
   final Set<String> _autoAssignedNotified = {};
   OverlayEntry? _bannerEntry;
@@ -58,6 +72,10 @@ class _DriverHomeState extends State<DriverHome> {
     // على تأكيد استلام. الفشل هنا مقبول بصمت — الحارس سيعيد الطلب عند الحاجة.
     LocationGuard.currentPosition().then((_) {}).catchError((_) {});
     _locationTimer = Timer.periodic(const Duration(seconds: 8), (_) => _pushLocation());
+    // سقف الحمولة من إعدادات الإدارة — يُقرأ مرة عند الفتح لا مع كل تدفّق.
+    context.read<FirebaseService>().maxOrdersPerDriver().then((v) {
+      if (mounted) _maxLoad = v;
+    }).catchError((_) {});
   }
 
   @override
@@ -84,12 +102,38 @@ class _DriverHomeState extends State<DriverHome> {
         desiredAccuracy: LocationAccuracy.medium,
         timeLimit: const Duration(seconds: 7),
       );
+      if (!_shouldSendLocation(pos.latitude, pos.longitude)) return;
       await service.updateDriverLocation(driverId, pos.latitude, pos.longitude);
+      _sentLat = pos.latitude;
+      _sentLng = pos.longitude;
+      _sentAt = DateTime.now();
     } catch (_) {
       // فشل قراءة دورية لا يستحق إزعاجاً — الدورة التالية بعد ثوانٍ.
     } finally {
       _pushingLocation = false;
     }
+  }
+
+  /// هل يستحق هذا الموقع كتابةً؟
+  ///
+  /// المؤقّت يقرأ الموقع كل 8 ثوانٍ، وكان **كل** قراءة تُكتب في Firestore:
+  /// 450 كتابة/ساعة لكل سائق متصل — عشرون سائقاً بعشر ساعات يعني نحو 90
+  /// ألف كتابة يومياً، والحصّة المجانية 20 ألفاً. وسائقٌ واقفٌ ينتظر طلباً
+  /// كان يكتب موقعه نفسَه مئات المرات بلا فائدة لأحد.
+  ///
+  /// فتُكتب القراءة فقط إن تحرّك السائق مسافة معتبرة، أو انقضى «نبض»
+  /// يُثبت أنه حيّ. والعتبتان أضيق وهو يحمل طلباً (عميل يتابع الخريطة)
+  /// وأوسع وهو فارغ (الموقع حينها للإسناد بالمسافة لا للتتبّع).
+  bool _shouldSendLocation(double lat, double lng) {
+    if (_sentLat == null || _sentLng == null || _sentAt == null) return true;
+    final minMeters = _hasActiveOrder ? 30.0 : 150.0;
+    final heartbeat = _hasActiveOrder
+        ? const Duration(seconds: 45)
+        : const Duration(minutes: 5);
+    final movedMeters =
+        haversineDistanceKm(_sentLat!, _sentLng!, lat, lng) * 1000;
+    return movedMeters >= minMeters ||
+        DateTime.now().difference(_sentAt!) >= heartbeat;
   }
 
   /// نغمة + اهتزاز مع كل إسناد جديد — الشريط الصامت لا يلفت سائقاً هاتفه
@@ -102,7 +146,54 @@ class _DriverHomeState extends State<DriverHome> {
     }
   }
 
+  /// آخر حالة اتصال زُوملت بها الخدمة — حارس يمنع نداءً مع كل إعادة بناء.
+  bool? _keepAliveOn;
+
+  void _syncKeepAlive(bool online) {
+    if (_keepAliveOn == online) return;
+    _keepAliveOn = online;
+    if (online) {
+      DriverKeepAlive.start();
+    } else {
+      DriverKeepAlive.stop();
+    }
+  }
+
+  /// آخر حمولة بُثَّت — حارس يمنع كتابة متكررة بنفس القيم.
+  String _lastLoadSignature = '';
+
+  /// سقف الطلبات المتزامنة من إعدادات الإدارة (٣ افتراضاً)، يُقرأ مرة.
+  int _maxLoad = 3;
+
+  /// بثّ حمولة الكابتن لمستنده: عددها ومرساة عنقودها وعلم سعته — هي ما
+  /// يرشّح عليه تطبيقُ المطعم عند الإسناد (الطلبات المتعددة في نطاق مطاعم
+  /// متقاربة). تُكتب من هنا لأن القواعد لا تسمح للمطعم بكتابتها.
+  void _publishLoad(String driverId, List<Order> active) {
+    if (driverId.isEmpty) return;
+    final mine = active
+        .where((o) => o.driverId == driverId && !o.needsDriverAcknowledgement)
+        .toList()
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final anchor = mine.isEmpty ? null : mine.first;
+    final sig = '${mine.length}|${anchor?.restaurantLat}|${anchor?.restaurantLng}';
+    if (sig == _lastLoadSignature) return;
+    _lastLoadSignature = sig;
+    context
+        .read<FirebaseService>()
+        .publishDriverLoad(
+          driverId: driverId,
+          activeOrders: mine.length,
+          hasCapacity: mine.length < _maxLoad,
+          clusterLat: anchor?.restaurantLat,
+          clusterLng: anchor?.restaurantLng,
+        )
+        .catchError((_) {});
+  }
+
   void _checkForNotifications(List<Order> orders) {
+    // كثافة بثّ الموقع تتبع وجود طلب جارٍ — تُقرأ من نفس التدفّق بلا
+    // استعلام إضافي.
+    _hasActiveOrder = orders.any((o) => o.status.isActive);
     // طلب خرج من قائمته (رُفض/انقضى/أُلغي) يُمحى من «سبق التنبيه» — فلو عاد
     // إليه لاحقاً (لا سائق غيره متاحاً مثلاً) ظهر العرض من جديد بدل أن يظل
     // الطلب غير مرئي له للأبد.
@@ -172,10 +263,11 @@ class _DriverHomeState extends State<DriverHome> {
           },
           onExpired: () async {
             // انقضت مهلة القرار: يُمرَّر الطلب لأقرب سائق آخر تلقائياً —
-            // بصمت، فقد يكون الهاتف في الجيب أصلاً.
+            // بصمت، فقد يكون الهاتف في الجيب أصلاً. وإن لم يوجد بديل بقي
+            // العرض في قائمته (dueToTimeout) بدل أن يُتَّم الطلب.
             dismiss();
             try {
-              await service.rejectAssignedOrder(order.id);
+              await service.rejectAssignedOrder(order.id, dueToTimeout: true);
             } catch (_) {
               // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
             }
@@ -264,6 +356,11 @@ class _DriverHomeState extends State<DriverHome> {
         // من يقرؤها، وbuild هذا سيُعاد أصلاً مع كل تغيّر في المستند.
         _isOnline = driver?.isOnline ?? false;
         _driver = driver;
+        // الخدمة الأمامية تتبع **حالة المستند** لا ضغطة الزر: الحالة
+        // تتغيّر من ثلاثة مواضع (مفتاح الشريط، بطاقة الحالة، الخروج)،
+        // ورَبطُها بكل موضع يعني نسياناً في أحدها يوماً. وهنا نقطة
+        // واحدة يمرّ بها كل تغيير مهما كان مصدره.
+        _syncKeepAlive(_isOnline);
         return Scaffold(
           appBar: AppBar(
             title: Text('مرحباً ${auth.user?.name ?? ""}'),
@@ -306,6 +403,10 @@ class _DriverHomeState extends State<DriverHome> {
               ),
               IconButton(icon: const Icon(Icons.logout), onPressed: () async {
                 if (driver != null) await service.setDriverOnline(driverId, false);
+                // إيقافٌ صريح لا اتّكالاً على تدفّق المستند: الخروج
+                // يهدم الشاشة فوراً، فقد لا تصل قراءةُ الحالة الجديدة
+                // ويبقى الإشعار معلّقاً لكابتنٍ خرج.
+                await DriverKeepAlive.stop();
                 await auth.logout();
                 if (mounted) {
                   Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
@@ -333,6 +434,7 @@ class _DriverHomeState extends State<DriverHome> {
                   driverId: driverId,
                   driver: driver,
                   onOrdersChanged: _checkForNotifications,
+                  onLoadChanged: (o) => _publishLoad(driverId, o),
                 ),
                 _DriverEarningsTab(driver: driver),
               ]),
@@ -469,7 +571,27 @@ class _OfferBannerState extends State<_OfferBanner> {
             ),
           ),
           const SizedBox(height: 10),
-          // سطر القرار: الأجرة أولاً — أهم رقم عند السائق.
+          // ترتيب الأرقام بقرار المالك (٢٠٢٦-٠٨-١١): كامل المبلغ الذي
+          // سيستلمه من العميل أولاً (وجبات + توصيل — للنقدي)، وتحته أجرته —
+          // بلا أي تفصيل لمكوّنات رسوم العميل أو العمولة، فلا شأن له بها.
+          if (isCash)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                    'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800)),
+              ),
+            ),
           Row(children: [
             const Icon(Icons.payments_rounded, color: Colors.white, size: 17),
             const SizedBox(width: 6),
@@ -495,24 +617,6 @@ class _OfferBannerState extends State<_OfferBanner> {
               ),
             ],
           ]),
-          if (isCash)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                    'نقدي — ستحصّل ${formatCurrency(o.payableTotal - o.walletUsed)} من العميل',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700)),
-              ),
-            ),
           const SizedBox(height: 6),
           Text('${o.restaurantName} ← ${o.deliveryAddress}',
               style: const TextStyle(color: Colors.white70, fontSize: 12),
@@ -555,7 +659,13 @@ class _MyOrdersTab extends StatelessWidget {
   final String driverId;
   final Driver? driver;
   final void Function(List<Order> orders) onOrdersChanged;
-  const _MyOrdersTab({required this.driverId, this.driver, required this.onOrdersChanged});
+  final void Function(List<Order> orders) onLoadChanged;
+  const _MyOrdersTab({
+    required this.driverId,
+    this.driver,
+    required this.onOrdersChanged,
+    required this.onLoadChanged,
+  });
 
   /// تبديل الاتصال برسالة صريحة (نمط نينجا): «متاح — بالتوفيق» أو «لن تصلك
   /// طلبات» — تأكيدٌ يقطع الشك بدل مفتاح صامت قد لا يلحظ أثره.
@@ -634,45 +744,456 @@ class _MyOrdersTab extends StatelessWidget {
       ),
     );
 
-    return Column(children: [
-      statusCard,
-      Expanded(
-        child: AppStreamBuilder<List<Order>>(
-          stream: () => service.streamDriverOrders(driverId),
-          builder: (ctx, all) {
-            final active = all.where((o) => o.status.isActive).toList();
+    // شاشة «نمط أوبر» (قرار المالك ٢٠٢٦-٠٨-١٠): الخريطة هي الشاشة —
+    // الكابتن يرى موقعه ومسافة العرض بعينه لا رقماً مجرداً — وبطاقة
+    // الحالة تطفو فوقها، والطلبات في لوح سحبٍ سفلي يبقى بمتناول الإبهام.
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamDriverOrders(driverId),
+      builder: (ctx, all) {
+        final active = all.where((o) => o.status.isActive).toList();
 
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              onOrdersChanged(active);
-            });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          onOrdersChanged(active);
+          onLoadChanged(active);
+        });
 
-            final confirmedActive =
-                active.where((o) => !o.needsDriverAcknowledgement).toList();
+        final confirmedActive =
+            active.where((o) => !o.needsDriverAcknowledgement).toList();
+        // العروض المعلّقة تظهر **في القائمة** لا في الشريط الطافي وحده
+        // (بلاغ المالك ٢٠٢٦-٠٨-١١: طلبات لم تصل الكابتن): الشريط يعيش ٤٥
+        // ثانية وداخل التطبيق المفتوح فقط، وبلا إشعارات خادم (المسار د) فإن
+        // كان الهاتف في الجيب فات العرضُ بلا أثر — والطلب كان مخفياً عن
+        // قائمته أصلاً لأنه «غير مُقَر». الآن يبقى العرض ظاهراً بقراره.
+        final pendingOffers =
+            active.where((o) => o.needsDriverAcknowledgement).toList();
 
-            if (confirmedActive.isEmpty) {
-              return AppEmpty(
-                emoji: isOnline ? '📦' : '🔌',
-                title: 'لا توجد طلبات نشطة حالياً',
-                subtitle: isOnline
-                    ? 'سيصلك عرض بأي طلب جديد فور توفره'
-                    : 'اتصل أولاً ليصلك أي عرض',
-              );
-            }
+        return Stack(children: [
+          Positioned.fill(
+            child: _DriverMap(driver: driver, orders: confirmedActive),
+          ),
+          Positioned(top: 0, left: 0, right: 0, child: statusCard),
+          // اللوح السفلي: يبدأ بثلث الشاشة ويُسحب حتى 85% — لا يغطي
+          // الخريطة كلياً أبداً فلا يعود «قائمة على أبيض» من جديد.
+          DraggableScrollableSheet(
+            initialChildSize: 0.32,
+            minChildSize: 0.18,
+            maxChildSize: 0.85,
+            snap: true,
+            builder: (context, scroll) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(22)),
+                boxShadow: [
+                  BoxShadow(color: Color(0x33000000), blurRadius: 14),
+                ],
+              ),
+              child: ListView(
+                controller: scroll,
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ),
+                  if (pendingOffers.isNotEmpty) ...[
+                    const SectionHeader(title: 'عروض بانتظار قرارك'),
+                    ...pendingOffers.map((o) => _PendingOfferCard(order: o)),
+                    const SizedBox(height: 6),
+                  ],
+                  if (confirmedActive.isEmpty && pendingOffers.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 26),
+                      child: Column(children: [
+                        Text(isOnline ? '📦' : '🔌',
+                            style: const TextStyle(fontSize: 40)),
+                        const SizedBox(height: 10),
+                        const Text('لا توجد طلبات نشطة حالياً',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 5),
+                        Text(
+                          isOnline
+                              ? 'سيصلك عرض بأي طلب جديد فور توفره'
+                              : 'اتصل أولاً ليصلك أي عرض',
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.textGray),
+                        ),
+                      ]),
+                    )
+                  else if (confirmedActive.isNotEmpty) ...[
+                    const SectionHeader(title: 'طلباتي'),
+                    ...confirmedActive.map((o) => _OrderCard(order: o)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ]);
+      },
+    );
+  }
+}
 
-            return ListView(padding: const EdgeInsets.all(12), children: [
-              const SectionHeader(title: 'طلباتي'),
-              ...confirmedActive.map((o) => _OrderCard(order: o)),
-            ]);
-          },
+/// خريطة خلفية شاشة الكابتن: موقعه الحي، ودبابيس طلبه النشط (المطعم
+/// والعميل) مع خط المسار. التمركز الأولي على موقعه المعروف، وزر التمركز
+/// يقرأ GPS طازجاً — أما تحديث الموقع على الخريطة فيتبع مستند السائق
+/// نفسه، فلا نضيف أي قراءة GPS أو كتابة Firestore جديدة على خنق الموقع
+/// القائم (450 كتابة/ساعة كانت الدرس).
+class _DriverMap extends StatefulWidget {
+  final Driver? driver;
+  final List<Order> orders;
+  const _DriverMap({required this.driver, required this.orders});
+
+  @override
+  State<_DriverMap> createState() => _DriverMapState();
+}
+
+class _DriverMapState extends State<_DriverMap> {
+  final _mapController = MapController();
+
+  /// مركز الرياض — بداية معقولة لسائق جديد لم يُسجَّل له موقع بعد.
+  static const _fallbackCenter = LatLng(24.7136, 46.6753);
+
+  LatLng get _driverPoint {
+    final d = widget.driver;
+    if (d?.lat != null && d?.lng != null) return LatLng(d!.lat!, d.lng!);
+    return _fallbackCenter;
+  }
+
+  Future<void> _recenter() async {
+    // GPS طازج إن تيسّر خلال ٤ ثوانٍ، وإلا فآخر موقع معروف — زرٌّ يجب
+    // أن يستجيب دائماً لا أن يعلّق بانتظار قمر صناعي داخل مبنى.
+    var target = _driverPoint;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 4),
+      );
+      target = LatLng(pos.latitude, pos.longitude);
+    } catch (_) {}
+    if (mounted) _mapController.move(target, 15.5);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = context.flavorColors;
+
+    final markers = <Marker>[
+      Marker(
+        point: _driverPoint,
+        width: 46,
+        height: 46,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                  color: fc.primary.withOpacity(0.45),
+                  blurRadius: 14,
+                  spreadRadius: 3),
+            ],
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Container(
+            decoration:
+                BoxDecoration(shape: BoxShape.circle, color: fc.primary),
+            child: const Icon(Icons.delivery_dining,
+                color: Colors.white, size: 22),
+          ),
+        ),
+      ),
+    ];
+    final lines = <Polyline>[];
+
+    for (final o in widget.orders) {
+      final hasR = o.restaurantLat != null && o.restaurantLng != null;
+      final hasD = o.deliveryLat != null && o.deliveryLng != null;
+      if (hasR) {
+        markers.add(Marker(
+          point: LatLng(o.restaurantLat!, o.restaurantLng!),
+          width: 56,
+          height: 56,
+          child: const _MapPin(icon: Icons.restaurant, color: Colors.orange),
+        ));
+      }
+      if (hasD) {
+        markers.add(Marker(
+          point: LatLng(o.deliveryLat!, o.deliveryLng!),
+          width: 56,
+          height: 56,
+          child:
+              const _MapPin(icon: Icons.location_on, color: AppColors.error),
+        ));
+      }
+      if (hasR || hasD) {
+        lines.add(Polyline(
+          points: [
+            _driverPoint,
+            if (hasR) LatLng(o.restaurantLat!, o.restaurantLng!),
+            if (hasD) LatLng(o.deliveryLat!, o.deliveryLng!),
+          ],
+          strokeWidth: 4,
+          color: fc.primary.withOpacity(0.75),
+        ));
+      }
+    }
+
+    return Stack(children: [
+      FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(initialCenter: _driverPoint, initialZoom: 14.5),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.zadam.delivery',
+          ),
+          if (lines.isNotEmpty) PolylineLayer(polylines: lines),
+          MarkerLayer(markers: markers),
+        ],
+      ),
+      // فوق اللوح السفلي في وضعه الأدنى (18%) بهامش أمان.
+      PositionedDirectional(
+        bottom: MediaQuery.of(context).size.height * 0.20 + 12,
+        end: 14,
+        child: FloatingActionButton.small(
+          heroTag: 'driver_recenter',
+          backgroundColor: Colors.white,
+          onPressed: _recenter,
+          child: Icon(Icons.my_location, color: fc.primary),
         ),
       ),
     ]);
   }
 }
 
+/// دبوس خريطة موحّد — نفس شكل دبابيس خريطة تتبع العميل فلا تختلف لغة
+/// الخرائط بين التطبيقين.
+class _MapPin extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  const _MapPin({required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Column(children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: const [
+              BoxShadow(color: Color(0x44000000), blurRadius: 6),
+            ],
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
+        Container(
+          width: 3,
+          height: 9,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      ]);
+}
+
+/// بطاقة عرض معلّق داخل القائمة — النسخة الدائمة من الشريط الطافي: لا
+/// تختفي بانقضاء ٤٥ ثانية ولا تحتاج التطبيق مفتوحاً لحظة الإسناد، فالعرض
+/// يبقى حتى يقرّر الكابتن. بنفس معلومات القرار: أجرته، ومبلغ التحصيل
+/// كاملاً إن كان نقدياً، والمسار.
+class _PendingOfferCard extends StatefulWidget {
+  final Order order;
+  const _PendingOfferCard({required this.order});
+
+  @override
+  State<_PendingOfferCard> createState() => _PendingOfferCardState();
+}
+
+class _PendingOfferCardState extends State<_PendingOfferCard> {
+  bool _busy = false;
+
+  Future<void> _decide(bool accept) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final service = context.read<FirebaseService>();
+    try {
+      if (accept) {
+        await service.acceptAssignedOrder(widget.order.id);
+        if (mounted) {
+          navigatorKey.currentState?.push(MaterialPageRoute(
+              builder: (_) => PickupDocketScreen(orderId: widget.order.id)));
+        }
+      } else {
+        await service.rejectAssignedOrder(widget.order.id);
+      }
+    } catch (_) {
+      if (mounted) {
+        showError(context, 'تعذّر تنفيذ القرار — ربما تغيّرت حالة الطلب');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final o = widget.order;
+    final isCash = o.paymentMethod == PaymentMethod.cash;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning, width: 1.2),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.local_shipping_rounded,
+              size: 18, color: AppColors.warning),
+          const SizedBox(width: 8),
+          Text('عرض توصيل — طلب #${o.orderNumber}',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF8A6508))),
+        ]),
+        const SizedBox(height: 8),
+        if (isCash)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+                'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w800)),
+          ),
+        Text('أجرتك ${formatCurrency(o.driverShare)}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text('${o.restaurantName} ← ${o.deliveryAddress}',
+            style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: _busy ? null : () => _decide(false),
+              child: const Text('رفض'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white),
+              onPressed: _busy ? null : () => _decide(true),
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.check_rounded, size: 18),
+              label: const Text('قبول العرض',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
+}
+
+/// سطر «زمن الطلب» — يعيد بناء نفسه كل دقيقة فيبقى العمر صادقاً بلا تحديث
+/// يدوي، ويحمرّ بعد نصف ساعة: طلبٌ تجاوزها يستحق استعجالاً أو اتصالاً.
+class _AgeRow extends StatefulWidget {
+  final DateTime createdAt;
+  const _AgeRow({required this.createdAt});
+
+  @override
+  State<_AgeRow> createState() => _AgeRowState();
+}
+
+class _AgeRowState extends State<_AgeRow> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(
+        const Duration(minutes: 1), (_) => mounted ? setState(() {}) : null);
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.createdAt;
+    final clock =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    final age = DateTime.now().difference(t);
+    final late = age.inMinutes >= 30;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Icon(late ? Icons.timer_off_outlined : Icons.schedule_rounded,
+            size: 15, color: late ? AppColors.error : AppColors.textGray),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'وقت الطلب $clock — منذ ${formatRemaining(age)}',
+            style: TextStyle(
+                fontSize: 13,
+                color: late ? AppColors.error : AppColors.textGray,
+                fontWeight: late ? FontWeight.w700 : FontWeight.normal),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 class _OrderCard extends StatelessWidget {
   final Order order;
   const _OrderCard({required this.order});
+
+  /// يفتح الملاحة الخارجية نحو وجهة المرحلة. الإحداثيات من لقطة الطلب —
+  /// وهي محدَّثة لأن تعديل المدير للموقع ينشرها على الطلبات الجارية.
+  Future<void> _navigate(BuildContext context) async {
+    final toCustomer = order.status == OrderStatus.pickedUp ||
+        order.status == OrderStatus.onTheWay;
+    final lat = toCustomer ? order.deliveryLat : order.restaurantLat;
+    final lng = toCustomer ? order.deliveryLng : order.restaurantLng;
+    if (lat == null || lng == null) {
+      showError(context,
+          toCustomer ? 'لا يوجد موقع محفوظ للعميل' : 'لا يوجد موقع محفوظ للمطعم');
+      return;
+    }
+    final uri = Uri.parse(
+        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر فتح تطبيق الخرائط');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -705,6 +1226,19 @@ class _OrderCard extends StatelessWidget {
               icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
             ),
+            // ملاحة خارجية مباشرة (بلاغ المالك: «لا أستطيع التوجه للمطعم
+            // إلا بالخريطة الداخلية»): زرٌّ يفتح خرائط جوجل فوراً نحو
+            // الوجهة الصحيحة بحسب المرحلة — المطعم قبل الاستلام والعميل
+            // بعده — بلا مرور بشاشة الخريطة ثم زر «ابدأ الملاحة».
+            IconButton(
+              tooltip: order.status == OrderStatus.pickedUp ||
+                      order.status == OrderStatus.onTheWay
+                  ? 'الملاحة إلى العميل'
+                  : 'الملاحة إلى المطعم',
+              icon: const Icon(Icons.navigation_rounded,
+                  color: AppColors.primary),
+              onPressed: () => _navigate(context),
+            ),
             IconButton(
               icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderMapScreen(order: order, readOnly: false))),
@@ -712,29 +1246,48 @@ class _OrderCard extends StatelessWidget {
             // ✅ زر الشكوى — يفتح شاشة تقديم شكوى مشتركة، مع تحديد السائق
             // كمُقدِّم الشكوى (submittedByRole: driver) لتظهر له خيارات
             // "ضد العميل" أو "ضد المطعم" فقط (لا يمكنه الشكوى ضد نفسه).
-            // يختفي بعد انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
-            if (order.canSubmitComplaint)
-              IconButton(
-                icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning),
-                tooltip: 'تقديم شكوى',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SubmitComplaintScreen(
-                      order: order,
-                      submittedByUid: auth.user?.uid ?? '',
-                      submittedByName: auth.user?.name ?? '',
-                      submittedByRole: UserRole.driver,
+            // يختفي في لحظة انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب)،
+            // والمتبقّي في التلميح — والساعات الثلاث الأخيرة بالأحمر.
+            ComplaintWindow(
+              order: order,
+              builder: (context, left, canSubmit) {
+                if (!canSubmit) return const SizedBox.shrink();
+                final urgent = left != null && left.inHours < 3;
+                return IconButton(
+                  icon: Icon(
+                      urgent
+                          ? Icons.timer_outlined
+                          : Icons.report_problem_outlined,
+                      color: urgent ? AppColors.error : AppColors.warning),
+                  tooltip: left == null
+                      ? 'تقديم شكوى'
+                      : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SubmitComplaintScreen(
+                        order: order,
+                        submittedByUid: auth.user?.uid ?? '',
+                        submittedByName: auth.user?.name ?? '',
+                        submittedByRole: UserRole.driver,
+                      ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
+            ),
             StatusBadge(label: order.status.label, color: order.status.color, icon: order.status.icon),
           ]),
           const SizedBox(height: 10),
           InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
           InfoRow(icon: Icons.person_outline, text: '${order.customerName} — ${order.customerPhone}'),
           InfoRow(icon: Icons.location_on_outlined, text: order.deliveryAddress),
+          // زمن الطلب (بلاغ المالك ٢٠٢٦-٠٨-١١): البطاقة كانت بلا أي وقت،
+          // فلا يعرف الكابتن أطلبٌ للتوّ أم ينتظر نصف ساعة — وهو أول ما
+          // يرتّب به أولوياته حين يحمل أكثر من طلب. الساعة **وعمر الطلب**
+          // معاً: الساعة وحدها تحتاج حساباً ذهنياً، والعمر وحده يضيع منه
+          // وقت الاستلام حين يراجع.
+          _AgeRow(createdAt: order.createdAt),
           const Divider(height: 16),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text(formatCurrency(order.payableTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
@@ -748,11 +1301,25 @@ class _OrderCard extends StatelessWidget {
   }
 
   Widget _buildAction(BuildContext ctx, FirebaseService service) {
+    // المذكرة تبقى في متناوله من لحظة الإسناد لا من لحظة الجهوزية فقط
+    // (طلب المالك ٢٠٢٦-٠٨-١١، نمط تويو): الكابتن يفتحها ليقرأ الأصناف
+    // ومبلغ التحصيل ويتحرك نحو المطعم قبل أن يجهز الطعام — وحجبها كان
+    // يتركه بسطرٍ نصّي واحد بلا أي فعل ممكن.
     if (order.status == OrderStatus.restaurantPending ||
         order.status == OrderStatus.restaurantAccepted ||
         order.status == OrderStatus.preparing) {
-      return const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
-          style: TextStyle(color: AppColors.textGray, fontStyle: FontStyle.italic));
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
+            style: TextStyle(
+                color: AppColors.textGray, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => navigatorKey.currentState?.push(MaterialPageRoute(
+              builder: (_) => PickupDocketScreen(orderId: order.id))),
+          icon: const Icon(Icons.receipt_long_rounded, size: 18),
+          label: const Text('مذكرة الاستلام'),
+        ),
+      ]);
     }
     if (order.status == OrderStatus.readyForPickup ||
         order.status == OrderStatus.searchingDriver ||
@@ -1015,28 +1582,9 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                 : AppColors.warning),
       ]),
       const SizedBox(height: 12),
-      // برنامج التوصية (ب2): السائق يدعو زميلاً، والإدارة تمنح «مكافأة
-      // إحالة» من دفتره عند اكتمال تسجيل المُحال وأول توصيلاته — بلا
-      // أكواد آلية في هذه المرحلة؛ الاسم في نص الدعوة هو مرجع الإحالة.
-      Card(
-        child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: context.flavorColors.primary.withOpacity(0.12),
-            child: Icon(Icons.group_add_outlined,
-                color: context.flavorColors.primaryDark),
-          ),
-          title: const Text('ادعُ سائقاً واكسب مكافأة',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-          subtitle: const Text(
-              'عند انضمامه وذكر اسمك تُضاف مكافأة الإحالة لمحفظتك',
-              style: TextStyle(fontSize: 11.5)),
-          trailing: const Icon(Icons.share_outlined, size: 20),
-          onTap: () => Share.share(
-              'انضم لكباتن ZadGo وابدأ التوصيل باشتراطات مرنة وأجرة واضحة '
-              'لكل طلب. للتسجيل تواصل مع الإدارة واذكر أن ${d.name} دعاك '
-              '(تُحسب لي مكافأة الإحالة 😉).'),
-        ),
-      ),
+      // الإحالة والتحدي — بمبالغ وشروط الإدارة اللحظية لا أرقام مبرمَجة،
+      // فما يراه السائق هو ما سيُصرف له فعلاً.
+      _IncentivesCards(driver: d),
       const SizedBox(height: 8),
       Card(
         child: Column(children: [
@@ -1366,6 +1914,233 @@ class _TransactionTile extends StatelessWidget {
         '${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
         style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
       ),
+    );
+  }
+}
+
+/// بطاقتا الحوافز في تبويب «أرباحي»: كود الإحالة ودعوة زميل، وتقدّم تحدي
+/// نهاية الأسبوع.
+///
+/// كل الأرقام تأتي من إعدادات الإدارة اللحظية (IncentiveSettings) لا من
+/// ثوابت في الكود — فلو رفع المالك مكافأة الإحالة اليوم رآها السائق فوراً
+/// بلا تحديث للتطبيق، ولا يَعِد التطبيق بمبلغ يخالف ما سيُصرف.
+///
+/// البطاقتان تختفيان كلياً حين يوقف المالك البرنامج، فلا يبقى وعدٌ معلّق.
+class _IncentivesCards extends StatelessWidget {
+  final Driver driver;
+  const _IncentivesCards({required this.driver});
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    return AppStreamBuilder<IncentiveSettings>(
+      stream: service.streamIncentiveSettings,
+      loading: const SizedBox.shrink(),
+      builder: (ctx, s) => Column(children: [
+        if (s.referralEnabled) _referralCard(context, s),
+        if (s.referralEnabled && s.challengeEnabled)
+          const SizedBox(height: 8),
+        if (s.challengeEnabled) _challengeCard(context, s),
+      ]),
+    );
+  }
+
+  Widget _referralCard(BuildContext context, IncentiveSettings s) {
+    final fc = context.flavorColors;
+    final code = driver.referralCode;
+    // الرابط يحمل الكود، فلا يعتمد وصول الإحالة على تذكّر المدعوّ كتابته:
+    // يفتح صفحة التسجيل، يملأ بياناته ويرفق مستنداته، ويصل الكود معها.
+    final link = s.inviteLinkFor(code);
+    final invite = [
+      'انضم لكباتن ZadGo — أجرة واضحة لكل طلب واشتراطات مرنة.',
+      if (link.isNotEmpty)
+        'سجّل من هنا (المستندات تُرفع في الصفحة نفسها):\n$link'
+      else
+        'اكتب كود الدعوة «$code» عند التسجيل.',
+      'وتنال ${s.refereeBonus.toStringAsFixed(0)} ر.س ترحيباً بعد '
+          '${s.referralDeliveries} توصيلة 🎁',
+    ].join('\n');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: fc.primary.withOpacity(0.12),
+              child: Icon(Icons.group_add_outlined, color: fc.primaryDark),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('ادعُ كابتناً واكسب',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
+                    Text(
+                        'لك ${s.referrerBonus.toStringAsFixed(0)} ر.س وله '
+                        '${s.refereeBonus.toStringAsFixed(0)} ر.س — بعد إكماله '
+                        '${s.referralDeliveries} توصيلة خلال '
+                        '${s.referralWindowDays} يوماً',
+                        style: const TextStyle(fontSize: 11.5)),
+                  ]),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          // الكود هو مرجع الإحالة الوحيد — يُبرز ويُنسخ بضغطة، فلا يعتمد
+          // البرنامج على تذكّر المدعوّ اسمَ من دعاه.
+          Row(children: [
+            Expanded(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: fc.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: fc.primary.withOpacity(0.35)),
+                ),
+                child: Row(children: [
+                  const Text('كودك:',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textGray)),
+                  const SizedBox(width: 6),
+                  Text(code,
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 3,
+                          color: fc.primaryDark)),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () async {
+                      await Clipboard.setData(ClipboardData(text: code));
+                      if (context.mounted) showSuccess(context, 'نُسخ كودك');
+                    },
+                    child: const Icon(Icons.copy_outlined,
+                        size: 18, color: AppColors.textGray),
+                  ),
+                ]),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: () => Share.share(invite),
+              icon: const Icon(Icons.share_outlined, size: 17),
+              label: const Text('دعوة'),
+              style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(horizontal: 14)),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _challengeCard(BuildContext context, IncentiveSettings s) {
+    final service = context.read<FirebaseService>();
+    final now = DateTime.now();
+    final window = s.currentWindow(now);
+    final fc = context.flavorColors;
+
+    // خارج أيام التحدي: تُعرض القاعدة مختصرةً كتشويق، بلا عدّاد كاذب.
+    if (window == null) {
+      return Card(
+        child: ListTile(
+          dense: true,
+          leading: const Icon(Icons.emoji_events_outlined,
+              color: AppColors.textGray),
+          title: Text('تحدي ${s.weekdaysLabel}',
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 13.5)),
+          subtitle: Text(
+              s.tiers
+                  .map((t) =>
+                      '${t.deliveries} توصيلة = ${t.bonus.toStringAsFixed(0)} ر.س')
+                  .join(' • '),
+              style: const TextStyle(fontSize: 11.5)),
+        ),
+      );
+    }
+
+    final (start, end) = window;
+    return AppStreamBuilder<List<Order>>(
+      stream: () => service.streamDriverOrders(driver.id),
+      loading: const SizedBox.shrink(),
+      builder: (ctx, orders) {
+        final count = orders
+            .where((o) =>
+                o.status == OrderStatus.delivered &&
+                !o.createdAt.isBefore(start) &&
+                !o.createdAt.isAfter(end))
+            .length;
+        final reached = s.tierFor(count);
+        final next = s.nextTierFor(count);
+        final target = next?.deliveries ?? reached?.deliveries ?? 1;
+        final progress = (count / target).clamp(0.0, 1.0);
+
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.emoji_events_rounded,
+                    color: reached != null ? Colors.amber : fc.primary,
+                    size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('تحدي ${s.weekdaysLabel} — جارٍ الآن',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14)),
+                ),
+                Text('$count',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: fc.primaryDark)),
+              ]),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: fc.primary.withOpacity(0.12),
+                  color: reached != null ? Colors.amber.shade700 : fc.primary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                next != null
+                    ? 'أنجزتَ $count — بقيت ${next.deliveries - count} توصيلة '
+                        'لمكافأة ${next.bonus.toStringAsFixed(0)} ر.س'
+                    : 'بلغتَ أعلى مستوى — مكافأة '
+                        '${reached!.bonus.toStringAsFixed(0)} ر.س 🎉',
+                style: const TextStyle(fontSize: 12),
+              ),
+              if (reached != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                    'مستحقّ الآن: ${reached.bonus.toStringAsFixed(0)} ر.س — '
+                    'تُضاف لدفترك بعد مراجعة الإدارة',
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.success,
+                        fontWeight: FontWeight.w700)),
+              ],
+              const SizedBox(height: 4),
+              Text(
+                  'المستويات: ${s.tiers.map((t) => '${t.deliveries}=${t.bonus.toStringAsFixed(0)}').join(' • ')}'
+                  ' — تنتهي ${end.day}/${end.month}',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textGray)),
+            ]),
+          ),
+        );
+      },
     );
   }
 }

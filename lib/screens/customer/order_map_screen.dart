@@ -27,12 +27,42 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
   final MapController _mapController = MapController();
   int _driverStreamRetryToken = 0;
 
-  Order get order => widget.order;
+  /// نسخة الطلب بإحداثيات المطعم الحيّة — تُجلب مرة عند الفتح: موقع صحّحه
+  /// المدير بعد إنشاء الطلب يجب أن يقود الدبوس والملاحة، لا لقطة الإنشاء.
+  Order? _liveOrder;
+  Order get order => _liveOrder ?? widget.order;
 
+  @override
+  void initState() {
+    super.initState();
+    context
+        .read<FirebaseService>()
+        .withLiveRestaurantCoords(widget.order)
+        .then((fresh) {
+      if (mounted && !identical(fresh, widget.order)) {
+        setState(() => _liveOrder = fresh);
+      }
+    });
+  }
+
+  // وجهة الخريطة تتبع مرحلة الرحلة لا حالةً واحدة بعينها (ملاحظة المالك
+  // ٢٠٢٦-٠٨-١١): كل ما قبل استلام الطلب من المطعم وجهتُه المطعم — حتى لو
+  // فتح السائق الخريطة والطلب ما زال يُحضَّر — وبعد الاستلام وجهته العميل.
+  // الحصر السابق في driverAssigned كان يجعل الخريطة تتمركز على العميل
+  // وتوجّه الملاحة إليه لمجرد أن الحالة «جاهز للاستلام» مثلاً.
   bool get _headingToRestaurant =>
-      order.status == OrderStatus.driverAssigned;
+      order.status.isActive && !_headingToCustomer;
 
-  bool get _headingToCustomer => order.status == OrderStatus.onTheWay;
+  bool get _headingToCustomer =>
+      order.status == OrderStatus.pickedUp ||
+      order.status == OrderStatus.onTheWay;
+
+  /// زر «استلمت الطلب» يبقى محصوراً في الحالات التي يكون الطلب فيها قابلاً
+  /// للاستلام فعلاً — الوجهة نحو المطعم أوسع منها (تشمل «قيد التحضير»).
+  bool get _canPickUp =>
+      order.status == OrderStatus.readyForPickup ||
+      order.status == OrderStatus.searchingDriver ||
+      order.status == OrderStatus.driverAssigned;
 
   Future<void> _openExternalNavigation(double lat, double lng) async {
     final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving');
@@ -218,9 +248,9 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
                         ),
                       ),
                     ),
-                    if (_headingToRestaurant || _headingToCustomer)
+                    if (_canPickUp || _headingToCustomer)
                       const SizedBox(width: 10),
-                    if (_headingToRestaurant)
+                    if (_canPickUp)
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () async {
@@ -275,6 +305,13 @@ class _OrderMapScreenState extends State<OrderMapScreen> {
 
   Widget _buildStatusBanner() {
     if (!_headingToRestaurant && !_headingToCustomer) return const SizedBox.shrink();
+    // للمتابع (عميل/مطعم/مدير): «السائق في طريقه لاستلام طلبك» تُعرض فقط
+    // إن وُجد سائق مُسند فعلاً — قبل الإسناد لا سائق في طريقه لأي مكان.
+    if (widget.readOnly &&
+        _headingToRestaurant &&
+        (order.driverId == null || order.driverId!.isEmpty)) {
+      return const SizedBox.shrink();
+    }
     final isRestaurant = _headingToRestaurant;
     return Container(
       width: double.infinity,

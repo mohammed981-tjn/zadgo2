@@ -1,0 +1,14 @@
+# server/worker/wrangler.toml — إعداد نشر خادم زاد جو المرافق على
+# Cloudflare Workers. الخطوات الكاملة في README.md بجانبه.
+
+name = "zadgo-notify"
+main = "src/index.js"
+compatibility_date = "2026-08-12"
+
+# متغيّر عام لا سرّي — معرّف مشروع Firebase يظهر في كل نداء REST أصلاً.
+[vars]
+PROJECT_ID = "restaurant-app-ed699"
+
+# الأسرار **لا تُكتب هنا** ولا في المستودع. تُضبط بأمرين:
+#   npx wrangler secret put SERVICE_ACCOUNT      (محتوى ملف حساب الخدمة JSON)
+#   npx wrangler secret put MOYASAR_SECRET_KEY   (اختياري — للتحقق من الدفع)

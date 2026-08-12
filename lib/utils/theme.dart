@@ -68,23 +68,27 @@ class FlavorPalette {
   );
 
   /// هوية تطبيق السائق: أزرق "كابتن" — لون الطرق والحركة، مختلف تماماً عن
-  /// ذهبي العميل حتى لا يلتبس التطبيقان.
+  /// ذهبي العميل حتى لا يلتبس التطبيقان. الدرجة #12559E بدل أزرق Material
+  /// الافتراضي السابق (#1976D2): ذاك لون آلاف التطبيقات، وهذا مشتقّ من
+  /// كحلي العلامة فينتمي لعائلتها (قرار المالك ٢٠٢٦-٠٨-١٠ مع الأيقونات).
   static const driver = FlavorPalette(
-    primary: Color(0xFF1976D2),
-    primaryDark: Color(0xFF0D47A1),
-    primaryLight: Color(0xFF64B5F6),
-    bgDark: Color(0xFF0A1E38),
-    bgDarker: Color(0xFF050F1E),
+    primary: Color(0xFF12559E),
+    primaryDark: Color(0xFF0B3C73),
+    primaryLight: Color(0xFF5C90D2),
+    bgDark: Color(0xFF0A1F3A),
+    bgDarker: Color(0xFF050F1D),
   );
 
-  /// هوية تطبيق المطعم: برتقالي ناري — حرارة المطبخ والاستعجال، بعيد عن
-  /// ذهبي العميل الذي كان قريباً منه سابقاً فيسبّب الالتباس.
+  /// هوية تطبيق المطعم: قرميدي — لون فئة المطاعم الأصيل. البرتقالي السابق
+  /// (#E8590C) من نفس العائلة الدافئة لذهبي العميل فكانا يُقرآن شقيقين في
+  /// شبكة المشغّل عند 48dp. ورُفض الأخضر عمداً: يشتبه بلون النجاح
+  /// (AppColors.success) داخل شاشات التطبيق نفسه.
   static const restaurant = FlavorPalette(
-    primary: Color(0xFFE8590C),
-    primaryDark: Color(0xFFBF4506),
-    primaryLight: Color(0xFFFF8F4C),
-    bgDark: Color(0xFF2A1204),
-    bgDarker: Color(0xFF160902),
+    primary: Color(0xFFC92A2A),
+    primaryDark: Color(0xFF9C1F1F),
+    primaryLight: Color(0xFFE76A6A),
+    bgDark: Color(0xFF2E0B0B),
+    bgDarker: Color(0xFF170404),
   );
 
   /// هوية لوحة المدير: بنفسجي ملكي — طابع "غرفة التحكم"، متمايز بوضوح عن
@@ -125,23 +129,27 @@ class AppTheme {
         brightness: Brightness.light,
       ),
       // ═══════════════════════════════════════════════════════════════
-      // خط Cairo مُعطَّل مؤقتاً في كل الثيم (لا fontFamily هنا إطلاقاً).
+      // خط Cairo — أُعيد تفعيله ٢٠٢٦-٠٨-١٢ بعد إصلاح سببِ تعطيله.
       //
-      // السبب: Cairo-Variable.ttf خط متغيّر (Variable Font)، وتسجيله في
-      // pubspec.yaml بثلاثة أوزان تشير كلها لنفس الملف تسبَّب بفشل صامت
-      // في رسم النص على Android — لا خطأ ولا استثناء، فقط نص غير مرئي
-      // بينما تُرسم الحاويات والألوان والحدود طبيعياً. هذا ظهر كبطاقات
-      // أصناف فارغة وأزرار بلا عناوين في كل شاشات التطبيق.
+      // العطل الأصلي: `Cairo-Variable.ttf` خط متغيّر، وكان مسجَّلاً في
+      // pubspec بثلاثة أوزان **تشير كلها لنفس الملف**. أندرويد يفشل في
+      // رسم النص حينها فشلاً صامتاً — لا خطأ ولا استثناء، فقط نصٌّ غير
+      // مرئي بينما تُرسم الحاويات والألوان طبيعياً (بطاقات أصناف فارغة
+      // وأزرار بلا عناوين). فعُطِّل الخط كلّه إسعافاً، وبقي التطبيق على
+      // خط النظام: نصٌّ مختلف من هاتف لهاتف، ولا هوية طباعية للعلامة.
       //
-      // بترك fontFamily غير محدَّد، يستخدم النظام خطه الافتراضي (يدعم
-      // العربية بالكامل على أي هاتف) وتظهر كل النصوص فوراً.
+      // الإصلاح الآن جذريّ لا إسعافيّ: استُخرجت **أربعة ملفات ثابتة** من
+      // الملف المتغيّر نفسه (`instantiateVariableFont` بـwght ٤٠٠/٦٠٠/
+      // ٧٠٠/٨٠٠ وslnt=0)، فلكل وزن ملفٌ حقيقي مستقل — وهو ما كان ينقص.
+      // ورخصة الخط SIL OFL 1.1 تُجيز الاشتقاق وإعادة التوزيع، وملف
+      // `OFL.txt` مرافقٌ في `assets/fonts/`.
       //
-      // الإصلاح الدائم لاحقاً: تنزيل ملفات Cairo ثابتة منفصلة من Google
-      // Fonts (Regular/SemiBold/Bold each in its own file, not one
-      // variable file repeated), تسجيلها في pubspec.yaml بأوزان مختلفة
-      // فعلياً لا نفس الملف مكرَّراً، ثم إعادة fontFamily: 'Cairo' هنا.
+      // والملف المتغيّر باقٍ أصلاً عادياً في pubspec: حزمة pdf تقرؤه
+      // مباشرة بـrootBundle للتصدير العربي ولا تمرّ بنظام خطوط Flutter.
       // ═══════════════════════════════════════════════════════════════
+      fontFamily: 'Cairo',
       textTheme: Typography.material2021().black.apply(
+        fontFamily: 'Cairo',
         bodyColor: AppColors.textDark,
         displayColor: AppColors.textDark,
       ),
@@ -152,11 +160,16 @@ class AppTheme {
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
         titleTextStyle: const TextStyle(
+          fontFamily: 'Cairo',
           fontSize: 18,
           fontWeight: FontWeight.w700,
           color: AppColors.textDark,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textDark),
+        // زر الرجوع الافتراضي (سهم أعلى الشاشة) كان بحجمه الافتراضي 24
+        // نحيلاً خافت الحضور — يبدو زخرفة لا زراً قابلاً للضغط، خاصة على
+        // شاشات التفاصيل التي يفتحها المستخدم متكرراً (كتفاصيل الشكوى).
+        // التكبير هنا يشمل كل زر رجوع تلقائي في النكهات الأربع دفعة واحدة.
+        iconTheme: const IconThemeData(color: AppColors.textDark, size: 27),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -167,7 +180,7 @@ class AppTheme {
           minimumSize: const Size.fromHeight(52),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 22),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.2),
+          textStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: 0.2),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -177,13 +190,13 @@ class AppTheme {
           minimumSize: const Size.fromHeight(46),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: accentText,
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -206,13 +219,22 @@ class AppTheme {
           borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        labelStyle: const TextStyle(color: AppColors.textGray, fontSize: 14),
+        labelStyle: const TextStyle(fontFamily: 'Cairo', color: AppColors.textGray, fontSize: 14),
       ),
+      // دفعة ز4 (جزئياً، ٢٠٢٦-٠٨-١٢): البطاقة كانت بيضاء بلا ظل ولا حدّ
+      // على خلفية #F3F5F4 — والفرق بينهما ٣٪ إضاءة فقط، فتُقرأ الشاشة
+      // «غير مكتملة» ولا يُعرف سببها. ماتيريال ٣ حين يُصفّر الارتفاع
+      // يفترض بديلاً (حدّاً أو ظلاً) ولم يكن عندنا أيّهما. الحدّ الرفيع
+      // أرخص الاثنين: لا يكلّف رسماً إضافياً كالظل، ويعمل في كثافة
+      // البطاقات العالية عندنا (قوائم طلبات) حيث تتراكب الظلال فتتوسّخ.
       cardTheme: CardTheme(
         elevation: 0,
         color: Colors.white,
         shadowColor: AppColors.cardShadow,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.divider, width: 1),
+        ),
         margin: EdgeInsets.zero,
       ),
       switchTheme: SwitchThemeData(
@@ -226,6 +248,7 @@ class AppTheme {
         elevation: 0,
         indicatorColor: primary.withOpacity(0.2),
         labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+          fontFamily: 'Cairo',
               fontSize: 11,
               fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
               color: states.contains(WidgetState.selected) ? accentText : AppColors.textGray,
@@ -238,13 +261,40 @@ class AppTheme {
       dialogTheme: DialogTheme(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
-        contentTextStyle: const TextStyle(fontSize: 14, color: AppColors.textGray),
+        titleTextStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textDark),
+        contentTextStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 14, color: AppColors.textGray),
       ),
+      // بلاغ المالك ٢٠٢٦-٠٨-١٢ («الألوان متطابقة وغير واضح»): رقائق نافذة
+      // «حل الشكوى» كان نصّها شبه غير مرئي — رماديٌّ فاتح على رمادي
+      // `surface` الفاتح. والعلّة أن `labelStyle` هنا كان **بلا لون**،
+      // فيرتدّ الحرف للون ماتيريال الافتراضي وهو محسوبٌ لخلفية بيضاء لا
+      // لخلفيتنا الرمادية.
+      //
+      // ولم تظهر إلا هناك لأن كل شاشات العميل تضبط لون الرقاقة محلياً —
+      // وهذا بالضبط ما يجعل الخطأ خبيثاً: يبدو النظام سليماً لأن أربعة
+      // مواضع رقّعت نفسها، ويظهر العطل في الموضع الوحيد الذي وثق بالثيم.
+      // فالإصلاح هنا لا هناك، ليشمل كل رقاقة تُكتب بعد اليوم.
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surface,
+        selectedColor: primary,
+        checkmarkColor: palette.onPrimary,
+        side: const BorderSide(color: AppColors.divider),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(
+          fontFamily: 'Cairo',
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textDark,
+        ),
+        // نمط المحدَّد يُقرأ من `secondaryLabelStyle` لا من `labelStyle` —
+        // ولولا ضبطه لبقي الحرف داكناً على خلفية النكهة الداكنة فانقلب
+        // العطل ولم يزُل.
+        secondaryLabelStyle: TextStyle(
+          fontFamily: 'Cairo',
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: palette.onPrimary,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       scaffoldBackgroundColor: AppColors.surface,

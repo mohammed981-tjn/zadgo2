@@ -12,8 +12,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'app_flavor.dart';
+import 'crash_reporting.dart';
 import 'navigator_key.dart';
 import 'widgets/connectivity_banner.dart';
+import 'widgets/min_version_gate.dart';
 import 'models/models.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/firebase_service.dart';
@@ -49,6 +51,10 @@ void main() async {
     ),
   );
 
+  // تسجيل الانهيارات يُوصَّل **قبل** أي شيفرة أخرى بعد تهيئة Firebase:
+  // ما ينهار في أثناء الإقلاع نفسه هو أعصى ما يُشخَّص بلا تقرير.
+  await initCrashReporting(flavor: 'admin');
+
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   AppFlavorConfig.flavor = AppFlavor.admin;
@@ -83,13 +89,17 @@ class AdminApp extends StatelessWidget {
       ],
       child: MaterialApp(
         navigatorKey: navigatorKey,
+        scaffoldMessengerKey: messengerKey,
+        // رسائل الشاشة السابقة تُمسح عند الدخول لشاشة جديدة.
+        navigatorObservers: [ClearMessagesOnPush()],
         title: 'ZadGo إدارة',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.build(palette: FlavorPalette.admin),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,
-          // شريط انقطاع الاتصال يلتف حول كل الشاشات من هنا.
-          child: ConnectivityBanner(child: child!),
+          // بوابة الإصدار أولاً ثم شريط انقطاع الاتصال — نسخة محجوبة لا
+          // معنى لعرض حالة شبكتها.
+          child: MinVersionGate(child: ConnectivityBanner(child: child!)),
         ),
         home: const SplashScreen(),
       ),

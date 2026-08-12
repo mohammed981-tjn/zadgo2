@@ -320,6 +320,30 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    // إعادة تحقق الكوبون لحظة الدفع لا لحظة اللصق فقط: بين الاثنتين قد
+    // يعدّل العميل سلته تحت الحد الأدنى، أو توقف الإدارة الكود، أو ينتهي،
+    // أو يستنفده الآخرون. النسخة المخبّأة في الشاشة لا تعرف شيئاً من ذلك.
+    if (_coupon != null) {
+      final cart0 = context.read<CartProvider>();
+      try {
+        final fresh = await context.read<FirebaseService>().validateCoupon(
+              rawCode: _coupon!.code,
+              userId: context.read<app_auth.AuthProvider>().user?.uid ?? '',
+              itemsTotal: cart0.itemsTotal,
+              restaurantId: cart0.restaurantId ?? '',
+            );
+        setState(() => _coupon = fresh);
+      } catch (e) {
+        setState(() => _coupon = null);
+        if (mounted) {
+          showError(context,
+              'أُزيل الكوبون: ${e.toString().replaceFirst('Exception: ', '')}');
+        }
+        return;
+      }
+      if (!mounted) return;
+    }
+
     // الدفع بالبطاقة يسبق إنشاء الطلب: لا يُسجَّل طلب إلا بعد أن تؤكّد البوابة
     // شحن المبلغ فعلياً. العكس (إنشاء الطلب ثم محاولة الدفع) يُنتج طلبات
     // معلّقة بلا سداد يصعب تنظيفها لاحقاً.
@@ -349,6 +373,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return;
       }
       paymentId = result.paymentId;
+
+      // التحقق الخادمي قبل إنشاء الطلب: القواعد سترفض طلب بطاقة بلا ختم.
+      // المبلغ محجوز فعلاً عند ميسر، فالفشل هنا لا يُلغي — يُعاد حتى ينجح
+      // أو يقرر العميل التواصل مع الدعم (الدفعة تظهر عندنا بمعرّفها).
+      var verified = false;
+      while (!verified) {
+        final service0 = context.read<FirebaseService>();
+        verified = await service0.verifyCardPayment(paymentId ?? '');
+        if (verified) break;
+        if (!mounted) return;
+        final retry = await showConfirmDialog(
+          context,
+          title: 'تعذّر توثيق الدفعة',
+          content: 'دفعتك محجوزة برقم ($paymentId) لكن تعذّر توثيقها الآن '
+              '(اتصال أو خادم). أعد المحاولة، أو احتفظ بالرقم وتواصل مع '
+              'الدعم — لن يضيع مبلغك.',
+          confirmLabel: 'إعادة المحاولة',
+        );
+        if (retry != true) return;
+      }
     }
 
     if (!mounted) return;

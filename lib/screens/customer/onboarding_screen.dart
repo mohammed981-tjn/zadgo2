@@ -2,14 +2,15 @@
 //
 // الجولة التعريفية — تُعرض مرة واحدة فقط عند أول فتح لتطبيق العميل (نمط
 // مأخوذ من قالب wasl ومُعاد بناؤه بهوية ZadGo): ثلاث شرائح تختصر وعد
-// المنصة، بخلفية «ليل» العلامة وأيقونات متوهجة بلون النكهة — بلا أي أصول
-// صور جديدة تُثقل التطبيق.
+// المنصة، لكل شريحة مشهد متحرك مرسوم بالكود (onboarding_scenes.dart) —
+// بلا أي أصول صور جديدة تُثقل التطبيق (بند و١).
 //
 // «تخطّي» متاح دائماً من أول لحظة: الجولة تسويق لا حاجز.
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
+import 'onboarding_scenes.dart';
 
 class OnboardingScreen extends StatefulWidget {
   /// يُستدعى عند الانتهاء (إكمالاً أو تخطياً) — التنقل قرار المستدعي
@@ -31,23 +32,28 @@ class OnboardingScreen extends StatefulWidget {
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
+class _OnboardingScreenState extends State<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
   final _controller = PageController();
   int _page = 0;
 
+  /// نبض المشاهد: دورة كاملة كل ٨ ثوانٍ تتغذى منها حركات المشاهد الثلاثة
+  /// كلها (دوران الأطباق، مسير الكابتن، تنفّس المحفظة) — محرك واحد
+  /// مشترك أرخص من محرك لكل عنصر، وإيقاع موحّد أهدأ للعين.
+  late final AnimationController _loop = AnimationController(
+      vsync: this, duration: const Duration(seconds: 8))
+    ..repeat();
+
   static const _slides = [
     (
-      Icons.restaurant_menu_rounded,
       'مطاعمك المفضلة في مكان واحد',
       'تصفّح القوائم بالصور والأسعار والسعرات — واطلب بضغطات معدودة',
     ),
     (
-      Icons.location_on_rounded,
       'تتبّع طلبك لحظة بلحظة',
       'من المطبخ إلى بابك: موقع السائق مباشرةً على الخريطة وإشعار عند كل خطوة',
     ),
     (
-      Icons.account_balance_wallet_rounded,
       'ادفع كما يناسبك',
       'نقداً عند الاستلام، بالبطاقة، أو من رصيد محفظتك — والأسعار شاملة الضريبة بلا مفاجآت',
     ),
@@ -56,6 +62,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _loop.dispose();
     super.dispose();
   }
 
@@ -98,63 +105,43 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 itemCount: _slides.length,
                 onPageChanged: (i) => setState(() => _page = i),
                 itemBuilder: (_, i) {
-                  final (icon, title, text) = _slides[i];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 36),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // أيقونة متوهجة بأسلوب شعار شاشة الدخول نفسه —
-                        // لغة بصرية واحدة عبر التطبيق.
-                        Container(
-                          width: 150,
-                          height: 150,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(colors: [
-                              fc.primary.withOpacity(0.25),
-                              fc.primary.withOpacity(0.0),
-                            ]),
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 104,
-                              height: 104,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [fc.primaryLight, fc.primary],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: fc.primary.withOpacity(0.5),
-                                    blurRadius: 26,
-                                    spreadRadius: 2,
-                                  ),
-                                ],
-                              ),
-                              child: Icon(icon, color: fc.bgDarker, size: 52),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 36),
-                        Text(title,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                height: 1.4)),
-                        const SizedBox(height: 12),
-                        Text(text,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                                color: Colors.white.withOpacity(0.65),
-                                fontSize: 14.5,
-                                height: 1.8)),
-                      ],
+                  final (title, text) = _slides[i];
+                  // دخول الشريحة: انزلاق صاعد مع ظهور — المفتاح برقمها
+                  // فتُعاد الحركة عند كل عودة للشريحة لا أول مرة فقط.
+                  return TweenAnimationBuilder<double>(
+                    key: ValueKey(i),
+                    tween: Tween(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, ent, child) => Opacity(
+                      opacity: ent,
+                      child: Transform.translate(
+                          offset: Offset(0, 24 * (1 - ent)), child: child),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 36),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // مشهد الشريحة المتحرك — بديل الأيقونة الساكنة.
+                          OnboardingScene(index: i, loop: _loop),
+                          const SizedBox(height: 28),
+                          Text(title,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.4)),
+                          const SizedBox(height: 12),
+                          Text(text,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color: Colors.white.withOpacity(0.65),
+                                  fontSize: 14.5,
+                                  height: 1.8)),
+                        ],
+                      ),
                     ),
                   );
                 },

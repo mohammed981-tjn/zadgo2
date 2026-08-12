@@ -10,6 +10,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/app_skeletons.dart';
+import '../../widgets/complaint_window.dart';
 import 'order_receipt_screen.dart';
 import 'order_map_screen.dart';
 import 'order_chat_screen.dart';
@@ -57,6 +58,11 @@ class MyOrdersScreen extends StatelessWidget {
                     _OrdersList(
                       orders: active,
                       emptyTitle: 'لا يوجد طلبات جارية',
+                      // أحدث طلب جارٍ يتصدّر ببطاقة تتبّع حيّة بدل بطاقة
+                      // عادية: هذه أكثر شاشة يحدّق فيها العميل، وكانت
+                      // تعطيه شريط مراحل مجرداً بينما وعدُ الصفحة الرئيسية
+                      // «موقع مندوبك أولاً بأول».
+                      heroFirst: true,
                     ),
                     _OrdersList(
                       orders: past,
@@ -76,7 +82,12 @@ class MyOrdersScreen extends StatelessWidget {
 class _OrdersList extends StatelessWidget {
   final List<Order> orders;
   final String emptyTitle;
-  const _OrdersList({required this.orders, required this.emptyTitle});
+  final bool heroFirst;
+  const _OrdersList({
+    required this.orders,
+    required this.emptyTitle,
+    this.heroFirst = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -84,9 +95,335 @@ class _OrdersList extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: orders.length,
-      itemBuilder: (_, i) => _OrderCard(order: orders[i]),
+      itemBuilder: (_, i) => heroFirst && i == 0
+          ? _LiveTrackingCard(order: orders[i])
+          : _OrderCard(order: orders[i]),
     );
   }
+}
+
+/// بطاقة التتبّع الحيّة — واجهة الانتظار بنمط التطبيقات العالمية.
+///
+/// المبدأ: المنتظِر لا يريد اسم حالة، يريد جواب ثلاثة أسئلة — **ماذا يحدث
+/// الآن؟ وكم بقي؟ وأين مندوبي؟** فالبطاقة تجيبها بالترتيب:
+///   • عنوان بشري بلغة الناس لا بمصطلح النظام.
+///   • الوقت المتوقع **مدىً لا رقماً** (وعدٌ بدقيقة بعينها يُخلَف)، ولا
+///     يظهر إلا بعد أن يتحرّك الكابتن فعلاً — قبلها تخمينٌ في وقت المطبخ.
+///   • شريط طريق يتقدّم فيه رمز الكابتن بنسبة ما قطعه حقيقةً من إحداثياته.
+///   • بطاقة الكابتن باسمه وتقييمه (إن قيّمه أحد) وزرَّي الاتصال والمحادثة.
+///
+/// بلا خريطة داخل البطاقة عمداً: بلاطات الخرائط حِملٌ ثقيل على شبكة جوّال
+/// ضعيفة، ومن ينتظر لا يريد شكل الشوارع بل كم بقي — والخريطة الكاملة على
+/// بُعد ضغطة لمن أرادها.
+class _LiveTrackingCard extends StatelessWidget {
+  final Order order;
+  const _LiveTrackingCard({required this.order});
+
+  /// ماذا يحدث الآن — بلغة الناس.
+  (String, String) get _headline => switch (order.status) {
+        OrderStatus.created ||
+        OrderStatus.restaurantPending =>
+          ('أرسلنا طلبك للمطعم', 'ننتظر تأكيده — عادةً خلال دقائق'),
+        OrderStatus.restaurantAccepted =>
+          ('المطعم قَبِل طلبك', 'سيبدأ التحضير الآن'),
+        OrderStatus.preparing =>
+          ('طلبك قيد التحضير', 'رائحته تفوح من المطبخ 👨‍🍳'),
+        OrderStatus.readyForPickup ||
+        OrderStatus.searchingDriver =>
+          ('طلبك جاهز', 'نبحث عن كابتن قريب ليأخذه'),
+        OrderStatus.driverAssigned =>
+          ('الكابتن في طريقه للمطعم', 'سيستلم طلبك ثم ينطلق إليك'),
+        OrderStatus.pickedUp ||
+        OrderStatus.onTheWay =>
+          ('الكابتن في الطريق إليك', 'استعدّ لاستلام طلبك 🛵'),
+        _ => (order.status.label, ''),
+      };
+
+  /// نسبة ما قُطع من الطريق — من المسافتين الحقيقيتين لا من الحالة.
+  double? _progress(Driver d) {
+    if (order.restaurantLat == null ||
+        order.deliveryLat == null ||
+        d.lat == null ||
+        d.lng == null) {
+      return null;
+    }
+    final total = haversineDistanceKm(order.restaurantLat!,
+        order.restaurantLng!, order.deliveryLat!, order.deliveryLng!);
+    if (total <= 0.05) return 1;
+    final left = haversineDistanceKm(
+        d.lat!, d.lng!, order.deliveryLat!, order.deliveryLng!);
+    return (1 - (left / total)).clamp(0.0, 1.0);
+  }
+
+  double? _remainingKm(Driver d) {
+    if (order.deliveryLat == null || d.lat == null || d.lng == null) {
+      return null;
+    }
+    return haversineDistanceKm(
+        d.lat!, d.lng!, order.deliveryLat!, order.deliveryLng!);
+  }
+
+  /// مدى زمني من المسافة — بسرعة مدينية متحفّظة (٢٠ كم/س) وهامش ٥ دقائق
+  /// للتسليم. مدىً لا رقم: الدقيقة الواحدة وعدٌ يُخلَف.
+  String _eta(double km) {
+    final mins = (km / 20 * 60).round();
+    final lo = (mins + 2).clamp(3, 90);
+    final hi = (mins + 8).clamp(6, 120);
+    return '$lo–$hi دقيقة';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    final st = order.status;
+    final (title, subtitle) = _headline;
+    final hasDriver = (order.driverId ?? '').isNotEmpty;
+    final moving =
+        st == OrderStatus.pickedUp || st == OrderStatus.onTheWay;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [st.color.withOpacity(0.14), st.color.withOpacity(0.04)],
+        ),
+        border: Border.all(color: st.color.withOpacity(0.45), width: 1.2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle, color: st.color.withOpacity(0.18)),
+              child: Icon(st.icon, size: 20, color: st.color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: st.color)),
+                    if (subtitle.isNotEmpty)
+                      Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 12.5, color: AppColors.textGray)),
+                  ]),
+            ),
+            Text('#${order.orderNumber}',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 14),
+
+          // الجزء الحيّ — لا يُشترك في تدفّق السائق إلا عند وجوده فعلاً.
+          if (hasDriver)
+            StreamBuilder<Driver?>(
+              stream: service.streamDriver(order.driverId!),
+              builder: (ctx, snap) {
+                final d = snap.data;
+                if (d == null) return const SizedBox.shrink();
+                final km = moving ? _remainingKm(d) : null;
+                final p = moving ? _progress(d) : null;
+                return Column(children: [
+                  if (km != null)
+                    Row(children: [
+                      const Icon(Icons.schedule_rounded,
+                          size: 17, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Text(_eta(km),
+                          style: const TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryDark)),
+                      const SizedBox(width: 10),
+                      Text('يبعد عنك ${km.toStringAsFixed(1)} كم',
+                          style: const TextStyle(
+                              fontSize: 12.5, color: AppColors.textGray)),
+                    ]),
+                  if (p != null) ...[
+                    const SizedBox(height: 10),
+                    _RoadBar(progress: p),
+                  ],
+                  const SizedBox(height: 12),
+                  _DriverStrip(driver: d, order: order),
+                ]);
+              },
+            )
+          else
+            OrderTrackingTimeline(status: st),
+
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => OrderMapScreen(order: order))),
+                icon: const Icon(Icons.map_outlined, size: 18),
+                label: const Text('الخريطة'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => OrderReceiptScreen(order: order))),
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: const Text('الفاتورة'),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+/// شريط الطريق: المطعم ← رمز الكابتن عند نسبة ما قطعه ← بيتك.
+class _RoadBar extends StatelessWidget {
+  final double progress;
+  const _RoadBar({required this.progress});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (ctx, c) {
+          final w = c.maxWidth;
+          // الاتجاه من اليمين لليسار: المطعم يمين والبيت يسار، موافقةً
+          // لاتجاه القراءة العربية — عكسه يجعل التقدّم يبدو تراجعاً.
+          final x = (w - 30) * (1 - progress);
+          return SizedBox(
+            height: 46,
+            child: Stack(children: [
+              Positioned(
+                top: 13,
+                right: 4,
+                left: 4,
+                child: Container(
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 13,
+                right: 4,
+                child: Container(
+                  height: 6,
+                  width: (w - 8) * progress,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOut,
+                top: 0,
+                left: x,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                          color: AppColors.primary.withOpacity(0.4),
+                          blurRadius: 8),
+                    ],
+                  ),
+                  child: const Icon(Icons.delivery_dining,
+                      size: 18, color: Colors.white),
+                ),
+              ),
+              const Positioned(
+                bottom: 0,
+                right: 2,
+                child: Text('المطعم',
+                    style:
+                        TextStyle(fontSize: 10.5, color: AppColors.textGray)),
+              ),
+              const Positioned(
+                bottom: 0,
+                left: 2,
+                child: Text('موقعك',
+                    style:
+                        TextStyle(fontSize: 10.5, color: AppColors.textGray)),
+              ),
+            ]),
+          );
+        },
+      );
+}
+
+/// شريط الكابتن: اسمه وتقييمه وتوصيلاته، واتصال ومحادثة. التقييم يظهر فقط
+/// إن قيّمه أحد فعلاً — «٥٫٠» لكابتن لم يقيّمه أحد وعدٌ لا يسنده شيء.
+class _DriverStrip extends StatelessWidget {
+  final Driver driver;
+  final Order order;
+  const _DriverStrip({required this.driver, required this.order});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
+        ),
+        child: Row(children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.primary.withOpacity(0.12),
+            child: const Icon(Icons.delivery_dining,
+                color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(driver.name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(
+                    driver.ratingCount > 0
+                        ? '⭐ ${driver.rating.toStringAsFixed(1)} · ${driver.totalDeliveries} توصيلة'
+                        : 'كابتن جديد · ${driver.totalDeliveries} توصيلة',
+                    style: const TextStyle(
+                        fontSize: 11.5, color: AppColors.textGray),
+                  ),
+                ]),
+          ),
+          IconButton(
+            tooltip: 'محادثة',
+            icon: const Icon(Icons.chat_bubble_outline,
+                color: AppColors.secondary),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
+          ),
+          if (driver.phone.trim().isNotEmpty)
+            IconButton(
+              tooltip: 'اتصال',
+              icon: const Icon(Icons.phone, color: AppColors.success),
+              onPressed: () => callPhone(context, driver.phone),
+            ),
+        ]),
+      );
 }
 
 class _OrderCard extends StatelessWidget {
@@ -97,165 +434,271 @@ class _OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     final auth = context.read<app_auth.AuthProvider>();
-    return Card(
+    final st = order.status;
+    final time =
+        '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}';
+
+    // بطاقة بمستوى بطاقة عرض الكابتن (ملاحظة المالك «التصميم فقير»):
+    // رأس ملوّن بحالة الطلب، ملخص أصناف يحيي البطاقة، والأفعال حبوب
+    // مدمجة في صف واحد بدل أزرار عريضة متراصة تُطيل البطاقة وتُفقرها.
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: st.color.withOpacity(0.35)),
+        boxShadow: const [
+          BoxShadow(color: AppColors.cardShadow, blurRadius: 10),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              // رقم الطلب يفتح الفاتورة التفصيلية — أوضح مدخل يبحث عنه
-              // العميل («وين أشوف فاتورتي؟»).
-              InkWell(
-                onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => OrderReceiptScreen(order: order))),
-                borderRadius: BorderRadius.circular(6),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('#${order.orderNumber}',
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.receipt_long_outlined,
-                      size: 16, color: AppColors.textGray),
-                ]),
-              ),
-              const Spacer(),
-              if (order.status == OrderStatus.pickedUp ||
-                  order.status == OrderStatus.onTheWay) ...[
-                // الاتصال بالسائق — متاح بعد استلامه الطلب من المطعم فقط،
-                // وهي الفترة التي قد يحتاج فيها الطرفان التواصل المباشر.
-                if (order.driverPhone != null && order.driverPhone!.isNotEmpty)
-                  IconButton(
-                    icon: const Icon(Icons.phone, color: AppColors.success),
-                    onPressed: () => callPhone(context, order.driverPhone),
-                    tooltip: 'الاتصال بالسائق',
-                  ),
-                if (order.driverId != null)
-                  IconButton(
-                    icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
-                    onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
-                    tooltip: 'محادثة السائق',
-                  ),
-                if (order.restaurantLat != null || order.deliveryLat != null)
-                  IconButton(
-                    icon: const Icon(Icons.map_outlined, color: AppColors.secondary),
-                    onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
-                    tooltip: 'عرض الخريطة',
-                  ),
-              ],
-              StatusBadge(
-                  label: order.status.label,
-                  color: order.status.color,
-                  icon: order.status.icon),
-            ]),
-            InfoRow(icon: Icons.restaurant_outlined, text: order.restaurantName),
-            InfoRow(
-                icon: Icons.access_time,
-                text:
-                    '${order.createdAt.day}/${order.createdAt.month} ${order.createdAt.hour}:${order.createdAt.minute.toString().padLeft(2, '0')}'),
-            OrderTrackingTimeline(status: order.status),
-            const Divider(),
-            Text(formatCurrency(order.payableTotal),
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.primary)),
-            // إعادة الطلب بضغطة — أرخص ميزة تزيد تكرار الشراء (معيار جاهز/
-            // كيتا): تُبنى السلة من القائمة الحالية للمطعم (أسعار وتوفّر
-            // اليوم)، ويُبلَّغ العميل بما لم يعد متوفراً بدل فشل صامت.
-            if (!order.status.isActive)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.replay_rounded, size: 18),
-                    label: const Text('اطلب مجدداً'),
-                    onPressed: () => _reorder(context),
-                  ),
+            Container(
+              width: double.infinity,
+              color: st.color.withOpacity(0.10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: st.color.withOpacity(0.18)),
+                  child: Icon(st.icon, size: 15, color: st.color),
                 ),
-              ),
-            if (order.status == OrderStatus.delivered && !order.isRated)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => _showRateDialog(context, service, order),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
-                    child: const Text('قيّم الطلب'),
-                  ),
+                const SizedBox(width: 8),
+                Text(st.label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                        color: st.color)),
+                const Spacer(),
+                // رقم الطلب يفتح الفاتورة التفصيلية — أوضح مدخل يبحث عنه
+                // العميل («وين أشوف فاتورتي؟»).
+                InkWell(
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => OrderReceiptScreen(order: order))),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('#${order.orderNumber}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 12.5)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.receipt_long_outlined,
+                        size: 15, color: AppColors.textGray),
+                  ]),
                 ),
-              ),
-            if (order.isRated && order.customerRating != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(children: [
-                  const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
-                  const SizedBox(width: 4),
-                  Text('تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
-                ]),
-              ),
-            // إلغاء الطلب — متاح للعميل فقط قبل أن يبدأ المطعم التحضير؛ بعدها
-            // يصبح الإلغاء إدارياً (المطعم بدأ يتكبّد التكلفة).
-            if (order.canCustomerCancel)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.cancel_outlined, size: 18),
-                    label: const Text('إلغاء الطلب'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
-                    ),
-                    onPressed: () => _cancelOrder(context, service),
-                  ),
-                ),
-              )
-            else if (order.status.isActive)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(children: [
-                  const Icon(Icons.info_outline, size: 15, color: AppColors.textGray),
-                  const SizedBox(width: 6),
-                  const Expanded(
-                    child: Text('بدأ تحضير طلبك — للإلغاء تواصل مع الإدارة',
-                        style: TextStyle(fontSize: 12, color: AppColors.textGray)),
-                  ),
-                ]),
-              ),
-            // الشكوى: زر واضح بدل أيقونة غامضة. تبقى متاحة بعد التسليم خلال
-            // مهلة 24 ساعة (وقت اكتشاف النقص/الخطأ/الجودة)، ثم يُغلق الطلب.
+              ]),
+            ),
             Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: order.canSubmitComplaint
-                  ? SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.report_problem_outlined, size: 18),
-                        label: Text(_complaintLabel()),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.warning,
-                          side: const BorderSide(color: AppColors.warning),
-                        ),
-                        onPressed: () => _openComplaint(context, auth),
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Icon(Icons.storefront_rounded,
+                        size: 16, color: AppColors.textGray),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(order.restaurantName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    Text(time,
+                        style: const TextStyle(
+                            fontSize: 11.5, color: AppColors.textGray)),
+                  ]),
+                  if (order.items.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      order.items
+                          .map((i) => '${i.name} ×${i.quantity}')
+                          .join('، '),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textGray,
+                          height: 1.5),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  OrderTrackingTimeline(status: order.status),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    )
-                  : Row(children: [
-                      const Icon(Icons.lock_outline, size: 15, color: AppColors.textGray),
-                      const SizedBox(width: 6),
-                      const Text('انتهت مهلة تقديم الشكوى',
-                          style: TextStyle(fontSize: 12, color: AppColors.textGray)),
-                    ]),
+                      child: Text(formatCurrency(order.payableTotal),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: AppColors.primaryDark)),
+                    ),
+                    const Spacer(),
+                    // أفعال المتابعة الحية — أثناء ما الطلب بيد السائق فقط.
+                    if (st == OrderStatus.pickedUp ||
+                        st == OrderStatus.onTheWay) ...[
+                      if (order.driverPhone != null &&
+                          order.driverPhone!.isNotEmpty)
+                        _roundAction(Icons.phone, AppColors.success,
+                            () => callPhone(context, order.driverPhone)),
+                      if (order.driverId != null)
+                        _roundAction(
+                            Icons.chat_bubble_outline,
+                            AppColors.secondary,
+                            () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        OrderChatScreen(order: order)))),
+                      if (order.restaurantLat != null ||
+                          order.deliveryLat != null)
+                        _roundAction(
+                            Icons.map_outlined,
+                            AppColors.secondary,
+                            () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        OrderMapScreen(order: order)))),
+                    ],
+                  ]),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    // إعادة الطلب بضغطة — أرخص ميزة تزيد تكرار الشراء.
+                    if (!order.status.isActive)
+                      _pill(
+                        icon: Icons.replay_rounded,
+                        label: 'اطلب مجدداً',
+                        color: AppColors.dark,
+                        filled: true,
+                        onTap: () => _reorder(context),
+                      ),
+                    if (order.status == OrderStatus.delivered &&
+                        !order.isRated)
+                      _pill(
+                        icon: Icons.star_rounded,
+                        label: 'قيّم الطلب',
+                        color: AppColors.warning,
+                        filled: true,
+                        onTap: () =>
+                            _showRateDialog(context, service, order),
+                      ),
+                    // الإلغاء متاح قبل بدء التحضير فقط؛ بعدها إداري.
+                    if (order.canCustomerCancel)
+                      _pill(
+                        icon: Icons.cancel_outlined,
+                        label: 'إلغاء الطلب',
+                        color: AppColors.error,
+                        onTap: () => _cancelOrder(context, service),
+                      ),
+                    // الشكوى بعدّادها الحي — الساعات الأخيرة بالأحمر.
+                    ComplaintWindow(
+                      order: order,
+                      builder: (context, left, canSubmit) {
+                        if (!canSubmit) return const SizedBox.shrink();
+                        final urgent = left != null && left.inHours < 3;
+                        final color =
+                            urgent ? AppColors.error : AppColors.warning;
+                        return _pill(
+                          icon: urgent
+                              ? Icons.timer_outlined
+                              : Icons.report_problem_outlined,
+                          label: left == null
+                              ? 'شكوى'
+                              : 'شكوى — ${formatRemaining(left)}',
+                          color: color,
+                          onTap: () => _openComplaint(context, auth),
+                        );
+                      },
+                    ),
+                  ]),
+                  if (order.isRated && order.customerRating != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(children: [
+                        const Icon(Icons.star_rounded,
+                            color: Colors.amber, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                            'تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textGray)),
+                      ]),
+                    ),
+                  if (order.status.isActive && !order.canCustomerCancel)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Text(
+                          'بدأ تحضير طلبك — للإلغاء تواصل مع الإدارة',
+                          style: TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray)),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  /// زر دائري مصغّر لأفعال المتابعة الحية — بدل IconButton الافتراضي
+  /// الفضفاض الذي يوسّع الصف بلا داع.
+  Widget _roundAction(IconData icon, Color color, VoidCallback onTap) =>
+      Padding(
+        padding: const EdgeInsetsDirectional.only(start: 6),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+                shape: BoxShape.circle, color: color.withOpacity(0.12)),
+            child: Icon(icon, size: 18, color: color),
+          ),
+        ),
+      );
+
+  /// حبّة فعل مدمجة — أفعال البطاقة كلها بهذا الشكل فلا تتكدس أزرار
+  /// عريضة تحت بعضها (سبب «التصميم الفقير» الذي لاحظه المالك).
+  Widget _pill({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    bool filled = false,
+  }) =>
+      Material(
+        color: filled ? color : color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 16, color: filled ? Colors.white : color),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: filled ? Colors.white : color)),
+            ]),
+          ),
+        ),
+      );
 
   Future<void> _reorder(BuildContext context) async {
     final service = context.read<FirebaseService>();
@@ -358,16 +801,6 @@ class _OrderCard extends StatelessWidget {
         showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
       }
     }
-  }
-
-  /// نص زر الشكوى — يُظهر ما تبقّى من المهلة على الطلبات المنتهية حتى يعرف
-  /// العميل أن الوقت محدود، بدل أن يفاجئه الإغلاق.
-  String _complaintLabel() {
-    final left = order.complaintTimeLeft;
-    if (left == null) return 'تقديم شكوى';
-    final hours = left.inHours;
-    if (hours >= 1) return 'تقديم شكوى (متبقٍ $hours ساعة)';
-    return 'تقديم شكوى (متبقٍ ${left.inMinutes} دقيقة)';
   }
 
   void _openComplaint(BuildContext context, app_auth.AuthProvider auth) {

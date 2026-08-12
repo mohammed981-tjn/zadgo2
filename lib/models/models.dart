@@ -429,6 +429,12 @@ class AppUser {
   final double walletBalance;
   final List<SavedAddress> savedAddresses;
 
+  /// كود التسجيل الذي مُنح به هذا الدور — يُكتب لحظة الإنشاء ليتحقّق منه
+  /// حارس القواعد. بدونه كان أي مستخدم يُنشئ مستنده بدور `admin` فيصير
+  /// مديراً عاماً على كل شيء (القاعدة كانت تفحص الرصيد ولا تفحص الدور).
+  /// فارغ لحسابات العملاء — دور العميل لا يحتاج كوداً.
+  final String registrationCode;
+
   const AppUser({
     required this.uid,
     required this.name,
@@ -443,6 +449,7 @@ class AppUser {
     this.nationalId,
     this.walletBalance = 0.0,
     this.savedAddresses = const [],
+    this.registrationCode = '',
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -461,6 +468,7 @@ class AppUser {
         savedAddresses: ((map['savedAddresses'] as List?) ?? [])
             .map((e) => SavedAddress.fromMap((e as Map).cast<String, dynamic>()))
             .toList(),
+        registrationCode: map['registrationCode'] as String? ?? '',
       );
 
   Map<String, dynamic> toMap() => {
@@ -476,6 +484,7 @@ class AppUser {
         'isActive': isActive,
         'walletBalance': walletBalance,
         'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
+        'registrationCode': registrationCode,
       };
 
   AppUser copyWith({
@@ -857,6 +866,40 @@ class Driver {
   final int offersTotal;
   final int offersAccepted;
 
+  /// كود الداعي الذي أدخله هذا السائق عند تسجيله — أساس برنامج الإحالة.
+  /// كان البرنامج نصَّ مشاركة بلا أي حقل يسجّل «من دعا من»، فالتتبّع في
+  /// ذاكرة المدير وحدها: لا منع ازدواج ولا تحقّق من الشرط.
+  final String referredByCode;
+
+  /// هل صُرفت مكافأة إحالة هذا السائق (للداعي وله)؟ يمنع الصرف مرتين.
+  final bool referralRewarded;
+
+  /// مفتاح آخر نافذة تحدٍّ صُرفت له (yyyy-MM-dd لأول أيامها). حارسُ التكرار:
+  /// بدونه كان الصرف اليدوي يعتمد على انتباه المدير، وأي أتمتة كانت
+  /// ستدفع المكافأة مع كل تحديث للشاشة.
+  final String lastChallengeWindow;
+
+  /// تاريخ الانضمام — تُحسب منه نافذة شرط الإحالة (٣٠ يوماً افتراضياً).
+  final DateTime? createdAt;
+
+  /// عدد الطلبات الجارية بيده الآن، و«مرساة العنقود»: نقطة مطعم أول طلب في
+  /// حمولته الحالية (طلب المالك ٢٠٢٦-٠٨-١١: «ثلاث طلبات في نطاق مطاعم
+  /// قريبة وليست بعيدة»).
+  ///
+  /// **يكتبها تطبيق الكابتن على مستنده هو** لا تطبيق المطعم: القواعد
+  /// المنشورة تسمح لغير العميل بتعديل حقل `isAvailable` وحده على مستند
+  /// سائق آخر، فلو كتبها المطعم لرُفضت الدفعة كلها وسقط الإسناد. وجهاز
+  /// الكابتن يعرف حمولته من تدفّق طلباته أصلاً، فهو مصدرها الطبيعي —
+  /// ومصالحة الإدارة تصحّحها إن بات جهازه مغلقاً وتقادمت.
+  final int activeOrders;
+  final double? clusterLat;
+  final double? clusterLng;
+
+  /// كود إحالة السائق الذي يشاركه مع من يدعوهم. مشتقّ من معرّفه لا مخزَّن:
+  /// لا مجموعة جديدة ولا خطر تعارض، وثابت مدى الحياة.
+  String get referralCode =>
+      id.length >= 6 ? id.substring(0, 6).toUpperCase() : id.toUpperCase();
+
   /// معدل القبول 0..1 — null قبل أول عرض حتى لا يُعرض «0٪» ظلماً.
   double? get acceptanceRate =>
       offersTotal > 0 ? offersAccepted / offersTotal : null;
@@ -881,6 +924,13 @@ class Driver {
     this.warningCount = 0,
     this.offersTotal = 0,
     this.offersAccepted = 0,
+    this.referredByCode = '',
+    this.referralRewarded = false,
+    this.lastChallengeWindow = '',
+    this.createdAt,
+    this.activeOrders = 0,
+    this.clusterLat,
+    this.clusterLng,
   });
 
   factory Driver.fromMap(Map<String, dynamic> map, String id) => Driver(
@@ -903,6 +953,13 @@ class Driver {
         warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
         offersTotal: (map['offersTotal'] as num?)?.toInt() ?? 0,
         offersAccepted: (map['offersAccepted'] as num?)?.toInt() ?? 0,
+        referredByCode: map['referredByCode'] as String? ?? '',
+        referralRewarded: map['referralRewarded'] as bool? ?? false,
+        lastChallengeWindow: map['lastChallengeWindow'] as String? ?? '',
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+        activeOrders: (map['activeOrders'] as num?)?.toInt() ?? 0,
+        clusterLat: (map['clusterLat'] as num?)?.toDouble(),
+        clusterLng: (map['clusterLng'] as num?)?.toDouble(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -925,7 +982,286 @@ class Driver {
         'warningCount': warningCount,
         'offersTotal': offersTotal,
         'offersAccepted': offersAccepted,
+        'referredByCode': referredByCode,
+        'referralRewarded': referralRewarded,
+        'lastChallengeWindow': lastChallengeWindow,
+        if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
+        'activeOrders': activeOrders,
+        if (clusterLat != null) 'clusterLat': clusterLat,
+        if (clusterLng != null) 'clusterLng': clusterLng,
       };
+}
+
+/// مستوى واحد في تحدي نهاية الأسبوع: عدد توصيلات ومكافأتها.
+class ChallengeTier {
+  final int deliveries;
+  final double bonus;
+
+  const ChallengeTier({required this.deliveries, required this.bonus});
+
+  factory ChallengeTier.fromMap(Map<String, dynamic> m) => ChallengeTier(
+        deliveries: (m['deliveries'] as num?)?.toInt() ?? 0,
+        bonus: (m['bonus'] as num?)?.toDouble() ?? 0,
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'deliveries': deliveries, 'bonus': bonus};
+}
+
+/// إعدادات الحوافز — كل مبلغ وكل شرط يضبطه المدير من لوحته، فلا رقم
+/// مبرمَج في الكود يحتاج إصداراً جديداً لتغييره. الافتراضيات هنا هي
+/// المعتمدة عند أول تشغيل (قبل أن يحفظ المدير إعداداته).
+///
+/// المبالغ الافتراضية محسوبة على اقتصاد ZadGo: كل توصيلة تُدخل للمنصّة
+/// رسمها الثابت (3 ر.س)، فشرط 30 توصيلة يعني 90 ر.س دخلاً قبل صرف 80 ر.س
+/// مكافآت — أي أن الإحالة مربحة من أول سائق.
+class IncentiveSettings {
+  // ————— برنامج الإحالة —————
+  final bool referralEnabled;
+
+  /// مكافأة الداعي، وتُصرف بعد أن يُكمل المدعوّ شرط التوصيلات.
+  final double referrerBonus;
+
+  /// مكافأة ترحيب للمدعوّ نفسه بنفس الشرط.
+  final double refereeBonus;
+
+  /// عدد التوصيلات المطلوب من المدعوّ خلال [referralWindowDays] يوماً.
+  /// الشرط جوهر البرنامج: الدفع على سائق يعمل فعلاً لا على تسجيل.
+  final int referralDeliveries;
+  final int referralWindowDays;
+
+  /// سقف الإحالات المدفوعة للداعي الواحد شهرياً — يمنع تحوّل البرنامج
+  /// إلى مهنة قائمة بذاتها.
+  final int referralMonthlyCap;
+
+  // ————— سقف الإسناد المتزامن —————
+  //
+  // ليسا حافزين، لكن مكانهما هنا بقرار هندسي: قواعد Firestore المنشورة
+  // تقصر قراءة `delivery_settings/config` على المدير وحده، بينما مستند
+  // `incentives` يقرؤه **أي مسجَّل** — وهذان الرقمان يقرؤهما تطبيقا المطعم
+  // (وهو من يُسند) والكابتن. وضعهما في `config` كان يعني أن يقرأهما أحد
+  // إطلاقاً فيعملان بالافتراضي أبداً، ويصيران رقمين مبرمَجين تحايلاً على
+  // بند ج١ لا التزاماً به.
+  //
+  /// أقصى عدد طلبات متزامنة للكابتن الواحد — حدٌّ صارم لا يُخترق.
+  final int maxOrdersPerDriver;
+
+  /// نطاق «العنقود»: أقصى مسافة بين مطعم الطلب الجديد ومطعم أول طلب في
+  /// حمولة الكابتن حتى يُضمّ إليها — «مطاعم قريبة وليست بعيدة».
+  final double stackRadiusKm;
+
+  /// نسبة تعويض المطعم عن طلبٍ أُلغي بعد بدء تحضيره (١٠٠٪ افتراضاً —
+  /// المعيار العالمي). صفر يعني «لا تعويض».
+  final double restaurantCancelCompensationPercent;
+
+  // ————— تحدي نهاية الأسبوع —————
+  final bool challengeEnabled;
+
+  /// أيام التحدي بترقيم DateTime (الاثنين 1 … الأحد 7)؛ الافتراضي
+  /// الخميس (4) والجمعة (5) — نهاية الأسبوع السعودية وذروة الطلب.
+  final List<int> challengeWeekdays;
+
+  /// مستويات تصاعدية؛ يُصرف للسائق **أعلى** مستوى بلغه لا مجموعها.
+  final List<ChallengeTier> tiers;
+
+  /// الصرف التلقائي فور تحقّق الشرط — بلا ضغطة المدير على كل مستحقّ.
+  ///
+  /// حدوده يجب أن تكون معلومة: التطبيق بلا Cloud Functions، فالمسح يجري
+  /// من **تطبيق الإدارة وهو مفتوح على شاشة الحوافز**. أي أن الصرف يقع
+  /// خلال دقائق من فتحك الشاشة لا في اللحظة نفسها. الأتمتة الكاملة على
+  /// الخادم تنتظر ترقية Blaze (المسار د).
+  ///
+  /// الصرف المزدوج ممتنع في الحالتين: الإحالة تُختم بـ referralRewarded،
+  /// والتحدي بـ lastChallengeWindow على مستند السائق.
+  final bool autoPay;
+
+  /// رابط صفحة التسجيل التي يفتحها كود الدعوة — يُلحَق به `?ref=CODE`.
+  /// صفحة ويب لا شاشة في التطبيق: المدعوّ يرفع فيها مستنداته (الإقامة
+  /// ورخصة القيادة والاستمارة والتأمين وصور المركبة)، ورفعُ الملفات من
+  /// التطبيق يتطلّب Firebase Storage الموقوف على ترقية Blaze.
+  final String joinUrl;
+
+  const IncentiveSettings({
+    this.referralEnabled = true,
+    this.referrerBonus = 50,
+    this.refereeBonus = 30,
+    this.referralDeliveries = 30,
+    this.referralWindowDays = 30,
+    this.referralMonthlyCap = 3,
+    this.maxOrdersPerDriver = 3,
+    this.stackRadiusKm = 2.0,
+    this.restaurantCancelCompensationPercent = 100,
+    this.challengeEnabled = true,
+    this.challengeWeekdays = const [DateTime.thursday, DateTime.friday],
+    this.tiers = const [
+      ChallengeTier(deliveries: 10, bonus: 20),
+      ChallengeTier(deliveries: 20, bonus: 50),
+    ],
+    this.autoPay = false,
+    this.joinUrl = 'https://zadgo.co/join',
+  });
+
+  factory IncentiveSettings.fromMap(Map<String, dynamic> map) {
+    const d = IncentiveSettings();
+    final rawTiers = map['tiers'];
+    final rawDays = map['challengeWeekdays'];
+    return IncentiveSettings(
+      referralEnabled: map['referralEnabled'] as bool? ?? d.referralEnabled,
+      referrerBonus:
+          (map['referrerBonus'] as num?)?.toDouble() ?? d.referrerBonus,
+      refereeBonus:
+          (map['refereeBonus'] as num?)?.toDouble() ?? d.refereeBonus,
+      referralDeliveries:
+          (map['referralDeliveries'] as num?)?.toInt() ?? d.referralDeliveries,
+      referralWindowDays: (map['referralWindowDays'] as num?)?.toInt() ??
+          d.referralWindowDays,
+      referralMonthlyCap: (map['referralMonthlyCap'] as num?)?.toInt() ??
+          d.referralMonthlyCap,
+      maxOrdersPerDriver:
+          (map['maxOrdersPerDriver'] as num?)?.toInt() ?? d.maxOrdersPerDriver,
+      stackRadiusKm:
+          (map['stackRadiusKm'] as num?)?.toDouble() ?? d.stackRadiusKm,
+      restaurantCancelCompensationPercent:
+          (map['restaurantCancelCompensationPercent'] as num?)?.toDouble() ??
+              d.restaurantCancelCompensationPercent,
+      challengeEnabled: map['challengeEnabled'] as bool? ?? d.challengeEnabled,
+      challengeWeekdays: rawDays is List && rawDays.isNotEmpty
+          ? rawDays.map((e) => (e as num).toInt()).toList()
+          : d.challengeWeekdays,
+      tiers: rawTiers is List && rawTiers.isNotEmpty
+          ? (rawTiers
+              .whereType<Map>()
+              .map((e) => ChallengeTier.fromMap(e.cast<String, dynamic>()))
+              .where((t) => t.deliveries > 0)
+              .toList()
+            ..sort((a, b) => a.deliveries.compareTo(b.deliveries)))
+          : d.tiers,
+      autoPay: map['autoPay'] as bool? ?? d.autoPay,
+      joinUrl: (map['joinUrl'] as String?)?.trim().isNotEmpty == true
+          ? (map['joinUrl'] as String).trim()
+          : d.joinUrl,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'referralEnabled': referralEnabled,
+        'referrerBonus': referrerBonus,
+        'refereeBonus': refereeBonus,
+        'referralDeliveries': referralDeliveries,
+        'referralWindowDays': referralWindowDays,
+        'referralMonthlyCap': referralMonthlyCap,
+        'maxOrdersPerDriver': maxOrdersPerDriver,
+        'stackRadiusKm': stackRadiusKm,
+        'restaurantCancelCompensationPercent':
+            restaurantCancelCompensationPercent,
+        'challengeEnabled': challengeEnabled,
+        'challengeWeekdays': challengeWeekdays,
+        'tiers': tiers.map((t) => t.toMap()).toList(),
+        'autoPay': autoPay,
+        'joinUrl': joinUrl,
+      };
+
+  IncentiveSettings copyWith({
+    bool? referralEnabled,
+    double? referrerBonus,
+    double? refereeBonus,
+    int? referralDeliveries,
+    int? referralWindowDays,
+    int? referralMonthlyCap,
+    int? maxOrdersPerDriver,
+    double? stackRadiusKm,
+    double? restaurantCancelCompensationPercent,
+    bool? challengeEnabled,
+    List<int>? challengeWeekdays,
+    List<ChallengeTier>? tiers,
+    bool? autoPay,
+    String? joinUrl,
+  }) =>
+      IncentiveSettings(
+        referralEnabled: referralEnabled ?? this.referralEnabled,
+        referrerBonus: referrerBonus ?? this.referrerBonus,
+        refereeBonus: refereeBonus ?? this.refereeBonus,
+        referralDeliveries: referralDeliveries ?? this.referralDeliveries,
+        referralWindowDays: referralWindowDays ?? this.referralWindowDays,
+        referralMonthlyCap: referralMonthlyCap ?? this.referralMonthlyCap,
+        maxOrdersPerDriver: maxOrdersPerDriver ?? this.maxOrdersPerDriver,
+        stackRadiusKm: stackRadiusKm ?? this.stackRadiusKm,
+        restaurantCancelCompensationPercent:
+            restaurantCancelCompensationPercent ??
+                this.restaurantCancelCompensationPercent,
+        challengeEnabled: challengeEnabled ?? this.challengeEnabled,
+        challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
+        tiers: tiers ?? this.tiers,
+        autoPay: autoPay ?? this.autoPay,
+        joinUrl: joinUrl ?? this.joinUrl,
+      );
+
+  /// أعلى مستوى بلغه سائق أنجز [count] توصيلة — `null` إن لم يبلغ أدناها.
+  ChallengeTier? tierFor(int count) {
+    ChallengeTier? reached;
+    for (final t in tiers) {
+      if (count >= t.deliveries) reached = t;
+    }
+    return reached;
+  }
+
+  /// المستوى التالي الذي يسعى إليه — `null` إن بلغ أعلاها.
+  ChallengeTier? nextTierFor(int count) {
+    for (final t in tiers) {
+      if (count < t.deliveries) return t;
+    }
+    return null;
+  }
+
+  /// نافذة التحدي الحالية (بدايتها ونهايتها) المحيطة بـ [now]، أو `null`
+  /// حين لا تكون أيام التحدي جارية. الأيام المتتالية تُعدّ نافذة واحدة
+  /// (الخميس والجمعة معاً)، فيُحسب التقدّم عبر اليومين لا لكل يوم وحده.
+  (DateTime, DateTime)? currentWindow(DateTime now) {
+    if (!challengeEnabled || challengeWeekdays.isEmpty || tiers.isEmpty) {
+      return null;
+    }
+    if (!challengeWeekdays.contains(now.weekday)) return null;
+    var start = DateTime(now.year, now.month, now.day);
+    // التراجع لأول يوم متصل بأيام التحدي حتى تُحسب نافذة واحدة ممتدة.
+    while (challengeWeekdays
+        .contains(start.subtract(const Duration(days: 1)).weekday)) {
+      start = start.subtract(const Duration(days: 1));
+    }
+    var end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    while (challengeWeekdays.contains(end.add(const Duration(days: 1)).weekday)) {
+      end = end.add(const Duration(days: 1));
+    }
+    return (start, end);
+  }
+
+  /// مفتاح النافذة المخزَّن على مستند السائق لمنع تكرار الصرف.
+  static String windowKey(DateTime start) =>
+      '${start.year}-${start.month.toString().padLeft(2, '0')}-'
+      '${start.day.toString().padLeft(2, '0')}';
+
+  /// رابط دعوة يحمل كود الداعي — يفتحه المدعوّ فيسجّل ويرفق مستنداته،
+  /// فيصل الكود مع البيانات بلا اعتماد على تذكّره كتابته يدوياً.
+  String inviteLinkFor(String referralCode) {
+    final base = joinUrl.trim();
+    if (base.isEmpty) return '';
+    return base.contains('?')
+        ? '$base&ref=$referralCode'
+        : '$base?ref=$referralCode';
+  }
+
+  /// أسماء أيام التحدي للعرض.
+  String get weekdaysLabel {
+    const names = {
+      DateTime.monday: 'الاثنين',
+      DateTime.tuesday: 'الثلاثاء',
+      DateTime.wednesday: 'الأربعاء',
+      DateTime.thursday: 'الخميس',
+      DateTime.friday: 'الجمعة',
+      DateTime.saturday: 'السبت',
+      DateTime.sunday: 'الأحد',
+    };
+    return challengeWeekdays.map((d) => names[d] ?? '').join(' و');
+  }
 }
 
 /// دفعة تسوية سُلّمت لمطعم مقابل مستحقّاته.
@@ -1485,6 +1821,20 @@ class Order {
   /// ٧:٣٥ = التأخير من المطعم لا من السائق.
   final DateTime? arrivedAtRestaurantAt;
 
+  /// تعويض المطعم عن طلبٍ أُلغي **بعد أن بدأ تحضيره** — صفرٌ في كل ما
+  /// عداه. المعيار العالمي (يوبر إيتس ودور داش): المطعم يُدفع له كاملاً
+  /// متى قبل الطلب وطبخه ولم يكن الإلغاء بسببه، فتكلفة الطعام وقعت فعلاً
+  /// ولا ذنب له فيها. النسبة يضبطها المدير (`restaurantCancelCompensationPercent`،
+  /// ١٠٠٪ افتراضاً) — لا رقم مبرمَج (بند ج١).
+  final double restaurantCompensation;
+
+  /// لحظة تأكيد **المطعم** تسليمَ الطلب للكابتن — الوجه الثاني للاستلام
+  /// (طلب المالك ٢٠٢٦-٠٨-١١): ضغطة الكابتن وحدها إقرارُ طرفٍ واحد، فإن
+  /// أنكر المطعم التسليم أو ادّعى تأخّر الكابتن لم يكن في السجل ما يفصل.
+  /// الحالة لا تتغيّر بهذه الضغطة — الانتقال يبقى بيد الكابتن كما هو —
+  /// وإنما تُختم لحظةُ التسليم من طرف المطعم لتظهر في الفاتورة كإثبات.
+  final DateTime? restaurantHandoverAt;
+
   /// كود الخصم المطبَّق على الطلب (إن وُجد) وقيمة خصمه بالريال. القيمة
   /// تُحفظ محسوبةً لا كنسبة، فتبقى الفاتورة صحيحة حتى لو عُدّل الكوبون
   /// أو حُذف لاحقاً.
@@ -1528,6 +1878,8 @@ class Order {
     this.driverAcknowledged = true,
     this.custodyDebited = false,
     this.arrivedAtRestaurantAt,
+    this.restaurantHandoverAt,
+    this.restaurantCompensation = 0,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -1559,12 +1911,13 @@ class Order {
 
   double get calculatedCommission => itemsTotal * 0.15;
 
-  /// عمولة الوجبات **للتقارير**: المخزَّنة إن وُجدت، وإلا محسوبةً بالقاعدة
-  /// المعتمدة (15%). الطلبات التي أُنشئت قبل تثبيت قاعدة التسعير (أو من
-  /// لوحة الويب) تحمل platformCommission = 0، فكان تقرير الإدارة يجمعها
-  /// أصفاراً ويُظهر دخل المنصّة شبه معدوم (37 ر.س على مبيعات 1370).
-  double get effectiveCommission =>
-      platformCommission > 0 ? platformCommission : calculatedCommission;
+  /// عمولة الوجبات **للتقارير**: تُحسب دائماً بالقاعدة المعتمدة (15% من
+  /// قيمة الوجبات) وتتجاهل المخزَّن كلياً. كانت تفضّل المخزَّن إن كان
+  /// موجباً، لكن الطلبات المنشأة من لوحة الويب أو قبل تثبيت قاعدة التسعير
+  /// تحمل قيماً صغيرة موجبة خاطئة، فظهر لمطعمٍ «عمولة (15%) = 2.82» على
+  /// مبيعات 114 — والقاعدة ثابتة لا مخصصة لكل طلب، فالحساب المباشر هو
+  /// الصحيح دوماً. platformCommission يبقى مخزَّناً كأثر تدقيق فقط.
+  double get effectiveCommission => calculatedCommission;
 
   /// رسم التوصيل الثابت **للتقارير**: المخزَّن إن وُجد، وإلا القيمة المعتمدة
   /// حالياً — لنفس سبب [effectiveCommission] (طلبات قديمة بـ appShare = 0
@@ -1657,6 +2010,10 @@ class Order {
         custodyDebited: map['custodyDebited'] as bool? ?? false,
         arrivedAtRestaurantAt:
             (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
+        restaurantHandoverAt:
+            (map['restaurantHandoverAt'] as Timestamp?)?.toDate(),
+        restaurantCompensation:
+            (map['restaurantCompensation'] as num?)?.toDouble() ?? 0,
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -1700,6 +2057,9 @@ class Order {
         'custodyDebited': custodyDebited,
         if (arrivedAtRestaurantAt != null)
           'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
+        if (restaurantHandoverAt != null)
+          'restaurantHandoverAt': Timestamp.fromDate(restaurantHandoverAt!),
+        'restaurantCompensation': restaurantCompensation,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -1719,6 +2079,8 @@ class Order {
     bool? isRated,
     String? rejectionReason,
     bool? driverAcknowledged,
+    double? restaurantLat,
+    double? restaurantLng,
   }) =>
       Order(
         id: id,
@@ -1749,14 +2111,16 @@ class Order {
         platformCommission: platformCommission ?? this.platformCommission,
         deliveryLat: deliveryLat,
         deliveryLng: deliveryLng,
-        restaurantLat: restaurantLat,
-        restaurantLng: restaurantLng,
+        restaurantLat: restaurantLat ?? this.restaurantLat,
+        restaurantLng: restaurantLng ?? this.restaurantLng,
         rejectionReason: rejectionReason ?? this.rejectionReason,
         paymentId: paymentId,
         walletUsed: walletUsed,
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
         custodyDebited: custodyDebited,
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
+        restaurantHandoverAt: restaurantHandoverAt,
+        restaurantCompensation: restaurantCompensation,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );
@@ -2118,6 +2482,11 @@ class RegistrationCode {
   /// المولّدة قبل هذه الميزة).
   final DateTime? expiresAt;
 
+  /// كود الكابتن الداعي، يُحمَّل على كود التسجيل حين يُولَّد من طلب انضمام
+  /// جاء عبر رابط إحالة. يلتقطه التطبيق تلقائياً عند التسجيل، فلا تضيع
+  /// الإحالة لأن المتقدّم نسي نقل كود الداعي بيده.
+  final String referredByCode;
+
   const RegistrationCode({
     required this.code,
     required this.role,
@@ -2129,6 +2498,7 @@ class RegistrationCode {
     this.usedByUid,
     this.usedByName,
     this.expiresAt,
+    this.referredByCode = '',
   });
 
   bool get isExpired =>
@@ -2149,6 +2519,7 @@ class RegistrationCode {
         usedByUid: map['usedByUid'] as String?,
         usedByName: map['usedByName'] as String?,
         expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
+        referredByCode: map['referredByCode'] as String? ?? '',
       );
 
   Map<String, dynamic> toMap() => {
@@ -2162,8 +2533,141 @@ class RegistrationCode {
         'usedByUid': usedByUid,
         'usedByName': usedByName,
         if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
+        'referredByCode': referredByCode,
       };
 }
+
+/// طلب انضمام كابتن — يُملأ في صفحة التسجيل على الويب (zadgo.co/join)
+/// وتُرفع فيه المستندات، ويراجعه المدير من تطبيقه قبل إصدار كود التسجيل.
+///
+/// لماذا مجموعة مستقلة لا حساب مباشر: القبول قرار إداري بعد فحص مستندات
+/// نظامية (هيئة النقل)، لا تسجيل ذاتي. ولماذا الرفع على الويب: رفع
+/// الملفات يتطلّب Firebase Storage الموقوف على ترقية Blaze، بينما
+/// الاستضافة على zadgo.co تقبله اليوم — والتطبيق يعرض الصور بروابطها.
+class DriverApplication {
+  final String id;
+  final String name;
+  final String phone;
+  final String email;
+  final String nationalId;
+  final String vehicleType;
+  final String vehiclePlate;
+  final String referredByCode;
+
+  /// المستندات: المفتاح اسمه المعياري أدناه، والقيمة إما رابط صورة (http)
+  /// أو معرّف مستند Blob في `driver_application_docs` — التطبيق يفرّق
+  /// بينهما بـstartsWith('http')، فانتقال /join إلى Storage بعد Blaze لا
+  /// يغيّر هذا النموذج بحرف.
+  final Map<String, String> documents;
+
+  /// صور المركبة (أربع جهات) — قائمة مستقلة لأنها متعددة.
+  final List<String> vehiclePhotos;
+
+  final DriverApplicationStatus status;
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+  final String reviewNote;
+
+  /// كود التسجيل الصادر عند القبول — يبقى ظاهراً للمدير ليعيد إرساله.
+  final String issuedCode;
+
+  const DriverApplication({
+    required this.id,
+    required this.name,
+    this.phone = '',
+    this.email = '',
+    this.nationalId = '',
+    this.vehicleType = '',
+    this.vehiclePlate = '',
+    this.referredByCode = '',
+    this.documents = const {},
+    this.vehiclePhotos = const [],
+    this.status = DriverApplicationStatus.pending,
+    required this.createdAt,
+    this.reviewedAt,
+    this.reviewNote = '',
+    this.issuedCode = '',
+  });
+
+  /// المستندات المطلوبة نظاميّاً بأسمائها المعروضة — الترتيب هو ترتيب
+  /// المراجعة. وثيقة العمل الحر للسعوديين، وتفويض القيادة لمن ليست
+  /// المركبة باسمه، فقد يغيبان بلا خلل.
+  static const docLabels = <String, String>{
+    'id': 'الهوية / الإقامة',
+    'license': 'رخصة القيادة',
+    'registration': 'الاستمارة (رخصة السير)',
+    'insurance': 'وثيقة التأمين',
+    'freelanceDoc': 'وثيقة العمل الحر',
+    'criminalRecord': 'شهادة خلو السوابق',
+    'drivingAuth': 'تفويض القيادة',
+  };
+
+  /// المستندات الإلزامية على الجميع — نقصها يُعرض تحذيراً للمدير قبل
+  /// القبول، ولا يمنعه (قد يقبل بمستند وصل عبر واتساب).
+  static const requiredDocs = ['id', 'license', 'registration', 'insurance'];
+
+  List<String> get missingRequired => requiredDocs
+      .where((k) => (documents[k] ?? '').trim().isEmpty)
+      .toList();
+
+  factory DriverApplication.fromMap(Map<String, dynamic> map, String id) {
+    final rawDocs = map['documents'];
+    final rawPhotos = map['vehiclePhotos'];
+    return DriverApplication(
+      id: id,
+      name: map['name'] as String? ?? '',
+      phone: map['phone'] as String? ?? '',
+      email: map['email'] as String? ?? '',
+      nationalId: map['nationalId'] as String? ?? '',
+      vehicleType: map['vehicleType'] as String? ?? '',
+      vehiclePlate: map['vehiclePlate'] as String? ?? '',
+      referredByCode:
+          (map['referredByCode'] as String? ?? '').trim().toUpperCase(),
+      documents: rawDocs is Map
+          ? {
+              for (final e in rawDocs.entries)
+                if (e.value is String && (e.value as String).trim().isNotEmpty)
+                  e.key.toString(): (e.value as String).trim(),
+            }
+          : const {},
+      vehiclePhotos: rawPhotos is List
+          ? rawPhotos
+              .whereType<String>()
+              .where((u) => u.trim().isNotEmpty)
+              .toList()
+          : const [],
+      status: _applicationStatusFromString(map['status'] as String?),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      reviewedAt: (map['reviewedAt'] as Timestamp?)?.toDate(),
+      reviewNote: map['reviewNote'] as String? ?? '',
+      issuedCode: map['issuedCode'] as String? ?? '',
+    );
+  }
+}
+
+enum DriverApplicationStatus { pending, approved, rejected }
+
+extension DriverApplicationStatusX on DriverApplicationStatus {
+  String get label => switch (this) {
+        DriverApplicationStatus.pending => 'بانتظار المراجعة',
+        DriverApplicationStatus.approved => 'مقبول',
+        DriverApplicationStatus.rejected => 'مرفوض',
+      };
+
+  Color get color => switch (this) {
+        DriverApplicationStatus.pending => const Color(0xFFFF9800),
+        DriverApplicationStatus.approved => const Color(0xFF4CAF50),
+        DriverApplicationStatus.rejected => const Color(0xFFE53935),
+      };
+}
+
+DriverApplicationStatus _applicationStatusFromString(String? raw) =>
+    _enumValueFromString<DriverApplicationStatus>(
+      raw,
+      DriverApplicationStatus.values,
+      DriverApplicationStatus.pending,
+      'DriverApplicationStatus',
+    );
 /// بنر ترويجي أعلى شاشة مطاعم العميل — عروض، مطاعم جديدة، إعلانات موسمية.
 ///
 /// الصورة رابط خارجي (المكان الطبيعي: zadgo.co/images — استبدال الملف

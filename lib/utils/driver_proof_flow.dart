@@ -27,6 +27,15 @@ import 'location_guard.dart';
 class DriverProofFlow {
   DriverProofFlow._();
 
+  /// رسالة منع نطاق المطعم تُذيَّل بتفسير الاحتمال الأرجح حين يكون الكابتن
+  /// واقفاً عند المطعم فعلاً: النقطة المسجّلة على الخريطة خاطئة (حدث بعد
+  /// تعديل موقع فرعَي فطير ستيشن ٢٠٢٦-٠٨-١١، فبدا العطل وكأنه في التطبيق).
+  /// بلا هذا التذييل يقرأ الكابتن «أنت بعيد» وهو يرى لافتة المطعم أمامه،
+  /// فلا يعرف ماذا يفعل ولا تصل الإدارة أي إشارة إلى أن النقطة تحتاج تصحيحاً.
+  static String _restaurantRangeHint(String err) =>
+      '$err\n\nإن كنت عند المطعم الآن فموقعه المسجّل على الخريطة غير صحيح — '
+      'أبلغ الإدارة لتصحيحه من لوحة التحكم.';
+
   /// التقاط صورة من الكاميرا مضغوطة. `null` إن ألغى السائق التصوير.
   static Future<Uint8List?> _capturePhoto() async {
     try {
@@ -69,13 +78,16 @@ class DriverProofFlow {
     FirebaseService service,
     Order order,
   ) async {
+    // إحداثيات المطعم الحيّة لا لقطة الطلب — موقع صحّحه المدير بعد إنشاء
+    // الطلب يجب أن يحكم النطاق، وإلا رُفض سائق واقف أمام المطعم الفعلي.
+    order = await service.withLiveRestaurantCoords(order);
     final err = await LocationGuard.checkNear(
       targetLat: order.restaurantLat,
       targetLng: order.restaurantLng,
       targetLabel: 'المطعم',
     );
     if (err != null) {
-      if (context.mounted) showError(context, err);
+      if (context.mounted) showError(context, _restaurantRangeHint(err));
       return false;
     }
     try {
@@ -98,14 +110,31 @@ class DriverProofFlow {
     FirebaseService service,
     Order order,
   ) async {
+    // نفس مبدأ recordArrival: النطاق يُقاس على موقع المطعم الحالي لا لقطته.
+    order = await service.withLiveRestaurantCoords(order);
     final err = await LocationGuard.checkNear(
       targetLat: order.restaurantLat,
       targetLng: order.restaurantLng,
       targetLabel: 'المطعم',
     );
     if (err != null) {
-      if (context.mounted) showError(context, err);
+      if (context.mounted) showError(context, _restaurantRangeHint(err));
       return false;
+    }
+
+    // كابتنٌ اجتاز الحارس هو كابتنٌ **واصل** — فإن لم يكن سجّل وصوله
+    // (والزرّان معروضان معاً فقد يقفز مباشرةً للاستلام)، يُختم له الآن.
+    //
+    // بلا هذا يبقى `arrivedAtRestaurantAt` فارغاً، فلا يفتح زرّ «سلّمتُ
+    // الطلب» عند المطعم أبداً ويضيع إقرار الطرف الثاني — وهي فجوةٌ
+    // أحدثها شرطُ المالك نفسه (٢٠٢٦-٠٨-١٢) لو تُركت بلا سدّ.
+    //
+    // «أطلِق وانسَ»: ختمٌ إحصائي فائت لا يجوز أن يمنع استلاماً صحيحاً.
+    if (order.arrivedAtRestaurantAt == null) {
+      LocationGuard.currentPosition().then((p) {
+        service.recordArrivalAtRestaurant(
+            order: order, lat: p.latitude, lng: p.longitude);
+      }).catchError((_) {});
     }
 
     if (!context.mounted) return false;

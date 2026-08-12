@@ -16,6 +16,7 @@ import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import 'admin_incentives_screen.dart' show DriverReferralCodeChip;
 
 /// تصدير دفتر سائق واحد إلى Excel — لتسليمه إياه عند التسوية أو لمراجعة
 /// محاسبية خارج التطبيق. الأعمدة بأسماء سجلّ الحركات نفسها.
@@ -117,6 +118,9 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                     Text('${d.totalDeliveries} توصيلة • صُرف له '
                         '${formatCurrency(d.totalEarnings)}',
                         style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                    const SizedBox(height: 8),
+                    // كود إحالته — يسأل عنه السائق أحياناً عبر الهاتف.
+                    DriverReferralCodeChip(driver: d),
                   ],
                 ),
               ),

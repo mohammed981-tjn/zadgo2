@@ -65,11 +65,46 @@ jobs:
       - name: Verify Flutter installation
         run: flutter doctor -v
 
+      # رقم الإصدار يتصاعد مع كل بناء (رقم التشغيل): أندرويد يرفض تثبيت
+      # نسخة برقم أقدم، وكان الرقم مثبَّتاً على 1 في كل بناء فلا يميّز
+      # النظام جديداً من قديم — ومتجر جوجل يرفض رفع نسخة برقم مكرّر.
       - name: Create android/local.properties
+        shell: bash
         run: |
-          echo "flutter.versionCode=1" > android/local.properties
-          echo "flutter.versionName=2.0.0" >> android/local.properties
+          # اسم الإصدار من pubspec لا رقماً مكرّراً هنا — مصدر واحد للحقيقة،
+          # فلا يتخلّف الرقم المعروض للمستخدم عن الرقم المعلَن في المشروع.
+          VER=$(grep '^version:' pubspec.yaml | head -1 | sed 's/version:[[:space:]]*//' | cut -d'+' -f1 | tr -d '[:space:]')
+          [ -z "$VER" ] && VER=4.0.0
+          echo "flutter.versionCode=${{ github.run_number }}" > android/local.properties
+          echo "flutter.versionName=$VER" >> android/local.properties
           echo "flutter.sdk=$FLUTTER_ROOT" >> android/local.properties
+          # يُحقن في الشيفرة أيضاً لتقارن به بوابة الحدّ الأدنى للإصدار.
+          echo "APP_VERSION=$VER" >> "$GITHUB_ENV"
+          echo "إصدار البناء: $VER (رمز ${{ github.run_number }})"
+
+      # بصمة التوقيع الثابتة — سببُ رفض التحديثات سابقاً.
+      #
+      # بلا مفتاح إصدار كان Gradle يوقّع بمفتاح التصحيح (debug)، وخادم
+      # البناء يولّد مفتاح تصحيح **جديداً في كل تشغيل**. فكل APK يحمل بصمة
+      # مختلفة، وأندرويد يرفض تحديثاً ببصمة تخالف المثبَّت («لم يتم تثبيت
+      # التطبيق») — فلا سبيل للتحديث إلا بحذف النسخة القديمة كل مرة.
+      #
+      # المفتاح يصل من أسرار المستودع لا من الشيفرة (ملف .jks لا يُودَع
+      # إطلاقاً). وإن لم يُضبط السرّ يعمل البناء بالسلوك القديم بدل أن
+      # يفشل — فلا ينكسر شيء قبل ضبط الأسرار.
+      - name: Decode release keystore
+        shell: bash
+        env:
+          KS: ${{ secrets.ZADGO_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KS" ]; then
+            echo "::warning::لا مفتاح إصدار مضبوط — التوقيع بمفتاح التصحيح، والتحديثات فوق نسخة سابقة ستُرفض"
+            exit 0
+          fi
+          echo "$KS" | base64 -d > android/zadgo-release.jks
+          # يُمرَّر لخطوة البناء عبر البيئة، فيلتقطه build.gradle.
+          echo "ZADGO_KEYSTORE_FILE=zadgo-release.jks" >> "$GITHUB_ENV"
+          echo "✅ مفتاح الإصدار جاهز ($(wc -c < android/zadgo-release.jks) بايت)"
 
       - name: Deep clean before build
         run: |
@@ -105,12 +140,49 @@ jobs:
         # Cloudflare Worker) — يُضبط كمتغيّر مستودع (Variables لا Secrets،
         # فهو ليس سراً). إن لم يُضبط تُتجاهل نداءات الإشعارات بصمت ويعمل
         # التطبيق كالسابق. راجع server/README-ar.md.
+        #
+        # --obfuscate + --split-debug-info (طلب المالك ٢٠٢٦-٠٨-١٢):
+        # شيفرة Dart تُترجَم أصلاً إلى لغة الآلة في بناء الإصدار، لكن
+        # **أسماء** الأصناف والدوال تبقى في الحزمة، وأدوات معروفة تستخرج
+        # منها هيكل التطبيق كاملاً. هذان الخياران يستبدلان الأسماء برموز
+        # بلا معنى، ويُخرجان جدول الترجمة إلى ملفات symbols تُرفع أثراً
+        # منفصلاً — فمن فكّ الحزمة وجد رموزاً، ومن يملك الملفات وحده
+        # يقرأ آثار الانهيار.
         run: >
           flutter build apk --release --no-shrink
+          --obfuscate --split-debug-info=build/symbols/${{ matrix.flavor }}
           --flavor ${{ matrix.flavor }}
           -t lib/main_${{ matrix.flavor }}.dart
           --dart-define=MOYASAR_PUBLISHABLE_KEY=${{ secrets.MOYASAR_PUBLISHABLE_KEY }}
           --dart-define=ZADGO_NOTIFY_URL=${{ vars.ZADGO_NOTIFY_URL }}
+          --dart-define=APP_VERSION=${{ env.APP_VERSION }}
+        env:
+          # build.gradle يقرأ هذه المتغيّرات حين لا يوجد key.properties،
+          # فيوقّع بمفتاح الإصدار الثابت. ZADGO_KEYSTORE_FILE تضبطه خطوة
+          # فكّ المفتاح أعلاه، ووجودها كلها شرط التوقيع بمفتاح الإصدار —
+          # وإلا عاد لمفتاح التصحيح كما كان.
+          ZADGO_KEYSTORE_PASSWORD: ${{ secrets.ZADGO_KEYSTORE_PASSWORD }}
+          ZADGO_KEY_ALIAS: ${{ secrets.ZADGO_KEY_ALIAS }}
+          ZADGO_KEY_PASSWORD: ${{ secrets.ZADGO_KEY_PASSWORD }}
+
+      # تأكيد البصمة في السجلّ: لو عاد التوقيع لمفتاح التصحيح يوماً يظهر
+      # هنا فوراً بدل أن يُكتشف بفشل تثبيت على جهاز المالك.
+      - name: Verify APK signature
+        if: always()
+        shell: bash
+        run: |
+          APK=$(find build -name "*-release.apk" -type f 2>/dev/null | head -1)
+          if [ -z "$APK" ]; then
+            echo "لا يوجد APK للفحص"
+            exit 0
+          fi
+          BT=$(ls "$ANDROID_HOME/build-tools/" 2>/dev/null | sort -V | tail -1)
+          if [ -z "$BT" ]; then
+            echo "apksigner غير متاح — تُخطّى"
+            exit 0
+          fi
+          "$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs "$APK" \
+            | grep -iE "certificate DN|SHA-256 digest" || true
 
       - name: Final APK search
         if: always()
@@ -125,3 +197,15 @@ jobs:
             android/app/build/outputs/apk/${{ matrix.flavor }}/release/app-${{ matrix.flavor }}-release.apk
           if-no-files-found: warn
           retention-days: 7
+
+      # جدول ترجمة الرموز — بدونه تصير آثار الانهيار في Crashlytics رموزاً
+      # لا تُقرأ. يُحفظ ٩٠ يوماً (أطول من الحزمة نفسها) لأن انهياراً يظهر
+      # بعد أسابيع يحتاج جدول **نسخته هو** لا الأحدث:
+      #   flutter symbolize -i <stack.txt> -d build/symbols/<flavor>/app.android-arm64.symbols
+      - name: Upload debug symbols (${{ matrix.flavor }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: zadgo-${{ matrix.flavor }}-symbols
+          path: build/symbols/${{ matrix.flavor }}
+          if-no-files-found: warn
+          retention-days: 90

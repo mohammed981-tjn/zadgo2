@@ -23,6 +23,7 @@ import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/complaint_window.dart';
 import '../auth/login_screen.dart';
 import '../auth/change_password_screen.dart';
 import '../customer/submit_complaint_screen.dart';
@@ -431,7 +432,21 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       case OrderStatus.preparing:
         return ('جاري التحضير', AppColors.primary, Icons.restaurant_rounded);
       case OrderStatus.readyForPickup:
-        return ('جاهز — بانتظار استلام السائق', Colors.teal, Icons.shopping_bag_rounded);
+        // بلاغ المالك ٢٠٢٦-٠٨-١٢: البطاقة كانت تقول «بانتظار استلام
+        // السائق» بينما تحتها ختمُ «سلّمتُ الطلب للسائق» — سطران
+        // متناقضان ظاهرياً في بطاقة واحدة، فظنّ المالك أن الكابتن أكّد
+        // استلامه من بُعد وأن حارس المئة متر انخرم.
+        //
+        // ولا تناقض في الحقيقة: ختمُ المطعم إقرارٌ من طرفه وحده ولا
+        // يغيّر الحالة (وهذا مقصود — ضغطة المطعم لا تُثبت استلاماً لم
+        // يقع)، والحالة لا تنتقل إلا بتأكيد الكابتن وهو محكومٌ بالحارس.
+        // فالعلّة في **الصياغة** لا في المنطق: العنوان الآن يقول أي
+        // الطرفين أقرّ وأيّهما ينتظر.
+        return widget.order.restaurantHandoverAt == null
+            ? ('جاهز — بانتظار استلام السائق', Colors.teal,
+                Icons.shopping_bag_rounded)
+            : ('سلّمته — بانتظار تأكيد الكابتن', Colors.teal,
+                Icons.hourglass_bottom_rounded);
       case OrderStatus.restaurantRejected:
         return ('تم رفض الطلب', AppColors.error, Icons.block_rounded);
       case OrderStatus.searchingDriver:
@@ -445,13 +460,28 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     }
   }
 
+  /// العمر وحده لا يكفي (بلاغ المالك ٢٠٢٦-٠٨-١١): «منذ ٤٠ د» تُخبر المطبخ
+  /// كم انتظر الطلب، لكنها لا تُطابَق مع شاشة الكابتن ولا تصلح في مراجعة
+  /// نزاع تأخير — فأُضيفت الساعة، والتاريخ حين يكون الطلب من يوم سابق.
   String _waitingLabel() {
-    final elapsed = DateTime.now().difference(widget.order.createdAt);
-    if (elapsed.inMinutes < 1) return 'منذ لحظات';
-    if (elapsed.inMinutes < 60) return 'منذ ${elapsed.inMinutes} د';
-    final hours = elapsed.inHours;
-    final mins = elapsed.inMinutes % 60;
-    return mins == 0 ? 'منذ $hours س' : 'منذ $hours س $mins د';
+    final t = widget.order.createdAt;
+    final now = DateTime.now();
+    final elapsed = now.difference(t);
+    final String age;
+    if (elapsed.inMinutes < 1) {
+      age = 'منذ لحظات';
+    } else if (elapsed.inMinutes < 60) {
+      age = 'منذ ${elapsed.inMinutes} د';
+    } else {
+      final hours = elapsed.inHours;
+      final mins = elapsed.inMinutes % 60;
+      age = mins == 0 ? 'منذ $hours س' : 'منذ $hours س $mins د';
+    }
+    final clock =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    final sameDay = t.year == now.year && t.month == now.month && t.day == now.day;
+    final stamp = sameDay ? clock : '${t.day}/${t.month} — $clock';
+    return '$stamp ($age)';
   }
 
   Future<void> _call(BuildContext context, String phone) async {
@@ -472,7 +502,14 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     setState(() => _actionLoading = true);
     try {
       await widget.service.updateOrderStatus(widget.order.id, OrderStatus.restaurantAccepted);
-      await widget.service.tryAutoAssignOnAcceptance(widget.order);
+      final assigned =
+          await widget.service.tryAutoAssignOnAcceptance(widget.order);
+      // إخفاق الإسناد لحظة القبول لم يعد صامتاً أيضاً (كان الصمت هنا يخفي
+      // العطل حتى لحظة الجهوزية، فيظن المطعم أن كابتناً في الطريق).
+      if (!assigned && context.mounted) {
+        showError(context,
+            'قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة');
+      }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
     } finally {
@@ -484,9 +521,43 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     setState(() => _actionLoading = true);
     try {
       await widget.service.updateOrderStatus(widget.order.id, OrderStatus.readyForPickup);
-      await widget.service.retryAutoAssignIfNeeded(widget.order);
+      // الحالة تُقرأ من القاعدة لا من لقطة الشاشة: لقطة قديمة قد تحمل
+      // driverId لسائقٍ رفض الطلب بعدها، فيظن الجهاز أن الإسناد قائم
+      // ويصمت (بلاغ المالك: طلبات مطعم لم تصل أي سائق).
+      final fresh = await widget.service.getOrderOnce(widget.order.id);
+      final assigned =
+          await widget.service.retryAutoAssignIfNeeded(fresh ?? widget.order);
+      if (!assigned && context.mounted) {
+        // إخفاق الإسناد لم يعد صامتاً: المطعم يعرف أن الطلب ينتظر تدخّل
+        // الإدارة بدل أن يظنّ سائقاً في طريقه إليه.
+        showError(context,
+            'الطلب جاهز، لكن لا يوجد كابتن متاح الآن — أبلغنا الإدارة وستتولّى الإسناد');
+      }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+    } finally {
+      if (mounted) setState(() => _actionLoading = false);
+    }
+  }
+
+  Future<void> _confirmHandover(BuildContext context) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'تسليم الطلب للسائق',
+      content: 'هل سلّمتَ الطلب #${widget.order.orderNumber} للكابتن الآن؟\n\n'
+          'سيُسجَّل وقت التسليم من طرفك في الفاتورة — وهو إثباتك إن نشأ '
+          'خلاف حول موعد الاستلام.',
+      confirmLabel: 'سلّمتُه الآن',
+    );
+    if (ok != true) return;
+    setState(() => _actionLoading = true);
+    try {
+      await widget.service.confirmRestaurantHandover(widget.order.id);
+      if (context.mounted) showSuccess(context, 'سُجّل تسليمك للطلب');
+    } catch (e) {
+      if (context.mounted) {
+        showError(context, e.toString().replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -573,24 +644,37 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           ),
           const Spacer(),
           // ✅ زر الشكوى — المطعم يقدّم شكوى ضد السائق أو العميل من هنا،
-          // ويختفي بعد انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
-          if (order.canSubmitComplaint)
-            IconButton(
-              icon: const Icon(Icons.report_problem_outlined, color: AppColors.warning, size: 20),
-              tooltip: 'تقديم شكوى',
-              visualDensity: VisualDensity.compact,
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SubmitComplaintScreen(
-                    order: order,
-                    submittedByUid: auth.user?.uid ?? '',
-                    submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
-                    submittedByRole: UserRole.restaurantManager,
+          // ويختفي في لحظة انتهاء مهلة الشكوى (24 ساعة من إنهاء الطلب).
+          // المتبقّي يظهر في التلميح، ويصير أحمر في ساعاته الثلاث الأخيرة
+          // حتى لا تفوت المطعمَ نافذةُ الاعتراض على طلبٍ فيه إشكال.
+          ComplaintWindow(
+            order: order,
+            builder: (context, left, canSubmit) {
+              if (!canSubmit) return const SizedBox.shrink();
+              final urgent = left != null && left.inHours < 3;
+              return IconButton(
+                icon: Icon(
+                    urgent ? Icons.timer_outlined : Icons.report_problem_outlined,
+                    color: urgent ? AppColors.error : AppColors.warning,
+                    size: 20),
+                tooltip: left == null
+                    ? 'تقديم شكوى'
+                    : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SubmitComplaintScreen(
+                      order: order,
+                      submittedByUid: auth.user?.uid ?? '',
+                      submittedByName: auth.user?.restaurantName ?? auth.user?.name ?? '',
+                      submittedByRole: UserRole.restaurantManager,
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            },
+          ),
         ]),
         const SizedBox(height: 10),
         Row(children: [
@@ -731,6 +815,46 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             onPressed: () => _confirmReady(context),
           ),
         ],
+        // إقرار الطرف الثاني بالتسليم (طلب المالك ٢٠٢٦-٠٨-١١): الطلب كان
+        // يبقى «جاهز — بانتظار استلام السائق» حتى بعد أن يأخذه الكابتن،
+        // فلا يملك المطعم ما يُثبت أنه سلّمه. الضغطة **لا تغيّر الحالة**
+        // (الانتقال بيد الكابتن كما هو — ضغطة المطعم لا تُثبت استلاماً لم
+        // يقع)، بل تختم لحظة التسليم من طرفه فيصير في الطلب إقرار طرفين
+        // يظهر في الفاتورة ويُحتكم إليه في نزاع «سلّمتُه»/«لم يصلني».
+        //
+        // وقرار المالك ٢٠٢٦-٠٨-١٢: **لا يُضغط الزر إلا بعد أن يصل الكابتن
+        // فعلاً**. وإلا صار إقراراً بلا واقعة: مطعمٌ يضغطه والكيس ما زال
+        // على الرفّ يُنتج «إثباتاً» يناقض الحقيقة — وإثباتٌ يكذب أسوأ من
+        // لا إثبات، لأنه يُحتكم إليه في النزاع.
+        //
+        // والمرجع هو ختم وصول الكابتن (`arrivedAtRestaurantAt`) لا موقعه
+        // اللحظي: ذاك ختمٌ مرّ بحارس المئة متر وقت وقوعه، والموقع اللحظي
+        // قد يكون متقادماً دقائق فيقبل من ليس هناك أو يرفض من هو هناك.
+        //
+        // والزر لا يُخفى بل يُقفَل ويشرح — قاعدة اعتُمدت بعد عطل «الكابتن
+        // لا يجد زرّ الاستلام»: الحجب الصامت في الواجهة يُقرأ عطلاً في
+        // التطبيق لا شرطاً غير مستوفٍ.
+        if (order.status == OrderStatus.readyForPickup) ...[
+          const SizedBox(height: 10),
+          if (order.restaurantHandoverAt != null)
+            _HandoverStamp(at: order.restaurantHandoverAt!)
+          else if (order.arrivedAtRestaurantAt == null)
+            const _LockedHandoverHint()
+          else
+            _ActionButton(
+              label: 'سلّمتُ الطلب للسائق',
+              color: Colors.teal,
+              loading: _actionLoading,
+              onPressed: () => _confirmHandover(context),
+            ),
+        ],
+        // بعد أن يؤكد الكابتن استلامه، يبقى ختم المطعم ظاهراً كإثبات.
+        if (order.status.index >= OrderStatus.pickedUp.index &&
+            order.status.isActive &&
+            order.restaurantHandoverAt != null) ...[
+          const SizedBox(height: 10),
+          _HandoverStamp(at: order.restaurantHandoverAt!),
+        ],
       ]),
     );
 
@@ -754,6 +878,69 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         child: child,
       ),
       child: cardContent,
+    );
+  }
+}
+
+/// الزرّ مقفلاً قبل وصول الكابتن — يشرح سببه بدل أن يختفي.
+///
+/// الاختفاء الصامت كان درساً مكلفاً في تطبيق الكابتن: زرٌّ غائب يُقرأ
+/// «التطبيق خربان» فيُتصل بالإدارة، بينما زرٌّ مقفلٌ بسطر تفسير يُقرأ
+/// «انتظر خطوةً واحدة» فينتظر.
+class _LockedHandoverHint extends StatelessWidget {
+  const _LockedHandoverHint();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Row(children: [
+          const Icon(Icons.lock_clock_rounded,
+              size: 18, color: AppColors.textGray),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'زرّ «سلّمتُ الطلب» يفتح فور تسجيل الكابتن وصوله للمطعم — '
+              'فالإقرار لا يسبق الواقعة.',
+              style: TextStyle(fontSize: 12, color: AppColors.textGray),
+            ),
+          ),
+        ]),
+      );
+}
+
+/// ختم «سلّمتُه» — يحلّ محل الزر بعد الضغط، بالساعة لا بكلمة مجردة: الوقت
+/// هو محل النزاع لا واقعة التسليم نفسها.
+class _HandoverStamp extends StatelessWidget {
+  final DateTime at;
+  const _HandoverStamp({required this.at});
+
+  @override
+  Widget build(BuildContext context) {
+    final clock =
+        '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.success.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.success.withOpacity(0.5)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.verified_rounded, size: 18, color: AppColors.success),
+        const SizedBox(width: 8),
+        Text('سلّمتَ الطلب للسائق — $clock',
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.success)),
+      ]),
     );
   }
 }

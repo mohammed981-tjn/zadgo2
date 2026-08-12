@@ -20,6 +20,15 @@ dependencies:
   # معاً — تغيير واسع لا مبرّر له لإضافة التخزين وحده.
   firebase_storage: 12.3.6
 
+  # تسجيل الانهيارات — مجاني بالكامل على خطة Spark (لا علاقة له بـBlaze).
+  #
+  # مثبّت على 4.1.5 بالتحقّق لا بالتخمين: هو **آخر** إصدار يشترط
+  # `firebase_core ^3.8.0` — وهو بالضبط المثبَّت أعلاه. الإصدار 4.1.6+
+  # يقفز إلى `^3.9.0`، و5.x إلى `^4.7.0`، وأيّهما يجرّ ترقية firebase_core
+  # ومعها auth وfirestore وmessaging — وهو ما رُفض عمداً عند إضافة
+  # firebase_storage للسبب نفسه.
+  firebase_crashlytics: 4.1.5
+
   # اختيار صور الأصناف والمطاعم من الجهاز ورفعها من داخل لوحة الإدارة.
   image_picker: ^1.1.2
 
@@ -78,6 +87,21 @@ dependencies:
   connectivity_plus: 6.1.0
   share_plus: ^10.1.2
 
+  # خدمة أمامية تمنع أندرويد من قتل تطبيق الكابتن وهو يقود (دفعة و2).
+  #
+  # مثبّتة على 9.2.2 بالتحقّق: هو آخر إصدار يقبل قيدنا (Dart 3.5 /
+  # Flutter 3.24) — الإصدار 10.0.0 يشترط Flutter أحدث. وتستعملها نكهة
+  # الكابتن وحدها، لكن الحزمة في `dependencies` المشتركة لأن pubspec
+  # واحد للنكهات الأربع؛ وأثرها على الثلاث الأخرى صفر لأنها لا تُنادى.
+  flutter_foreground_task: 9.2.2
+
+  # حركات دخول بسطر واحد (دفعة ز3) — لم تكن في المشروع أي حزمة حركة،
+  # وكل الحركة القائمة مكتوبة يدوياً في السبلاش وبطاقة التتبّع. مثبّتة
+  # على 4.5.2 (MIT، تقبل Dart >=2.17 فلا قيد علينا). القاعدة المتبعة في
+  # استعمالها: حركة **دخول** قصيرة (≤400مللي) عند بناء العنصر أول مرة
+  # فقط — لا حركات دائمة تستهلك بطارية ولا تكرار عند كل إعادة بناء.
+  flutter_animate: 4.5.2
+
 dependency_overrides:
   geolocator_android: 4.6.0
 
@@ -98,12 +122,21 @@ flutter:
     - assets/images/banner_promo_1.jpg
     # خلفية افتتاح تطبيق الكابتن (طريق ليلي بهوية النكهة الكحلية).
     - assets/images/bg_splash_driver.jpg
+    # خط التصدير (PDF): يبقى الملف المتغيّر مُعلَناً كأصل عادي لأن حزمة
+    # pdf تقرؤه مباشرة بـrootBundle ولا تمرّ بنظام خطوط Flutter، فلا
+    # يصيبها عطل الأوزان الذي عطّل الخط في الواجهة.
+    - assets/fonts/Cairo-Variable.ttf
   fonts:
+    # أربعة **ملفات ثابتة** مستخرَجة من الملف المتغيّر (wght مثبَّت وslnt=0)
+    # لا ملفٌ واحد مكرَّر بثلاثة أوزان — وذاك التكرار هو ما عطّل رسم النص
+    # صامتاً على أندرويد فعُطِّل الخط كلّه، فبقي التطبيق بخط النظام.
     - family: Cairo
       fonts:
-        - asset: assets/fonts/Cairo-Variable.ttf
+        - asset: assets/fonts/Cairo-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Cairo-Variable.ttf
+        - asset: assets/fonts/Cairo-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Cairo-Variable.ttf
+        - asset: assets/fonts/Cairo-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Cairo-ExtraBold.ttf
+          weight: 800

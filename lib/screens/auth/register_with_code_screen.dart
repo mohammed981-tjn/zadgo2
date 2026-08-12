@@ -28,7 +28,19 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _referrerCtrl = TextEditingController();
   bool _obscure = true;
+
+  @override
+  void dispose() {
+    for (final c in [
+      _codeCtrl, _nameCtrl, _nationalIdCtrl,
+      _emailCtrl, _phoneCtrl, _passCtrl, _referrerCtrl,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   void _navigate(UserRole role) {
     Navigator.pushAndRemoveUntil(context,
@@ -45,6 +57,7 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
       password: _passCtrl.text,
       phone: _phoneCtrl.text,
       nationalId: _nationalIdCtrl.text,
+      referredByCode: _referrerCtrl.text,
       // النكهة المقيّدة بدور واحد (سائق/مطعم/أدمن) تقبل فقط أكواداً بنفس
       // الدور؛ النكهة الكاملة (restrictToRole == null) تقبل أي دور كما كان
       // الحال سابقاً.
@@ -127,6 +140,23 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
             ),
             validator: validatePassword,
           ),
+          // كود الداعي — للسائقين فقط، واختياري. يُثبَّت لحظة التسجيل ولا
+          // يُعدَّل بعدها، فلا تُدّعى إحالة بأثر رجعي لسائق يعمل منذ شهور.
+          if (AppFlavorConfig.restrictToRole == UserRole.driver ||
+              AppFlavorConfig.restrictToRole == null) ...[
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _referrerCtrl,
+              textDirection: TextDirection.ltr,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'كود الكابتن الذي دعاك (اختياري)',
+                helperText: 'تناله وإياه مكافأة بعد إكمالك عدد التوصيلات المطلوب',
+                helperMaxLines: 2,
+                prefixIcon: Icon(Icons.card_giftcard_outlined),
+              ),
+            ),
+          ],
           const SizedBox(height: 28),
           SizedBox(
             width: double.infinity,

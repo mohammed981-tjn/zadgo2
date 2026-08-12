@@ -14,12 +14,16 @@ import 'order_tracking_tab.dart';
 import 'broadcast_tab.dart';
 import 'admin_complaints_screen.dart';
 import 'admin_reports_tab.dart';
+import 'admin_orders_archive_screen.dart';
 import 'admin_driver_ledger_screen.dart';
 import 'admin_banners_screen.dart';
 import 'admin_payout_requests_screen.dart';
 import 'admin_coupons_screen.dart';
+import 'admin_incentives_screen.dart';
+import 'admin_driver_applications_screen.dart';
 import '../auth/change_password_screen.dart';
 import 'admin_registration_codes_screen.dart';
+import 'admin_diagnostics_screen.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
 /// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
@@ -47,6 +51,21 @@ class _AdminHomeState extends State<AdminHome> {
       appBar: AppBar(
         title: Text('${_tabTitles[_tab]} — ${auth.user?.name ?? ""}'),
         actions: [
+          // مدخل السجلّ من «المتابعة الحية» نفسها: هناك يقف المدير حين
+          // يختفي الطلب الملغى من أمامه، فيجد السجلّ في مكان بحثه لا في
+          // الدرج وحده.
+          if (_tab == 1)
+            IconButton(
+              tooltip: 'سجلّ الطلبات',
+              icon: const Icon(Icons.history_rounded),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const _DrawerScreen(
+                        title: 'سجلّ الطلبات',
+                        child: AdminOrdersArchiveScreen())),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -82,6 +101,24 @@ class _AdminHomeState extends State<AdminHome> {
                   const Text('إدارة إضافية', style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ],
               ),
+            ),
+            // سجلّ الطلبات قبل التقارير المالية: هو الوجهة الأكثر طلباً عند
+            // المراجعة اليومية («أين ذهب الطلب الملغى؟») بينما التقارير
+            // شهرية الإيقاع.
+            ListTile(
+              leading: const Icon(Icons.history_rounded),
+              title: const Text('سجلّ الطلبات'),
+              subtitle: const Text('كل الطلبات — بحث وفلترة',
+                  style: TextStyle(fontSize: 11)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const _DrawerScreen(
+                            title: 'سجلّ الطلبات',
+                            child: AdminOrdersArchiveScreen())));
+              },
             ),
             ListTile(
               leading: const Icon(Icons.insights_outlined),
@@ -144,6 +181,39 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات سحب السائقين', child: AdminPayoutRequestsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.assignment_ind_outlined),
+              title: const Text('طلبات انضمام الكباتن'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات انضمام الكباتن', child: AdminDriverApplicationsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.emoji_events_outlined),
+              title: const Text('الحوافز والإحالات'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'الحوافز والإحالات', child: AdminIncentivesScreen())));
+              },
+            ),
+            // التشخيص آخر القائمة عمداً: لا يُفتح في التشغيل العادي، بل
+            // عند وقوع عطل — فمكانه بعيدٌ عن أزرار العمل اليومي.
+            ListTile(
+              leading: const Icon(Icons.monitor_heart_outlined),
+              title: const Text('التشخيص'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const _DrawerScreen(
+                            title: 'التشخيص',
+                            child: AdminDiagnosticsScreen())));
               },
             ),
             ListTile(

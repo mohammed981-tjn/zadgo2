@@ -11,11 +11,14 @@ rules_version = '2';
 // الحقول المالية (رصيد المحفظة، عمولة التطبيق، أجرة السائق، حالة السداد)
 // فلا يعدّلها إلا المدير العام.
 //
-// ما تبقّى بلا تغطية كاملة ويحتاج منطقاً على الخادم لاحقاً:
-//   • قيم الطلب المالية لحظة الإنشاء تأتي من تطبيق العميل ولا يمكن التحقق من
-//     صحتها هنا (تتطلّب إعادة حساب السعر على الخادم).
-//   • السائق يزيد مستحقّاته على مستنده عند تأكيد التوصيل، فالقاعدة تسمح بذلك
-//     لأن التدفّق الحالي يتطلّبه.
+// ما تبقّى بلا تغطية كاملة ويحتاج منطقاً على الخادم لاحقاً (المسار د/Blaze):
+//   • قيم الطلب المالية لحظة الإنشاء تأتي من تطبيق العميل؛ حقول الخصم
+//     والكوبون صارت مفحوصة هنا (couponGrantsDiscount)، لكن إعادة حساب
+//     السعر الكامل (الأصناف والأجرة) تتطلّب خادماً.
+//   • رصيد السائق يُعدَّل من جهازه (قيد العُهدة وأجرة التوصيل) — النوع
+//     مقيّد بحركات التوصيل فقط، لكن مطابقة المبلغ بقيمة الطلب تحتاج خادماً.
+//   • walletUsed على الطلب يُكتب من العميل؛ خصم المحفظة الفعلي محكوم بقاعدة
+//     «الإنقاص فقط» على users، لكن تطابق القيمتين يحتاج خادماً.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -65,8 +68,59 @@ service cloud.firestore {
     /// التطبيق، وعمولته، وحالة السداد، وهوية أطراف الطلب. لا يجوز لأي طرف
     /// غير المدير العام تعديلها بعد إنشاء الطلب.
     function orderMoneyKeys() {
+      // restaurantCompensation: تعويض المطعم عن إلغاء بعد التحضير — مبلغ
+      // مالي يقيّده المدير وحده (بند د١: كل حقل مالي جديد يُحمى فور
+      // إضافته)، وإلا سكّه عميلٌ معدَّل البرمجية لصالح مطعمٍ يواطئه.
       return ['items', 'driverShare', 'appShare', 'platformCommission',
-              'isPaid', 'customerId', 'restaurantId', 'orderNumber'];
+              'isPaid', 'customerId', 'restaurantId', 'orderNumber',
+              'restaurantCompensation'];
+    }
+
+    /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
+    /// الكود موجود وفعّال وغير منتهٍ، والمبلغ لا يتجاوز سقفه (قيمة الكوبون
+    /// الثابت، وسقف maxDiscount حين يكون مضبوطاً). كوبون نسبة بلا سقف لا
+    /// يمكن التحقق من مبلغه هنا (يتطلّب جمع الأصناف على الخادم) — لذا
+    /// يُنصح بضبط maxDiscount لكل كوبونات النسبة.
+    ///
+    /// كل حقل يُقرأ بقيمة افتراضية عبر get(key, default) لا بالوصول المباشر:
+    /// قراءة حقل غير موجود في القواعد **خطأ تقييم** يرفض الطلب كله — فكوبون
+    /// أُنشئ من لوحة الويب بلا maxDiscount مثلاً كان سيمنع العميل من إتمام
+    /// طلبه أصلاً (لا مجرد رفض الخصم). ولوحة الويب طرف كاتب ثانٍ لا نضمن
+    /// تطابق حقوله، فالتساهل مع الحقل الغائب شرط تشغيلي لا تجميل.
+    /// والكود المحذوف يعطي isActive الافتراضية false فيُرفض بنظافة.
+    function couponGrantsDiscount(code, amount) {
+      let path = /databases/$(database)/documents/coupons/$(code);
+      let c = exists(path) ? get(path).data : {};
+      return c.get('isActive', false) == true &&
+          (c.get('expiresAt', null) == null ||
+              request.time < c.get('expiresAt', null)) &&
+          (c.get('type', 'percentage') != 'fixed' ||
+              amount <= c.get('value', 0)) &&
+          (c.get('maxDiscount', 0) <= 0 ||
+              amount <= c.get('maxDiscount', 0));
+    }
+
+    /// هل يمنح كودُ التسجيل هذا الدورَ لهذا المستخدم؟
+    ///
+    /// حارس تصعيد الصلاحية: كانت قاعدة إنشاء المستخدم تفحص الرصيد ولا
+    /// تفحص الدور إطلاقاً، و`isAdmin()` تقرأ الدور من المستند نفسه الذي
+    /// يكتبه المستخدم — فمن أنشأ حساباً بالبريد (والتسجيل مفتوح على مستوى
+    /// Firebase) كتب `role: admin` في مستنده فصار مديراً عاماً على كل
+    /// شيء. ومنعُ `admin` وحده لا يكفي: من يدّعي `restaurantManager`
+    /// بمعرّف مطعم قائم ينال طلباته وقائمته.
+    ///
+    /// الدور المميَّز يُمنح بكود تسجيل مختوم باسم صاحبه — والختم يقع في
+    /// نفس معاملة استهلاك الكود، فلا يُنتحل كودُ غيره.
+    function codeGrantsRole(userId, data) {
+      let code = data.get('registrationCode', '');
+      let path = /databases/$(database)/documents/registrationCodes/$(code);
+      let c = exists(path) ? get(path).data : {};
+      return code != '' &&
+          c.get('usedByUid', '') == userId &&
+          c.get('role', '') == data.role &&
+          // كود مطعم لا يفتح مطعماً آخر.
+          (data.role != 'restaurantManager' ||
+              c.get('restaurantId', '') == data.get('restaurantId', ''));
     }
 
     // ---------------------------------------------------------------------
@@ -83,10 +137,19 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn() && (currentUid() == userId || isAdmin());
       allow list: if isAdmin();
-      // الإنشاء الذاتي يبدأ برصيد صفر إلزاماً، فلا يُنشئ أحد حسابه برصيد جاهز.
-      allow create: if isSignedIn() && currentUid() == userId &&
+      // الإنشاء الذاتي يبدأ برصيد صفر إلزاماً، فلا يُنشئ أحد حسابه برصيد
+      // جاهز. والدور: `customer` متاح للجميع، وما سواه بكود تسجيل مختوم
+      // باسم المُنشئ — وإلا صنع أي أحد لنفسه حساب «مدير عام».
+      allow create: if isSignedIn() &&
           (!('walletBalance' in request.resource.data) ||
-              request.resource.data.walletBalance == 0);
+              request.resource.data.walletBalance == 0) &&
+          (
+            isAdmin() ||
+            (currentUid() == userId && (
+                request.resource.data.role == 'customer' ||
+                codeGrantsRole(userId, request.resource.data)
+            ))
+          );
       allow update: if isSignedIn() && (
             isAdmin() ||
             (currentUid() == userId &&
@@ -146,7 +209,29 @@ service cloud.firestore {
             resource.data.driverId == currentUid() ||
             isRestaurantManagerOf(resource.data.restaurantId)
           );
-      allow create: if isCustomer() && request.resource.data.customerId == currentUid();
+      // الإنشاء يفحص حقول الخصم لا يقبلها حرفياً: كانت القيود المالية كلها
+      // على «التعديل» فقط، فعميل معدَّل البرمجية يُنشئ طلباً بخصم مختلَق
+      // (discountAmount بلا كوبون أصلاً) ويتجاوز نظام الكوبونات من أساسه.
+      // الخصم الموجب يستلزم كوداً موجوداً وفعّالاً وغير منتهٍ، وبسقف
+      // الكوبون نفسه (قيمة الثابت، وسقف maxDiscount إن ضُبط).
+      // الدفع بالبطاقة موثَّق من الخادم (د٣-أ): أي طلب يحمل paymentId
+      // يشترط ختم verify.php في verified_payments — بنفس المعرّف وباسم
+      // نفس المستخدم. عميل معدَّل يدّعي isPaid بمعرّف مختلَق يُرفض هنا.
+      // الطلبات النقدية/المحفظة (paymentId فارغ) لا تمرّ بهذا الشرط.
+      allow create: if isCustomer() &&
+          request.resource.data.customerId == currentUid() &&
+          (request.resource.data.get('paymentId', '') == '' ||
+              (exists(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)) &&
+               get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid())) &&
+          request.resource.data.discountAmount is number &&
+          request.resource.data.walletUsed is number &&
+          request.resource.data.walletUsed >= 0 &&
+          (request.resource.data.discountAmount == 0 ||
+            (request.resource.data.discountAmount > 0 &&
+             request.resource.data.couponCode is string &&
+             request.resource.data.couponCode != '' &&
+             couponGrantsDiscount(request.resource.data.couponCode,
+                 request.resource.data.discountAmount)));
       // بعد الإنشاء، لا يعدّل أحدٌ الحقول المالية (قيمة الأصناف، أجرة السائق،
       // حصّة التطبيق، حالة السداد...) إلا المدير العام — باستثناء واحد مقصود:
       // السائق المُسنَد يضبط isPaid و platformCommission لحظة تأكيد التوصيل،
@@ -177,8 +262,13 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // drivers — القراءة لأي مستخدم مسجّل دخوله (تُستخدم لعرض بيانات السائق
-    // ضمن تتبّع الطلب).
+    // drivers — جلب مستند سائق واحد لأي مسجَّل (تتبّع الطلب عند العميل)،
+    // أما **سرد** القائمة فمقصور على من يحتاجه فعلاً: المدير (التقارير
+    // والمتابعة)، والمطعم والسائق (الإسناد التلقائي لأقرب متاح). فُصل
+    // get عن list تمهيداً لتفعيل المصادقة المجهولة لصفحة /join: بدون
+    // الفصل كان رمز مجهول واحد يكفي لسرد أسماء الكباتن وجوالاتهم
+    // وإحداثياتهم الحية وأرباحهم من سطر أوامر — والعميل لا يسرد
+    // السائقين في أي شاشة أصلاً فلا ينكسر شيء.
     //
     // الكتابة كانت مفتوحة لأي سائق على مستند أي سائق آخر (isDriver() وحدها)،
     // ما يعني أن سائقاً واحداً كان بإمكانه تعديل أرباح زميله ومستحقّاته
@@ -191,11 +281,23 @@ service cloud.firestore {
     //   • المدير العام: بلا قيد (إعادة التوزيع وصرف المستحقّات).
     // ---------------------------------------------------------------------
     match /drivers/{driverId} {
-      allow read: if isSignedIn();
+      allow get: if isSignedIn();
+      allow list: if isAdmin() || isDriver() || hasRole('restaurantManager');
       allow create: if isSignedIn() && currentUid() == driverId;
+      // كتابة السائق على مستنده مقيّدة: كانت بلا قيد على الحقول، فيمكنه
+      // ضبط إنذاراته صفراً أو تضخيم totalEarnings. الرصيد يبقى مسموحاً له
+      // لأن قيد العُهدة وأجرة التوصيل يُكتبان من جهازه (لا Cloud Functions
+      // بعد) — يُشدَّد لاحقاً مع المسار د.
       allow update: if isSignedIn() && (
             isAdmin() ||
-            (isDriver() && currentUid() == driverId) ||
+            // referredByCode/referralRewarded ضمن المحميّة: الأول يُثبَّت
+            // لحظة التسجيل فلا تُدّعى إحالة بأثر رجعي، والثاني ختمُ الصرف
+            // فلا يُعاد تصفيره لقبض المكافأة مرتين.
+            (isDriver() && currentUid() == driverId &&
+                !changedKeys().hasAny(
+                    ['warningCount', 'totalEarnings', 'rating', 'ratingCount',
+                     'referredByCode', 'referralRewarded',
+                     'lastChallengeWindow'])) ||
             (!isCustomer() && changedKeys().hasOnly(['isAvailable'])) ||
             (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']))
           );
@@ -215,9 +317,15 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
             isAdmin() || resource.data.driverId == currentUid()
           );
+      // السائق يُنشئ حركات تدفّق التوصيل فقط (عُهدة/عكسها/أجرة): كان الإنشاء
+      // بلا قيد على النوع، فيمكنه سكّ حركة «مكافأة» باسمه توثّق رصيداً
+      // زوّره على مستنده. المكافآت والإيداع والصرف والتسوية للمدير وحده.
       allow create: if isSignedIn() && (
             isAdmin() ||
-            (isDriver() && request.resource.data.driverId == currentUid())
+            (isDriver() && request.resource.data.driverId == currentUid() &&
+                request.resource.data.type in
+                    ['orderCustody', 'custodyReversal',
+                     'deliveryCash', 'deliveryOnline'])
           );
       allow update, delete: if false;
     }
@@ -368,8 +476,104 @@ service cloud.firestore {
     // المدير ويُعدَّل يدوياً من Firestore مباشرة، لذا القراءة والكتابة
     // مقصورتان على المدير العام فقط.
     // ---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // driver_applications — طلبات انضمام الكباتن من صفحة /join على الموقع.
+    //
+    // الإنشاء يتطلّب تسجيل دخول (المصادقة المجهولة تكفي — الصفحة تسجّل
+    // المتقدّم مجهولاً قبل الإرسال): كان مفتوحاً بلا مصادقة فيغرق أحدهم
+    // المجموعة بآلاف الطلبات من سطر أوامر وليس في القاعدة ما يحدّه.
+    // الطلب يُختم بـuid منشئه (أساس ربط صور المستندات به)، ويُنشأ
+    // «معلّقاً» بلا كود صادر — فلا يُنشئ أحد طلباً «مقبولاً» أو يمنح
+    // نفسه كوداً. القراءة والمراجعة والحذف للمدير وحده: المستندات هوية
+    // وإقامة، ولا يجوز سردها لأحد سواه.
+    // ---------------------------------------------------------------------
+    match /driver_applications/{applicationId} {
+      allow get, list: if isAdmin();
+      allow create: if isSignedIn() &&
+          request.resource.data.get('uid', '') == currentUid() &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.get('issuedCode', '') == '' &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 2;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // driver_application_docs — صور مستندات المتقدّمين (هوية/رخصة/استمارة/
+    // صور مركبة) مضغوطة داخل المستند (Blob) — نمط order_proofs نفسه، لكن
+    // في مجموعة منفصلة لأن الطلب الواحد قد يحمل ١١ صورة (~1.65م.ب) وسقف
+    // مستند Firestore ١ ميبي.
+    //
+    //   • الإنشاء: صاحب طلبٍ معلّق فقط، وبصورة ≤ 400ك — ضِعف هدف الضغط
+    //     (150ك) وهامش، ويحدّ كلفة أي إغراق. الربط بطلب يملكه المتصل
+    //     يمنع أي مسجَّل (وعملاؤنا بالآلاف) من الكتابة هنا بلا حدّ.
+    //   • بعد بتّ المدير في الطلب لا تُلحق به صور — الشرط pending.
+    //   • القراءة للمدير وحده، ولا تعديل ولا حذف: وثائق هوية.
+    // ---------------------------------------------------------------------
+    function ownsPendingApplication(appId) {
+      let path = /databases/$(database)/documents/driver_applications/$(appId);
+      return appId != '' && exists(path) &&
+          get(path).data.get('uid', '') == currentUid() &&
+          get(path).data.get('status', '') == 'pending';
+    }
+
+    match /driver_application_docs/{docId} {
+      allow create: if isSignedIn() &&
+          request.resource.data.get('image', null) is bytes &&
+          request.resource.data.image.size() < 400000 &&
+          ownsPendingApplication(request.resource.data.get('applicationId', ''));
+      allow get, list: if isAdmin();
+      allow update, delete: if false;
+    }
+
     match /delivery_settings/{settingId} {
-      allow read, write: if isAdmin();
+      // ثلاث درجات قراءة مقصودة:
+      //
+      // • `app` (بوابة الحدّ الأدنى للإصدار): **مفتوح للجميع بلا تسجيل
+      //   دخول**. تطبيق العميل يسمح بالتصفّح كزائر، ولو اشترطنا التسجيل
+      //   لفشلت قراءة الزائر — والبوابة مبنيّة على «الفشل مفتوح»، فتمرّ
+      //   كل نسخة قديمة عند كل غير مسجَّل. تُبنى البوابة وتبدو سليمة ولا
+      //   تحجب أحداً أبداً. لا سرّ في رقم إصدار على أي حال.
+      // • `incentives`: لأي مسجَّل — الكابتن يرى مبالغ الحوافز الحقيقية.
+      // • الباقي (مُهل الطلبات): للمدير وحده.
+      //
+      // والكتابة للمدير في الحالات كلها.
+      allow read: if settingId == 'app' ||
+          isAdmin() ||
+          (settingId == 'incentives' && isSignedIn());
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // admin_audit — سجلّ عمليات الإدارة. تكتبه لوحة الويب (٣١ موضع كتابة
+    // على فرع main) ولم تكن له كتلة قواعد إطلاقاً، والافتراضي في Firestore
+    // هو المنع — فكانت كل عملية إدارية تظنّ نفسها مسجَّلة وهي مرفوضة صامتة.
+    //
+    // سجلّ تدقيق لا يُعدَّل ولا يُحذف حتى من المدير: قيمته كلها في أنه لا
+    // يُنقَّح بأثر رجعي. التصحيح يكون بقيد جديد يبقى الأول ظاهراً معه.
+    // ---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // verified_payments — أختام التحقق من دفعات ميسر، يكتبها verify.php
+    // بحساب الخدمة حصراً (يتجاوز القواعد). لا كتابة لأي عميل إطلاقاً —
+    // ختمٌ يكتبه العميل يساوي لا ختم. القراءة get للمالك وللمدير.
+    // ---------------------------------------------------------------------
+    match /verified_payments/{paymentId} {
+      allow get: if isSignedIn() &&
+          (isAdmin() || resource.data.get('uid', '') == currentUid());
+      allow list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /admin_audit/{entryId} {
+      allow get, list: if isAdmin();
+      // النسبة مختومة: القيد يُنسب لكاتبه الفعلي حصراً — سجلٌّ يستطيع
+      // مديرٌ نسب قيوده فيه لمدير آخر لا يُثبت شيئاً، وهو المعنى الوحيد
+      // الذي مُنع لأجله التعديل والحذف. القراءة بـget الافتراضي (لا
+      // وصول مباشر): حقل غائب في القواعد خطأ تقييم يُسقط الطلب كله لا
+      // شرطاً يعود بـfalse — درس خطأ الكوبون.
+      allow create: if isAdmin() &&
+          request.resource.data.get('by', '') == currentUid();
+      allow update, delete: if false;
     }
 
     // ---------------------------------------------------------------------
@@ -408,10 +612,21 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create, delete: if isAdmin();
+      // زيادة العدّاد مشروطة بصلاحية الكود لحظتها: كانت «+1» وحدها، فيمكن
+      // لأي مسجَّل استنزاف كود عمداً حتى سقفه بلا أي شراء، وتجاوُز السقف
+      // بزيادات متسابقة (القاعدة لم تكن تقارن بالسقف أصلاً).
+      // الحقول تُقرأ بقيم افتراضية: كوبون من لوحة الويب بلا usageLimit أو
+      // بلا isActive كان سيرفع خطأ تقييم فيفشل تقييد الاستخدام صامتاً.
       allow update: if isAdmin() || (
             isSignedIn() &&
             changedKeys().hasOnly(['usedCount']) &&
-            request.resource.data.usedCount == resource.data.usedCount + 1
+            request.resource.data.usedCount == resource.data.usedCount + 1 &&
+            resource.data.get('isActive', false) == true &&
+            (resource.data.get('expiresAt', null) == null ||
+                request.time < resource.data.get('expiresAt', null)) &&
+            (resource.data.get('usageLimit', 0) <= 0 ||
+                request.resource.data.usedCount <=
+                    resource.data.get('usageLimit', 0))
           );
     }
 
@@ -425,8 +640,19 @@ service cloud.firestore {
             isAdmin() || resource.data.userId == currentUid()
           );
       allow list: if isAdmin();
-      allow create, update: if isSignedIn() && (
-            isAdmin() || request.resource.data.userId == currentUid()
+      // العدّاد لا يتحرك إلا +1 تصاعدياً: القاعدة السابقة سمحت لصاحب السجل
+      // بأي كتابة — فيصفّر عدّاده ويعيد استخدام الكود متجاوزاً «مرة واحدة
+      // لكل عميل». منع الحذف وحده لا يكفي حين يكون التصفير مباحاً.
+      allow create: if isSignedIn() && (
+            isAdmin() ||
+            (request.resource.data.userId == currentUid() &&
+                request.resource.data.count == 1)
+          );
+      allow update: if isSignedIn() && (
+            isAdmin() ||
+            (resource.data.userId == currentUid() &&
+                request.resource.data.userId == resource.data.userId &&
+                request.resource.data.count == resource.data.count + 1)
           );
       allow delete: if false;
     }
@@ -482,7 +708,13 @@ service cloud.firestore {
                       resource.data.expiresAt == null ||
                       request.time < resource.data.expiresAt) &&
                   request.resource.data.isUsed == true &&
-                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isUsed', 'usedAt'])) ||
+                  // الختم باسم المستهلِك يقع في نفس المعاملة (النسخة
+                  // الحالية)، أو في خطوة تالية (نسخ أقدم) — كلاهما مقبول
+                  // أثناء انتشار التحديث، والمعرّف لا يكون لغير الكاتب.
+                  (!('usedByUid' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                      request.resource.data.usedByUid == currentUid()) &&
+                  request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['isUsed', 'usedAt', 'usedByUid', 'usedByName'])) ||
               (resource.data.isUsed == true &&
                   request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedByUid', 'usedByName']) &&
                   request.resource.data.usedByUid == currentUid() &&

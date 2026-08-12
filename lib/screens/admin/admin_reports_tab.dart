@@ -106,7 +106,15 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
         final totalWalletUsed = sold.fold(0.0, (s, o) => s + o.walletUsed);
         // خصومات الكوبونات — تسويقٌ تتحمّله المنصّة وحدها، فتُطرح من دخلها.
         final totalDiscounts = sold.fold(0.0, (s, o) => s + o.discountAmount);
-        final platformNet = totalCommission - totalDiscounts;
+        // تعويضات الإلغاء بعد التحضير تُحسب من **كل** الطلبات لا المكتملة
+        // وحدها (الملغى ليس مكتملاً بطبيعته)، وتُطرح من دخل المنصّة لأنها
+        // تكلفة تتحمّلها كاملة — وإخفاؤها كان سيُظهر دخلاً لم يتحقق.
+        final totalCompensations = orders
+            .where((o) => _restaurantFilter.isEmpty ||
+                o.restaurantId == _restaurantFilter)
+            .fold(0.0, (s, o) => s + o.restaurantCompensation);
+        final platformNet =
+            totalCommission - totalDiscounts - totalCompensations;
         // مسار التحصيل: النقدي حصّله السائقون من العملاء مباشرة، والباقي
         // قبضته المنصّة (بطاقات + ما خُصم من أرصدة المحافظ).
         final cashCollected = sold
@@ -219,13 +227,18 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                   PriceRow(
                       label: '← أجرة السائقين',
                       value: formatCurrency(totalDelivery)),
-                  if (totalDiscounts > 0) ...[
+                  if (totalDiscounts > 0 || totalCompensations > 0) ...[
                     PriceRow(
                         label: '← دخل المنصّة قبل الخصومات',
                         value: formatCurrency(totalCommission)),
-                    PriceRow(
-                        label: '← خصومات الكوبونات (تتحمّلها المنصّة)',
-                        value: '- ${formatCurrency(totalDiscounts)}'),
+                    if (totalDiscounts > 0)
+                      PriceRow(
+                          label: '← خصومات الكوبونات (تتحمّلها المنصّة)',
+                          value: '- ${formatCurrency(totalDiscounts)}'),
+                    if (totalCompensations > 0)
+                      PriceRow(
+                          label: '← تعويض مطاعم عن إلغاء بعد التحضير',
+                          value: '- ${formatCurrency(totalCompensations)}'),
                     PriceRow(
                         label: '← صافي دخل المنصّة',
                         value: formatCurrency(platformNet),
