@@ -58,6 +58,11 @@ class MyOrdersScreen extends StatelessWidget {
                     _OrdersList(
                       orders: active,
                       emptyTitle: 'لا يوجد طلبات جارية',
+                      // أحدث طلب جارٍ يتصدّر ببطاقة تتبّع حيّة بدل بطاقة
+                      // عادية: هذه أكثر شاشة يحدّق فيها العميل، وكانت
+                      // تعطيه شريط مراحل مجرداً بينما وعدُ الصفحة الرئيسية
+                      // «موقع مندوبك أولاً بأول».
+                      heroFirst: true,
                     ),
                     _OrdersList(
                       orders: past,
@@ -77,7 +82,12 @@ class MyOrdersScreen extends StatelessWidget {
 class _OrdersList extends StatelessWidget {
   final List<Order> orders;
   final String emptyTitle;
-  const _OrdersList({required this.orders, required this.emptyTitle});
+  final bool heroFirst;
+  const _OrdersList({
+    required this.orders,
+    required this.emptyTitle,
+    this.heroFirst = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -85,9 +95,335 @@ class _OrdersList extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(12),
       itemCount: orders.length,
-      itemBuilder: (_, i) => _OrderCard(order: orders[i]),
+      itemBuilder: (_, i) => heroFirst && i == 0
+          ? _LiveTrackingCard(order: orders[i])
+          : _OrderCard(order: orders[i]),
     );
   }
+}
+
+/// بطاقة التتبّع الحيّة — واجهة الانتظار بنمط التطبيقات العالمية.
+///
+/// المبدأ: المنتظِر لا يريد اسم حالة، يريد جواب ثلاثة أسئلة — **ماذا يحدث
+/// الآن؟ وكم بقي؟ وأين مندوبي؟** فالبطاقة تجيبها بالترتيب:
+///   • عنوان بشري بلغة الناس لا بمصطلح النظام.
+///   • الوقت المتوقع **مدىً لا رقماً** (وعدٌ بدقيقة بعينها يُخلَف)، ولا
+///     يظهر إلا بعد أن يتحرّك الكابتن فعلاً — قبلها تخمينٌ في وقت المطبخ.
+///   • شريط طريق يتقدّم فيه رمز الكابتن بنسبة ما قطعه حقيقةً من إحداثياته.
+///   • بطاقة الكابتن باسمه وتقييمه (إن قيّمه أحد) وزرَّي الاتصال والمحادثة.
+///
+/// بلا خريطة داخل البطاقة عمداً: بلاطات الخرائط حِملٌ ثقيل على شبكة جوّال
+/// ضعيفة، ومن ينتظر لا يريد شكل الشوارع بل كم بقي — والخريطة الكاملة على
+/// بُعد ضغطة لمن أرادها.
+class _LiveTrackingCard extends StatelessWidget {
+  final Order order;
+  const _LiveTrackingCard({required this.order});
+
+  /// ماذا يحدث الآن — بلغة الناس.
+  (String, String) get _headline => switch (order.status) {
+        OrderStatus.created ||
+        OrderStatus.restaurantPending =>
+          ('أرسلنا طلبك للمطعم', 'ننتظر تأكيده — عادةً خلال دقائق'),
+        OrderStatus.restaurantAccepted =>
+          ('المطعم قَبِل طلبك', 'سيبدأ التحضير الآن'),
+        OrderStatus.preparing =>
+          ('طلبك قيد التحضير', 'رائحته تفوح من المطبخ 👨‍🍳'),
+        OrderStatus.readyForPickup ||
+        OrderStatus.searchingDriver =>
+          ('طلبك جاهز', 'نبحث عن كابتن قريب ليأخذه'),
+        OrderStatus.driverAssigned =>
+          ('الكابتن في طريقه للمطعم', 'سيستلم طلبك ثم ينطلق إليك'),
+        OrderStatus.pickedUp ||
+        OrderStatus.onTheWay =>
+          ('الكابتن في الطريق إليك', 'استعدّ لاستلام طلبك 🛵'),
+        _ => (order.status.label, ''),
+      };
+
+  /// نسبة ما قُطع من الطريق — من المسافتين الحقيقيتين لا من الحالة.
+  double? _progress(Driver d) {
+    if (order.restaurantLat == null ||
+        order.deliveryLat == null ||
+        d.lat == null ||
+        d.lng == null) {
+      return null;
+    }
+    final total = haversineDistanceKm(order.restaurantLat!,
+        order.restaurantLng!, order.deliveryLat!, order.deliveryLng!);
+    if (total <= 0.05) return 1;
+    final left = haversineDistanceKm(
+        d.lat!, d.lng!, order.deliveryLat!, order.deliveryLng!);
+    return (1 - (left / total)).clamp(0.0, 1.0);
+  }
+
+  double? _remainingKm(Driver d) {
+    if (order.deliveryLat == null || d.lat == null || d.lng == null) {
+      return null;
+    }
+    return haversineDistanceKm(
+        d.lat!, d.lng!, order.deliveryLat!, order.deliveryLng!);
+  }
+
+  /// مدى زمني من المسافة — بسرعة مدينية متحفّظة (٢٠ كم/س) وهامش ٥ دقائق
+  /// للتسليم. مدىً لا رقم: الدقيقة الواحدة وعدٌ يُخلَف.
+  String _eta(double km) {
+    final mins = (km / 20 * 60).round();
+    final lo = (mins + 2).clamp(3, 90);
+    final hi = (mins + 8).clamp(6, 120);
+    return '$lo–$hi دقيقة';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = context.read<FirebaseService>();
+    final st = order.status;
+    final (title, subtitle) = _headline;
+    final hasDriver = (order.driverId ?? '').isNotEmpty;
+    final moving =
+        st == OrderStatus.pickedUp || st == OrderStatus.onTheWay;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [st.color.withOpacity(0.14), st.color.withOpacity(0.04)],
+        ),
+        border: Border.all(color: st.color.withOpacity(0.45), width: 1.2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle, color: st.color.withOpacity(0.18)),
+              child: Icon(st.icon, size: 20, color: st.color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
+                            color: st.color)),
+                    if (subtitle.isNotEmpty)
+                      Text(subtitle,
+                          style: const TextStyle(
+                              fontSize: 12.5, color: AppColors.textGray)),
+                  ]),
+            ),
+            Text('#${order.orderNumber}',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 14),
+
+          // الجزء الحيّ — لا يُشترك في تدفّق السائق إلا عند وجوده فعلاً.
+          if (hasDriver)
+            StreamBuilder<Driver?>(
+              stream: service.streamDriver(order.driverId!),
+              builder: (ctx, snap) {
+                final d = snap.data;
+                if (d == null) return const SizedBox.shrink();
+                final km = moving ? _remainingKm(d) : null;
+                final p = moving ? _progress(d) : null;
+                return Column(children: [
+                  if (km != null)
+                    Row(children: [
+                      const Icon(Icons.schedule_rounded,
+                          size: 17, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Text(_eta(km),
+                          style: const TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryDark)),
+                      const SizedBox(width: 10),
+                      Text('يبعد عنك ${km.toStringAsFixed(1)} كم',
+                          style: const TextStyle(
+                              fontSize: 12.5, color: AppColors.textGray)),
+                    ]),
+                  if (p != null) ...[
+                    const SizedBox(height: 10),
+                    _RoadBar(progress: p),
+                  ],
+                  const SizedBox(height: 12),
+                  _DriverStrip(driver: d, order: order),
+                ]);
+              },
+            )
+          else
+            OrderTrackingTimeline(status: st),
+
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => OrderMapScreen(order: order))),
+                icon: const Icon(Icons.map_outlined, size: 18),
+                label: const Text('الخريطة'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => OrderReceiptScreen(order: order))),
+                icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                label: const Text('الفاتورة'),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+/// شريط الطريق: المطعم ← رمز الكابتن عند نسبة ما قطعه ← بيتك.
+class _RoadBar extends StatelessWidget {
+  final double progress;
+  const _RoadBar({required this.progress});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (ctx, c) {
+          final w = c.maxWidth;
+          // الاتجاه من اليمين لليسار: المطعم يمين والبيت يسار، موافقةً
+          // لاتجاه القراءة العربية — عكسه يجعل التقدّم يبدو تراجعاً.
+          final x = (w - 30) * (1 - progress);
+          return SizedBox(
+            height: 46,
+            child: Stack(children: [
+              Positioned(
+                top: 13,
+                right: 4,
+                left: 4,
+                child: Container(
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 13,
+                right: 4,
+                child: Container(
+                  height: 6,
+                  width: (w - 8) * progress,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeOut,
+                top: 0,
+                left: x,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                          color: AppColors.primary.withOpacity(0.4),
+                          blurRadius: 8),
+                    ],
+                  ),
+                  child: const Icon(Icons.delivery_dining,
+                      size: 18, color: Colors.white),
+                ),
+              ),
+              const Positioned(
+                bottom: 0,
+                right: 2,
+                child: Text('المطعم',
+                    style:
+                        TextStyle(fontSize: 10.5, color: AppColors.textGray)),
+              ),
+              const Positioned(
+                bottom: 0,
+                left: 2,
+                child: Text('موقعك',
+                    style:
+                        TextStyle(fontSize: 10.5, color: AppColors.textGray)),
+              ),
+            ]),
+          );
+        },
+      );
+}
+
+/// شريط الكابتن: اسمه وتقييمه وتوصيلاته، واتصال ومحادثة. التقييم يظهر فقط
+/// إن قيّمه أحد فعلاً — «٥٫٠» لكابتن لم يقيّمه أحد وعدٌ لا يسنده شيء.
+class _DriverStrip extends StatelessWidget {
+  final Driver driver;
+  final Order order;
+  const _DriverStrip({required this.driver, required this.order});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
+        ),
+        child: Row(children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.primary.withOpacity(0.12),
+            child: const Icon(Icons.delivery_dining,
+                color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(driver.name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(
+                    driver.ratingCount > 0
+                        ? '⭐ ${driver.rating.toStringAsFixed(1)} · ${driver.totalDeliveries} توصيلة'
+                        : 'كابتن جديد · ${driver.totalDeliveries} توصيلة',
+                    style: const TextStyle(
+                        fontSize: 11.5, color: AppColors.textGray),
+                  ),
+                ]),
+          ),
+          IconButton(
+            tooltip: 'محادثة',
+            icon: const Icon(Icons.chat_bubble_outline,
+                color: AppColors.secondary),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
+          ),
+          if (driver.phone.trim().isNotEmpty)
+            IconButton(
+              tooltip: 'اتصال',
+              icon: const Icon(Icons.phone, color: AppColors.success),
+              onPressed: () => callPhone(context, driver.phone),
+            ),
+        ]),
+      );
 }
 
 class _OrderCard extends StatelessWidget {
