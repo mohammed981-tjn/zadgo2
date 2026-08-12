@@ -458,6 +458,19 @@ function commission(o) {
   return itemsTotal(o) * PRICING.appCommissionRate; // طلبات قديمة قبل الحقل
 }
 
+/* تعويض المطعم عن طلبٍ أُلغي بعد بدء التحضير — يكتبه التطبيق في
+ * `restaurantCompensation` بنسبة يضبطها المدير، **بلا عمولة عليه** لأن
+ * المطعم أدّى ما عليه ولا ذنب له في الإلغاء.
+ *
+ * حقلٌ مالي أضافه مساعد التطبيق ولم تكن اللوحة تعرفه — فكانت تسوياتها
+ * تُنقص المطعم حقّه وتقاريرها تُظهر للمنصّة دخلاً لم يتحقق. يُقرأ من
+ * الطلب ولا يُعاد حسابه: النسبة قابلة للتغيير، وإعادة الحساب بنسبة اليوم
+ * تُحرّف طلباً عُوّض أمس بنسبة أخرى. */
+function compensation(o) {
+  const v = Number(o.restaurantCompensation);
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
 /* سطر إثبات الدفع بالبطاقة. وجود paymentId من بوابة «ميسر» هو الدليل الوحيد
  * على تحصيل فعلي؛ طلب مُعلَّم مدفوعاً بالبطاقة بلا معرّف عملية حالة تستحق
  * التدقيق (قد يكون عُلّم يدوياً أو فشل تسجيل الدفع). */
@@ -513,7 +526,7 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], regCodes: [], applications: [], settings: null };
+  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], regCodes: [], applications: [], settings: null, incentives: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
@@ -633,6 +646,12 @@ function startListeners() {
   unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'app'),
     (d) => { appMinVersion = String(d.data()?.minAppVersion || ''); if (page === 'settings') rerender(); },
     () => {}));
+  // نسبة تعويض الإلغاء بعد التحضير — يضبطها المدير من شاشة الحوافز في
+  // التطبيق، وموضعها `incentives` لا `config` لأن التطبيقات تقرؤها ولا
+  // تُقرأ `config` إلا للمدير. تُقرأ هنا كي تُصارح نافذةُ الإلغاء المديرَ
+  // بالمبلغ **قبل** الضغط، لا بعده.
+  unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'incentives'),
+    (d) => { S.incentives = d.exists() ? d.data() : {}; }, () => {}));
 }
 
 /* ---------------- التنقل ---------------- */
@@ -973,6 +992,11 @@ function showOrderModal(id) {
   if (!o) return;
   const [lbl, color] = STATUS_AR[o.status] || [o.status, '#7f8c8d'];
   const it = itemsTotal(o);
+  // ختما «وصل الكابتن» و«أقرّ المطعم» يظهران في الفاتورة نفسها لا خلف زر
+  // الإثباتات: الإثباتات قراءةٌ إضافية من `order_proofs` يكتبها الكابتن
+  // وحده، وهذان الختمان على الطلب أصلاً ويأتيان من **طرفين مختلفين** —
+  // وهما ما يُحتكم إليه في نزاع «سلّمتُه»/«لم يصلني»، فلا يليق بهما أن
+  // يُختبئا خلف ضغطة.
   openModal(`
     <h3>طلب #${esc(o.orderNumber || '')} <button class="x-btn" onclick="closeModal()">✕</button></h3>
     <div class="row1">${badge(lbl, color)} ${badge(PAY_AR[o.paymentMethod] || o.paymentMethod || '—', '#2471a3')}
@@ -985,6 +1009,8 @@ function showOrderModal(id) {
     <div class="kv"><span>قيمة الوجبات</span><b>${fmtMoney(it)} ${SAR}</b></div>
     <div class="kv"><span>أجرة التوصيل (سائق + منصة)</span><b>${fmtMoney(o.driverShare)} + ${fmtMoney(o.appShare)} ${SAR}</b></div>
     <div class="kv"><span>عمولة المنصة من المطعم</span><b>${fmtMoney(commission(o))} ${SAR}</b></div>
+    ${compensation(o) > 0 ? `<div class="kv"><span>تعويض المطعم (أُلغي بعد التحضير)</span>
+      <b style="color:var(--purple)">+ ${fmtMoney(compensation(o))} ${SAR} للمطعم</b></div>` : ''}
     ${Number(o.discountAmount) > 0 ? `<div class="kv"><span>خصم الكوبون${o.couponCode ? ' (' + esc(o.couponCode) + ')' : ''}</span><b style="color:var(--ok)">− ${fmtMoney(o.discountAmount)} ${SAR}</b></div>` : ''}
     ${Number(o.walletUsed) > 0 ? `<div class="kv"><span>مدفوع من المحفظة</span><b style="color:var(--blue)">${fmtMoney(o.walletUsed)} ${SAR}</b></div>` : ''}
     <div class="kv"><span>الإجمالي</span><b class="money">${fmtMoney(orderTotal(o))} ${SAR}</b></div>
@@ -997,6 +1023,12 @@ function showOrderModal(id) {
     <div class="kv"><span>السائق</span><b>${esc(o.driverName || 'لم يُسنَد بعد')}${o.driverPhone ? ' — 📞 ' + esc(o.driverPhone) : ''}</b></div>
     <div class="kv"><span>أُنشئ</span><b>${esc(fmtTime(o.createdAt))}</b></div>
     <div class="kv"><span>آخر تغيير حالة</span><b>${esc(fmtTime(o.statusChangedAt || o.updatedAt))}</b></div>
+    ${(o.arrivedAtRestaurantAt || o.restaurantHandoverAt) ? `
+      <div class="kv"><span>وصل الكابتن المطعم</span>
+        <b style="font-weight:400">${esc(fmtTime(o.arrivedAtRestaurantAt))}</b></div>
+      <div class="kv"><span>أقرّ المطعم بالتسليم للكابتن</span>
+        <b style="font-weight:400${o.restaurantHandoverAt ? '' : ';color:var(--orange)'}">${
+          o.restaurantHandoverAt ? esc(fmtTime(o.restaurantHandoverAt)) : 'لم يُقرّ المطعم بعد'}</b></div>` : ''}
     ${o.notes ? `<div class="kv"><span>ملاحظات العميل</span><b style="font-weight:400">${esc(o.notes)}</b></div>` : ''}
     ${o.rejectionReason ? `<div class="kv"><span>سبب الرفض</span><b style="font-weight:400;color:var(--red)">${esc(o.rejectionReason)}</b></div>` : ''}
     ${o.customerRating ? `<div class="kv"><span>تقييم العميل</span><b>${o.customerRating} ⭐ ${esc(o.customerReview || '')}</b></div>` : ''}
@@ -1022,17 +1054,25 @@ function showOrderModal(id) {
   const cb = document.getElementById('cancelOrderBtn');
   if (cb) cb.addEventListener('click', async () => {
     const wallet = Number(o.walletUsed) || 0;
-    const warn = wallet > 0
-      ? `\n\nسيُعاد ${fmtMoney(wallet)} ${SAR} إلى محفظة العميل.`
-      : '';
+    const comp = pendingCompensation(o);
+    const custody = custodyOnDriver(o);
+    const warn = (wallet > 0 ? `\n\nسيُعاد ${fmtMoney(wallet)} ${SAR} إلى محفظة العميل.` : '')
+      + (custody !== 0 ? `\n\nستُردّ عُهدة السائق ${fmtMoney(custody)} ${SAR} إلى دفتره،`
+        + ' ويعود متاحاً لطلب جديد.' : '')
+      + (comp > 0 ? `\n\n⚠️ بدأ المطعم التحضير — سيُقيَّد له تعويض ${fmtMoney(comp)} ${SAR}`
+        + ' بلا عمولة، ويُخصم من دخل المنصّة.' : '');
     if (!confirm('إلغاء هذا الطلب نهائياً؟ لا يمكن التراجع.' + warn)) return;
     try {
       await updateDoc(doc(db, 'orders', o.id), { status: 'cancelled', statusChangedAt: serverTimestamp() });
       await refundWalletOnCancel(o);
+      await releaseDriverOnCancel(o);
+      await compensateRestaurantOnCancel(o, comp);
       audit('order.cancel', `ألغى الطلب #${o.orderNumber || o.id.slice(0, 6)} — ${o.restaurantName || ''}`
-        + (wallet > 0 ? ` (أُعيد ${fmtMoney(wallet)} ${SAR} للمحفظة)` : ''),
+        + (wallet > 0 ? ` (أُعيد ${fmtMoney(wallet)} ${SAR} للمحفظة)` : '')
+        + (comp > 0 ? ` (عُوّض المطعم ${fmtMoney(comp)} ${SAR})` : ''),
         { target: 'orders/' + o.id, amount: wallet });
-      toast(wallet > 0 ? 'أُلغي الطلب وأُعيد الرصيد للعميل' : 'تم إلغاء الطلب');
+      toast(comp > 0 ? `أُلغي الطلب وعُوّض المطعم ${fmtMoney(comp)} ${SAR}`
+        : wallet > 0 ? 'أُلغي الطلب وأُعيد الرصيد للعميل' : 'تم إلغاء الطلب');
       closeModal();
     } catch (err) { alert('تعذر الإلغاء: ' + (err.code || err.message)); }
   });
@@ -1459,6 +1499,75 @@ async function refundWalletOnCancel(order) {
       createdAt: serverTimestamp(),
     });
   });
+}
+
+/* ---- ما يستحقه الإلغاء غير إعادة رصيد المحفظة ----
+ *
+ * الإلغاء من التطبيق يُجري خمسة أفعال، وكانت اللوحة تُجري واحداً — فالإلغاء
+ * نفسه يُنتج نتيجتين ماليتين مختلفتين باختلاف الشاشة التي ضُغط منها، وهذا
+ * أسوأ من نقصٍ ظاهر: المدير يظنّ الأمر واحداً. الثلاثة التالية تُطابق
+ * `cancelOrder` في `firebase_service.dart`. */
+
+/* هل بدأ المطعم التحضير فعلاً؟ من «جاري التحضير» فصاعداً تكون تكلفة الطعام
+ * قد وقعت — أما «بانتظار الموافقة» و«تم القبول» فلا طبخ فيهما. نسخة حرفية
+ * من `_wasCooked`. */
+const COOKED_STATUSES = ['preparing', 'readyForPickup', 'searchingDriver',
+  'driverAssigned', 'pickedUp', 'onTheWay'];
+
+/* المبلغ الذي سيُقيَّد للمطعم لو أُلغي الطلب الآن — يُحسب قبل الضغط ليظهر في
+ * نافذة التأكيد. النسبة من إعدادات المدير لا من الكود (بند ج١)، و١٠٠٪
+ * افتراضاً كما في التطبيق؛ و٠٪ تعني «لا تعويض» فيبقى الباب مفتوحاً لسياسة
+ * أخرى بلا إصدار جديد. */
+function pendingCompensation(o) {
+  if (!COOKED_STATUSES.includes(o.status)) return 0;
+  if (compensation(o) > 0) return 0;                 // لا يتكرر
+  const raw = S.incentives?.restaurantCancelCompensationPercent;
+  const pct = Number.isFinite(Number(raw)) ? Number(raw) : 100;
+  if (pct <= 0) return 0;
+  return itemsTotal(o) * (pct / 100);
+}
+
+/* فشل التعويض لا يُبطل الإلغاء — يُصحَّح بقيد تسوية من دفتر المطعم، تماماً
+ * كما في التطبيق. ولذلك يُبتلع الخطأ هنا ولا يُرمى. */
+async function compensateRestaurantOnCancel(order, amount) {
+  if (!(amount > 0)) return;
+  try {
+    await updateDoc(doc(db, 'orders', order.id),
+      { restaurantCompensation: amount, updatedAt: serverTimestamp() });
+  } catch (err) { console.warn('تعذّر تقييد التعويض:', err); }
+}
+
+/* عُهدة السائق تُردّ إن كان قد استلم الطلب: الطلب الملغى لن يُحصَّل من أحد،
+ * فإبقاء قيمته مقيّدة عليه يجعل دفتره يطالبه بمالٍ لم يقبضه. ويعود متاحاً
+ * كذلك — بلا هذا يبقى «مشغولاً» بطلبٍ أُلغي فلا تصله عروض بعدها. */
+async function releaseDriverOnCancel(order) {
+  const driverId = order.driverId || '';
+  if (!driverId) return;
+  const custody = custodyOnDriver(order);
+  try {
+    if (custody !== 0) {
+      await runTransaction(db, async (tx) => {
+        const dRef = doc(db, 'drivers', driverId);
+        const snap = await tx.get(dRef);
+        if (!snap.exists()) return;
+        const after = (Number(snap.data()?.balance) || 0) + custody;
+        tx.update(dRef, { balance: after, isAvailable: true });
+        tx.set(doc(collection(db, 'driver_transactions')), {
+          driverId,
+          type: 'custodyReversal',
+          amount: custody,
+          balanceAfter: after,
+          orderId: order.id,
+          orderNumber: order.orderNumber ?? null,
+          note: 'إلغاء الطلب بعد الاستلام',
+          performedBy: auth.currentUser?.uid || '',
+          createdAt: serverTimestamp(),
+        });
+      });
+    } else {
+      await updateDoc(doc(db, 'drivers', driverId), { isAvailable: true });
+    }
+  } catch (err) { console.warn('تعذّر تحرير السائق:', err); }
 }
 
 /* ================= المطاعم ================= */
@@ -2834,11 +2943,23 @@ async function loadOrderProof(orderId) {
  *
  * صافي المطعم من الطلب = قيمة الوجبات − عمولة المنصة. خصم الكوبون لا يمسّه
  * (تتحمّله المنصة وحدها)، ورسوم التوصيل ليست له أصلاً.
+ *
+ * **ويُضاف تعويض الإلغاء بعد التحضير.** وهو يُجمع من **كل** طلبات المطعم لا
+ * من المسلَّمة وحدها — لأن الطلب المعوَّض ملغى بطبيعته فلا يمرّ بالمرشِّح
+ * أعلاه أبداً. وبلا عمولة عليه: المطعم طبخ وأدّى ما عليه، وخصم عمولة على
+ * تعويضٍ يعني تحميله جزءاً من خطأ غيره.
  */
 function restaurantDue(restaurantId) {
-  return S.orders
-    .filter((o) => o.restaurantId === restaurantId && o.status === 'delivered')
+  const mine = S.orders.filter((o) => o.restaurantId === restaurantId);
+  const sales = mine
+    .filter((o) => o.status === 'delivered')
     .reduce((sum, o) => sum + (itemsTotal(o) - commission(o)), 0);
+  return sales + restaurantComp(restaurantId);
+}
+function restaurantComp(restaurantId) {
+  return S.orders
+    .filter((o) => o.restaurantId === restaurantId)
+    .reduce((sum, o) => sum + compensation(o), 0);
 }
 function restaurantPaid(restaurantId) {
   return S.settlements
@@ -2850,7 +2971,7 @@ function renderSettlementsPage() {
   const rows = [...S.restaurants].map((r) => {
     const due = restaurantDue(r.id);
     const paid = restaurantPaid(r.id);
-    return { r, due, paid, left: due - paid };
+    return { r, due, paid, comp: restaurantComp(r.id), left: due - paid };
   }).sort((a, b) => b.left - a.left);
 
   const totalLeft = rows.reduce((s, x) => s + x.left, 0);
@@ -2877,11 +2998,12 @@ function renderSettlementsPage() {
           — الطلبات الأقدم غير محتسبة. راجع الأرقام قبل أي دفعة كبيرة.
         </p>` : `
         <p class="meta" style="margin-top:10px">
-          محسوب من كل الطلبات المسلَّمة${oldest ? ` منذ ${esc(fmtTime(S.orders[S.orders.length - 1].createdAt))}` : ''}.
+          محسوب من كل الطلبات المسلَّمة${oldest ? ` منذ ${esc(fmtTime(S.orders[S.orders.length - 1].createdAt))}` : ''}،
+          مضافاً إليه تعويضات الإلغاء بعد بدء التحضير.
         </p>`}
     </div>
     <div class="panel">
-      ${rows.map(({ r, due, paid, left }) => `
+      ${rows.map(({ r, due, paid, comp, left }) => `
         <div class="card">
           <div class="row1">
             <span class="title">${esc(r.emoji || '🍽️')} ${esc(restName(r))}</span>
@@ -2892,7 +3014,8 @@ function renderSettlementsPage() {
           <div class="meta">
             المستحق: <b>${fmtMoney(due)} ${SAR}</b>
             · المدفوع: <b>${fmtMoney(paid)} ${SAR}</b><br>
-            من ${deliveredCountFor(r.id)} طلب مسلَّم
+            من ${deliveredCountFor(r.id)} طلب مسلَّم${comp > 0
+              ? ` · <span style="color:var(--purple)">منها ${fmtMoney(comp)} ${SAR} تعويض إلغاء بعد التحضير</span>` : ''}
           </div>
           <div class="row1" style="margin-top:8px;gap:6px">
             <button class="toggle-btn on" data-paysettle="${esc(r.id)}">💰 تسجيل دفعة</button>
@@ -3826,9 +3949,18 @@ async function loadReport() {
     const orders = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
     const delivered = orders.filter((o) => o.status === 'delivered');
     const perRest = {}, perDriver = {};
+    // التعويضات تُجمع من **كل** الطلبات لا المسلَّمة وحدها: الطلب المعوَّض
+    // ملغى بطبيعته فلا يدخل `delivered` أبداً. ولذلك حلقةٌ مستقلة.
+    orders.forEach((o) => {
+      const c = compensation(o);
+      if (c <= 0) return;
+      const rk = o.restaurantName || '—';
+      perRest[rk] = perRest[rk] || { count: 0, items: 0, comm: 0, appShare: 0, comp: 0 };
+      perRest[rk].comp += c;
+    });
     delivered.forEach((o) => {
       const rk = o.restaurantName || '—';
-      perRest[rk] = perRest[rk] || { count: 0, items: 0, comm: 0, appShare: 0 };
+      perRest[rk] = perRest[rk] || { count: 0, items: 0, comm: 0, appShare: 0, comp: 0 };
       perRest[rk].count++; perRest[rk].items += itemsTotal(o);
       perRest[rk].comm += commission(o); perRest[rk].appShare += Number(o.appShare) || 0;
       if (o.driverName) {
@@ -3845,6 +3977,14 @@ async function loadReport() {
       commTotal: delivered.reduce((s, o) => s + commission(o), 0),
       appShareTotal: delivered.reduce((s, o) => s + (Number(o.appShare) || 0), 0),
       driverShareTotal: delivered.reduce((s, o) => s + (Number(o.driverShare) || 0), 0),
+      // تكلفتان تتحمّلهما المنصّة وحدها فتُطرحان من دخلها: خصومات الكوبونات
+      // (تسويقٌ لا يمسّ نصيب المطعم) وتعويضات الإلغاء بعد التحضير. وإخفاؤهما
+      // كان يُظهر دخلاً لم يتحقق. ونطاقهما مختلف عمداً — مطابقةً لحساب
+      // التطبيق في `admin_reports_tab.dart`: الخصم من المسلَّمة وحدها (كوبون
+      // الطلب الملغى يُعاد لصاحبه فلا يكلّف المنصّة شيئاً)، والتعويض من كل
+      // الطلبات (لا يكون إلا على ملغى، فلا يمرّ بمرشِّح المسلَّمة أبداً).
+      discountTotal: delivered.reduce((s, o) => s + (Number(o.discountAmount) || 0), 0),
+      compTotal: orders.reduce((s, o) => s + compensation(o), 0),
       perRest, perDriver,
     };
   } catch (err) {
@@ -3860,6 +4000,8 @@ function drawReport() {
   if (!el) return;
   if (r.error) { el.innerHTML = `<div class="empty">تعذر التحميل: ${esc(r.error)}</div>`; return; }
   const platformProfit = r.commTotal + r.appShareTotal;
+  const costs = (r.discountTotal || 0) + (r.compTotal || 0);
+  const platformNet = platformProfit - costs;
   el.innerHTML = `
     <div class="kpi-grid">
       <div class="kpi"><div class="num">${r.total}</div><div class="lbl">إجمالي الطلبات</div></div>
@@ -3868,16 +4010,33 @@ function drawReport() {
       <div class="kpi"><div class="num">${fmtMoney(r.revenue)}</div><div class="lbl">إجمالي المبيعات (${SAR})</div></div>
       <div class="kpi"><div class="num">${fmtMoney(r.commTotal)}</div><div class="lbl">عمولات المطاعم ١٥٪ (${SAR})</div></div>
       <div class="kpi"><div class="num">${fmtMoney(r.appShareTotal)}</div><div class="lbl">نصيب المنصة من التوصيل (${SAR})</div></div>
-      <div class="kpi" style="border-color:var(--gold)"><div class="num">${fmtMoney(platformProfit)}</div>
-        <div class="lbl">أرباح المنصة الإجمالية (${SAR})</div></div>
+      <div class="kpi"><div class="num">${fmtMoney(platformProfit)}</div>
+        <div class="lbl">دخل المنصة قبل التكاليف (${SAR})</div></div>
+      ${(r.discountTotal || 0) > 0 ? `
+        <div class="kpi"><div class="num">− ${fmtMoney(r.discountTotal)}</div>
+          <div class="lbl">خصومات الكوبونات (${SAR})</div></div>` : ''}
+      ${(r.compTotal || 0) > 0 ? `
+        <div class="kpi" style="border-color:var(--purple)"><div class="num">− ${fmtMoney(r.compTotal)}</div>
+          <div class="lbl">تعويضات إلغاء بعد التحضير (${SAR})</div></div>` : ''}
+      <div class="kpi" style="border-color:var(--gold)"><div class="num">${fmtMoney(platformNet)}</div>
+        <div class="lbl">صافي دخل المنصة (${SAR})</div></div>
       <div class="kpi"><div class="num">${fmtMoney(r.driverShareTotal)}</div><div class="lbl">أجور السائقين (${SAR})</div></div>
     </div>
-    <div class="panel"><h3>حسب المطعم (الطلبات المُوصَّلة)</h3><div class="table-wrap">
-      <table class="rep"><tr><th>المطعم</th><th>طلبات</th><th>مبيعات الوجبات</th><th>عمولة ١٥٪</th><th>صافي للمطعم</th></tr>
+    ${costs > 0 ? `<p class="meta" style="margin:-2px 0 10px">
+      الصافي = دخل المنصة ${fmtMoney(platformProfit)} − التكاليف ${fmtMoney(costs)}
+      (خصومات ${fmtMoney(r.discountTotal || 0)} + تعويضات ${fmtMoney(r.compTotal || 0)}) ${SAR}.
+      التعويض يذهب للمطعم كاملاً بلا عمولة، والخصم تسويقٌ تتحمّله المنصّة وحدها.</p>` : ''}
+    <div class="panel"><h3>حسب المطعم</h3>
+      <p class="meta" style="margin:-4px 0 8px">المبيعات والعمولة من الطلبات المُوصَّلة،
+        والتعويضات من الطلبات الملغاة بعد التحضير — فقد يظهر مطعم بلا طلبات وله تعويض.</p>
+      <div class="table-wrap">
+      <table class="rep"><tr><th>المطعم</th><th>طلبات</th><th>مبيعات الوجبات</th><th>عمولة ١٥٪</th><th>تعويضات</th><th>صافي للمطعم</th></tr>
         ${Object.entries(r.perRest).sort((a, b) => b[1].items - a[1].items).map(([n, v]) => `
           <tr><td>${esc(n)}</td><td>${v.count}</td><td>${fmtMoney(v.items)}</td>
-            <td>${fmtMoney(v.comm)}</td><td><b>${fmtMoney(v.items - v.comm)}</b></td></tr>`).join('') ||
-          '<tr><td colspan="5" class="empty">لا بيانات</td></tr>'}
+            <td>${fmtMoney(v.comm)}</td>
+            <td${(v.comp || 0) > 0 ? ' style="color:var(--purple)"' : ''}>${(v.comp || 0) > 0 ? '+ ' + fmtMoney(v.comp) : '—'}</td>
+            <td><b>${fmtMoney(v.items - v.comm + (v.comp || 0))}</b></td></tr>`).join('') ||
+          '<tr><td colspan="6" class="empty">لا بيانات</td></tr>'}
       </table></div></div>
     <div class="panel"><h3>حسب السائق (الطلبات المُوصَّلة)</h3><div class="table-wrap">
       <table class="rep"><tr><th>السائق</th><th>توصيلات</th><th>أجور التوصيل</th></tr>
@@ -3896,11 +4055,15 @@ function exportCsv() {
     ['إجمالي الطلبات', r.total], ['مُوصَّلة', r.delivered], ['ملغاة', r.cancelled],
     ['إجمالي المبيعات', fmtMoney(r.revenue)], ['عمولات المطاعم 15%', fmtMoney(r.commTotal)],
     ['نصيب المنصة من التوصيل', fmtMoney(r.appShareTotal)],
-    ['أرباح المنصة', fmtMoney(r.commTotal + r.appShareTotal)],
+    ['دخل المنصة قبل التكاليف', fmtMoney(r.commTotal + r.appShareTotal)],
+    ['خصومات الكوبونات', '-' + fmtMoney(r.discountTotal || 0)],
+    ['تعويضات إلغاء بعد التحضير', '-' + fmtMoney(r.compTotal || 0)],
+    ['صافي دخل المنصة', fmtMoney(r.commTotal + r.appShareTotal - (r.discountTotal || 0) - (r.compTotal || 0))],
     ['أجور السائقين', fmtMoney(r.driverShareTotal)],
     [],
-    ['المطعم', 'طلبات', 'مبيعات الوجبات', 'عمولة 15%', 'صافي للمطعم'],
-    ...Object.entries(r.perRest).map(([n, v]) => [n, v.count, fmtMoney(v.items), fmtMoney(v.comm), fmtMoney(v.items - v.comm)]),
+    ['المطعم', 'طلبات', 'مبيعات الوجبات', 'عمولة 15%', 'تعويضات', 'صافي للمطعم'],
+    ...Object.entries(r.perRest).map(([n, v]) => [n, v.count, fmtMoney(v.items), fmtMoney(v.comm),
+      fmtMoney(v.comp || 0), fmtMoney(v.items - v.comm + (v.comp || 0))]),
     [],
     ['السائق', 'توصيلات', 'أجور التوصيل'],
     ...Object.entries(r.perDriver).map(([n, v]) => [n, v.count, fmtMoney(v.share)]),
