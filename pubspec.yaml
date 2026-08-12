@@ -87,6 +87,14 @@ dependencies:
   connectivity_plus: 6.1.0
   share_plus: ^10.1.2
 
+  # خدمة أمامية تمنع أندرويد من قتل تطبيق الكابتن وهو يقود (دفعة و2).
+  #
+  # مثبّتة على 9.2.2 بالتحقّق: هو آخر إصدار يقبل قيدنا (Dart 3.5 /
+  # Flutter 3.24) — الإصدار 10.0.0 يشترط Flutter أحدث. وتستعملها نكهة
+  # الكابتن وحدها، لكن الحزمة في `dependencies` المشتركة لأن pubspec
+  # واحد للنكهات الأربع؛ وأثرها على الثلاث الأخرى صفر لأنها لا تُنادى.
+  flutter_foreground_task: 9.2.2
+
 dependency_overrides:
   geolocator_android: 4.6.0
 
