@@ -74,9 +74,11 @@ service cloud.firestore {
       // restaurantChargeback: خصمُ شكوى جودة على المطعم لصالح العميل —
       // مبلغ مالي يختمه المدير وحده (بند د١)، وإلا مسحه مطعمٌ معدَّل
       // البرمجية عن نفسه أو سكّه عميلٌ على مطعمٍ يخاصمه.
+      // driverTip: إكرامية الكابتن — يكتبها العميل مرة عند الإنشاء ثم
+      // تتجمد: كابتن معدَّل البرمجية يرفع إكراميته بنفسه لولا هذا (د١).
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
-              'restaurantCompensation', 'restaurantChargeback'];
+              'restaurantCompensation', 'restaurantChargeback', 'driverTip'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
@@ -229,6 +231,8 @@ service cloud.firestore {
           request.resource.data.discountAmount is number &&
           request.resource.data.walletUsed is number &&
           request.resource.data.walletUsed >= 0 &&
+          request.resource.data.get('driverTip', 0) is number &&
+          request.resource.data.get('driverTip', 0) >= 0 &&
           (request.resource.data.discountAmount == 0 ||
             (request.resource.data.discountAmount > 0 &&
              request.resource.data.couponCode is string &&
@@ -248,7 +252,8 @@ service cloud.firestore {
                 !changedKeys().hasAny(orderMoneyKeys())) ||
             (resource.data.driverId == currentUid() &&
                 !changedKeys().hasAny(['items', 'driverShare', 'appShare',
-                                       'customerId', 'restaurantId', 'orderNumber'])) ||
+                                       'customerId', 'restaurantId',
+                                       'orderNumber', 'driverTip'])) ||
             // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
             // بعد رفضه إياه — يمرّره جهازُه تلقائياً لأقرب سائق آخر
             // (driverId لغيره). كان الشرط يُلزم أن يكون المعرّف الجديد هو
