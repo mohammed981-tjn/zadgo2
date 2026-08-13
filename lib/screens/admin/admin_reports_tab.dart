@@ -113,6 +113,13 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
             .where((o) => _restaurantFilter.isEmpty ||
                 o.restaurantId == _restaurantFilter)
             .fold(0.0, (s, o) => s + o.restaurantCompensation);
+        // خصومات شكاوى الجودة تُطرح من مستحق المطاعم لا من دخل المنصّة:
+        // المنصّة دفعت الاسترداد للعميل واستردّته من المطعم — صفرٌ صافٍ
+        // عندها، والعبء كله على من أفسد الطلب (سياسة المالك 2026-08-13).
+        final totalChargebacks = orders
+            .where((o) => _restaurantFilter.isEmpty ||
+                o.restaurantId == _restaurantFilter)
+            .fold(0.0, (s, o) => s + o.restaurantChargeback);
         final platformNet =
             totalCommission - totalDiscounts - totalCompensations;
         // مسار التحصيل: النقدي حصّله السائقون من العملاء مباشرة، والباقي
@@ -223,7 +230,11 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                   const Divider(),
                   PriceRow(
                       label: '← صافي مستحقّات المطاعم',
-                      value: formatCurrency(restaurantsNet)),
+                      value: formatCurrency(restaurantsNet - totalChargebacks)),
+                  if (totalChargebacks > 0)
+                    PriceRow(
+                        label: '   منها خصومات شكاوى جودة لصالح العملاء',
+                        value: '- ${formatCurrency(totalChargebacks)}'),
                   PriceRow(
                       label: '← أجرة السائقين',
                       value: formatCurrency(totalDelivery)),
