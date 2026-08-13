@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>بوّابة الكابتن — ZadGo زاد جو</title>
+<meta name="description" content="أرباحك ودفترك وسحب مستحقّاتك وسجلّ توصيلاتك — من أي متصفح.">
+<!-- محجوبة عن الفهرسة: بوّابة حساب لا صفحة تسويق، ولا معنى لأن يصلها عابرٌ
+     من نتائج البحث. ومخفيّة كذلك أثناء التجربة كصفحة العميل. -->
+<meta name="robots" content="noindex">
+<!-- سياسة أمان المحتوى — تحصر ما تُحمّله الصفحة وما تتصل به. فائدتها العملية
+     أنها تمنع تسريب البيانات: لو تسلّل نصٌّ خبيث يوماً من حقلٍ يكتبه المدير،
+     لا يستطيع إرسال شيء إلى خادمٍ غريب. لا نطاق خرائط هنا ولا صور خارجية:
+     هذه الصفحة أرقامٌ وجداول، فالسماح بهما توسيعٌ بلا حاجة. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self';
+  script-src 'self' 'unsafe-inline' https://www.gstatic.com;
+  connect-src 'self' https://*.googleapis.com https://*.firebaseio.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src https://fonts.gstatic.com;
+  img-src 'self' data:;
+  base-uri 'self'; form-action 'none'; object-src 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="theme-color" content="#0A1E38">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   بوّابة الكابتن — ألوان «نكهة الكابتن» في التطبيق حرفياً
+   (lib/utils/theme.dart): الأزرق الملاحي على كحليّ ليلي. فمن رأى
+   التطبيق عرف الصفحة، ومن فتح الصفحة لم يستغرب التطبيق.
+   ============================================================ */
+:root {
+  --blue: #1976D2; --blue-dark: #0D47A1; --blue-soft: #E8F1FB;
+  --night: #0A1E38; --night-2: #050F1E;
+  --bg: #F2F5F9; --card: #fff; --line: #E3E9F1;
+  --text: #101c2e; --muted: #6b7a90;
+  --ok: #1e8449; --warn: #ca6f1e; --red: #c0392b; --gold: #FFC107;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Tajawal', Tahoma, sans-serif; background: var(--bg);
+  color: var(--text); line-height: 1.75; -webkit-text-size-adjust: 100%;
+}
+button, input, select, textarea { font-family: inherit; }
+.hide { display: none !important; }
+
+/* ---------- الدخول ---------- */
+.auth-wrap {
+  min-height: 100vh; min-height: 100dvh; display: flex; align-items: center;
+  justify-content: center; padding: 22px 16px;
+  background: linear-gradient(165deg, var(--night), var(--night-2));
+}
+.auth-box {
+  width: 100%; max-width: 400px; background: var(--card); border-radius: 22px;
+  padding: 28px 22px 24px; box-shadow: 0 18px 50px rgba(0,0,0,.34);
+}
+.auth-box .logo { text-align: center; margin-bottom: 20px; }
+.auth-box .logo img { height: 40px; }
+.auth-box .logo p { color: var(--muted); font-size: .92rem; margin-top: 9px; }
+.field { margin-bottom: 13px; }
+.field label { display: block; font-size: .84rem; font-weight: 700; margin-bottom: 5px; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 12px 14px; border: 1.5px solid var(--line);
+  border-radius: 13px; font-size: 1rem; background: #fff; color: var(--text);
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: 0; border-color: var(--blue);
+}
+.btn {
+  background: var(--blue); color: #fff; border: 0; border-radius: 13px;
+  padding: 13px 18px; font-size: 1rem; font-weight: 800; cursor: pointer;
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn.block { width: 100%; }
+.btn.ghost { background: #fff; color: var(--blue-dark); border: 1.5px solid var(--line); }
+.btn.small { padding: 8px 13px; font-size: .87rem; border-radius: 10px; }
+.msg { border-radius: 12px; padding: 10px 13px; font-size: .89rem; margin-bottom: 13px; }
+.msg.err { background: #fdecea; color: #922; border: 1px solid #f5c6c0; }
+.msg.ok  { background: #e8f6ee; color: #1a6b3c; border: 1px solid #bfe3ce; }
+
+/* ---------- الهيكل ---------- */
+header.top {
+  background: linear-gradient(160deg, var(--night), var(--night-2));
+  color: #fff; padding: 16px 16px 14px; position: sticky; top: 0; z-index: 20;
+}
+.top-row { display: flex; align-items: center; gap: 10px; max-width: 720px; margin: 0 auto; }
+.top-row img { height: 26px; }
+.top-row .who { margin-inline-start: auto; text-align: end; font-size: .8rem; line-height: 1.5; }
+.top-row .who b { display: block; font-size: .95rem; }
+.out {
+  background: rgba(255,255,255,.12); color: #fff; border: 0; border-radius: 10px;
+  padding: 7px 11px; font-size: .82rem; cursor: pointer;
+}
+nav.tabs {
+  display: flex; gap: 4px; overflow-x: auto; background: var(--night-2);
+  padding: 0 8px; position: sticky; top: 56px; z-index: 19;
+  scrollbar-width: none;
+}
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs button {
+  background: none; border: 0; color: rgba(255,255,255,.62); padding: 11px 13px;
+  font-size: .9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+  border-bottom: 3px solid transparent;
+}
+nav.tabs button.on { color: #fff; border-bottom-color: var(--gold); }
+main { max-width: 720px; margin: 0 auto; padding: 16px 14px 56px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 16px; margin-bottom: 13px;
+}
+.card h2 { font-size: 1.02rem; font-weight: 900; margin-bottom: 4px; }
+.muted { color: var(--muted); font-size: .87rem; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0;
+      border-bottom: 1px dashed var(--line); font-size: .93rem; }
+.kv:last-child { border-bottom: 0; }
+.kv b { font-weight: 800; white-space: nowrap; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+        padding: 13px; text-align: center; }
+.stat .n { font-size: 1.45rem; font-weight: 900; color: var(--blue-dark); }
+.stat .l { font-size: .78rem; color: var(--muted); }
+.badge { display: inline-block; border-radius: 999px; padding: 2px 10px;
+         font-size: .76rem; font-weight: 800; color: #fff; }
+.empty { text-align: center; color: var(--muted); padding: 26px 10px; font-size: .9rem; }
+.row-item { border-bottom: 1px solid var(--line); padding: 11px 0; }
+.row-item:last-child { border-bottom: 0; }
+.row-item .h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.row-item .h b { font-size: .95rem; }
+.money-in  { color: var(--ok); font-weight: 900; }
+.money-out { color: var(--red); font-weight: 900; }
+
+/* بطاقة الرصيد — لونها يتبع إشارته لأن المعنى ينقلب معها تماماً */
+.wallet { border-radius: 20px; padding: 20px 18px; color: #fff; margin-bottom: 13px; }
+.wallet.due  { background: linear-gradient(150deg, #1e8449, #146034); }
+.wallet.owed { background: linear-gradient(150deg, #b9770e, #8a5806); }
+.wallet .amt { font-size: 2.1rem; font-weight: 900; letter-spacing: -.5px; }
+.wallet .lbl { font-size: .88rem; opacity: .85; }
+.wallet .exp { font-size: .84rem; opacity: .9; margin-top: 8px; line-height: 1.65; }
+
+/* التنبيه الصريح: ما لا تفعله هذه الصفحة */
+.notice {
+  background: #fff8e6; border: 1px solid #f0dca8; border-radius: 16px;
+  padding: 13px 15px; margin-bottom: 14px; font-size: .89rem; line-height: 1.75;
+}
+.notice b { color: #8a6106; }
+
+footer.f { text-align: center; color: var(--muted); font-size: .82rem;
+           padding: 22px 14px 40px; }
+footer.f a { color: var(--blue-dark); text-decoration: none; }
+footer.f nav { display: flex; gap: 13px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
+</style>
+<script>
+/* منع التأطير — `frame-ancestors` في وسم meta تتجاهله المتصفحات (تعمل في
+ * ترويسة HTTP وحدها، وGitHub Pages لا تسمح بترويسات مخصصة). فلو أطّر أحدٌ
+ * هذه الصفحة داخل موقعه لأمكنه خداع الكابتن على النقر فيما لا يقصده. */
+if (window.top !== window.self) { window.top.location = window.self.location; }
+</script>
+</head>
+<body>
+
+<!-- ============ الدخول ============
+     دخولٌ فقط بلا تسجيل: الكابتن لا يُنشئ حسابه بنفسه من هنا — يتقدّم عبر
+     صفحة الانضمام، فتراجع الإدارة مستنداته وتمنحه كود تسجيل. صفحةٌ تُنشئ
+     حسابات كباتن بلا مراجعة تفتح باباً لمن لا نعرفه. -->
+<div id="authView" class="auth-wrap">
+  <div class="auth-box">
+    <div class="logo">
+      <img src="/images/zadgo-logo.png" alt="ZadGo">
+      <p>بوّابة الكابتن — أرباحك ودفترك ومستحقّاتك</p>
+    </div>
+    <div id="authMsg" class="msg err hide"></div>
+    <form id="loginForm">
+      <div class="field"><label for="lEmail">البريد الإلكتروني</label>
+        <input type="email" id="lEmail" autocomplete="email" required></div>
+      <div class="field"><label for="lPass">كلمة المرور</label>
+        <input type="password" id="lPass" autocomplete="current-password" required></div>
+      <button type="submit" class="btn block" id="lBtn">دخول</button>
+      <button type="button" class="btn ghost block" id="lReset" style="margin-top:9px">نسيت كلمة المرور</button>
+    </form>
+    <p class="muted" style="text-align:center;margin-top:16px">
+      لستَ كابتناً بعد؟ <a href="/join/" style="color:var(--blue-dark);font-weight:700">قدّم طلب انضمام</a>
+    </p>
+  </div>
+</div>
+
+<!-- ============ البوّابة ============ -->
+<div id="appView" class="hide">
+  <header class="top">
+    <div class="top-row">
+      <img src="/images/zadgo-logo.png" alt="ZadGo">
+      <div class="who"><b id="whoName">—</b><span id="whoPhone"></span></div>
+      <button class="out" id="outBtn">خروج</button>
+    </div>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button data-tab="wallet" class="on">👛 محفظتي</button>
+    <button data-tab="trips">🧾 توصيلاتي</button>
+    <button data-tab="payout">💸 سحب</button>
+    <button data-tab="perks">🎁 الحوافز</button>
+    <button data-tab="me">👤 حسابي</button>
+  </nav>
+  <main id="main"></main>
+  <footer class="f">
+    <nav>
+      <a href="/guide/driver/">دليل الكابتن</a>
+      <a href="/contact.html">الدعم</a>
+      <a href="/terms.html">الشروط</a>
+    </nav>
+    <div>© 2026 زادقو ZadGo — zadgo.co</div>
+  </footer>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, addDoc, collection, query, where, limit,
+  onSnapshot, getDocs, serverTimestamp, Timestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+/* مفتاح المتصفح — منفصل عن مفتاح تطبيقات أندرويد عمداً: تقييد مفتاحٍ واحد
+ * مشترك بنطاق zadgo.co كان يوقف تطبيق الكابتن وهو في منتصف توصيلة. */
+const app = initializeApp({
+  apiKey: 'AIzaSyBoAvj7C2vJyzERVnK26Oa-dJZ1mV0vO6g',
+  authDomain: 'restaurant-app-ed699.firebaseapp.com',
+  projectId: 'restaurant-app-ed699',
+});
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const SAR = 'ر.س';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
+  (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = (n) => (Number(n) || 0).toFixed(2);
+const toDate = (v) => {
+  if (!v) return null;
+  if (typeof v.toDate === 'function') return v.toDate();
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+const fmtDate = (v) => {
+  const d = toDate(v);
+  return d ? d.toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+};
+
+/* ---------------- الحالة ---------------- */
+const S = {
+  uid: null, driver: null, txns: [], orders: [], payouts: [],
+  incentives: null, tab: 'wallet', busy: false, msg: null,
+};
+let unsubs = [];
+const stopAll = () => { unsubs.forEach((u) => { try { u(); } catch (e) {} }); unsubs = []; };
+
+/* ---------------- الدخول ---------------- */
+function authMsg(text, ok) {
+  const el = $('authMsg');
+  el.className = 'msg ' + (ok ? 'ok' : 'err');   // يُضبط في كل مرة: رسالة
+  el.textContent = text;                          // نجاحٍ سابقة كانت تُبقي
+  el.classList.remove('hide');                    // الصندوق أخضر إلى الأبد
+}
+const clearAuthMsg = () => $('authMsg').classList.add('hide');
+
+const AUTH_AR = {
+  'auth/invalid-email': 'البريد الإلكتروني غير صحيح',
+  'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة',
+  'auth/wrong-password': 'كلمة المرور غير صحيحة',
+  'auth/user-not-found': 'لا يوجد حساب بهذا البريد',
+  'auth/too-many-requests': 'محاولات كثيرة — انتظر قليلاً ثم أعد المحاولة',
+  'auth/network-request-failed': 'تعذّر الاتصال — تحقّق من الشبكة',
+};
+const authErrAr = (e) => AUTH_AR[e?.code] || ('تعذّر الدخول: ' + (e?.code || e?.message || ''));
+
+$('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearAuthMsg();
+  $('lBtn').disabled = true; $('lBtn').textContent = '…جارٍ الدخول';
+  try {
+    await signInWithEmailAndPassword(auth, $('lEmail').value.trim(), $('lPass').value);
+  } catch (err) {
+    authMsg(authErrAr(err), false);
+  } finally {
+    $('lBtn').disabled = false; $('lBtn').textContent = 'دخول';
+  }
+});
+
+$('lReset').addEventListener('click', async () => {
+  const email = $('lEmail').value.trim();
+  if (!email) { authMsg('اكتب بريدك أولاً ثم اضغط «نسيت كلمة المرور»', false); return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    authMsg('أُرسل رابط إعادة التعيين إلى بريدك — تفقّد صندوق الوارد والمهملات', true);
+  } catch (err) { authMsg(authErrAr(err), false); }
+});
+
+$('outBtn').addEventListener('click', async () => { stopAll(); await signOut(auth); });
+
+onAuthStateChanged(auth, async (user) => {
+  stopAll();
+  if (!user) {
+    S.uid = null; S.driver = null;
+    $('appView').classList.add('hide');
+    $('authView').classList.remove('hide');
+    return;
+  }
+  /* بوّابة الدور: الحساب قد يكون عميلاً أو مدير مطعم. القواعد تمنعه من
+   * قراءة دفتر غيره أصلاً، لكن تركه أمام شاشة فارغة بلا تفسير عطلٌ في
+   * التجربة — فيُصرَّح له بالسبب ويُخرَج. */
+  const dsnap = await getDoc(doc(db, 'drivers', user.uid)).catch(() => null);
+  if (!dsnap || !dsnap.exists()) {
+    await signOut(auth);
+    authMsg('هذا الحساب ليس حساب كابتن. إن كنت تنتظر قبول طلب انضمامك فراجع الإدارة.', false);
+    return;
+  }
+  S.uid = user.uid;
+  $('authView').classList.add('hide');
+  $('appView').classList.remove('hide');
+  bind();
+});
+
+/* ---------------- الاشتراكات ----------------
+ * كلها بمرشّح `driverId == uid`: هذا ما تسمح به القواعد المنشورة، وهو
+ * أيضاً ما ينبغي — الكابتن لا يرى دفتر غيره ولا طلبات غيره. */
+function bind() {
+  unsubs.push(onSnapshot(doc(db, 'drivers', S.uid),
+    (d) => { S.driver = d.exists() ? { id: d.id, ...d.data() } : null; render(); },
+    (e) => fail('تعذّرت قراءة حسابك', e)));
+
+  unsubs.push(onSnapshot(
+    query(collection(db, 'driver_transactions'), where('driverId', '==', S.uid), limit(200)),
+    (s) => { S.txns = sortDesc(s.docs.map((d) => ({ id: d.id, ...d.data() }))); render(); },
+    (e) => fail('تعذّرت قراءة دفترك', e)));
+
+  unsubs.push(onSnapshot(
+    query(collection(db, 'orders'), where('driverId', '==', S.uid), limit(200)),
+    (s) => { S.orders = sortDesc(s.docs.map((d) => ({ id: d.id, ...d.data() }))); render(); },
+    (e) => fail('تعذّرت قراءة توصيلاتك', e)));
+
+  unsubs.push(onSnapshot(
+    query(collection(db, 'payout_requests'), where('driverId', '==', S.uid), limit(50)),
+    (s) => { S.payouts = sortDesc(s.docs.map((d) => ({ id: d.id, ...d.data() }))); render(); },
+    (e) => fail('تعذّرت قراءة طلبات السحب', e)));
+
+  /* الحوافز قراءةٌ واحدة لا مستمع: أرقامٌ يضبطها المدير مرة كل أسابيع،
+   * ومستمعٌ دائم عليها اتصالٌ مفتوح بلا مقابل. */
+  getDoc(doc(db, 'delivery_settings', 'incentives'))
+    .then((d) => { S.incentives = d.exists() ? d.data() : {}; render(); })
+    .catch(() => { S.incentives = {}; render(); });
+}
+
+/* الترتيب محلي لا في الاستعلام: `where` + `orderBy` على حقلين مختلفين
+ * يستلزم فهرساً مركّباً في Firestore، وإنشاؤه بيد المالك — والقوائم هنا
+ * مئتا سجلّ على الأكثر فالفرز في المتصفح لا يُحسّ. */
+const sortDesc = (arr) => arr.sort((a, b) => {
+  const x = toDate(b.createdAt)?.getTime() || 0;
+  const y = toDate(a.createdAt)?.getTime() || 0;
+  return x - y;
+});
+
+function fail(what, err) {
+  console.warn(what, err);
+  S.msg = { text: what + ' — ' + (err?.code || err?.message || ''), ok: false };
+  render();
+}
+
+/* ---------------- التبويبات ---------------- */
+$('tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tab]');
+  if (!b) return;
+  S.tab = b.dataset.tab; S.msg = null;
+  [...$('tabs').children].forEach((x) => x.classList.toggle('on', x === b));
+  render();
+  window.scrollTo({ top: 0 });
+});
+
+/* ---------------- مفردات الدفتر ----------------
+ * نسخة من DriverTransactionType في models.dart. الإشارة هي المعنى:
+ * ما يزيد رصيده «له»، وما ينقصه «عليه». */
+const TXN = {
+  orderCustody:    ['عُهدة طلب نقدي', 'قيمة الطلب صارت بيدك حتى تسدّدها'],
+  custodyReversal: ['ردّ عُهدة', 'أُلغي الطلب أو أُعيد إسناده بعد استلامك'],
+  deliveryCash:    ['توصيل نقدي', 'قبضتَ كامل المبلغ من العميل'],
+  deliveryOnline:  ['أجرة توصيل', 'الطلب مدفوع إلكترونياً، فأجرتك لك'],
+  bonus:           ['مكافأة', 'منحة من الإدارة'],
+  deposit:         ['إيداع', 'سلّمتَ نقداً للإدارة'],
+  payout:          ['صرف', 'صُرفت لك مستحقّاتك'],
+  adjustment:      ['تسوية', 'تصحيح قيدٍ سابق'],
+};
+const txnLabel = (t) => (TXN[t] || [t || 'حركة', ''])[0];
+const txnHint = (t) => (TXN[t] || ['', ''])[1];
+
+const STATUS_AR = {
+  delivered: ['تم التوصيل', '#1e8449'], cancelled: ['ملغى', '#c0392b'],
+  refunded: ['مُسترد', '#8e44ad'], restaurantRejected: ['رفضه المطعم', '#c0392b'],
+  noDriverFound: ['بلا سائق', '#c0392b'], onTheWay: ['في الطريق', '#2471a3'],
+  pickedUp: ['استُلم', '#2471a3'], driverAssigned: ['مُسنَد إليك', '#ca6f1e'],
+  readyForPickup: ['جاهز للاستلام', '#ca6f1e'], preparing: ['قيد التحضير', '#ca6f1e'],
+  searchingDriver: ['بحث عن سائق', '#ca6f1e'],
+};
+const badge = (txt, color) => `<span class="badge" style="background:${color}">${esc(txt)}</span>`;
+
+const PAYOUT_AR = {
+  pending: ['قيد المعالجة', '#ca6f1e'], approved: ['صُرف', '#1e8449'],
+  paid: ['صُرف', '#1e8449'], rejected: ['مرفوض', '#c0392b'],
+};
+
+/* ---------------- العرض ---------------- */
+function render() {
+  if (!S.driver) { $('main').innerHTML = '<div class="empty">…جارٍ التحميل</div>'; return; }
+  const d = S.driver;
+  $('whoName').textContent = d.name || 'كابتن';
+  $('whoPhone').textContent = d.phone || '';
+  const msg = S.msg
+    ? `<div class="msg ${S.msg.ok ? 'ok' : 'err'}">${esc(S.msg.text)}</div>` : '';
+  const views = { wallet: viewWallet, trips: viewTrips, payout: viewPayout,
+    perks: viewPerks, me: viewMe };
+  $('main').innerHTML = msg + (views[S.tab] || viewWallet)();
+  wire();
+}
+
+/* ---- التنبيه الذي لا يجوز إخفاؤه ----
+ * المتصفح لا يستطيع تتبّع الموقع والهاتف في الجيب — `watchPosition` يتوقف
+ * فور قفل الشاشة على أندرويد و iOS معاً، ولا إشعارات موثوقة من تبويب.
+ * وكابتنٌ يظنّ نفسه متصلاً وهو ليس كذلك أسوأ من صفحة لا توجد أصلاً، فيقال
+ * له صراحةً في كل تبويب لا مرة واحدة عند الدخول. */
+const notice = () => `
+  <div class="notice">
+    <b>هذه بوّابة حسابك لا شاشة عملك.</b> استقبال العروض و«وصلتُ المطعم»
+    والتتبّع الحيّ تبقى في <b>التطبيق</b> وحده — لأن المتصفح يتوقّف عن
+    تحديث موقعك لحظة قفل الشاشة، فلو عملتَ من هنا لظننتَ نفسك متصلاً
+    وأنت لا تصلك الطلبات.
+  </div>`;
+
+/* ---- محفظتي ---- */
+function viewWallet() {
+  const bal = Number(S.driver.balance) || 0;
+  const owes = bal < 0;                 // سالب = نقدٌ بيده يسدّده
+  const abs = Math.abs(bal);
+  const list = S.txns;
+  return notice() + `
+    <div class="wallet ${owes ? 'owed' : 'due'}">
+      <div class="lbl">${owes ? 'مبلغ عليك' : 'رصيدك المستحق'}</div>
+      <div class="amt">${money(abs)} ${SAR}</div>
+      <div class="exp">${owes
+        ? 'عُهدة طلبات نقدية بيدك — تُسدَّد بتسليم النقد للإدارة، أو تُخصم مما يُستحق لك.'
+        : 'مستحقّاتك من الطلبات المدفوعة إلكترونياً والمكافآت — تستطيع طلب سحبها.'}</div>
+    </div>
+    <div class="grid2" style="margin-bottom:13px">
+      <div class="stat"><div class="n">${Number(S.driver.totalDeliveries) || 0}</div>
+        <div class="l">توصيلة مكتملة</div></div>
+      <div class="stat"><div class="n">${money(S.driver.totalEarnings)}</div>
+        <div class="l">إجمالي أرباحك (${SAR})</div></div>
+    </div>
+    <div class="card">
+      <h2>سجلّ الحركات</h2>
+      <p class="muted" style="margin-bottom:6px">آخر ${list.length} حركة — ومعها رصيدك بعد كلٍّ منها.</p>
+      ${list.length ? list.map(txnRow).join('') : '<div class="empty">لا حركات بعد</div>'}
+    </div>`;
+}
+
+/* الرصيد بإشارة، والإشارة وحدها لا تكفي في سطرٍ عربي: «−63.50» تنقلب
+ * قراءتها بين المتصفحات في النص ثنائي الاتجاه، والقارئ لا يعرف أهو له أم
+ * عليه. فتُقال بالكلمة كما تُقال في بطاقة الرصيد نفسها. */
+function balanceAfterText(v) {
+  const n = Number(v) || 0;
+  if (n === 0) return 'الرصيد بعدها: صفر';
+  return `الرصيد بعدها: ${money(Math.abs(n))} ${SAR} ${n < 0 ? 'عليك' : 'لك'}`;
+}
+
+function txnRow(t) {
+  const amt = Number(t.amount) || 0;
+  const positive = amt >= 0;
+  return `
+    <div class="row-item">
+      <div class="h">
+        <b>${esc(txnLabel(t.type))}</b>
+        <span class="${positive ? 'money-in' : 'money-out'}">${positive ? '+' : '−'} ${money(Math.abs(amt))} ${SAR}</span>
+      </div>
+      <div class="muted">
+        ${esc(fmtDate(t.createdAt))}${t.orderNumber ? ' · طلب #' + esc(t.orderNumber) : ''}
+        ${Number.isFinite(Number(t.balanceAfter)) ? ' · ' + balanceAfterText(t.balanceAfter) : ''}
+      </div>
+      ${t.note ? `<div class="muted">${esc(t.note)}</div>`
+               : (txnHint(t.type) ? `<div class="muted">${esc(txnHint(t.type))}</div>` : '')}
+    </div>`;
+}
+
+/* ---- توصيلاتي ---- */
+function viewTrips() {
+  const done = S.orders.filter((o) => o.status === 'delivered');
+  const fees = done.reduce((s, o) => s + (Number(o.driverShare) || 0), 0);
+  const month = new Date(); month.setDate(1); month.setHours(0, 0, 0, 0);
+  const thisMonth = done.filter((o) => (toDate(o.createdAt)?.getTime() || 0) >= month.getTime());
+  const monthFees = thisMonth.reduce((s, o) => s + (Number(o.driverShare) || 0), 0);
+  return notice() + `
+    <div class="grid2" style="margin-bottom:13px">
+      <div class="stat"><div class="n">${thisMonth.length}</div><div class="l">توصيلة هذا الشهر</div></div>
+      <div class="stat"><div class="n">${money(monthFees)}</div><div class="l">أجرتك هذا الشهر (${SAR})</div></div>
+    </div>
+    <div class="card">
+      <h2>آخر توصيلاتك</h2>
+      <p class="muted" style="margin-bottom:6px">
+        ${done.length} مكتملة من ${S.orders.length} طلباً وصلك — بمجموع أجرة ${money(fees)} ${SAR}.
+      </p>
+      ${S.orders.length ? S.orders.map(tripRow).join('') : '<div class="empty">لا توصيلات بعد</div>'}
+    </div>`;
+}
+
+function tripRow(o) {
+  const [lbl, color] = STATUS_AR[o.status] || [o.status || '—', '#7f8c8d'];
+  const cash = o.paymentMethod === 'cash';
+  return `
+    <div class="row-item">
+      <div class="h">
+        <b>#${esc(o.orderNumber || '')} — ${esc(o.restaurantName || 'مطعم')}</b>
+        <span class="money-in">${money(o.driverShare)} ${SAR}</span>
+      </div>
+      <div class="muted">
+        ${esc(fmtDate(o.createdAt))} · ${badge(lbl, color)}
+        ${cash ? ' · نقدي' : ' · مدفوع إلكترونياً'}
+      </div>
+      ${o.deliveryAddress ? `<div class="muted">${esc(o.deliveryAddress)}</div>` : ''}
+    </div>`;
+}
+
+/* ---- السحب ---- */
+function viewPayout() {
+  const bal = Number(S.driver.balance) || 0;
+  const pending = S.payouts.find((p) => (p.status || 'pending') === 'pending');
+  const canAsk = bal > 0 && !pending;
+  return notice() + `
+    <div class="card">
+      <h2>طلب سحب مستحقّاتك</h2>
+      <p class="muted">رصيدك المتاح للسحب: <b style="color:var(--ok)">${money(Math.max(0, bal))} ${SAR}</b></p>
+      ${bal <= 0 ? `<p class="muted" style="margin-top:8px">
+          لا رصيد يُسحب الآن${bal < 0 ? ' — بل عليك عُهدة نقدية تُسدَّد أولاً' : ''}.</p>` : ''}
+      ${pending ? `<div class="msg err" style="margin-top:10px">
+          لديك طلب سحب قيد المعالجة بمبلغ ${money(pending.amount)} ${SAR} — انتظر بتّه أولاً.</div>` : ''}
+      ${canAsk ? `
+        <div id="payoutMsg"></div>
+        <div class="field" style="margin-top:10px"><label for="pAmt">المبلغ (${SAR})</label>
+          <input type="number" id="pAmt" min="1" step="0.01" max="${bal}" inputmode="decimal"
+                 placeholder="حتى ${money(bal)}"></div>
+        <div class="field"><label for="pMethod">طريقة الاستلام</label>
+          <input type="text" id="pMethod" placeholder="آيبان للتحويل، أو: نقداً من الإدارة"></div>
+        <button class="btn block" id="pSend" ${S.busy ? 'disabled' : ''}>
+          ${S.busy ? '…جارٍ الإرسال' : 'أرسل الطلب'}</button>` : ''}
+    </div>
+    <div class="card">
+      <h2>طلباتك السابقة</h2>
+      ${S.payouts.length ? S.payouts.map(payoutRow).join('') : '<div class="empty">لا طلبات سابقة</div>'}
+    </div>`;
+}
+
+function payoutRow(p) {
+  const [lbl, color] = PAYOUT_AR[p.status || 'pending'] || [p.status, '#7f8c8d'];
+  return `
+    <div class="row-item">
+      <div class="h"><b>${money(p.amount)} ${SAR}</b> ${badge(lbl, color)}</div>
+      <div class="muted">${esc(fmtDate(p.createdAt))}${p.method ? ' · ' + esc(p.method) : ''}</div>
+      ${p.adminNote ? `<div class="muted">ردّ الإدارة: ${esc(p.adminNote)}</div>` : ''}
+    </div>`;
+}
+
+async function submitPayout() {
+  const amount = Number($('pAmt').value);
+  const method = ($('pMethod').value || '').trim();
+  const bal = Number(S.driver.balance) || 0;
+  const box = $('payoutMsg');
+  const say = (t, ok) => { box.innerHTML = `<div class="msg ${ok ? 'ok' : 'err'}">${esc(t)}</div>`; };
+  /* الحارسان نسخة من submitPayoutRequest في التطبيق. وهما للتجربة لا
+   * للأمان: القواعد تفرض amount > 0 وحدها، والتسوية النهائية عند الصرف
+   * حيث يُعاد فحص الرصيد لحظتها — فطلبٌ يتجاوز الرصيد يُرفض هناك. */
+  if (!Number.isFinite(amount) || amount <= 0) { say('أدخل مبلغاً أكبر من صفر', false); return; }
+  if (amount > bal) { say(`المبلغ أكبر من رصيدك المتاح (${money(bal)} ${SAR})`, false); return; }
+  if (!method) { say('اكتب طريقة الاستلام — آيبان أو «نقداً من الإدارة»', false); return; }
+
+  S.busy = true; render();
+  try {
+    /* فحص «طلب معلّق» يُعاد من الخادم لا من النسخة المحلية: المستمع قد
+     * يتأخّر لحظةً بعد إرسال طلبٍ من التطبيق، فيمرّ طلبان. */
+    const snap = await getDocs(query(collection(db, 'payout_requests'),
+      where('driverId', '==', S.uid), limit(50)));
+    const hasPending = snap.docs.some((x) => (x.data().status || 'pending') === 'pending');
+    if (hasPending) {
+      S.busy = false; render();
+      $('payoutMsg').innerHTML = '<div class="msg err">لديك طلب سحب قيد المعالجة بالفعل — انتظر بتّه أولاً</div>';
+      return;
+    }
+    await addDoc(collection(db, 'payout_requests'), {
+      driverId: S.uid,
+      driverName: S.driver.name || '',
+      amount,
+      method,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+    S.busy = false; S.msg = { text: 'أُرسل طلب السحب — تتابعه الإدارة وتردّ عليك هنا.', ok: true };
+    render();
+  } catch (err) {
+    S.busy = false; render();
+    const b = $('payoutMsg');
+    if (b) b.innerHTML = `<div class="msg err">تعذّر الإرسال: ${esc(err.code || err.message)}</div>`;
+  }
+}
+
+/* ---- الحوافز ---- */
+const DAYS_AR = { 1: 'الاثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس',
+  5: 'الجمعة', 6: 'السبت', 7: 'الأحد' };
+/* ترقيم DateTime في دارت: الاثنين ١ … الأحد ٧. وجافاسكربت: الأحد ٠ …
+ * السبت ٦. الخلط بينهما يزيح كل يوم بمقدار واحد ويعرض على الكابتن يوم
+ * تحدٍّ خاطئاً — فالتحويل صريح هنا لا ضمني. */
+const jsDayToDart = (n) => (n === 0 ? 7 : n);
+
+function viewPerks() {
+  const c = S.incentives || {};
+  const num = (k, dflt) => (Number.isFinite(Number(c[k])) ? Number(c[k]) : dflt);
+  const refOn = c.referralEnabled !== false;
+  const chOn = c.challengeEnabled !== false;
+  const days = Array.isArray(c.challengeWeekdays) && c.challengeWeekdays.length
+    ? c.challengeWeekdays : [4, 5];
+  const tiers = Array.isArray(c.tiers) && c.tiers.length
+    ? c.tiers : [{ deliveries: 10, bonus: 20 }, { deliveries: 20, bonus: 50 }];
+
+  // عدّ توصيلاته في أيام التحدي خلال آخر سبعة أيام — للاطلاع لا للصرف.
+  const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+  const inWindow = S.orders.filter((o) => {
+    if (o.status !== 'delivered') return false;
+    const t = toDate(o.createdAt);
+    return t && t.getTime() >= weekAgo && days.includes(jsDayToDart(t.getDay()));
+  }).length;
+  const reached = [...tiers].filter((t) => inWindow >= (Number(t.deliveries) || 0))
+    .sort((a, b) => (Number(b.bonus) || 0) - (Number(a.bonus) || 0))[0];
+
+  return notice() + `
+    <div class="card">
+      <h2>🏆 تحدي نهاية الأسبوع</h2>
+      ${!chOn ? '<p class="muted">موقوف حالياً.</p>' : `
+        <p class="muted">أيام التحدي: <b>${days.map((n) => DAYS_AR[n] || n).join(' و')}</b>.
+          ويُصرف لك <b>أعلى مستوى تبلغه</b> لا مجموع المستويات.</p>
+        ${tiers.map((t) => `<div class="kv"><span>${Number(t.deliveries) || 0} توصيلة</span>
+          <b>${money(t.bonus)} ${SAR}</b></div>`).join('')}
+        <div class="kv" style="border-top:1px solid var(--line);margin-top:6px">
+          <span>توصيلاتك في أيام التحدي (آخر ٧ أيام)</span><b>${inWindow}</b></div>
+        ${reached ? `<div class="msg ok" style="margin-top:10px">
+            بلغتَ مستوى ${Number(reached.deliveries) || 0} توصيلة — ${money(reached.bonus)} ${SAR}.</div>` : ''}
+        <p class="muted" style="margin-top:8px">
+          هذا العدّ <b>للاطلاع</b>: الصرف يُقرّه المدير من لوحته، وقد تختلف نافذة
+          الحساب عنده. ولا يُصرف التحدي مرتين في النافذة الواحدة.</p>`}
+    </div>
+    <div class="card">
+      <h2>🤝 برنامج الإحالة</h2>
+      ${!refOn ? '<p class="muted">موقوف حالياً.</p>' : `
+        <div class="kv"><span>مكافأتك عن كل كابتن تدعوه</span><b>${money(num('referrerBonus', 50))} ${SAR}</b></div>
+        <div class="kv"><span>مكافأة ترحيب للمدعوّ</span><b>${money(num('refereeBonus', 30))} ${SAR}</b></div>
+        <div class="kv"><span>الشرط</span><b>${num('referralDeliveries', 30)} توصيلة خلال ${num('referralWindowDays', 30)} يوماً</b></div>
+        <div class="kv"><span>سقف الإحالات المدفوعة شهرياً</span><b>${num('referralMonthlyCap', 3)}</b></div>
+        <p class="muted" style="margin-top:8px">
+          المكافأة تُصرف بعد أن يعمل من دعوتَه فعلاً — لا بمجرّد تسجيله.
+          وصفحة الانضمام: <a href="/join/" style="color:var(--blue-dark)">zadgo.co/join</a></p>`}
+    </div>`;
+}
+
+/* ---- حسابي ---- */
+function viewMe() {
+  const d = S.driver;
+  const offers = Number(d.offersTotal) || 0;
+  const accepted = Number(d.offersAccepted) || 0;
+  /* «—» قبل أول عرض لا ٠٪ ولا ١٠٠٪: كلاهما حكمٌ على من لم يُختبر بعد،
+   * وهو نفس مبدأ «كابتن جديد» في بطاقة التتبّع عند العميل. */
+  const acc = offers > 0 ? Math.round((accepted / offers) * 100) + '٪' : '—';
+  const rated = (Number(d.ratingCount) || 0) > 0;
+  const warn = Number(d.warningCount) || 0;
+  return notice() + `
+    <div class="card">
+      <h2>بياناتك</h2>
+      <div class="kv"><span>الاسم</span><b>${esc(d.name || '—')}</b></div>
+      <div class="kv"><span>الجوال</span><b dir="ltr">${esc(d.phone || '—')}</b></div>
+      <div class="kv"><span>المركبة</span><b>${esc(d.vehicleType || '—')}${d.vehiclePlate ? ' — ' + esc(d.vehiclePlate) : ''}</b></div>
+      <div class="kv"><span>تاريخ الانضمام</span><b>${esc(fmtDate(d.createdAt))}</b></div>
+      <p class="muted" style="margin-top:8px">
+        تعديل بياناتك من التطبيق أو بمراجعة الإدارة — لا تُعدَّل من هنا.</p>
+    </div>
+    <div class="card">
+      <h2>أداؤك</h2>
+      <div class="kv"><span>التقييم</span>
+        <b>${rated ? `${(Number(d.rating) || 0).toFixed(1)} ⭐ (${Number(d.ratingCount)} تقييم)` : 'لم يقيّمك أحد بعد'}</b></div>
+      <div class="kv"><span>معدل القبول</span><b>${acc}${offers ? ` (${accepted} من ${offers})` : ''}</b></div>
+      <div class="kv"><span>التوصيلات المكتملة</span><b>${Number(d.totalDeliveries) || 0}</b></div>
+      <div class="kv"><span>الإنذارات</span>
+        <b style="${warn ? 'color:var(--red)' : ''}">${warn}${warn ? ' من ٣' : ''}</b></div>
+      ${warn ? `<p class="muted" style="margin-top:8px">
+        ثلاثة إنذارات تُعلّق حسابك تلقائياً حتى تراجع الإدارة.</p>` : ''}
+    </div>
+    <div class="card">
+      <h2>تحتاج مساعدة؟</h2>
+      <p class="muted"><a href="/guide/driver/" style="color:var(--blue-dark);font-weight:700">دليل الكابتن</a>
+        يشرح رحلتك كاملة من أول عرض إلى سحب أرباحك.
+        وللدعم: <a href="/contact.html" style="color:var(--blue-dark)">صفحة التواصل</a>.</p>
+    </div>`;
+}
+
+function wire() {
+  const p = $('pSend');
+  if (p) p.addEventListener('click', submitPayout);
+}
+</script>
+</body>
+</html>
