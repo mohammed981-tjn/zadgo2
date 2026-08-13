@@ -296,11 +296,41 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           final filtered = _filter(list, favorites);
           if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
           if (filtered.isEmpty) {
-            return AppEmpty(
-                emoji: _favoritesOnly ? '💛' : '🔍',
-                title: _favoritesOnly
-                    ? 'لا مفضلة بعد — اضغط القلب على مطعم يعجبك'
-                    : 'لا توجد نتائج مطابقة');
+            // بحث خائب عن مطعم (ح5): اللحظة الأخطر في التطبيق كله —
+            // «لم أجد مطعمي» تساوي حذفاً عند ٨٦٪ من المستخدمين. بدل
+            // «لا يوجد» الميتة: زر يحوّل الخيبة إلى صوتٍ يُحصى فيصير
+            // خريطة مبيعات، والعميل يصله لاحقاً «مطعمك وصل».
+            final q = _query.trim();
+            return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              AppEmpty(
+                  emoji: _favoritesOnly ? '💛' : '🔍',
+                  title: _favoritesOnly
+                      ? 'لا مفضلة بعد — اضغط القلب على مطعم يعجبك'
+                      : 'لا توجد نتائج مطابقة'),
+              if (!_favoritesOnly && q.length >= 2 && userSnap.data != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.add_business_outlined, size: 18),
+                    label: Text('اطلب إضافة «$q»'),
+                    onPressed: () async {
+                      try {
+                        await context
+                            .read<FirebaseService>()
+                            .requestRestaurant(q);
+                        if (ctx.mounted) {
+                          showSuccess(ctx,
+                              'وصلنا صوتك — سنعمل على إحضار «$q» ونخبرك حين يصل 🙌');
+                        }
+                      } catch (_) {
+                        if (ctx.mounted) {
+                          showError(ctx, 'تعذّر إرسال الطلب، حاول مرة أخرى');
+                        }
+                      }
+                    },
+                  ),
+                ),
+            ]);
           }
           return ListView.builder(padding: const EdgeInsets.all(16), itemCount: filtered.length, itemBuilder: (_, i) {
             // دخول متعاقب لأول ثماني بطاقات فقط: التتابع بعدها لا يُرى
