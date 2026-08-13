@@ -307,9 +307,46 @@ class _LiveTrackingCard extends StatelessWidget {
               ),
             ),
           ]),
+          // إلغاء الطلب قبل استلام المطعم (ملاحظة المالك 2026-08-13):
+          // الزر كان في البطاقات العادية وغاب عن بطاقة التتبّع — وأحدثُ
+          // طلبٍ جارٍ يُعرض فيها حصراً، أي أن الطلب في أَولى لحظات جواز
+          // إلغائه («بانتظار الموافقة») كان بلا زر إلغاء أصلاً. نصٌّ لا
+          // زرٌّ عريض عمداً: خيار هروب لا دعوة ضغط.
+          if (order.canCustomerCancel) ...[
+            const SizedBox(height: 4),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => _cancelFromCard(context),
+                icon: const Icon(Icons.cancel_outlined,
+                    size: 16, color: AppColors.error),
+                label: const Text('إلغاء الطلب',
+                    style: TextStyle(color: AppColors.error, fontSize: 12.5)),
+              ),
+            ),
+          ],
         ]),
       ),
     );
+  }
+
+  Future<void> _cancelFromCard(BuildContext context) async {
+    final service = context.read<FirebaseService>();
+    final ok = await showConfirmDialog(
+      context,
+      title: 'إلغاء الطلب',
+      content: 'هل تريد إلغاء طلبك #${order.orderNumber}؟',
+      confirmLabel: 'إلغاء الطلب',
+      confirmColor: AppColors.error,
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await service.cancelOrderByCustomer(order.id);
+      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+    } catch (_) {
+      if (context.mounted) {
+        showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
+      }
+    }
   }
 }
 
