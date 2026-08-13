@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 python3 tools/build-guide.py \
   "dev-docs/guides/دليل-المطعم.md" docs/guide/restaurant/index.html restaurant \
   "دليل المطعم" \
-  "كيف تدير طلبات مطعمك في زاد جو: دورة الطلب بثلاث ضغطات، وقراءة حساباتك، وإدارة منيوك."
+  "كيف تدير طلبات مطعمك في زاد جو: دورة الطلب بثلاث ضغطات، وقراءة حساباتك، وإدارة قائمة طعامك."
 
 python3 tools/build-guide.py \
   "dev-docs/guides/دليل-العميل.md" docs/guide/customer/index.html customer \

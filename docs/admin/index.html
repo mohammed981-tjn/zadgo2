@@ -292,8 +292,8 @@ const COMPLAINT_TYPE_AR = { lateDelivery: 'تأخر التوصيل', wrongOrder:
 /* ---------------- ترتيب القائمة ----------------
  * القائمة مجموعاتٌ لا قائمةً واحدة طويلة. المعيار في الترتيب هو **متى**
  * تُفتح الصفحة لا متى بُنيت: ما يُفتح كل صباح أولاً، وما يُفتح آخر الشهر
- * أخيراً. ولهذا جاورت كل صفحةٍ أختها التي تُستعمل معها — «إدارة المنيو»
- * و«استيراد منيو» كانتا على طرفَي القائمة وهما عملٌ واحد.
+ * أخيراً. ولهذا جاورت كل صفحةٍ أختها التي تُستعمل معها — «قائمة الطعام»
+ * و«استيراد قائمة» كانتا على طرفَي القائمة وهما عملٌ واحد.
  *
  * لا صفحة حُذفت ولا صفحتان دُمجتا: العشرون كلّها هنا، وكل عدّاداتها كما هي.
  * المجموعة بلا عنوان تعني فاصلاً في الأسفل (الإعدادات وحدها).
@@ -312,10 +312,10 @@ const NAV_GROUPS = [
     ['payouts', '💸', 'طلبات السحب'],
     ['settlements', '💰', 'تسويات المطاعم'],
   ]],
-  ['المطاعم والمنيو', [
+  ['المطاعم وقوائم الطعام', [
     ['restaurants', '🍽️', 'المطاعم'],
-    ['menu', '🍔', 'إدارة المنيو'],
-    ['import', '📥', 'استيراد منيو'],
+    ['menu', '🍔', 'قائمة الطعام'],
+    ['import', '📥', 'استيراد قائمة'],
   ]],
   ['الناس', [
     ['drivers', '🛵', 'السائقون'],
@@ -361,9 +361,9 @@ const AUDIT_ACTIONS = {
   'restaurant.create':  ['إنشاء مطعم', 'content', '#1e8449'],
   'restaurant.toggle':  ['فتح/إغلاق مطعم', 'content', '#ca6f1e'],
   'restaurant.edit':    ['تعديل بيانات مطعم', 'content', '#2471a3'],
-  'menu.category':      ['تصنيف منيو', 'content', '#8e44ad'],
-  'menu.item':          ['صنف منيو', 'content', '#8e44ad'],
-  'menu.import':        ['استيراد منيو', 'content', '#16a085'],
+  'menu.category':      ['تصنيف قائمة', 'content', '#8e44ad'],
+  'menu.item':          ['صنف قائمة', 'content', '#8e44ad'],
+  'menu.import':        ['استيراد قائمة', 'content', '#16a085'],
   'banner.create':      ['إضافة بنر', 'content', '#1e8449'],
   'banner.toggle':      ['تفعيل/إيقاف بنر', 'content', '#ca6f1e'],
   'banner.delete':      ['حذف بنر', 'content', '#c0392b'],
@@ -535,7 +535,7 @@ let couponFilter = 'all';
 let payoutFilter = 'pending';
 let walletSearch = '';
 let codeFilter = 'unused';
-/* المنيو يُحمَّل لمطعم واحد عند اختياره — لا لكل المطاعم دفعةً واحدة. */
+/* قائمة الطعام تُحمَّل لمطعم واحد عند اختياره — لا لكل المطاعم دفعةً واحدة. */
 let menuRid = '';
 let menuCats = [];
 let menuItems = [];
@@ -702,7 +702,7 @@ document.addEventListener('click', (e) => {
   if (b) go(b.dataset.page);
 });
 function go(p) {
-  // مستمعا المنيو مرتبطان بمطعم واحد ولا معنى لبقائهما بعد مغادرة الصفحة.
+  // مستمعا قائمة الطعام مرتبطان بمطعم واحد ولا معنى لبقائهما بعد مغادرة الصفحة.
   if (page === 'menu' && p !== 'menu') stopMenuListeners();
   page = p;
   const meta = PAGES.find((x) => x[0] === p);
@@ -1576,7 +1576,7 @@ function renderRestaurantsPage() {
   $('main').innerHTML = `
     <div class="toolbar">
       <button class="btn" id="newRestBtn">➕ مطعم جديد</button>
-      <button class="btn" data-page="import">📥 استيراد منيو لمطعم</button>
+      <button class="btn" data-page="import">📥 استيراد قائمة طعام لمطعم</button>
     </div>` + list.map((r) => `
     <div class="card">
       <div class="row1">
@@ -1611,7 +1611,7 @@ function renderRestaurantsPage() {
 }
 
 /* إنشاء مطعم جديد — كانت الحلقة الأولى في ضمّ شريك مفقودة من الويب: اللوحة
- * تُصدر كود مدير المطعم وتستورد منيوه، لكن مستند المطعم نفسه لم يكن يُنشأ
+ * تُصدر كود مدير المطعم وتستورد قائمة طعامه، لكن مستند المطعم نفسه لم يكن يُنشأ
  * إلا من التطبيق. فيوقّع المالك اتفاقية على مكتبه ثم يحتاج جوّاله.
  *
  * المستند يُكتب **بنفس شكل `Restaurant.toMap()` حرفاً بحرف** بما فيه حقول
@@ -1637,8 +1637,8 @@ function showNewRestaurant() {
     </div>
     <div class="field"><label>وصف قصير (اختياري)</label><input id="nr_desc" maxlength="140"></div>
     <button class="btn block" id="nr_save">إنشاء المطعم</button>
-    <p class="meta" style="margin-top:8px">يُنشأ <b>مغلقاً</b> حتى تضيف منيوه — فلا يظهر للعملاء بلا أصناف.
-      وبعد الإنشاء: أصدر كود «مدير مطعم» له من صفحة الأكواد، ثم استورد منيوه.</p>
+    <p class="meta" style="margin-top:8px">يُنشأ <b>مغلقاً</b> حتى تضيف قائمة طعامه — فلا يظهر للعملاء بلا أصناف.
+      وبعد الإنشاء: أصدر كود «مدير مطعم» له من صفحة الأكواد، ثم استورد قائمة طعامه.</p>
   `);
   document.getElementById('nr_save').addEventListener('click', async () => {
     const v = (k) => document.getElementById('nr_' + k).value.trim();
@@ -1669,7 +1669,7 @@ function showNewRestaurant() {
       });
       audit('restaurant.create', `أنشأ مطعم «${name}${branchName ? ' — ' + branchName : ''}»`,
         { target: 'restaurants/' + ref.id });
-      toast('أُنشئ المطعم — أضف منيوه ثم افتحه');
+      toast('أُنشئ المطعم — أضف قائمة طعامه ثم افتحه');
       closeModal();
     } catch (err) { alert('تعذر الإنشاء: ' + (err.code || err.message)); }
   });
@@ -2283,12 +2283,12 @@ function openComplaintChat(complaintId) {
 }
 
 /* ================= رسالة جماعية ================= */
-/* ================= إدارة المنيو =================
+/* ================= قائمة الطعام =================
  *
  * الأصناف والأقسام مجموعات فرعية تحت المطعم:
  *   restaurants/{rid}/categories/{cid}  و  restaurants/{rid}/items/{iid}
  *
- * تُحمَّل لمطعم **واحد** عند اختياره لا لكل المطاعم معاً — منيو واحد قد يبلغ
+ * تُحمَّل لمطعم **واحد** عند اختياره لا لكل المطاعم معاً — قائمة واحدة قد تبلغ
  * مئات الأصناف، وتحميلها كلها في الخلفية يُثقل اللوحة ويُفوتر قراءات بلا داعٍ.
  * المستمعان يُلغيان عند تبديل المطعم أو مغادرة الصفحة.
  *
@@ -2334,8 +2334,8 @@ function renderMenuPage() {
         <div class="row1" style="margin-top:12px;gap:6px">
           <button class="toggle-btn on" id="addItemBtn">➕ صنف جديد</button>
           <button class="toggle-btn" id="addCatBtn">➕ قسم جديد</button>
-          <button class="toggle-btn" data-page="import">📥 استيراد منيو كامل</button>
-        </div>` : '<p class="meta">اختر مطعماً لعرض منيوه وتعديله.</p>'}
+          <button class="toggle-btn" data-page="import">📥 استيراد قائمة كاملة</button>
+        </div>` : '<p class="meta">اختر مطعماً لعرض قائمة طعامه وتعديلها.</p>'}
     </div>
     ${menuRid ? cats.map((c) => {
       const items = menuItems.filter((i) => i.categoryId === c.id)
@@ -2367,7 +2367,7 @@ function renderMenuPage() {
             </div>`).join('') || '<div class="empty">لا أصناف في هذا القسم</div>'}
         </div>`;
     }).join('') : ''}
-    ${menuRid && !cats.length ? '<div class="panel"><div class="empty">لا أقسام بعد — أضف قسماً أو استورد منيو كاملاً</div></div>' : ''}`;
+    ${menuRid && !cats.length ? '<div class="panel"><div class="empty">لا أقسام بعد — أضف قسماً أو استورد قائمة كاملة</div></div>' : ''}`;
 
   document.getElementById('menuRest').addEventListener('change', (e) => loadMenu(e.target.value));
   const ai = document.getElementById('addItemBtn');
@@ -2384,7 +2384,7 @@ function renderMenuPage() {
     b.addEventListener('click', () => openCatForm(b.dataset.catedit)));
 }
 
-/* اسم المطعم المفتوح في صفحة المنيو — يُذكر في سجل التدقيق حتى لا يصير
+/* اسم المطعم المفتوح في صفحة قائمة الطعام — يُذكر في سجل التدقيق حتى لا يصير
  * القيد «أضاف صنف جبن» بلا معرفة أي مطعم. */
 function menuRestName() {
   const r = S.restaurants.find((x) => x.id === menuRid);
@@ -3667,14 +3667,14 @@ function renderBroadcastPage() {
   });
 }
 
-/* ================= استيراد منيو ================= */
+/* ================= استيراد قائمة الطعام ================= */
 function renderImportPage() {
   const restOptions = [...S.restaurants]
     .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'))
     .map((r) => `<option value="${r.id}">${esc(r.emoji || '')} ${esc(r.name)}</option>`).join('');
   $('main').innerHTML = `
     <div class="panel">
-      <h3>استيراد / مزامنة منيو مطعم</h3>
+      <h3>استيراد / مزامنة قائمة طعام مطعم</h3>
       <p class="meta" style="margin-bottom:12px">
         ألصق محتوى ملف الاستيراد (JSON) أو اختره من جهازك. الاستيراد <b>آمن للتكرار</b>:
         الصنف الموجود بنفس الاسم يُحدَّث (السعر، السعرات، رابط الصورة) ولا يُكرَّر،
@@ -3714,7 +3714,7 @@ async function runImport() {
 
   btn.disabled = true;
   try {
-    say('⏳ جارٍ قراءة المنيو الحالي للمقارنة…');
+    say('⏳ جارٍ قراءة القائمة الحالية للمقارنة…');
     const catSnap = await getDocs(collection(db, 'restaurants', rid, 'categories'));
     const itemSnap = await getDocs(collection(db, 'restaurants', rid, 'items'));
     const catByName = new Map(catSnap.docs.map((d) => [(d.data().name || '').trim(), d.id]));
@@ -3777,7 +3777,7 @@ async function runImport() {
       }
     }
     if (ops > 0) await batch.commit();
-    audit('menu.import', `استورد منيو «${restName(S.restaurants.find((x) => x.id === rid) || {})}» — `
+    audit('menu.import', `استورد قائمة طعام «${restName(S.restaurants.find((x) => x.id === rid) || {})}» — `
       + `${newCats} قسماً جديداً، ${newItems} صنفاً جديداً، ${updItems} صنفاً محدَّثاً`,
       { target: 'restaurants/' + rid });
     say(`✅ <b>اكتمل الاستيراد بنجاح</b><br>

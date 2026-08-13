@@ -14,7 +14,7 @@
      من حقلٍ في لوحة التحكم، لا يستطيع إرسال شيء إلى خادمٍ غريب — الوجهات
      محصورة فيما هو مذكور هنا.
      `img-src https:` لازم لا تساهل: صور المطاعم والأصناف روابط خارجية
-     يضعها المدير بنفسه، وحصرها في 'self' يُفرغ المنيو من صوره.
+     يضعها المدير بنفسه، وحصرها في 'self' يُفرغ قائمة الطعام من صورها.
      `frame-ancestors` مذكور للتوثيق ولا أثر له في وسم meta (المتصفحات
      تتجاهله خارج ترويسة HTTP) — ولذلك يمنع التأطير سطرُ جافاسكربت أسفل. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self';
@@ -372,7 +372,7 @@ if (window.top !== window.self) { window.top.location = window.self.location; }
 <!-- ============ الدخول ============
      يظهر عند الحاجة لا عند الوصول: الزائر يتصفّح ويملأ سلته أولاً، ولا
      يُطلب منه حساب إلا عند إتمام الطلب — لأن القواعد تشترط حساب عميل
-     لإنشاء الطلب وحده، أما المطاعم والمنيو فقراءتهما عامة. -->
+     لإنشاء الطلب وحده، أما المطاعم وقوائم الطعام فقراءتها عامة. -->
 <div id="authView" class="auth-wrap hide">
   <div class="auth-box">
     <button class="auth-x" id="authClose" aria-label="إغلاق">✕</button>
@@ -863,7 +863,7 @@ function viewResto() {
       <div><b>${r.estimatedTimeMin || 30} د</b><span>وقت التحضير</span></div>
       <div><b>${money(r.minOrder ?? 20)}</b><span>أقلّ طلب</span></div>
     </div>
-    ${closed ? `<div class="err" style="margin-top:12px">المطعم مغلق الآن — تصفّح المنيو، واطلب عند فتحه.</div>` : ''}`;
+    ${closed ? `<div class="err" style="margin-top:12px">المطعم مغلق الآن — تصفّح قائمة الطعام، واطلب عند فتحه.</div>` : ''}`;
 
   if (S.loadingMenu) {
     $('main').innerHTML = hero + Array.from({ length: 4 }, () =>
@@ -871,7 +871,7 @@ function viewResto() {
     return;
   }
 
-  const cats = (S.menu.cats.length ? S.menu.cats : [{ id: null, name: 'المنيو' }])
+  const cats = (S.menu.cats.length ? S.menu.cats : [{ id: null, name: 'قائمة الطعام' }])
     .map((c) => ({ ...c, its: S.menu.items.filter((i) => (c.id === null ? true : i.categoryId === c.id)) }))
     .filter((c) => c.its.length);
 
@@ -910,7 +910,7 @@ function viewResto() {
     if (tab) {
       const sec = $('cat' + tab.dataset.cat);
       if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      // التبويب يُضاء بالنيّة لا بالهندسة: قسمٌ قصير في آخر المنيو قد لا يبلغ
+      // التبويب يُضاء بالنيّة لا بالهندسة: قسمٌ قصير في آخر القائمة قد لا يبلغ
       // منتصف الشاشة مهما مُرِّر (الصفحة تنتهي قبله)، فلو انتظرنا المراقب
       // وحده لضغط العميل تبويباً ورأى غيره مضيئاً.
       document.querySelectorAll('[data-cat]').forEach((b) =>
@@ -948,7 +948,7 @@ function viewResto() {
 
 /* ---------------- ورقة الصنف ----------------
  * الإضافة المباشرة تصلح لصنفٍ لا خيار فيه، لكنها تحرم العميل من رؤية الصورة
- * كاملة واختيار الكمية قبل الالتزام. الورقة تعطيه ذلك بلا مغادرة المنيو. */
+ * كاملة واختيار الكمية قبل الالتزام. الورقة تعطيه ذلك بلا مغادرة القائمة. */
 function openSheet(itemId) {
   const it = S.menu.items.find((i) => i.id === itemId);
   if (!it) return;
