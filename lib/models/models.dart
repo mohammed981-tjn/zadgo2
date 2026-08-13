@@ -429,6 +429,11 @@ class AppUser {
   final double walletBalance;
   final List<SavedAddress> savedAddresses;
 
+  /// مطاعم العميل المفضلة (ح2) — معرّفات فقط في مستنده هو: قلبٌ يضغطه
+  /// فيظهر مطعمه تحت شريحة «المفضلة». مصفوفة لا مجموعة منفصلة: بضع
+  /// عشرات معرّفاً في أسوأ حال، وقاعدة المستخدم القائمة تحميها.
+  final List<String> favoriteRestaurantIds;
+
   /// كود التسجيل الذي مُنح به هذا الدور — يُكتب لحظة الإنشاء ليتحقّق منه
   /// حارس القواعد. بدونه كان أي مستخدم يُنشئ مستنده بدور `admin` فيصير
   /// مديراً عاماً على كل شيء (القاعدة كانت تفحص الرصيد ولا تفحص الدور).
@@ -449,6 +454,7 @@ class AppUser {
     this.nationalId,
     this.walletBalance = 0.0,
     this.savedAddresses = const [],
+    this.favoriteRestaurantIds = const [],
     this.registrationCode = '',
   });
 
