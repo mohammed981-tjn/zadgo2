@@ -1227,6 +1227,7 @@ class IncentiveSettings {
     List<int>? challengeWeekdays,
     List<ChallengeTier>? tiers,
     bool? autoPay,
+    List<double>? tipOptions,
     String? joinUrl,
   }) =>
       IncentiveSettings(
@@ -1245,6 +1246,7 @@ class IncentiveSettings {
         challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
         tiers: tiers ?? this.tiers,
         autoPay: autoPay ?? this.autoPay,
+        tipOptions: tipOptions ?? this.tipOptions,
         joinUrl: joinUrl ?? this.joinUrl,
       );
 
