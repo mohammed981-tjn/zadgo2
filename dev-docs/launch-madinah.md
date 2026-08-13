@@ -27,6 +27,22 @@
 
 ---
 
+## من الجولة الثانية (2026-08-13) — ثلاث حقائق حاسمة
+
+1. **٨٦٪ من مستخدمي أي تطبيق توصيل يهجرونه خلال أسبوعين** — حتى
+   العمالقة (CleverTap benchmark). أي أن الهجر ليس عقوبة «قلة
+   المطاعم» بل قدَر كل التطبيقات، والفائز من يكسب **معركة أول طلب**
+   ثم يعيد العميل بالإشعار الشخصي — لا من يملك أطول قائمة. وأدوات
+   العودة عندنا مبنية: «اطلب مجدداً» بضغطة، العناوين المحفوظة،
+   المفضلة، الإشعارات.
+2. **المطاعم ليست حصرية لأحد**: نفس المطعم يعمل على جاهز وهنقرستيشن
+   وكيتا معاً (multi-homing هو القاعدة عالمياً) — فوجود مطعم عند
+   المنافس لا يمنع انضمامه إلينا إطلاقاً، بل هو مطعم مجرِّب يعرف
+   قيمة التوصيل وسيقارن عمولتهم (١٥-٣٠٪) بصفرنا التجريبي.
+3. **جاهز نفسها بدأت ٢٠١٦ بالرياض وحدها** بفريق سعودي صغير — ست
+   سنوات لاحقاً كانت أول اكتتاب تقني سعودي. السابقة المحلية تؤكد
+   الطريق: مدينة، ثم مدن.
+
 ## الخطة — أربع مراحل
 
 ### المرحلة صفر: اختيار ساحة المعركة (أسبوع)
@@ -129,3 +145,6 @@
 - [Marketplace Cold Start — Which Side Do You Seed First?](https://internetmango.com/insights/marketplace-cold-start-strategy/)
 - [Two-Sided Marketplace Cold Start Playbook — FORKOFF](https://forkoff.xyz/blog/founder-growth/two-sided-marketplace-cold-start-2026)
 - [Grubhub sued over 150,000 non-partner listings — CBS](https://www.cbsnews.com/news/grubhub-sued-added-150000-restaurants-without-permission-lawsuit/)
+- [86% of users stop using food delivery apps within two weeks — CleverTap](https://www.prnewswire.com/news-releases/86-percent-of-users-stop-using-food-delivery-apps-within-the-first-two-weeks-shows-clevertaps-latest-industry-benchmark-report-300866174.html)
+- [Jahez founding and growth — MenaBytes](https://www.menabytes.com/jahez-series-a/)
+- [Restaurants run multiple delivery apps at once — ChowNow](https://get.chownow.com/blog/how-to-consolidate-delivery-apps/)
