@@ -1828,6 +1828,13 @@ class Order {
   /// ١٠٠٪ افتراضاً) — لا رقم مبرمَج (بند ج١).
   final double restaurantCompensation;
 
+  /// خصمٌ على المطعم لصالح العميل (سياسة المالك 2026-08-13): شكوى جودة
+  /// مقبولة (طعام رديء/بارد/ناقص) يتحمّل المطعمُ استردادَها لا المنصّة —
+  /// فمن أفسد الطلبَ يدفع ثمنه، والمنصّة وسيطٌ لا صندوق تعويضات.
+  /// مرآة restaurantCompensation بإشارة معاكسة: ذاك يضيف للمستحق وهذا
+  /// يطرح منه، وكلاهما مختوم على مستند الطلب فيقرؤه الدفتران مباشرة.
+  final double restaurantChargeback;
+
   /// لحظة تأكيد **المطعم** تسليمَ الطلب للكابتن — الوجه الثاني للاستلام
   /// (طلب المالك ٢٠٢٦-٠٨-١١): ضغطة الكابتن وحدها إقرارُ طرفٍ واحد، فإن
   /// أنكر المطعم التسليم أو ادّعى تأخّر الكابتن لم يكن في السجل ما يفصل.
@@ -1880,6 +1887,7 @@ class Order {
     this.arrivedAtRestaurantAt,
     this.restaurantHandoverAt,
     this.restaurantCompensation = 0,
+    this.restaurantChargeback = 0,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -2014,6 +2022,8 @@ class Order {
             (map['restaurantHandoverAt'] as Timestamp?)?.toDate(),
         restaurantCompensation:
             (map['restaurantCompensation'] as num?)?.toDouble() ?? 0,
+        restaurantChargeback:
+            (map['restaurantChargeback'] as num?)?.toDouble() ?? 0,
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -2060,6 +2070,7 @@ class Order {
         if (restaurantHandoverAt != null)
           'restaurantHandoverAt': Timestamp.fromDate(restaurantHandoverAt!),
         'restaurantCompensation': restaurantCompensation,
+        'restaurantChargeback': restaurantChargeback,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2121,6 +2132,7 @@ class Order {
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
         restaurantHandoverAt: restaurantHandoverAt,
         restaurantCompensation: restaurantCompensation,
+        restaurantChargeback: restaurantChargeback,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );
