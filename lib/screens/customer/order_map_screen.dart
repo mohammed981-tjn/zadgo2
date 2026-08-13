@@ -113,7 +113,29 @@ class _OrderMapScreenState extends State<OrderMapScreen>
     return _buildScaffold(context, service, null);
   }
 
+  // آخر موقع كابتن تمركزت عليه الكاميرا — تتبّعٌ بلا اهتزاز: لا نحرك
+  // الخريطة إلا حين يقطع مسافة معتبرة، وإلا اهتزت مع كل تحديث GPS.
+  double? _followedLat, _followedLng;
+
+  void _followDriver(Driver? d) {
+    if (d?.lat == null || d?.lng == null) return;
+    final lat = d!.lat!, lng = d.lng!;
+    final moved = _followedLat == null
+        ? double.infinity
+        : haversineDistanceKm(_followedLat!, _followedLng!, lat, lng) * 1000;
+    if (moved < 40) return;
+    _followedLat = lat;
+    _followedLng = lng;
+    // بعد اكتمال الإطار — التحريك أثناء البناء يرمي استثناءً.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _animatedMap.animateTo(dest: LatLng(lat, lng));
+    });
+  }
+
   Widget _buildScaffold(BuildContext context, FirebaseService service, Driver? liveDriver) {
+    // متابعة موقع الكابتن (ملاحظة المالك 2026-08-14): كانت الكاميرا تفتح
+    // على المطعم وتبقى — والعميل فتح الخريطة ليرى مندوبه يتحرك.
+    _followDriver(liveDriver);
     final points = <Marker>[];
     final polyPoints = <LatLng>[];
 

@@ -436,6 +436,13 @@ class _AddOrCounter extends StatelessWidget {
               restaurant.driverShareFee,
               restaurant.appShareFee,
             );
+        // تلقين التدفق في لحظته (ملاحظة المالك: «أدفع لكل صنف»): البقاء
+        // في المنيو مقصود — أضف ما شئت والدفع مرة واحدة، والرسالة تقولها
+        // حيث يقع الالتباس لا في دليل لن يُقرأ.
+        if (context.mounted) {
+          showSuccess(context,
+              'أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «عرض السلة» بالأسفل');
+        }
       }
     }
 

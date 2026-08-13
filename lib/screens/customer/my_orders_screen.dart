@@ -334,14 +334,20 @@ class _LiveTrackingCard extends StatelessWidget {
           // إلغائه («بانتظار الموافقة») كان بلا زر إلغاء أصلاً. نصٌّ لا
           // زرٌّ عريض عمداً: خيار هروب لا دعوة ضغط.
           if (order.canCustomerCancel) ...[
-            const SizedBox(height: 4),
-            Center(
-              child: TextButton.icon(
+            const SizedBox(height: 10),
+            // بنمط زرَّي الخريطة والفاتورة نفسه (ملاحظة المالك 2026-08-14:
+            // «الزر ليس مطابقاً») — عرض كامل وإطار، والأحمر هويةَ خطورةٍ
+            // في اللون وحده لا في الشكل.
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
                 onPressed: () => _cancelFromCard(context),
-                icon: const Icon(Icons.cancel_outlined,
-                    size: 16, color: AppColors.error),
-                label: const Text('إلغاء الطلب',
-                    style: TextStyle(color: AppColors.error, fontSize: 12.5)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: BorderSide(color: AppColors.error.withOpacity(0.6)),
+                ),
+                icon: const Icon(Icons.cancel_outlined, size: 18),
+                label: const Text('إلغاء الطلب'),
               ),
             ),
           ],
