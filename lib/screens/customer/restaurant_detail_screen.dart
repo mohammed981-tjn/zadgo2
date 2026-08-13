@@ -9,9 +9,28 @@ import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
 import 'cart_screen.dart';
 
-class RestaurantDetailScreen extends StatelessWidget {
+class RestaurantDetailScreen extends StatefulWidget {
   final Restaurant restaurant;
   const RestaurantDetailScreen({super.key, required this.restaurant});
+
+  @override
+  State<RestaurantDetailScreen> createState() =>
+      _RestaurantDetailScreenState();
+}
+
+class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
+  Restaurant get restaurant => widget.restaurant;
+
+  /// نصّ بحث المنيو (ح1) — فلترة محلية صرفة على الأصناف المحمَّلة أصلاً:
+  /// لا استعلام جديد ولا قاعدة، فالمنيو كله بين يدينا لحظتها.
+  final _menuSearchCtrl = TextEditingController();
+  String _menuQuery = '';
+
+  @override
+  void dispose() {
+    _menuSearchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +83,27 @@ class RestaurantDetailScreen extends StatelessWidget {
               ]),
             ),
           ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: TextField(
+            controller: _menuSearchCtrl,
+            onChanged: (v) => setState(() => _menuQuery = v),
+            decoration: InputDecoration(
+              hintText: 'ابحث في المنيو…',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              isDense: true,
+              suffixIcon: _menuQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => setState(() {
+                        _menuSearchCtrl.clear();
+                        _menuQuery = '';
+                      }),
+                    ),
+            ),
+          ),
         ),
         Expanded(
           child: StreamBuilder<List<MenuCategory>>(
@@ -125,7 +165,18 @@ class RestaurantDetailScreen extends StatelessWidget {
                   }
                   final items = itemSnap.data!;
 
-                  final orderableItems = items.where((i) => i.canOrder).toList();
+                  var orderableItems =
+                      items.where((i) => i.canOrder).toList();
+                  // بحث المنيو (ح1): يصفّي بالاسم والوصف معاً — من يكتب
+                  // «دجاج» يريد كل ما فيه دجاج ولو لم يبدأ الاسم به.
+                  final q = _menuQuery.trim();
+                  if (q.isNotEmpty) {
+                    orderableItems = orderableItems
+                        .where((i) =>
+                            i.name.contains(q) ||
+                            i.description.contains(q))
+                        .toList();
+                  }
                   final catIds = cats.map((c) => c.id).toSet();
 
                   final unmatchedItems = orderableItems
@@ -137,11 +188,14 @@ class RestaurantDetailScreen extends StatelessWidget {
                       .toList();
 
                   if (visibleCats.isEmpty && unmatchedItems.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Text('لا توجد أصناف متاحة حالياً',
-                            style: TextStyle(fontSize: 17)),
+                        padding: const EdgeInsets.all(32),
+                        child: Text(
+                            q.isEmpty
+                                ? 'لا توجد أصناف متاحة حالياً'
+                                : 'لا نتائج لـ«$q» في هذا المنيو',
+                            style: const TextStyle(fontSize: 17)),
                       ),
                     );
                   }
