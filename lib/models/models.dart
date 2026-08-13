@@ -1137,8 +1137,13 @@ class IncentiveSettings {
       ChallengeTier(deliveries: 20, bonus: 50),
     ],
     this.autoPay = false,
+    this.tipOptions = const [2, 5, 10],
     this.joinUrl = 'https://zadgo.co/join',
   });
+
+  /// خيارات الإكرامية المعروضة للعميل (ح3) — بالريال، من لوحة المدير
+  /// لا من الكود (ج١): تُرفع في المواسم وتُخفض بلا إصدار.
+  final List<double> tipOptions;
 
   factory IncentiveSettings.fromMap(Map<String, dynamic> map) {
     const d = IncentiveSettings();
@@ -1176,6 +1181,13 @@ class IncentiveSettings {
             ..sort((a, b) => a.deliveries.compareTo(b.deliveries)))
           : d.tiers,
       autoPay: map['autoPay'] as bool? ?? d.autoPay,
+      tipOptions: (map['tipOptions'] is List &&
+              (map['tipOptions'] as List).isNotEmpty)
+          ? (map['tipOptions'] as List)
+              .map((e) => (e as num).toDouble())
+              .where((v) => v > 0)
+              .toList()
+          : d.tipOptions,
       joinUrl: (map['joinUrl'] as String?)?.trim().isNotEmpty == true
           ? (map['joinUrl'] as String).trim()
           : d.joinUrl,
@@ -1197,6 +1209,7 @@ class IncentiveSettings {
         'challengeWeekdays': challengeWeekdays,
         'tiers': tiers.map((t) => t.toMap()).toList(),
         'autoPay': autoPay,
+        'tipOptions': tipOptions,
         'joinUrl': joinUrl,
       };
 
@@ -1880,6 +1893,12 @@ class Order {
   /// الثامنة مساءً فوقف ينتظر أو هجر العرض.
   final DateTime? scheduledFor;
 
+  /// إكرامية الكابتن (ح3) — يختارها العميل عند الدفع وتصل الكابتن
+  /// **كاملة بلا اقتطاع**: ليست جزءاً من grandTotal ولا payableTotal
+  /// عمداً، فلا تدخل العمولة ولا العُهدة ولا حساب الاسترداد — ممرٌّ
+  /// محايد من جيب العميل ليد الكابتن والمنصّة مجرد ناقل.
+  final double driverTip;
+
   bool get isScheduled => scheduledFor != null;
 
   /// هل ما يزال مبكراً على تحريك هذا الطلب المجدول؟ نافذة ٤٥ دقيقة قبل
@@ -1943,6 +1962,7 @@ class Order {
     this.restaurantCompensation = 0,
     this.restaurantChargeback = 0,
     this.scheduledFor,
+    this.driverTip = 0,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -2080,6 +2100,7 @@ class Order {
         restaurantChargeback:
             (map['restaurantChargeback'] as num?)?.toDouble() ?? 0,
         scheduledFor: (map['scheduledFor'] as Timestamp?)?.toDate(),
+        driverTip: (map['driverTip'] as num?)?.toDouble() ?? 0,
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -2129,6 +2150,7 @@ class Order {
         'restaurantChargeback': restaurantChargeback,
         if (scheduledFor != null)
           'scheduledFor': Timestamp.fromDate(scheduledFor!),
+        'driverTip': driverTip,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2192,6 +2214,7 @@ class Order {
         restaurantCompensation: restaurantCompensation,
         restaurantChargeback: restaurantChargeback,
         scheduledFor: scheduledFor,
+        driverTip: driverTip,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );

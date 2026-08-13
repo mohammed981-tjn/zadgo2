@@ -1561,10 +1561,11 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             if (o.status != OrderStatus.delivered) continue;
             final t = o.statusChangedAt ?? o.updatedAt ?? o.createdAt;
             if (!t.isBefore(weekStart)) {
-              week += o.driverShare;
+              // الإكرامية دخلٌ للكابتن كاملة (ح3) — تُجمع مع الأجرة.
+              week += o.driverShare + o.driverTip;
               weekCount++;
               if (!t.isBefore(todayStart)) {
-                today += o.driverShare;
+                today += o.driverShare + o.driverTip;
                 todayCount++;
               }
             }

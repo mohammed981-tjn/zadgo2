@@ -127,7 +127,9 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
 
           // «نقدي» يستحق شريط التحصيل فقط إن بقي على العميل ما يُحصَّل —
           // محفظته قد تكون غطّت المبلغ كله فيُعامل كالمدفوع إلكترونياً.
-          final collectAmount = o.payableTotal - o.walletUsed;
+          // التحصيل النقدي يشمل الإكرامية (ح3) — هي للكابتن نفسه لكنها
+          // تُحصَّل مع المبلغ، وبيانها منفصل كي يعرف أن الزيادة حقّه.
+          final collectAmount = o.payableTotal - o.walletUsed + o.driverTip;
           final isCash =
               o.paymentMethod == PaymentMethod.cash && collectAmount > 0;
           final prePickup = o.status == OrderStatus.readyForPickup ||
@@ -232,7 +234,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                           children: [
                             Text(
                                 isCash
-                                    ? 'نقدي — حصّل من العميل ${formatCurrency(collectAmount)}'
+                                    ? 'نقدي — حصّل من العميل ${formatCurrency(collectAmount)}${o.driverTip > 0 ? " (منها إكراميتك ${formatCurrency(o.driverTip)} 🎁)" : ""}'
                                     : 'مدفوع — لا تحصيل من أحد',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w800,

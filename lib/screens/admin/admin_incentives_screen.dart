@@ -307,7 +307,7 @@ class _SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<_SettingsForm> {
   late bool _referralOn, _challengeOn;
   late final TextEditingController _referrer, _referee, _deliveries,
-      _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct;
+      _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions;
   late bool _autoPay;
   late List<int> _days;
   late List<({TextEditingController d, TextEditingController b})> _tiers;
@@ -329,6 +329,8 @@ class _SettingsFormState extends State<_SettingsForm> {
     _stackKm = TextEditingController(text: s.stackRadiusKm.toStringAsFixed(1));
     _compPct = TextEditingController(
         text: s.restaurantCancelCompensationPercent.toStringAsFixed(0));
+    _tipOptions = TextEditingController(
+        text: s.tipOptions.map((v) => v.toStringAsFixed(0)).join('، '));
     _autoPay = s.autoPay;
     _days = [...s.challengeWeekdays];
     _tiers = s.tiers
@@ -343,7 +345,7 @@ class _SettingsFormState extends State<_SettingsForm> {
   void dispose() {
     for (final c in [
       _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
-      _maxLoad, _stackKm, _compPct,
+      _maxLoad, _stackKm, _compPct, _tipOptions,
     ]) {
       c.dispose();
     }
@@ -396,6 +398,7 @@ class _SettingsFormState extends State<_SettingsForm> {
               restaurantCancelCompensationPercent:
                   (double.tryParse(_compPct.text.trim()) ?? 100)
                       .clamp(0.0, 100.0),
+              tipOptions: _parseTips(_tipOptions.text),
             ),
           );
       if (mounted) {
@@ -497,6 +500,27 @@ class _SettingsFormState extends State<_SettingsForm> {
           ),
           const SizedBox(height: 8),
           _num(_compPct, 'نسبة التعويض بعد بدء التحضير (٪)'),
+          const SizedBox(height: 16),
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('إكرامية الكابتن',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _tipOptions,
+            decoration: const InputDecoration(
+              labelText: 'خيارات الإكرامية (ريال، مفصولة بفواصل)',
+              hintText: '2، 5، 10',
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'تظهر للعميل في السلة وتصل الكابتن كاملة بلا اقتطاع — '
+                'نقديّها بيده مع التحصيل، وإلكترونيّها يُقيَّد له مع أجرته.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+          ),
           const Padding(
             padding: EdgeInsets.only(top: 6),
             child: Text(
@@ -605,6 +629,19 @@ class _SettingsFormState extends State<_SettingsForm> {
         ]),
       ),
     );
+  }
+
+  /// خيارات الإكرامية من نص «٢، ٥، ١٠»: الصفر والسالب يُهملان، ثلاثة
+  /// تكفي شاشة السلة، وقائمة فارغة تعيد الافتراضي فلا يُعطَّل الخيار
+  /// كله بغلطة إدخال.
+  static List<double> _parseTips(String raw) {
+    final vals = raw
+        .split(RegExp(r'[،,]'))
+        .map((e) => double.tryParse(e.trim()) ?? 0)
+        .where((v) => v > 0)
+        .take(3)
+        .toList();
+    return vals.isEmpty ? const [2, 5, 10] : vals;
   }
 
   Widget _num(TextEditingController c, String label) => TextField(

@@ -1630,11 +1630,14 @@ class FirebaseService {
     //   حتى لا يضيع القيد كلياً أثناء الانتقال بين النسختين.
     // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
     final isCash = paymentMethod == models.PaymentMethod.cash;
+    // الإكرامية (ح3): إلكترونياً قبضتها المنصّة مع المبلغ فتُقيَّد للكابتن
+    // هنا مع أجرته — كاملةً بلا اقتطاع. نقدياً هي بيده أصلاً مع التحصيل
+    // فلا قيد لها (كأجرته النقدية تماماً).
     final delta = isCash
         // المسار القديم (استلام بنسخة لا تعرف العُهدة): نفس معادلة العُهدة
         // بخصم المدفوع من المحفظة — لا -(itemsTotal+appShare) الخام.
         ? (order.custodyDebited ? 0.0 : -order.custodyAmount)
-        : driverPayout;
+        : driverPayout + order.driverTip;
 
     final driverDoc = await _drivers.doc(driverId).get();
     final currentBalance = driverDoc.exists && driverDoc.data() != null
