@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تصميم مقترح — شاشتا المطاعم في تطبيق العميل</title>
+<!--
+  ════════════════════════════════════════════════════════════════
+  هذا **ماكيت تصميم** لا كوداً يُنسخ. غرضه أن يرى المالك الشكل قبل
+  التنفيذ، وأن يقيس عليه مساعدُ التطبيق النِّسب والمسافات.
+  المواصفة المكتوبة (وهي المُلزِمة) في:
+      dev-docs/design-customer-restaurants-ar.md
+  الصور هنا تدرّجاتُ ألوان لا صوراً حقيقية — عمداً: الماكيت يصف
+  البنية والإيقاع، والصور الحقيقية يرفعها أصحاب المطاعم.
+  ════════════════════════════════════════════════════════════════
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ألوان الهوية — منسوخة حرفياً من lib/utils/theme.dart */
+:root{
+  --primary:#D4A017; --primary-dark:#B8860B; --primary-light:#E8C547;
+  --dark:#0B3D2E; --secondary:#14523E; --silver:#C7CFD6;
+  --success:#00D084; --success-light:#E8F9F1; --warning:#FFB020;
+  --error:#E53935; --surface:#F3F5F4; --text-dark:#0B3D2E;
+  --text-gray:#8A8A8E; --divider:#EAEAEC; --shadow:0 2px 10px rgba(0,0,0,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Cairo',Tahoma,sans-serif;background:#101820;color:#fff;
+  padding:26px 16px 50px;line-height:1.6}
+.page-head{max-width:1000px;margin:0 auto 26px;text-align:center}
+.page-head h1{font-size:1.5rem;font-weight:900}
+.page-head p{color:#9fb0ad;font-size:.92rem;margin-top:6px}
+.stage{display:flex;gap:26px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+.frame{width:390px;flex:0 0 390px}
+.frame > .cap{text-align:center;font-size:.85rem;color:#9fb0ad;margin-bottom:9px}
+.phone{width:390px;height:1330px;background:var(--surface);border-radius:38px;
+  overflow:hidden;position:relative;box-shadow:0 22px 60px rgba(0,0,0,.5);
+  border:9px solid #05131a;color:var(--text-dark)}
+.scroll{position:absolute;inset:0;overflow:hidden}
+
+/* ───────── الترويسة العلوية: العنوان أولاً ───────── */
+.appbar{background:var(--dark);color:#fff;padding:14px 16px 12px}
+.addr{display:flex;align-items:center;gap:8px}
+.addr .txt{flex:1;min-width:0}
+.addr .lbl{font-size:.68rem;color:rgba(255,255,255,.6);letter-spacing:.02em}
+.addr .val{font-size:.95rem;font-weight:800;display:flex;align-items:center;gap:5px}
+.icon-btn{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.1);
+  display:grid;place-items:center;font-size:1.05rem;position:relative;flex:0 0 38px}
+.icon-btn .dot{position:absolute;top:-2px;inset-inline-start:-2px;background:var(--error);
+  color:#fff;font-size:.62rem;font-weight:800;min-width:17px;height:17px;border-radius:999px;
+  display:grid;place-items:center;border:2px solid var(--dark)}
+.search{margin-top:12px;background:rgba(255,255,255,.12);border-radius:14px;
+  padding:11px 13px;display:flex;align-items:center;gap:9px;color:rgba(255,255,255,.65);
+  font-size:.87rem}
+
+/* ───────── فئات المطبخ ───────── */
+.cuisines{display:flex;gap:14px;padding:14px 16px 4px;overflow:hidden}
+.cu{width:62px;text-align:center;flex:0 0 62px}
+.cu .bub{width:62px;height:62px;border-radius:20px;display:grid;place-items:center;
+  font-size:1.7rem;background:#fff;box-shadow:var(--shadow);border:2px solid transparent}
+.cu.on .bub{border-color:var(--primary);background:#FFF9E8}
+.cu .nm{font-size:.72rem;font-weight:700;margin-top:5px;color:var(--text-dark)}
+.cu.on .nm{color:var(--primary-dark)}
+
+/* ───────── اطلب مرة أخرى ───────── */
+.sec-h{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 16px 8px}
+.sec-h b{font-size:1.06rem;font-weight:800}
+.sec-h span{font-size:.78rem;color:var(--primary-dark);font-weight:700}
+.again{display:flex;gap:11px;padding:0 16px;overflow:hidden}
+.again .a{width:112px;flex:0 0 112px}
+.again .a .im{height:78px;border-radius:16px;box-shadow:var(--shadow);
+  display:grid;place-items:center;font-size:1.9rem}
+.again .a .nm{font-size:.76rem;font-weight:700;margin-top:5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.again .a .sub{font-size:.68rem;color:var(--text-gray)}
+
+/* ───────── شريط الفرز اللاصق ───────── */
+.sortbar{display:flex;gap:7px;padding:12px 16px 10px;background:var(--surface);
+  position:sticky;top:0;overflow:hidden}
+.chip{background:#fff;border:1px solid var(--divider);border-radius:999px;
+  padding:6px 13px;font-size:.78rem;font-weight:700;white-space:nowrap;color:var(--text-dark)}
+.chip.on{background:var(--dark);color:#fff;border-color:var(--dark)}
+
+/* ───────── بطاقة المطعم ───────── */
+.rcard{background:#fff;border-radius:20px;margin:0 16px 14px;overflow:hidden;
+  box-shadow:var(--shadow)}
+.rcard .cover{height:132px;position:relative;display:grid;place-items:center;font-size:3rem}
+.rcard .tags{position:absolute;top:10px;inset-inline-start:10px;display:flex;gap:6px}
+.tag{background:rgba(11,61,46,.88);color:#fff;font-size:.68rem;font-weight:800;
+  padding:4px 9px;border-radius:999px;backdrop-filter:blur(4px)}
+.tag.hot{background:rgba(212,160,23,.95);color:#0B3D2E}
+.tag.new{background:rgba(0,208,132,.95);color:#04321f}
+.rcard .logo{position:absolute;bottom:-22px;inset-inline-start:14px;width:56px;height:56px;
+  border-radius:18px;background:#fff;box-shadow:0 3px 12px rgba(0,0,0,.16);
+  display:grid;place-items:center;font-size:1.6rem;border:2.5px solid #fff}
+.rcard .body{padding:14px 14px 13px;padding-inline-start:82px}
+.rcard .nm{font-size:1rem;font-weight:800}
+.rcard .cuis{font-size:.78rem;color:var(--text-gray);margin-top:1px}
+.meta{display:flex;gap:13px;margin-top:9px;flex-wrap:wrap;
+  padding-inline-end:0;font-size:.78rem;font-weight:700}
+.meta i{font-style:normal}
+.m-rate{color:#B8860B}.m-mut{color:var(--text-gray)}
+.rcard .fee{margin-top:9px;border-top:1px dashed var(--divider);padding-top:9px;
+  font-size:.76rem;color:var(--text-gray);display:flex;justify-content:space-between}
+.rcard .fee b{color:var(--text-dark)}
+
+/* مغلق */
+.rcard.closed .cover{filter:grayscale(1) brightness(.82)}
+.rcard.closed .nm,.rcard.closed .cuis{color:var(--text-gray)}
+.closed-bar{background:#F0F2F4;color:#5d6b6a;font-size:.76rem;font-weight:700;
+  padding:8px 14px;display:flex;align-items:center;gap:7px}
+
+/* ───────── شاشة المطعم ───────── */
+.hero{height:186px;position:relative;display:grid;place-items:center;font-size:3.4rem}
+.hero .top{position:absolute;top:0;inset-inline:0;padding:14px 14px;display:flex;
+  justify-content:space-between}
+.hero .rnd{width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.42);
+  color:#fff;display:grid;place-items:center;backdrop-filter:blur(6px);font-size:1.05rem}
+.infocard{background:#fff;border-radius:22px;margin:-30px 14px 0;position:relative;
+  padding:14px;box-shadow:0 4px 18px rgba(0,0,0,.1)}
+.infocard .h{display:flex;align-items:flex-start;gap:11px}
+.infocard .lg{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;
+  font-size:1.5rem;flex:0 0 52px;box-shadow:var(--shadow)}
+.infocard h2{font-size:1.12rem;font-weight:900}
+.infocard .sub{font-size:.78rem;color:var(--text-gray)}
+.statrow{display:flex;margin-top:12px;border-top:1px solid var(--divider);padding-top:11px}
+.statrow .s{flex:1;text-align:center;border-inline-start:1px solid var(--divider)}
+.statrow .s:first-child{border:0}
+.statrow .s b{display:block;font-size:.92rem;font-weight:800}
+.statrow .s span{font-size:.68rem;color:var(--text-gray)}
+.closed-note{margin:12px 14px 0;background:#FFF4E5;border:1px solid #F5DCA8;
+  border-radius:14px;padding:10px 13px;font-size:.79rem;color:#8a6106;font-weight:700}
+
+.tabs{display:flex;gap:8px;padding:14px 14px 10px;overflow:hidden;
+  background:var(--surface);border-bottom:1px solid var(--divider)}
+.tabs .t{font-size:.83rem;font-weight:800;color:var(--text-gray);padding:6px 3px;
+  white-space:nowrap;border-bottom:3px solid transparent}
+.tabs .t.on{color:var(--text-dark);border-bottom-color:var(--primary)}
+.cat-h{padding:15px 16px 7px;font-size:1rem;font-weight:900}
+
+.item{background:#fff;border-radius:18px;margin:0 14px 11px;padding:11px;
+  display:flex;flex-direction:row-reverse;gap:12px;box-shadow:var(--shadow);position:relative}
+.item .im{width:88px;height:88px;border-radius:15px;flex:0 0 88px;display:grid;
+  place-items:center;font-size:2.1rem;position:relative}
+.item .add{position:absolute;bottom:-7px;inset-inline-start:-7px;width:31px;height:31px;
+  border-radius:11px;background:var(--primary);color:var(--dark);font-weight:900;
+  display:grid;place-items:center;font-size:1.15rem;box-shadow:0 3px 9px rgba(0,0,0,.2);
+  border:2.5px solid #fff}
+.item .qty{position:absolute;bottom:-7px;inset-inline-start:-7px;height:31px;
+  border-radius:11px;background:var(--primary);color:var(--dark);font-weight:900;
+  display:flex;align-items:center;gap:9px;padding:0 9px;font-size:.85rem;
+  box-shadow:0 3px 9px rgba(0,0,0,.2);border:2.5px solid #fff}
+.item .tx{flex:1;min-width:0}
+.item .nm{font-size:.93rem;font-weight:800}
+.item .ds{font-size:.76rem;color:var(--text-gray);margin-top:2px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.item .row{display:flex;align-items:center;gap:10px;margin-top:7px}
+.item .pr{font-size:.95rem;font-weight:900;color:var(--text-dark)}
+.item .kc{font-size:.7rem;color:var(--text-gray);font-weight:700}
+.item.out{opacity:.55}
+.item .outbadge{position:absolute;top:44px;inset-inline-end:20px;z-index:2;background:#EEF0F2;
+  color:#6b7a79;font-size:.68rem;font-weight:800;padding:3px 9px;border-radius:999px}
+
+.cartbar{position:absolute;bottom:16px;inset-inline:16px;background:var(--dark);
+  color:#fff;border-radius:18px;padding:13px 16px;display:flex;align-items:center;
+  gap:11px;box-shadow:0 10px 26px rgba(0,0,0,.3)}
+.cartbar .n{background:var(--primary);color:var(--dark);font-weight:900;font-size:.82rem;
+  min-width:26px;height:26px;border-radius:9px;display:grid;place-items:center}
+.cartbar .t{flex:1;font-weight:800;font-size:.9rem}
+.cartbar .p{font-weight:900;font-size:.95rem}
+
+/* شريط تنقّل سفلي */
+.bnav{position:absolute;bottom:0;inset-inline:0;background:#fff;border-top:1px solid var(--divider);
+  display:flex;padding:9px 0 15px}
+.bnav .b{flex:1;text-align:center;font-size:.68rem;font-weight:700;color:var(--text-gray)}
+.bnav .b .i{font-size:1.28rem;display:block}
+.bnav .b.on{color:var(--dark)}
+
+.note{max-width:1000px;margin:30px auto 0;background:#16232c;border:1px solid #24353f;
+  border-radius:16px;padding:18px 20px;font-size:.9rem;color:#c6d4d2}
+.note b{color:#fff}
+.note ul{margin:9px 22px 0}
+.note li{margin-bottom:5px}
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>تصميم مقترح — شاشتا المطاعم في تطبيق العميل</h1>
+  <p>ماكيتٌ للرؤية لا كودٌ للنسخ · المواصفة المُلزِمة في <code>dev-docs/design-customer-restaurants-ar.md</code></p>
+</div>
+
+<div class="stage">
+
+<!-- ═══════════ ١ · قائمة المطاعم ═══════════ -->
+<div class="frame">
+  <div class="cap">١ · قائمة المطاعم</div>
+  <div class="phone"><div class="scroll">
+
+    <div class="appbar">
+      <div class="addr">
+        <div class="icon-btn">📍</div>
+        <div class="txt">
+          <div class="lbl">التوصيل إلى</div>
+          <div class="val">حي الملك فهد، المدينة <span style="font-size:.7rem">▾</span></div>
+        </div>
+        <div class="icon-btn">🛒<span class="dot">٣</span></div>
+      </div>
+      <div class="search">🔍 <span>ابحث عن مطعم أو طبق…</span></div>
+    </div>
+
+    <div class="cuisines">
+      <div class="cu on"><div class="bub">🍽️</div><div class="nm">الكل</div></div>
+      <div class="cu"><div class="bub">🍔</div><div class="nm">برجر</div></div>
+      <div class="cu"><div class="bub">🍕</div><div class="nm">بيتزا</div></div>
+      <div class="cu"><div class="bub">🍖</div><div class="nm">مشاوي</div></div>
+      <div class="cu"><div class="bub">🥤</div><div class="nm">مشروبات</div></div>
+      <div class="cu"><div class="bub">🍰</div><div class="nm">حلويات</div></div>
+    </div>
+
+    <div class="sec-h"><b>اطلب مرة أخرى</b><span>الكل ←</span></div>
+    <div class="again">
+      <div class="a"><div class="im" style="background:linear-gradient(140deg,#F4C97A,#D9963C)">🥞</div>
+        <div class="nm">فطير ستيشن</div><div class="sub">آخر طلب: أمس</div></div>
+      <div class="a"><div class="im" style="background:linear-gradient(140deg,#E9A08A,#C4573C)">🍔</div>
+        <div class="nm">بيت البرجر</div><div class="sub">قبل ٤ أيام</div></div>
+      <div class="a"><div class="im" style="background:linear-gradient(140deg,#9FC6A8,#4E8B62)">🥗</div>
+        <div class="nm">سلطة وأكثر</div><div class="sub">قبل أسبوع</div></div>
+    </div>
+
+    <div class="sec-h" style="padding-bottom:2px"><b>كل المطاعم</b></div>
+    <div class="sortbar">
+      <div class="chip on">الأقرب</div>
+      <div class="chip">الأعلى تقييماً</div>
+      <div class="chip">الأسرع</div>
+      <div class="chip">المفتوح الآن</div>
+    </div>
+
+    <div class="rcard">
+      <div class="cover" style="background:linear-gradient(135deg,#F6D189,#D9963C)">🥞
+        <div class="tags"><span class="tag hot">🔥 الأكثر طلباً</span></div>
+        <div class="logo">🥞</div>
+      </div>
+      <div class="body">
+        <div class="nm">فطير ستيشن — الملك فهد</div>
+        <div class="cuis">فطائر · معجّنات · إفطار</div>
+        <div class="meta">
+          <i class="m-rate">★ ٤٫٦ <span style="color:#8A8A8E;font-weight:600">(١٢٨)</span></i>
+          <i class="m-mut">📍 ١٫٢ كم</i>
+          <i class="m-mut">⏱ ٢٥ د</i>
+        </div>
+      </div>
+      <div class="fee" style="margin:0 14px 12px">
+        <span>التوصيل إليك</span><b>١٢٫٠٠ ر.س</b>
+      </div>
+    </div>
+
+    <div class="rcard">
+      <div class="cover" style="background:linear-gradient(135deg,#EFA893,#C4573C)">🍔
+        <div class="tags"><span class="tag new">✦ جديد</span></div>
+        <div class="logo">🍔</div>
+      </div>
+      <div class="body">
+        <div class="nm">بيت البرجر</div>
+        <div class="cuis">برجر · أمريكي</div>
+        <div class="meta">
+          <i class="m-mut">✦ مطعم جديد — لم يُقيَّم بعد</i>
+          <i class="m-mut">📍 ٢٫٨ كم</i>
+          <i class="m-mut">⏱ ٣٠ د</i>
+        </div>
+      </div>
+      <div class="fee" style="margin:0 14px 12px">
+        <span>التوصيل إليك</span><b>١٢٫٠٠ ر.س</b>
+      </div>
+    </div>
+
+    <div class="sec-h" style="padding-top:8px"><b style="font-size:.94rem;color:#8A8A8E">مغلقة الآن</b></div>
+    <div class="rcard closed">
+      <div class="cover" style="background:linear-gradient(135deg,#A8C6B0,#4E8B62)">🥗
+        <div class="logo">🥗</div>
+      </div>
+      <div class="body">
+        <div class="nm">سلطة وأكثر</div>
+        <div class="cuis">صحي · سلطات</div>
+      </div>
+      <div class="closed-bar">🕐 مغلق الآن — يفتح ٤:٠٠ م · تصفّح القائمة واطلب عند فتحه</div>
+    </div>
+
+    <div style="height:80px"></div>
+    <div class="bnav">
+      <div class="b on"><span class="i">🏪</span>المطاعم</div>
+      <div class="b"><span class="i">🧾</span>طلباتي</div>
+      <div class="b"><span class="i">👤</span>حسابي</div>
+    </div>
+  </div></div>
+</div>
+
+<!-- ═══════════ ٢ · شاشة المطعم ═══════════ -->
+<div class="frame">
+  <div class="cap">٢ · شاشة المطعم (قائمة الطعام)</div>
+  <div class="phone" style="height:1150px"><div class="scroll">
+
+    <div class="hero" style="background:linear-gradient(135deg,#F6D189,#C98A28)">🥞
+      <div class="top">
+        <div class="rnd">←</div>
+        <div style="display:flex;gap:8px">
+          <div class="rnd">🔍</div><div class="rnd">ℹ️</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="infocard">
+      <div class="h">
+        <div class="lg" style="background:linear-gradient(140deg,#F4C97A,#D9963C)">🥞</div>
+        <div style="flex:1;min-width:0">
+          <h2>فطير ستيشن — الملك فهد</h2>
+          <div class="sub">فطائر · معجّنات · إفطار</div>
+        </div>
+      </div>
+      <div class="statrow">
+        <div class="s"><b style="color:#B8860B">★ ٤٫٦</b><span>١٢٨ تقييماً</span></div>
+        <div class="s"><b>٢٥ د</b><span>وقت التحضير</span></div>
+        <div class="s"><b>١٫٢ كم</b><span>من موقعك</span></div>
+        <div class="s"><b>١٢٫٠٠</b><span>التوصيل (ر.س)</span></div>
+      </div>
+    </div>
+
+    <div class="closed-note">🕐 <b>المطعم مغلق الآن</b> — يفتح ٤:٠٠ م. تصفّح القائمة، وسلّتك محفوظة حتى يفتح.</div>
+
+    <div class="tabs">
+      <div class="t on">الأكثر طلباً</div>
+      <div class="t">فطائر حلوة</div>
+      <div class="t">فطائر مالحة</div>
+      <div class="t">مشروبات</div>
+    </div>
+
+    <div class="cat-h">الأكثر طلباً</div>
+
+    <div class="item">
+      <div class="im" style="background:linear-gradient(140deg,#F7DDA6,#D9963C)">🥮
+        <div class="qty">＋ <span>٢</span> −</div></div>
+      <div class="tx">
+        <div class="nm">فطيرة نوتيلا بالموز</div>
+        <div class="ds">عجينة طازجة، نوتيلا أصلية، وشرائح موز — تُخبز عند الطلب.</div>
+        <div class="row"><span class="pr">٢٤٫٠٠ ر.س</span><span class="kc">🔥 ٤٢٠ سعرة</span></div>
+      </div>
+    </div>
+
+    <div class="item">
+      <div class="im" style="background:linear-gradient(140deg,#EBC79B,#B9772F)">🥐
+        <div class="add">＋</div></div>
+      <div class="tx">
+        <div class="nm">فطيرة جبن بالزعتر</div>
+        <div class="ds">جبن عكاوي وزعتر بلدي على عجينة رقيقة.</div>
+        <div class="row"><span class="pr">١٨٫٠٠ ر.س</span><span class="kc">🔥 ٣٦٠ سعرة</span></div>
+      </div>
+    </div>
+
+    <div class="item out">
+      <div class="outbadge">نفد الصنف</div>
+      <div class="im" style="background:linear-gradient(140deg,#DCC9A8,#9A8259)">🧁</div>
+      <div class="tx">
+        <div class="nm">كنافة نابلسية</div>
+        <div class="ds">تعود قريباً — نبّهنا المطعم أنها نفدت.</div>
+        <div class="row"><span class="pr">٢٨٫٠٠ ر.س</span></div>
+      </div>
+    </div>
+
+    <div class="cat-h">مشروبات</div>
+    <div class="item">
+      <div class="im" style="background:linear-gradient(140deg,#BBD9C4,#4E8B62)">🥤
+        <div class="add">＋</div></div>
+      <div class="tx">
+        <div class="nm">عصير برتقال طازج</div>
+        <div class="ds">يُعصر عند الطلب — بلا سكر مضاف.</div>
+        <div class="row"><span class="pr">١٢٫٠٠ ر.س</span><span class="kc">🔥 ١١٠ سعرة</span></div>
+      </div>
+    </div>
+
+    <div style="height:96px"></div>
+    <div class="cartbar">
+      <span class="n">٣</span>
+      <span class="t">عرض السلة</span>
+      <span class="p">٧٨٫٥٠ ر.س</span>
+    </div>
+  </div></div>
+</div>
+
+</div>
+
+<div class="note">
+  <b>ثلاث قواعد لا يُخالفها التنفيذ:</b>
+  <ul>
+    <li><b>لا رقم يُخترع.</b> «التوصيل إليك ١٢٫٠٠» لا يظهر إلا بعد أن يُعرف موقع
+      العميل وموقع المطعم؛ وقبلها «التوصيل من ١٢ ر.س». و«١٫٢ كم» لا تظهر بلا
+      إحداثيات. و«يفتح ٤:٠٠ م» لا تظهر بلا ساعات عمل مسجَّلة.</li>
+    <li><b>لا تقييم وهمي.</b> مطعمٌ بلا تقييمات يُكتب «مطعم جديد — لم يُقيَّم بعد»،
+      لا ★٥٫٠.</li>
+    <li><b>ولا «توصيل مجاني»</b> ما دام يُحصَّل فعلاً — وهذا خللٌ قائمٌ اليوم في
+      شاشة المطعم (لا في بطاقة القائمة).</li>
+  </ul>
+</div>
+
+</body>
+</html>
