@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
 import '../models/models.dart' as models;
 import '../utils/api_config.dart';
+import '../utils/dispatch_score.dart';
 import '../utils/helpers.dart' show haversineDistanceKm;
 import 'notify_relay.dart';
 
@@ -1256,7 +1257,7 @@ class FirebaseService {
     // الأثر في أولوية الترشيح وحدها (بند ج١ سليم).
     pool.sort((a, b) {
       double score(models.Driver d) =>
-          (d.acceptanceRate ?? 1.0) * 2 + (d.rating / 5.0);
+          dispatchScore(acceptanceRate: d.acceptanceRate, rating: d.rating);
       return score(b).compareTo(score(a));
     });
     final chosen = pool.first;
