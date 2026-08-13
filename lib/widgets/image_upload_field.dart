@@ -106,7 +106,7 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
             const SizedBox(height: 8),
             const Text(
               'الصق رابطاً مباشراً لصورة (ينتهي بـ jpg أو png عادةً).',
-              style: TextStyle(fontSize: 11, color: AppColors.textGray),
+              style: TextStyle(fontSize: 11.5, color: AppColors.textGray),
             ),
           ],
         ),
@@ -148,7 +148,7 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(widget.label,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
           const SizedBox(height: 6),
           Row(children: [
             Container(

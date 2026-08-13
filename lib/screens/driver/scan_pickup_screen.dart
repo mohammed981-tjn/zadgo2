@@ -76,7 +76,7 @@ class _ScanPickupScreenState extends State<ScanPickupScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: _mismatch != null ? AppColors.warning : Colors.white,
-                    fontSize: 13,
+                    fontSize: 13.5,
                     height: 1.6),
               ),
             ),

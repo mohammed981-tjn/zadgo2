@@ -223,7 +223,7 @@ class _SearchBar extends StatelessWidget {
           decoration: InputDecoration(
             isDense: true,
             hintText: 'ابحث برقم الطلب أو العميل أو الجوال أو المطعم…',
-            hintStyle: const TextStyle(fontSize: 13),
+            hintStyle: const TextStyle(fontSize: 13.5),
             prefixIcon: const Icon(Icons.search_rounded, size: 20),
             suffixIcon: controller.text.isEmpty
                 ? null
@@ -363,12 +363,12 @@ class _ArchiveCard extends StatelessWidget {
                     Expanded(
                       child: Text(o.restaurantName,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 14),
+                              fontWeight: FontWeight.w700, fontSize: 14.5),
                           overflow: TextOverflow.ellipsis),
                     ),
                     Text(time,
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.textGray)),
+                            fontSize: 11.5, color: AppColors.textGray)),
                   ]),
                   const SizedBox(height: 6),
                   // طرفا الطلب معاً — أول ما يبحث عنه المدير في المراجعة.
@@ -387,7 +387,7 @@ class _ArchiveCard extends StatelessWidget {
                     Text(
                       o.items.map((i) => '${i.name} ×${i.quantity}').join('، '),
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textGray, height: 1.5),
+                          fontSize: 12.5, color: AppColors.textGray, height: 1.5),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -406,7 +406,7 @@ class _ArchiveCard extends StatelessWidget {
                       ),
                       child: Text('السبب: ${o.rejectionReason}',
                           style: const TextStyle(
-                              fontSize: 12, color: AppColors.error)),
+                              fontSize: 12.5, color: AppColors.error)),
                     ),
                   ],
                   const SizedBox(height: 10),

@@ -71,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
   InputDecoration _fieldDecoration(String label, IconData icon, Color accent, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.white60, fontSize: 14),
+      labelStyle: const TextStyle(color: Colors.white60, fontSize: 14.5),
       prefixIcon: Icon(icon, color: accent, size: 20),
       suffixIcon: suffix,
       filled: true,
@@ -148,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       AppFlavorConfig.flavorTagline,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 13.5,
                         color: Colors.white.withOpacity(0.55),
                         letterSpacing: 0.5,
                       ),
@@ -181,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               AppFlavorConfig.flavorLabel!,
                               style: TextStyle(
                                 color: fc.onPrimary,
-                                fontSize: 14,
+                                fontSize: 14.5,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.5,
                               ),
@@ -205,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Text(
                               AppFlavorConfig.flavorLoginTitle ?? 'تسجيل الدخول',
                               style: const TextStyle(
-                                fontSize: 18,
+                                fontSize: 17,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),

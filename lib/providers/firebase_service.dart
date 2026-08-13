@@ -151,6 +151,48 @@ class FirebaseService {
 
   /// يتابع مستند المستخدم لحظياً — تحتاجه شاشة «حسابي» ليظهر رصيد المحفظة
   /// محدَّثاً فور إضافة استرداد من الإدارة، بدل قيمة قديمة من وقت الدخول.
+  CollectionReference<Map<String, dynamic>> get _restaurantRequests =>
+      _db.collection('restaurant_requests');
+
+  /// تسجيل طلب «أضيفوا هذا المطعم» (ح5): المعرّف الاسم مطبَّعاً فتتجمع
+  /// طلبات نفس المطعم عدّاداً واحداً. set بدمج: أول طالبٍ يُنشئ والباقون
+  /// يزيدون — والقواعد تضبط الزيادة +1 كنمط عدّاد الكوبون.
+  Future<void> requestRestaurant(String rawName) async {
+    final name = rawName.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (name.length < 2) throw Exception('اكتب اسم المطعم');
+    final slug = name.replaceAll(' ', '-');
+    await _restaurantRequests.doc(slug).set({
+      'name': name,
+      'count': FieldValue.increment(1),
+      'lastRequestedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Stream<List<models.RestaurantRequest>> streamRestaurantRequests() =>
+      _restaurantRequests.snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.RestaurantRequest.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.count.compareTo(a.count));
+        return list;
+      });
+
+  Future<void> removeRestaurantRequest(String id) =>
+      _restaurantRequests.doc(id).delete().then((_) {
+        logAdminAction('restaurantRequest.done', 'مطعم مطلوب أُضيف: $id');
+      });
+
+  /// تبديل مطعم في مفضلة العميل (ح2) — arrayUnion/Remove ذرّيتان فلا
+  /// يفسد سباقُ ضغطتين متتاليتين المصفوفةَ، والقاعدة القائمة تسمح بها
+  /// (المستخدم يعدّل مستنده عدا الدور والتفعيل والرصيد صعوداً).
+  Future<void> toggleFavoriteRestaurant(
+      String uid, String restaurantId, bool add) =>
+      _users.doc(uid).update({
+        'favoriteRestaurantIds': add
+            ? FieldValue.arrayUnion([restaurantId])
+            : FieldValue.arrayRemove([restaurantId]),
+      });
+
   Stream<models.AppUser?> streamUser(String uid) => _users.doc(uid).snapshots().map(
       (d) => d.exists && d.data() != null ? models.AppUser.fromMap(d.data()!, d.id) : null);
 
@@ -1160,6 +1202,11 @@ class FirebaseService {
   /// فوراً وبعلم إقرار مسبق فلا يظهر له شيء أصلاً.
   Future<bool> autoAssignNearestDriver(models.Order order,
       {String? excludeDriverId}) async {
+    // الطلب المجدول (ح4): لا إسناد قبل نافذة موعده — البوابة هنا في
+    // القلب لا عند المستدعين، فتحمي كل المسارات (قبول المطعم، إعادة
+    // المحاولة، المصالحة، معالجات التعليق) دفعةً واحدة.
+    if (order.scheduledStillEarly) return false;
+
     final driversSnap = await _drivers.get();
     final online = driversSnap.docs
         .map((doc) => models.Driver.fromMap(doc.data(), doc.id))
@@ -1583,11 +1630,14 @@ class FirebaseService {
     //   حتى لا يضيع القيد كلياً أثناء الانتقال بين النسختين.
     // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
     final isCash = paymentMethod == models.PaymentMethod.cash;
+    // الإكرامية (ح3): إلكترونياً قبضتها المنصّة مع المبلغ فتُقيَّد للكابتن
+    // هنا مع أجرته — كاملةً بلا اقتطاع. نقدياً هي بيده أصلاً مع التحصيل
+    // فلا قيد لها (كأجرته النقدية تماماً).
     final delta = isCash
         // المسار القديم (استلام بنسخة لا تعرف العُهدة): نفس معادلة العُهدة
         // بخصم المدفوع من المحفظة — لا -(itemsTotal+appShare) الخام.
         ? (order.custodyDebited ? 0.0 : -order.custodyAmount)
-        : driverPayout;
+        : driverPayout + order.driverTip;
 
     final driverDoc = await _drivers.doc(driverId).get();
     final currentBalance = driverDoc.exists && driverDoc.data() != null

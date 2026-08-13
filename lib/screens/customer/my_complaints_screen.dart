@@ -316,7 +316,7 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                                   ? 'تذكرة #${c.displayNumber}'
                                   : 'شكوى #${c.displayNumber}',
                               style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 16)),
+                                  fontWeight: FontWeight.bold, fontSize: 17)),
                         ),
                         StatusChip(label: c.status.label, color: c.status.color),
                       ]),
@@ -339,7 +339,7 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                       const SizedBox(height: 8),
                       const Text('التفاصيل',
                           style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 13)),
+                              fontWeight: FontWeight.bold, fontSize: 13.5)),
                       const SizedBox(height: 4),
                       Text(c.description, style: const TextStyle(fontSize: 13.5)),
                     ]),
@@ -428,7 +428,7 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                                   children: [
                                     Text(mine ? 'أنا' : m.senderName,
                                         style: const TextStyle(
-                                            fontSize: 11,
+                                            fontSize: 11.5,
                                             fontWeight: FontWeight.bold)),
                                     Text(m.text,
                                         style: const TextStyle(fontSize: 13.5)),

@@ -108,7 +108,7 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
         ),
         const SizedBox(height: 16),
         const Text('نوع التذكرة',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,

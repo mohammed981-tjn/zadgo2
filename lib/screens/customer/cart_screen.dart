@@ -135,6 +135,13 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addrCtrl = TextEditingController();
   PaymentMethod _payment = PaymentMethod.cash;
+
+  /// موعد التوصيل المجدول (ح4) — فارغ = «في أقرب وقت» (السلوك القائم).
+  DateTime? _scheduledFor;
+
+  /// إكرامية الكابتن (ح3) — صفر افتراضاً، وخياراتها من إعدادات المدير.
+  double _tip = 0;
+  List<double> _tipOptions = const [2, 5, 10];
   bool _loading = false;
   /// هل يطبّق العميل رصيد محفظته على هذا الطلب؟
   bool _useWallet = true;
@@ -149,6 +156,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    // خيارات الإكرامية من لوحة المدير (ج١) — فشل الجلب يبقي الافتراضي.
+    context.read<FirebaseService>().getIncentiveSettings().then((v) {
+      if (mounted) setState(() => _tipOptions = v.tipOptions);
+    }).catchError((_) {});
     _loadRestaurant();
   }
 
@@ -258,8 +269,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return balance >= total ? total : balance;
   }
 
-  /// ما يتبقّى على العميل دفعه بعد خصم الرصيد.
-  double _amountDue() => _orderTotal() - _walletApplied();
+  /// ما يتبقّى على العميل دفعه بعد خصم الرصيد — والإكرامية فوقه دائماً:
+  /// لا تُدفع من المحفظة عمداً (رصيد المحفظة التزام داخلي على المنصّة،
+  /// والإكرامية مالٌ يمر للكابتن مباشرة — نقداً بيده أو ببطاقة تُقيَّد له).
+  double _amountDue() => _orderTotal() - _walletApplied() + _tip;
 
   // ← دالة تحويل الإحداثيات إلى عنوان
   Future<String> _getAddressFromLatLng(double lat, double lng) async {
@@ -455,6 +468,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // وتُحفظ محسوبةً فتبقى الفاتورة صحيحة لو عُدّل الكوبون أو حُذف.
       couponCode: _coupon?.code,
       discountAmount: _discount,
+      scheduledFor: _scheduledFor,
+      driverTip: _tip,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,
@@ -557,6 +572,82 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               prefixIcon: PhosphorIcon(PhosphorIcons.mapPin(), size: 20),
             ),
           ),
+          const SizedBox(height: 10),
+          // وقت التوصيل (ح4): «في أقرب وقت» افتراضاً، أو موعدٌ يختاره —
+          // بين ساعةٍ من الآن ويومين، فلا جدولة على مواعيد مضت ولا
+          // التزامات بعيدة تُنسى.
+          Row(children: [
+            const Icon(Icons.schedule_rounded,
+                size: 18, color: AppColors.textGray),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _scheduledFor == null
+                    ? 'التوصيل: في أقرب وقت'
+                    : 'مجدول: ${formatDateTime(_scheduledFor!)}',
+                style: const TextStyle(fontSize: 13.5),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                final now = DateTime.now();
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: now,
+                  firstDate: now,
+                  lastDate: now.add(const Duration(days: 2)),
+                );
+                if (date == null || !context.mounted) return;
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime:
+                      TimeOfDay.fromDateTime(now.add(const Duration(hours: 2))),
+                );
+                if (time == null) return;
+                final picked = DateTime(date.year, date.month, date.day,
+                    time.hour, time.minute);
+                if (picked.isBefore(now.add(const Duration(hours: 1)))) {
+                  if (context.mounted) {
+                    showError(context,
+                        'أقرب موعد جدولة بعد ساعة من الآن — لما هو أعجل اختر «في أقرب وقت»');
+                  }
+                  return;
+                }
+                setState(() => _scheduledFor = picked);
+              },
+              child: Text(_scheduledFor == null ? 'جدولة' : 'تغيير'),
+            ),
+            if (_scheduledFor != null)
+              IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                tooltip: 'إلغاء الجدولة',
+                onPressed: () => setState(() => _scheduledFor = null),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          // إكرامية الكابتن (ح3): تصله كاملة بلا اقتطاع — والصياغة تقولها
+          // صراحة لأنها سبب المنح أصلاً.
+          Row(children: [
+            const Text('🛵', style: TextStyle(fontSize: 17)),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text('إكرامية للكابتن؟ تصله كاملة',
+                  style: TextStyle(fontSize: 13.5)),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, children: [
+            ChoiceChip(
+              label: const Text('بلا'),
+              selected: _tip == 0,
+              onSelected: (_) => setState(() => _tip = 0),
+            ),
+            ..._tipOptions.map((v) => ChoiceChip(
+                  label: Text('${v.toStringAsFixed(0)} ر.س'),
+                  selected: _tip == v,
+                  onSelected: (_) => setState(() => _tip = v),
+                )),
+          ]),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _pickLocation,

@@ -23,6 +23,7 @@ import 'admin_incentives_screen.dart';
 import 'admin_driver_applications_screen.dart';
 import '../auth/change_password_screen.dart';
 import 'admin_registration_codes_screen.dart';
+import 'admin_restaurant_requests_screen.dart';
 import 'admin_diagnostics_screen.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
@@ -97,8 +98,8 @@ class _AdminHomeState extends State<AdminHome> {
                   const Icon(Icons.admin_panel_settings_rounded, color: Colors.white, size: 36),
                   const SizedBox(height: 8),
                   Text(auth.user?.name ?? '',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                  const Text('إدارة إضافية', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                  const Text('إدارة إضافية', style: TextStyle(color: Colors.white70, fontSize: 12.5)),
                 ],
               ),
             ),
@@ -109,7 +110,7 @@ class _AdminHomeState extends State<AdminHome> {
               leading: const Icon(Icons.history_rounded),
               title: const Text('سجلّ الطلبات'),
               subtitle: const Text('كل الطلبات — بحث وفلترة',
-                  style: TextStyle(fontSize: 11)),
+                  style: TextStyle(fontSize: 11.5)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -154,6 +155,15 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد التسجيل', child: AdminRegistrationCodesScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_business_outlined),
+              title: const Text('طلبات المطاعم'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات المطاعم — خريطة مبيعاتك', child: AdminRestaurantRequestsScreen())));
               },
             ),
             ListTile(
@@ -359,7 +369,7 @@ class _StatsTabState extends State<_StatsTab> {
               borderRadius: BorderRadius.circular(16)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('إيرادات الطلبات المكتملة',
-                style: TextStyle(color: Colors.white70, fontSize: 13)),
+                style: TextStyle(color: Colors.white70, fontSize: 13.5)),
             Text(formatCurrency(revenue),
                 style: const TextStyle(
                     color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
@@ -402,7 +412,7 @@ class _StatsTabState extends State<_StatsTab> {
                     style: const TextStyle(fontSize: 12.5)),
               const SizedBox(height: 4),
               const Text('تفاصيلها في تبويب «المتابعة الحية»',
-                  style: TextStyle(fontSize: 11, color: AppColors.textGray)),
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
             ]),
           ),
 
@@ -428,7 +438,7 @@ class _StatsTabState extends State<_StatsTab> {
   Widget _moneyCol(String label, double value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
           Text(formatCurrency(value),
               style: const TextStyle(
                   color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.bold)),
@@ -438,7 +448,7 @@ class _StatsTabState extends State<_StatsTab> {
   Widget _stat(String l, String v, IconData i, Color c) => Card(child: Padding(padding: const EdgeInsets.all(16),
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(i, color: c, size: 28), Text(v, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: c)),
-      Text(l, style: const TextStyle(fontSize: 12)),
+      Text(l, style: const TextStyle(fontSize: 12.5)),
     ])));
 }
 
@@ -465,7 +475,7 @@ class _DriversTab extends StatelessWidget {
           trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (d.balance != 0)
               Text('${owes ? 'عليه ' : 'له '}${formatCurrency(d.balance.abs())}',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold,
                       color: owes ? AppColors.error : AppColors.success)),
             StatusBadge(label: d.isOnline ? 'متصل' : 'غير متصل', color: d.isOnline ? AppColors.success : Colors.grey),
           ]),

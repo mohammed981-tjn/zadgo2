@@ -196,6 +196,27 @@ class _LiveTrackingCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // الطلب المجدول (ح4): موعده أهم معلومة في البطاقة قبل تحرّكه.
+          if (order.isScheduled && order.status.index < OrderStatus.preparing.index) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.schedule_rounded,
+                    size: 15, color: AppColors.primaryDark),
+                const SizedBox(width: 6),
+                Text('توصيلك مجدول: ${formatDateTime(order.scheduledFor!)}',
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryDark)),
+              ]),
+            ),
+          ],
           Row(children: [
             Container(
               padding: const EdgeInsets.all(9),
@@ -313,14 +334,20 @@ class _LiveTrackingCard extends StatelessWidget {
           // إلغائه («بانتظار الموافقة») كان بلا زر إلغاء أصلاً. نصٌّ لا
           // زرٌّ عريض عمداً: خيار هروب لا دعوة ضغط.
           if (order.canCustomerCancel) ...[
-            const SizedBox(height: 4),
-            Center(
-              child: TextButton.icon(
+            const SizedBox(height: 10),
+            // بنمط زرَّي الخريطة والفاتورة نفسه (ملاحظة المالك 2026-08-14:
+            // «الزر ليس مطابقاً») — عرض كامل وإطار، والأحمر هويةَ خطورةٍ
+            // في اللون وحده لا في الشكل.
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
                 onPressed: () => _cancelFromCard(context),
-                icon: const Icon(Icons.cancel_outlined,
-                    size: 16, color: AppColors.error),
-                label: const Text('إلغاء الطلب',
-                    style: TextStyle(color: AppColors.error, fontSize: 12.5)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: BorderSide(color: AppColors.error.withOpacity(0.6)),
+                ),
+                icon: const Icon(Icons.cancel_outlined, size: 18),
+                label: const Text('إلغاء الطلب'),
               ),
             ),
           ],

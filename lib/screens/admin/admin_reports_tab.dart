@@ -177,7 +177,7 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                   Text(
                       '${sold.length} طلب مكتمل • ${restaurants.length} مطعم • $periodLabel',
                       style:
-                          const TextStyle(color: Colors.white70, fontSize: 12)),
+                          const TextStyle(color: Colors.white70, fontSize: 12.5)),
                 ],
               ),
             ),
@@ -356,7 +356,7 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                     const Text(
                       'الأسعار المعروضة للعميل شاملة الضريبة، وهذه قيمتها '
                       'المستخرجة منها للأغراض المحاسبية.',
-                      style: TextStyle(fontSize: 11, color: AppColors.textGray),
+                      style: TextStyle(fontSize: 11.5, color: AppColors.textGray),
                     ),
                   ],
                 ),
@@ -547,7 +547,7 @@ class _RestaurantReportCard extends StatelessWidget {
               ),
               Text('${totals.orders} طلب',
                   style: const TextStyle(
-                      fontSize: 12, color: AppColors.textGray)),
+                      fontSize: 12.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 8),
             PriceRow(

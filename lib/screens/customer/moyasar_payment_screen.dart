@@ -128,7 +128,7 @@ class MoyasarPaymentScreen extends StatelessWidget {
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   Text('${amountSar.toStringAsFixed(2)} ر.س',
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
+                          fontWeight: FontWeight.bold, fontSize: 17)),
                 ],
               ),
             ),

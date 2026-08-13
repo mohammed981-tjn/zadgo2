@@ -429,6 +429,11 @@ class AppUser {
   final double walletBalance;
   final List<SavedAddress> savedAddresses;
 
+  /// مطاعم العميل المفضلة (ح2) — معرّفات فقط في مستنده هو: قلبٌ يضغطه
+  /// فيظهر مطعمه تحت شريحة «المفضلة». مصفوفة لا مجموعة منفصلة: بضع
+  /// عشرات معرّفاً في أسوأ حال، وقاعدة المستخدم القائمة تحميها.
+  final List<String> favoriteRestaurantIds;
+
   /// كود التسجيل الذي مُنح به هذا الدور — يُكتب لحظة الإنشاء ليتحقّق منه
   /// حارس القواعد. بدونه كان أي مستخدم يُنشئ مستنده بدور `admin` فيصير
   /// مديراً عاماً على كل شيء (القاعدة كانت تفحص الرصيد ولا تفحص الدور).
@@ -449,6 +454,7 @@ class AppUser {
     this.nationalId,
     this.walletBalance = 0.0,
     this.savedAddresses = const [],
+    this.favoriteRestaurantIds = const [],
     this.registrationCode = '',
   });
 
@@ -468,6 +474,9 @@ class AppUser {
         savedAddresses: ((map['savedAddresses'] as List?) ?? [])
             .map((e) => SavedAddress.fromMap((e as Map).cast<String, dynamic>()))
             .toList(),
+        favoriteRestaurantIds: ((map['favoriteRestaurantIds'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
         registrationCode: map['registrationCode'] as String? ?? '',
       );
 
@@ -484,6 +493,7 @@ class AppUser {
         'isActive': isActive,
         'walletBalance': walletBalance,
         'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
+        'favoriteRestaurantIds': favoriteRestaurantIds,
         'registrationCode': registrationCode,
       };
 
@@ -497,6 +507,7 @@ class AppUser {
     String? nationalId,
     double? walletBalance,
     List<SavedAddress>? savedAddresses,
+    List<String>? favoriteRestaurantIds,
   }) =>
       AppUser(
         uid: uid,
@@ -512,6 +523,8 @@ class AppUser {
         nationalId: nationalId ?? this.nationalId,
         walletBalance: walletBalance ?? this.walletBalance,
         savedAddresses: savedAddresses ?? this.savedAddresses,
+        favoriteRestaurantIds:
+            favoriteRestaurantIds ?? this.favoriteRestaurantIds,
       );
 }
 
@@ -1015,6 +1028,32 @@ class ChallengeTier {
 /// المبالغ الافتراضية محسوبة على اقتصاد ZadGo: كل توصيلة تُدخل للمنصّة
 /// رسمها الثابت (3 ر.س)، فشرط 30 توصيلة يعني 90 ر.س دخلاً قبل صرف 80 ر.س
 /// مكافآت — أي أن الإحالة مربحة من أول سائق.
+/// طلب عميلٍ إضافةَ مطعم غير موجود (ح5 — خطة الإطلاق). معرّف المستند
+/// هو الاسم مطبَّعاً (فرغات موحّدة) فتتجمع طلبات نفس المطعم في عدّاد
+/// واحد بلا استعلام تجميع.
+class RestaurantRequest {
+  final String id;
+  final String name;
+  final int count;
+  final DateTime lastRequestedAt;
+
+  const RestaurantRequest({
+    required this.id,
+    required this.name,
+    required this.count,
+    required this.lastRequestedAt,
+  });
+
+  factory RestaurantRequest.fromMap(Map<String, dynamic> map, String id) =>
+      RestaurantRequest(
+        id: id,
+        name: map['name'] as String? ?? id,
+        count: (map['count'] as num?)?.toInt() ?? 0,
+        lastRequestedAt:
+            (map['lastRequestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+}
+
 class IncentiveSettings {
   // ————— برنامج الإحالة —————
   final bool referralEnabled;
@@ -1098,8 +1137,13 @@ class IncentiveSettings {
       ChallengeTier(deliveries: 20, bonus: 50),
     ],
     this.autoPay = false,
+    this.tipOptions = const [2, 5, 10],
     this.joinUrl = 'https://zadgo.co/join',
   });
+
+  /// خيارات الإكرامية المعروضة للعميل (ح3) — بالريال، من لوحة المدير
+  /// لا من الكود (ج١): تُرفع في المواسم وتُخفض بلا إصدار.
+  final List<double> tipOptions;
 
   factory IncentiveSettings.fromMap(Map<String, dynamic> map) {
     const d = IncentiveSettings();
@@ -1137,6 +1181,13 @@ class IncentiveSettings {
             ..sort((a, b) => a.deliveries.compareTo(b.deliveries)))
           : d.tiers,
       autoPay: map['autoPay'] as bool? ?? d.autoPay,
+      tipOptions: (map['tipOptions'] is List &&
+              (map['tipOptions'] as List).isNotEmpty)
+          ? (map['tipOptions'] as List)
+              .map((e) => (e as num).toDouble())
+              .where((v) => v > 0)
+              .toList()
+          : d.tipOptions,
       joinUrl: (map['joinUrl'] as String?)?.trim().isNotEmpty == true
           ? (map['joinUrl'] as String).trim()
           : d.joinUrl,
@@ -1158,6 +1209,7 @@ class IncentiveSettings {
         'challengeWeekdays': challengeWeekdays,
         'tiers': tiers.map((t) => t.toMap()).toList(),
         'autoPay': autoPay,
+        'tipOptions': tipOptions,
         'joinUrl': joinUrl,
       };
 
@@ -1175,6 +1227,7 @@ class IncentiveSettings {
     List<int>? challengeWeekdays,
     List<ChallengeTier>? tiers,
     bool? autoPay,
+    List<double>? tipOptions,
     String? joinUrl,
   }) =>
       IncentiveSettings(
@@ -1193,6 +1246,7 @@ class IncentiveSettings {
         challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
         tiers: tiers ?? this.tiers,
         autoPay: autoPay ?? this.autoPay,
+        tipOptions: tipOptions ?? this.tipOptions,
         joinUrl: joinUrl ?? this.joinUrl,
       );
 
@@ -1835,6 +1889,27 @@ class Order {
   /// يطرح منه، وكلاهما مختوم على مستند الطلب فيقرؤه الدفتران مباشرة.
   final double restaurantChargeback;
 
+  /// موعد التوصيل المطلوب (ح4) — فارغ يعني «في أقرب وقت» (السلوك القائم
+  /// حرفياً). طلبٌ مجدول يمرّ بنفس الدورة تماماً إلا أن الإسناد التلقائي
+  /// يمتنع عنه ما دام موعده بعيداً — وإلا استُدعي كابتنٌ ظهراً لطلبِ
+  /// الثامنة مساءً فوقف ينتظر أو هجر العرض.
+  final DateTime? scheduledFor;
+
+  /// إكرامية الكابتن (ح3) — يختارها العميل عند الدفع وتصل الكابتن
+  /// **كاملة بلا اقتطاع**: ليست جزءاً من grandTotal ولا payableTotal
+  /// عمداً، فلا تدخل العمولة ولا العُهدة ولا حساب الاسترداد — ممرٌّ
+  /// محايد من جيب العميل ليد الكابتن والمنصّة مجرد ناقل.
+  final double driverTip;
+
+  bool get isScheduled => scheduledFor != null;
+
+  /// هل ما يزال مبكراً على تحريك هذا الطلب المجدول؟ نافذة ٤٥ دقيقة قبل
+  /// الموعد: تكفي تحضيراً وتوصيلاً داخل المدينة، وتفتح باب الإسناد قبل
+  /// الموعد لا عنده — فالكابتن يحتاج وقت وصولٍ للمطعم.
+  bool get scheduledStillEarly =>
+      scheduledFor != null &&
+      scheduledFor!.difference(DateTime.now()).inMinutes > 45;
+
   /// لحظة تأكيد **المطعم** تسليمَ الطلب للكابتن — الوجه الثاني للاستلام
   /// (طلب المالك ٢٠٢٦-٠٨-١١): ضغطة الكابتن وحدها إقرارُ طرفٍ واحد، فإن
   /// أنكر المطعم التسليم أو ادّعى تأخّر الكابتن لم يكن في السجل ما يفصل.
@@ -1888,6 +1963,8 @@ class Order {
     this.restaurantHandoverAt,
     this.restaurantCompensation = 0,
     this.restaurantChargeback = 0,
+    this.scheduledFor,
+    this.driverTip = 0,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -2024,6 +2101,8 @@ class Order {
             (map['restaurantCompensation'] as num?)?.toDouble() ?? 0,
         restaurantChargeback:
             (map['restaurantChargeback'] as num?)?.toDouble() ?? 0,
+        scheduledFor: (map['scheduledFor'] as Timestamp?)?.toDate(),
+        driverTip: (map['driverTip'] as num?)?.toDouble() ?? 0,
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -2071,6 +2150,9 @@ class Order {
           'restaurantHandoverAt': Timestamp.fromDate(restaurantHandoverAt!),
         'restaurantCompensation': restaurantCompensation,
         'restaurantChargeback': restaurantChargeback,
+        if (scheduledFor != null)
+          'scheduledFor': Timestamp.fromDate(scheduledFor!),
+        'driverTip': driverTip,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2133,6 +2215,8 @@ class Order {
         restaurantHandoverAt: restaurantHandoverAt,
         restaurantCompensation: restaurantCompensation,
         restaurantChargeback: restaurantChargeback,
+        scheduledFor: scheduledFor,
+        driverTip: driverTip,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );

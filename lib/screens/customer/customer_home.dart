@@ -148,6 +148,26 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   String _query = '';
   String _category = 'الكل';
 
+  /// فلتر المفضلة (ح2) — شريحة مستقلة عن الفئات: «مفضلتي من البرجر»
+  /// اختياران متقاطعان لا بديلان.
+  bool _favoritesOnly = false;
+
+  /// تدفّق مستند المستخدم مثبَّت هنا لا في build: إنشاؤه مع كل إعادة
+  /// بناء يعني إعادة اشتراك مع كل حرف بحث — وميضاً واختفاء قلوبٍ لحظياً.
+  Stream<AppUser?>? _userStream;
+  String? _userStreamUid;
+
+  Stream<AppUser?> _favoritesStream(BuildContext context) {
+    final uid = context.read<app_auth.AuthProvider>().user?.uid;
+    if (uid != _userStreamUid || _userStream == null) {
+      _userStreamUid = uid;
+      _userStream = uid == null
+          ? Stream<AppUser?>.value(null)
+          : context.read<FirebaseService>().streamUser(uid);
+    }
+    return _userStream!;
+  }
+
   /// مهلة تهدئة للبحث: بدونها كان كل حرف يُعيد بناء كل بطاقات القائمة
   /// فوراً — تقطيع محسوس على القوائم الكبيرة والأجهزة الضعيفة.
   Timer? _searchDebounce;
@@ -172,8 +192,11 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
 
   /// تصفية محلية (على الجهاز) حسب الفئة المختارة ونص البحث — لا استعلام
   /// إضافي على Firestore.
-  List<Restaurant> _filter(List<Restaurant> list) {
+  List<Restaurant> _filter(List<Restaurant> list, Set<String> favorites) {
     var result = list;
+    if (_favoritesOnly) {
+      result = result.where((r) => favorites.contains(r.id)).toList();
+    }
     if (_category != 'الكل') {
       result = result.where((r) =>
           r.name.contains(_category) || r.description.contains(_category)).toList();
@@ -213,10 +236,28 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: _categories.length,
+          itemCount: _categories.length + 1,
           separatorBuilder: (_, __) => const SizedBox(width: 8),
           itemBuilder: (_, i) {
-            final cat = _categories[i];
+            // الشريحة الأولى: المفضلة — بقلبٍ يميّزها عن الفئات.
+            if (i == 0) {
+              return ChoiceChip(
+                avatar: Icon(Icons.favorite,
+                    size: 16,
+                    color: _favoritesOnly ? Colors.white : AppColors.error),
+                label: const Text('المفضلة'),
+                selected: _favoritesOnly,
+                onSelected: (_) =>
+                    setState(() => _favoritesOnly = !_favoritesOnly),
+                selectedColor: AppColors.error,
+                labelStyle: TextStyle(
+                  color: _favoritesOnly ? Colors.white : AppColors.textDark,
+                  fontWeight: FontWeight.w600,
+                ),
+                backgroundColor: AppColors.surface,
+              );
+            }
+            final cat = _categories[i - 1];
             final selected = cat == _category;
             return ChoiceChip(
               label: Text(cat),
@@ -240,24 +281,72 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         // ملاحظة مهمة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس Stream
         // جاهزاً، لذلك يُمرَّر اسم الدالة بلا أقواس (tear-off). إضافة أقواس
         // هنا تكسر التوقيع.
-        child: AppStreamBuilder<List<Restaurant>>(
+        // المفضلة الحية من مستند المستخدم (ح2): تدفّقٌ لا لقطة، فقلبٌ
+        // ضُغط في صفحة المطعم ينعكس هنا فوراً. الزائر (بلا حساب) يرى
+        // القائمة بلا قلوب — المفضلة ميزة أصحاب الحسابات.
+        child: StreamBuilder<AppUser?>(
+            stream: _favoritesStream(context),
+            builder: (ctx0, userSnap) {
+          final favorites =
+              (userSnap.data?.favoriteRestaurantIds ?? const []).toSet();
+          return AppStreamBuilder<List<Restaurant>>(
             stream: service.streamRestaurants,
             loading: const RestaurantListSkeleton(),
             builder: (ctx, list) {
-          final filtered = _filter(list);
+          final filtered = _filter(list, favorites);
           if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
-          if (filtered.isEmpty) return const AppEmpty(emoji: '🔍', title: 'لا توجد نتائج مطابقة');
+          if (filtered.isEmpty) {
+            // بحث خائب عن مطعم (ح5): اللحظة الأخطر في التطبيق كله —
+            // «لم أجد مطعمي» تساوي حذفاً عند ٨٦٪ من المستخدمين. بدل
+            // «لا يوجد» الميتة: زر يحوّل الخيبة إلى صوتٍ يُحصى فيصير
+            // خريطة مبيعات، والعميل يصله لاحقاً «مطعمك وصل».
+            final q = _query.trim();
+            return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              AppEmpty(
+                  emoji: _favoritesOnly ? '💛' : '🔍',
+                  title: _favoritesOnly
+                      ? 'لا مفضلة بعد — اضغط القلب على مطعم يعجبك'
+                      : 'لا توجد نتائج مطابقة'),
+              if (!_favoritesOnly && q.length >= 2 && userSnap.data != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: FilledButton.icon(
+                    icon: const Icon(Icons.add_business_outlined, size: 18),
+                    label: Text('اطلب إضافة «$q»'),
+                    onPressed: () async {
+                      try {
+                        await context
+                            .read<FirebaseService>()
+                            .requestRestaurant(q);
+                        if (ctx.mounted) {
+                          showSuccess(ctx,
+                              'وصلنا صوتك — سنعمل على إحضار «$q» ونخبرك حين يصل 🙌');
+                        }
+                      } catch (_) {
+                        if (ctx.mounted) {
+                          showError(ctx, 'تعذّر إرسال الطلب، حاول مرة أخرى');
+                        }
+                      }
+                    },
+                  ),
+                ),
+            ]);
+          }
           return ListView.builder(padding: const EdgeInsets.all(16), itemCount: filtered.length, itemBuilder: (_, i) {
             // دخول متعاقب لأول ثماني بطاقات فقط: التتابع بعدها لا يُرى
             // (خارج الشاشة)، وتأخيرُ عنصرٍ في أسفل قائمة طويلة بحساب
             // ترتيبه يجعله يظهر متأخراً بلا سبب مرئي عند القفز إليه.
-            final card = _RestaurantCard(restaurant: filtered[i]);
+            final card = _RestaurantCard(
+                restaurant: filtered[i],
+                isFavorite: favorites.contains(filtered[i].id),
+                canFavorite: userSnap.data != null);
             if (i >= 8) return card;
             return card
                 .animate(delay: (55 * i).ms)
                 .fadeIn(duration: 260.ms, curve: Curves.easeOut)
                 .slideY(begin: 0.06, end: 0, duration: 300.ms, curve: Curves.easeOut);
           });
+            });
         }),
       ),
     ]);
@@ -267,7 +356,12 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
 /// بطاقة مطعم واحد في القائمة — لا تفتح إلا إذا كان المطعم مفتوحاً.
 class _RestaurantCard extends StatelessWidget {
   final Restaurant restaurant;
-  const _RestaurantCard({required this.restaurant});
+  final bool isFavorite;
+  final bool canFavorite;
+  const _RestaurantCard(
+      {required this.restaurant,
+      this.isFavorite = false,
+      this.canFavorite = false});
 
   @override
   Widget build(BuildContext context) {
@@ -302,6 +396,28 @@ class _RestaurantCard extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.textDark),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
+                // قلب المفضلة (ح2) — للزائر لا يظهر: الميزة تخصّ حساباً
+                // تُحفظ فيه. GestureDetector لا IconButton كي لا يفرض
+                // حجم لمسٍ يضخّم صف العنوان.
+                if (canFavorite)
+                  GestureDetector(
+                    onTap: () {
+                      final auth = context.read<app_auth.AuthProvider>();
+                      final uid = auth.user?.uid;
+                      if (uid == null) return;
+                      context
+                          .read<FirebaseService>()
+                          .toggleFavoriteRestaurant(uid, r.id, !isFavorite);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        size: 20,
+                        color: isFavorite ? AppColors.error : AppColors.textGray,
+                      ),
+                    ),
+                  ),
                 StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.success : Colors.grey),
               ]),
               const SizedBox(height: 2),
