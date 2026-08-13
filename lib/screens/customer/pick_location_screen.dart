@@ -246,7 +246,7 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                   _selected == null
                       ? 'اضغط على الخريطة لتحديد موقعك'
                       : 'اضغط على الخريطة لتعديل الموقع',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: const TextStyle(color: Colors.white, fontSize: 12.5),
                 ),
               ),
             ),

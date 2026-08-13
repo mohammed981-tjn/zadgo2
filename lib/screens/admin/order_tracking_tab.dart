@@ -263,7 +263,7 @@ class _TrackedOrderCard extends StatelessWidget {
                 order.customerPhone.trim().isNotEmpty
                     ? '${order.customerName} — ${order.customerPhone}'
                     : order.customerName,
-                style: const TextStyle(fontSize: 13, color: AppColors.textGray),
+                style: const TextStyle(fontSize: 13.5, color: AppColors.textGray),
               ),
             ),
             if (order.customerPhone.trim().isNotEmpty)
@@ -289,7 +289,7 @@ class _TrackedOrderCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       phone.isNotEmpty ? 'السائق: $name — $phone' : 'السائق: $name',
-                      style: const TextStyle(fontSize: 13, color: AppColors.textGray),
+                      style: const TextStyle(fontSize: 13.5, color: AppColors.textGray),
                     ),
                   ),
                   if (phone.isNotEmpty)

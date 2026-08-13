@@ -74,7 +74,7 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                     Text('خط الطول: ${_selected.longitude.toStringAsFixed(6)}'),
                     const SizedBox(height: 8),
                     const Text('اضغط على أي مكان في الخريطة لتحديد الموقع',
-                        style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+                        style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
                   ],
                 ),
               ),

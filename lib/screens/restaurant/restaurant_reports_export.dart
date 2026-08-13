@@ -80,7 +80,7 @@ Future<void> exportRestaurantReportPdf({
               textDirection: pw.TextDirection.rtl, style: const pw.TextStyle(fontSize: 20)),
         ),
         pw.Text('إجمالي قيمة الوجبات المباعة: ${formatCurrency(totalMealsValue)}',
-            textDirection: pw.TextDirection.rtl, style: const pw.TextStyle(fontSize: 14)),
+            textDirection: pw.TextDirection.rtl, style: const pw.TextStyle(fontSize: 14.5)),
         pw.SizedBox(height: 16),
         pw.TableHelper.fromTextArray(
           headerDirection: pw.TextDirection.rtl,

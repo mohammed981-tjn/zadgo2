@@ -104,7 +104,7 @@ class AdminUsersTab extends StatelessWidget {
                 const Text(
                   'اختر الدور، ثم ولّد كود تسجيل وحيد الاستخدام لإرساله للشخص المستهدف؛ '
                   'سيستخدمه لتفعيل حسابه بنفسه بالدور المحدَّد (ومطعمه إن كان مدير مطعم).',
-                  style: TextStyle(fontSize: 13, color: AppColors.textGray),
+                  style: TextStyle(fontSize: 13.5, color: AppColors.textGray),
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<UserRole>(
@@ -147,7 +147,7 @@ class AdminUsersTab extends StatelessWidget {
                           if (restaurants.isEmpty) {
                             return const Text(
                               'لا توجد مطاعم متاحة حالياً — جميع المطاعم مرتبطة بالفعل بمدير مسجَّل.',
-                              style: TextStyle(fontSize: 13, color: Colors.orange),
+                              style: TextStyle(fontSize: 13.5, color: Colors.orange),
                             );
                           }
                           return DropdownButtonFormField<String>(

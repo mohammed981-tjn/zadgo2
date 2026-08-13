@@ -178,7 +178,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                     child: Column(children: [
                       const Text('رقم الطلب',
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.textGray)),
+                              fontSize: 12.5, color: AppColors.textGray)),
                       Text('#${o.orderNumber}',
                           style: TextStyle(
                               fontSize: 44,
@@ -187,7 +187,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                               color: fc.primaryDark)),
                       Text(o.restaurantName,
                           style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w600)),
+                              fontSize: 14.5, fontWeight: FontWeight.w600)),
                       // وقت الطلب وعمره (بلاغ المالك ٢٠٢٦-٠٨-١١): المذكرة
                       // تُعرض على موظف المطعم، وأول ما يُسأل عنه «متى دخل
                       // الطلب؟» — وكانت بلا أي زمن، فيبقى الجواب تخميناً
@@ -260,11 +260,11 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                           Row(children: [
                             const Text('الأصناف',
                                 style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 15)),
+                                    fontWeight: FontWeight.bold, fontSize: 14.5)),
                             const Spacer(),
                             Text('${o.items.fold<int>(0, (s, i) => s + i.quantity)} قطعة',
                                 style: const TextStyle(
-                                    fontSize: 12, color: AppColors.textGray)),
+                                    fontSize: 12.5, color: AppColors.textGray)),
                           ]),
                           const Divider(),
                           ...o.items.map((i) => Padding(
@@ -281,7 +281,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                     child: Text('${i.quantity}×',
                                         style: TextStyle(
                                             fontWeight: FontWeight.w800,
-                                            fontSize: 15,
+                                            fontSize: 14.5,
                                             color: fc.primaryDark)),
                                   ),
                                   const SizedBox(width: 10),
@@ -292,7 +292,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                         children: [
                                           Text(i.name,
                                               style: const TextStyle(
-                                                  fontSize: 15.5,
+                                                  fontSize: 14.5,
                                                   fontWeight: FontWeight.w600)),
                                           // الخيارات (كبير • جبن...) جزء من
                                           // المطابقة مع الشنطة لا زينة.

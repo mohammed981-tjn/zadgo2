@@ -288,7 +288,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 const SizedBox(height: 16),
                 Text(
                   widget.existing == null ? 'إضافة مطعم' : 'تعديل المطعم',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 _f(_emoji, 'رمز المطعم (Emoji)', isReq: false),
@@ -354,7 +354,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                         child: Text(
                           'بلا موقع: يُختار الكابتن بالتقييم لا بالأقرب، '
                           'وأجرة التوصيل تُحسب بلا مسافة. حدِّد الموقع.',
-                          style: TextStyle(fontSize: 12),
+                          style: TextStyle(fontSize: 12.5),
                         ),
                       ),
                     ]),
@@ -548,7 +548,7 @@ class _ItemTile extends StatelessWidget {
         children: [
           Text(
             '${formatCurrency(item.price)}${item.trackStock ? "  •  مخزون: ${item.stockQuantity ?? "∞"}" : ""}',
-            style: const TextStyle(fontSize: 12),
+            style: const TextStyle(fontSize: 12.5),
           ),
           // تحذير واضح بدل ترك المدير يكتشف صنفاً ناقص البيانات صدفة —
           // اسم فارغ أو سعر صفري/غير صالح غالباً يعني إدخالاً غير مكتمل.
@@ -559,7 +559,7 @@ class _ItemTile extends StatelessWidget {
                 Icon(Icons.info_outline, size: 13, color: AppColors.warning),
                 SizedBox(width: 4),
                 Text('بيانات الصنف غير مكتملة',
-                    style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w600)),
+                    style: TextStyle(fontSize: 11.5, color: AppColors.warning, fontWeight: FontWeight.w600)),
               ]),
             ),
         ],
@@ -706,7 +706,7 @@ class _ItemFormState extends State<_ItemForm> {
                             e.value.priceDelta == 0
                                 ? e.value.name
                                 : '${e.value.name} (${e.value.priceDelta > 0 ? '+' : ''}${e.value.priceDelta.toStringAsFixed(0)} ر.س)',
-                            style: const TextStyle(fontSize: 13)),
+                            style: const TextStyle(fontSize: 13.5)),
                       ),
                       IconButton(
                         iconSize: 17,
@@ -830,7 +830,7 @@ class _ItemFormState extends State<_ItemForm> {
               children: [
                 Text(
                   widget.existing == null ? 'إضافة صنف' : 'تعديل الصنف',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -861,7 +861,7 @@ class _ItemFormState extends State<_ItemForm> {
                   onChanged: (v) => setState(() => _trackStock = v),
                   title: const Text('تتبع المخزون'),
                   subtitle: const Text('إخفاء الصنف تلقائياً عند نفاده',
-                      style: TextStyle(fontSize: 12)),
+                      style: TextStyle(fontSize: 12.5)),
                   contentPadding: EdgeInsets.zero,
                   activeColor: AppColors.primary,
                 ),
@@ -873,7 +873,7 @@ class _ItemFormState extends State<_ItemForm> {
                 Row(children: [
                   const Text('خيارات الصنف',
                       style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
                   const Spacer(),
                   TextButton.icon(
                     onPressed: () => _editGroup(null),
@@ -884,7 +884,7 @@ class _ItemFormState extends State<_ItemForm> {
                 if (_optionGroups.isEmpty)
                   const Text('بلا خيارات — يُضاف الصنف مباشرة بسعره.',
                       style:
-                          TextStyle(fontSize: 12, color: AppColors.textGray)),
+                          TextStyle(fontSize: 12.5, color: AppColors.textGray)),
                 ..._optionGroups.asMap().entries.map((e) => Card(
                       margin: const EdgeInsets.only(bottom: 6),
                       child: ListTile(
@@ -892,7 +892,7 @@ class _ItemFormState extends State<_ItemForm> {
                         title: Text(
                             '${e.value.name} — ${e.value.multiSelect ? 'إضافات اختيارية' : 'اختيار واحد إلزامي'}',
                             style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w700)),
+                                fontSize: 13.5, fontWeight: FontWeight.w700)),
                         subtitle: Text(
                           e.value.options
                               .map((o) => o.priceDelta == 0
