@@ -191,7 +191,7 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
               const Text(
                 'تُصفّر عدّاد الحمولة لكل كابتن لا طلب جارياً له — استعملها '
                 'إن ظهر أعلاه «عدّاده يخالف الفعلي».',
-                style: TextStyle(fontSize: 12, color: AppColors.textGray),
+                style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
@@ -233,7 +233,7 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
               padding: const EdgeInsets.all(12),
               child: SelectableText(
                 _report!,
-                style: const TextStyle(fontSize: 12, height: 1.6),
+                style: const TextStyle(fontSize: 12.5, height: 1.6),
               ),
             ),
           ),

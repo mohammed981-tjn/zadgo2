@@ -84,7 +84,7 @@ class _RequestCard extends StatelessWidget {
             Text(formatCurrency(r.amount),
                 style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 16,
+                    fontSize: 17,
                     color: statusColor)),
           ]),
           const SizedBox(height: 6),
@@ -97,14 +97,14 @@ class _RequestCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(_fmt(r.processedAt!),
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.textGray)),
+                        fontSize: 11.5, color: AppColors.textGray)),
               ],
             ]),
             if ((r.adminNote ?? '').isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Text('ملاحظة: ${r.adminNote}',
-                    style: const TextStyle(fontSize: 12)),
+                    style: const TextStyle(fontSize: 12.5)),
               ),
           ],
           if (pending) ...[
@@ -123,7 +123,7 @@ class _RequestCard extends StatelessWidget {
                           child: Text(
                               'رصيده الحالي: ${formatCurrency(d.balance)}',
                               style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.w600,
                                   color: d.balance >= r.amount
                                       ? AppColors.success

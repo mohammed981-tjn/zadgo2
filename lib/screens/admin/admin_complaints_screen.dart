@@ -156,22 +156,22 @@ class _ComplaintCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
               ),
               Text(c.isGeneralTicket ? 'تذكرة ${c.displayNumber}' : '#${c.orderNumber}',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                  style: const TextStyle(fontSize: 12.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 8),
             Row(children: [
               Icon(_roleIcon(c.submittedByRole), size: 15, color: AppColors.textGray),
               const SizedBox(width: 4),
-              Text(c.submittedByName, style: const TextStyle(fontSize: 13)),
+              Text(c.submittedByName, style: const TextStyle(fontSize: 13.5)),
               const SizedBox(width: 6),
               const Icon(Icons.arrow_back_rounded, size: 13, color: AppColors.textGray),
               const SizedBox(width: 6),
               if (c.againstRole != null) ...[
                 Icon(_roleIcon(c.againstRole), size: 15, color: AppColors.error),
                 const SizedBox(width: 4),
-                Text(c.againstRole!.label, style: const TextStyle(fontSize: 13, color: AppColors.error)),
+                Text(c.againstRole!.label, style: const TextStyle(fontSize: 13.5, color: AppColors.error)),
               ] else
-                const Text('عام (بلا طرف محدد)', style: TextStyle(fontSize: 13, color: AppColors.textGray)),
+                const Text('عام (بلا طرف محدد)', style: TextStyle(fontSize: 13.5, color: AppColors.textGray)),
             ]),
             if (repeatCount > 1) ...[
               const SizedBox(height: 8),

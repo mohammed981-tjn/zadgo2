@@ -70,9 +70,9 @@ class AccountScreen extends StatelessWidget {
                     color: AppColors.primary),
                 title: const Text('شكاواي',
                     style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
                 subtitle: const Text('متابعة شكاواك والتواصل مع الإدارة',
-                    style: TextStyle(fontSize: 12)),
+                    style: TextStyle(fontSize: 12.5)),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.push(
                   context,
@@ -91,7 +91,7 @@ class AccountScreen extends StatelessWidget {
                     const Icon(Icons.lock_outline, color: AppColors.primary),
                 title: const Text('تغيير كلمة المرور',
                     style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.push(
                   context,
@@ -109,7 +109,7 @@ class AccountScreen extends StatelessWidget {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Text('لا توجد حركات على محفظتك بعد',
-                        style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+                        style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
                   );
                 }
                 return Column(
@@ -177,7 +177,7 @@ class AccountScreen extends StatelessWidget {
             'والبريد) نهائياً ولا يمكن التراجع. سجلّ الطلبات والحركات '
             'المالية يبقى محفوظاً باسم «مستخدم محذوف» كما تُلزمنا الأنظمة '
             'المحاسبية.\n\nأدخل كلمة مرورك للتأكيد:',
-            style: TextStyle(fontSize: 13, height: 1.7),
+            style: TextStyle(fontSize: 13.5, height: 1.7),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -246,18 +246,18 @@ class _ProfileCard extends StatelessWidget {
               children: [
                 Text(user.name,
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
+                        fontWeight: FontWeight.bold, fontSize: 17)),
                 if (user.phone.isNotEmpty)
                   Text(user.phone,
                       textDirection: TextDirection.ltr,
                       style: const TextStyle(
-                          fontSize: 13, color: AppColors.textGray)),
+                          fontSize: 13.5, color: AppColors.textGray)),
                 if (user.email.isNotEmpty)
                   Text(user.email,
                       textDirection: TextDirection.ltr,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textGray)),
+                          fontSize: 12.5, color: AppColors.textGray)),
               ],
             ),
           ),
@@ -297,7 +297,7 @@ class _WalletCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('رصيد المحفظة',
-                style: TextStyle(color: Colors.white70, fontSize: 13)),
+                style: TextStyle(color: Colors.white70, fontSize: 13.5)),
             Text(formatCurrency(balance),
                 style: const TextStyle(
                     color: Colors.white,
@@ -431,7 +431,7 @@ class _AddressesSection extends StatelessWidget {
             child: Text(
               'لا توجد عناوين محفوظة. أضف عنوانك لتختاره بنقرة عند الطلب بدل '
               'تحديد الموقع في كل مرة.',
-              style: TextStyle(fontSize: 12, color: AppColors.textGray),
+              style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
             ),
           )
         else
@@ -476,18 +476,18 @@ class _WalletTile extends StatelessWidget {
           backgroundColor: color.withOpacity(0.12),
           child: Icon(tx.type.icon, size: 16, color: color),
         ),
-        title: Text(tx.type.label, style: const TextStyle(fontSize: 13)),
+        title: Text(tx.type.label, style: const TextStyle(fontSize: 13.5)),
         subtitle: Text(
           [
             if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
             if (tx.note != null && tx.note!.isNotEmpty) tx.note!,
             '${tx.createdAt.day}/${tx.createdAt.month}',
           ].join(' • '),
-          style: const TextStyle(fontSize: 11, color: AppColors.textGray),
+          style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
         ),
         trailing: Text(
           '${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
-          style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
+          style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13.5),
         ),
       ),
     );

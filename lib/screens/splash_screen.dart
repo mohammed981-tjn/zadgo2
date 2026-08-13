@@ -274,7 +274,7 @@ class _SplashScreenState extends State<SplashScreen>
                               label,
                               style: TextStyle(
                                 color: fc.onPrimary,
-                                fontSize: 16,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.5,
                               ),
@@ -316,7 +316,7 @@ class _AuthWaitIndicator extends StatelessWidget {
             const SizedBox(width: 10),
             Text('جارٍ استعادة جلستك…',
                 style: TextStyle(
-                    fontSize: 12, color: Colors.white.withOpacity(0.7))),
+                    fontSize: 12.5, color: Colors.white.withOpacity(0.7))),
           ]),
         ),
       );

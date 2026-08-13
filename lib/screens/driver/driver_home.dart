@@ -384,7 +384,7 @@ class _DriverHomeState extends State<DriverHome> {
               if (driver != null)
                 Row(children: [
                   Text(driver.isOnline ? 'متصل' : 'غير متصل',
-                      style: TextStyle(color: driver.isOnline ? Colors.greenAccent : Colors.white54, fontSize: 12)),
+                      style: TextStyle(color: driver.isOnline ? Colors.greenAccent : Colors.white54, fontSize: 12.5)),
                   Switch(value: driver.isOnline, onChanged: (v) async {
                       await service.setDriverOnline(driverId, v);
                       if (context.mounted) {
@@ -572,7 +572,7 @@ class _OfferBannerState extends State<_OfferBanner> {
                   style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
-                      fontSize: 13)),
+                      fontSize: 13.5)),
             ),
           ]),
           const SizedBox(height: 8),
@@ -604,7 +604,7 @@ class _OfferBannerState extends State<_OfferBanner> {
                     'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 13,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w800)),
               ),
             ),
@@ -615,7 +615,7 @@ class _OfferBannerState extends State<_OfferBanner> {
                 style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
-                    fontSize: 15)),
+                    fontSize: 14.5)),
             if (pickupKm != null || dropKm != null) ...[
               const SizedBox(width: 12),
               Expanded(
@@ -626,7 +626,7 @@ class _OfferBannerState extends State<_OfferBanner> {
                     if (dropKm != null)
                       'التوصيل ${dropKm.toStringAsFixed(1)} كم',
                   ].join(' • '),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -635,7 +635,7 @@ class _OfferBannerState extends State<_OfferBanner> {
           ]),
           const SizedBox(height: 6),
           Text('${o.restaurantName} ← ${o.deliveryAddress}',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
+              style: const TextStyle(color: Colors.white70, fontSize: 12.5),
               maxLines: 1,
               overflow: TextOverflow.ellipsis),
           const SizedBox(height: 12),
@@ -737,7 +737,7 @@ class _MyOrdersTab extends StatelessWidget {
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
-                              fontSize: 15)),
+                              fontSize: 14.5)),
                       Text(
                           isOnline
                               ? 'تصلك العروض تلقائياً — اضغط للتوقف'
@@ -833,14 +833,14 @@ class _MyOrdersTab extends StatelessWidget {
                         const SizedBox(height: 10),
                         const Text('لا توجد طلبات نشطة حالياً',
                             style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w700)),
+                                fontSize: 17, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 5),
                         Text(
                           isOnline
                               ? 'سيصلك عرض بأي طلب جديد فور توفره'
                               : 'اتصل أولاً ليصلك أي عرض',
                           style: const TextStyle(
-                              fontSize: 13, color: AppColors.textGray),
+                              fontSize: 13.5, color: AppColors.textGray),
                         ),
                       ]),
                     )
@@ -1082,7 +1082,7 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
           Text('عرض توصيل — طلب #${o.orderNumber}',
               style: const TextStyle(
                   fontWeight: FontWeight.w800,
-                  fontSize: 14,
+                  fontSize: 14.5,
                   color: Color(0xFF8A6508))),
         ]),
         const SizedBox(height: 8),
@@ -1092,13 +1092,13 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
             child: Text(
                 'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w800)),
+                    fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
         Text('أجرتك ${formatCurrency(o.driverShare)}',
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
         const SizedBox(height: 4),
         Text('${o.restaurantName} ← ${o.deliveryAddress}',
-            style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+            style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
             maxLines: 2,
             overflow: TextOverflow.ellipsis),
         const SizedBox(height: 12),
@@ -1177,7 +1177,7 @@ class _AgeRowState extends State<_AgeRow> {
           child: Text(
             'وقت الطلب $clock — منذ ${formatRemaining(age)}',
             style: TextStyle(
-                fontSize: 13,
+                fontSize: 13.5,
                 color: late ? AppColors.error : AppColors.textGray,
                 fontWeight: late ? FontWeight.w700 : FontWeight.normal),
           ),
@@ -1307,8 +1307,8 @@ class _OrderCard extends StatelessWidget {
           _AgeRow(createdAt: order.createdAt),
           const Divider(height: 16),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(formatCurrency(order.payableTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            Text(order.paymentMethod.label, style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
+            Text(formatCurrency(order.payableTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+            Text(order.paymentMethod.label, style: const TextStyle(color: AppColors.textGray, fontSize: 12.5)),
           ]),
           const SizedBox(height: 12),
           _buildAction(context, service),
@@ -1431,7 +1431,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                 color: Colors.white70, size: 18),
             const SizedBox(width: 6),
             Text(owesPlatform ? 'محفظتك — مبلغ عليك' : 'محفظتك — رصيدك',
-                style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                style: const TextStyle(color: Colors.white70, fontSize: 14.5)),
           ]),
           const SizedBox(height: 6),
           Text(formatCurrency(amount),
@@ -1441,7 +1441,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             owesPlatform
                 ? 'عُهدة طلبات نقدية بيدك — تُسدَّد بالشحن أو التسليم للإدارة'
                 : 'مستحقّاتك من الطلبات المدفوعة إلكترونياً',
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            style: const TextStyle(color: Colors.white70, fontSize: 11.5),
           ),
           const SizedBox(height: 12),
           Row(children: [
@@ -1692,7 +1692,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                   // chipTheme العام بلا لون نص — بدون لون صريح ورثت التسميات
                   // أبيض فاختفت على الخلفية البيضاء (ملاحظة المالك بالصورة).
                   labelStyle: TextStyle(
-                    fontSize: 12,
+                    fontSize: 12.5,
                     color: _filter == f
                         ? context.flavorColors.primaryDark
                         : AppColors.textDark,
@@ -1735,15 +1735,15 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               const SizedBox(width: 6),
               Text(label,
                   style: const TextStyle(
-                      fontSize: 12, color: AppColors.textGray)),
+                      fontSize: 12.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 6),
             Text(formatCurrency(amount),
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+                    fontSize: 17, fontWeight: FontWeight.w800, color: color)),
             Text('$count توصيلة',
                 style:
-                    const TextStyle(fontSize: 11, color: AppColors.textGray)),
+                    const TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ]),
         ),
       );
@@ -1753,7 +1753,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
     child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       Icon(icon, color: color, size: 28),
       Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-      Text(label, style: const TextStyle(fontSize: 12)),
+      Text(label, style: const TextStyle(fontSize: 12.5)),
     ])));
 
   /// طلب سحب المستحقّات — السائق يحدّد المبلغ (حتى رصيده) وطريقة الاستلام،
@@ -1872,14 +1872,14 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             const ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.payments_outlined, color: AppColors.primary),
-              title: Text('تسليم نقدي للإدارة', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              title: Text('تسليم نقدي للإدارة', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
               subtitle: Text('سلّم المبلغ وتقيّده الإدارة فوراً — يظهر في سجلّك «شحن / إيداع»',
                   style: TextStyle(fontSize: 12.5)),
             ),
             const ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(Icons.account_balance_outlined, color: AppColors.primary),
-              title: Text('تحويل بنكي', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              title: Text('تحويل بنكي', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
               subtitle: Text('حوّل لحساب الإدارة ثم أرسل الإيصال لها ليُقيَّد الرصيد',
                   style: TextStyle(fontSize: 12.5)),
             ),
@@ -1892,7 +1892,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               ),
               child: const Text(
                 'الشحن المباشر بالبطاقة من داخل التطبيق قادم قريباً.',
-                style: TextStyle(fontSize: 12, color: AppColors.textGray),
+                style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
               ),
             ),
           ]),
@@ -1915,22 +1915,22 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             SizedBox(height: 12),
             Text('📦  عند استلامك طلباً نقدياً من المطعم تُقيَّد قيمته على محفظتك '
                 '(عُهدة) — لأن الطلب صار بيدك حتى تسليمه.',
-                style: TextStyle(fontSize: 13, height: 1.7)),
+                style: TextStyle(fontSize: 13.5, height: 1.7)),
             SizedBox(height: 8),
             Text('💵  عند تسليمه تقبض من العميل كامل المبلغ نقداً: قيمة الطلب '
                 'تسدّ العُهدة، وأجرة التوصيل ربحك تبقى بيدك.',
-                style: TextStyle(fontSize: 13, height: 1.7)),
+                style: TextStyle(fontSize: 13.5, height: 1.7)),
             SizedBox(height: 8),
             Text('💳  الطلبات المدفوعة إلكترونياً: لا عُهدة عليك، وتُضاف أجرتك '
                 'لرصيدك وتُصرف لك من الإدارة.',
-                style: TextStyle(fontSize: 13, height: 1.7)),
+                style: TextStyle(fontSize: 13.5, height: 1.7)),
             SizedBox(height: 8),
             Text('🚫  أُلغي الطلب بعد استلامك له؟ تُردّ العُهدة لمحفظتك تلقائياً.',
-                style: TextStyle(fontSize: 13, height: 1.7)),
+                style: TextStyle(fontSize: 13.5, height: 1.7)),
             SizedBox(height: 8),
             Text('🧾  كل حركة مسجّلة في «سجلّ الحركات» برصيدك بعدها — '
                 'لا خصم ولا إضافة بلا سطر يفسّرها.',
-                style: TextStyle(fontSize: 13, height: 1.7)),
+                style: TextStyle(fontSize: 13.5, height: 1.7)),
           ]),
         ),
       ),
@@ -1954,18 +1954,18 @@ class _TransactionTile extends StatelessWidget {
         backgroundColor: color.withOpacity(0.12),
         child: Icon(tx.type.icon, size: 16, color: color),
       ),
-      title: Text(tx.type.label, style: const TextStyle(fontSize: 13)),
+      title: Text(tx.type.label, style: const TextStyle(fontSize: 13.5)),
       subtitle: Text(
         [
           if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
           if (tx.note != null && tx.note!.isNotEmpty) tx.note!,
           '${tx.createdAt.day}/${tx.createdAt.month}',
         ].join(' • '),
-        style: const TextStyle(fontSize: 11, color: AppColors.textGray),
+        style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
       ),
       trailing: Text(
         '${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
-        style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13),
+        style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13.5),
       ),
     );
   }
@@ -2031,7 +2031,7 @@ class _IncentivesCards extends StatelessWidget {
                   children: [
                     const Text('ادعُ كابتناً واكسب',
                         style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14)),
+                            fontWeight: FontWeight.w700, fontSize: 14.5)),
                     Text(
                         'لك ${s.referrerBonus.toStringAsFixed(0)} ر.س وله '
                         '${s.refereeBonus.toStringAsFixed(0)} ر.س — بعد إكماله '
@@ -2057,7 +2057,7 @@ class _IncentivesCards extends StatelessWidget {
                 child: Row(children: [
                   const Text('كودك:',
                       style: TextStyle(
-                          fontSize: 12, color: AppColors.textGray)),
+                          fontSize: 12.5, color: AppColors.textGray)),
                   const SizedBox(width: 6),
                   Text(code,
                       style: TextStyle(
@@ -2147,7 +2147,7 @@ class _IncentivesCards extends StatelessWidget {
                 Expanded(
                   child: Text('تحدي ${s.weekdaysLabel} — جارٍ الآن',
                       style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14)),
+                          fontWeight: FontWeight.w700, fontSize: 14.5)),
                 ),
                 Text('$count',
                     style: TextStyle(
@@ -2172,7 +2172,7 @@ class _IncentivesCards extends StatelessWidget {
                         'لمكافأة ${next.bonus.toStringAsFixed(0)} ر.س'
                     : 'بلغتَ أعلى مستوى — مكافأة '
                         '${reached!.bonus.toStringAsFixed(0)} ر.س 🎉',
-                style: const TextStyle(fontSize: 12),
+                style: const TextStyle(fontSize: 12.5),
               ),
               if (reached != null) ...[
                 const SizedBox(height: 4),
@@ -2189,7 +2189,7 @@ class _IncentivesCards extends StatelessWidget {
                   'المستويات: ${s.tiers.map((t) => '${t.deliveries}=${t.bonus.toStringAsFixed(0)}').join(' • ')}'
                   ' — تنتهي ${end.day}/${end.month}',
                   style: const TextStyle(
-                      fontSize: 11, color: AppColors.textGray)),
+                      fontSize: 11.5, color: AppColors.textGray)),
             ]),
           ),
         );

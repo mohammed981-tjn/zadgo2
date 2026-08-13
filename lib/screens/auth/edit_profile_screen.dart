@@ -97,7 +97,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           Center(
             child: Text(u.role.label,
                 style:
-                    const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                    const TextStyle(fontSize: 12.5, color: AppColors.textGray)),
           ),
           const SizedBox(height: 20),
           TextFormField(

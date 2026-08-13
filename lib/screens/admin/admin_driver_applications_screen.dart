@@ -83,7 +83,7 @@ class _AppCard extends StatelessWidget {
           MaterialPageRoute(builder: (_) => _AppDetailScreen(app: app)),
         ),
         title: Text(app.name,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
         subtitle: Text(
           [
             app.phone,
@@ -117,7 +117,7 @@ class _AppDetailScreen extends StatelessWidget {
           const Spacer(),
           Text('${app.createdAt.day}/${app.createdAt.month}/${app.createdAt.year}',
               style:
-                  const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                  const TextStyle(fontSize: 12.5, color: AppColors.textGray)),
         ]),
         const SizedBox(height: 12),
 
@@ -242,7 +242,7 @@ class _AppDetailScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Text('سبب الرفض: ${app.reviewNote}',
-                  style: const TextStyle(fontSize: 13)),
+                  style: const TextStyle(fontSize: 13.5)),
             ),
           ),
         ],
@@ -297,8 +297,8 @@ class _AppDetailScreen extends StatelessWidget {
         ),
         Expanded(
           child: copyable
-              ? SelectableText(value, style: const TextStyle(fontSize: 13))
-              : Text(value, style: const TextStyle(fontSize: 13)),
+              ? SelectableText(value, style: const TextStyle(fontSize: 13.5))
+              : Text(value, style: const TextStyle(fontSize: 13.5)),
         ),
       ]),
     );
@@ -325,7 +325,7 @@ class _AppDetailScreen extends StatelessWidget {
                         fontSize: 12.5, color: AppColors.error)),
               ),
             const Text('يُصدَر كود تسجيل للكابتن بصلاحية:',
-                style: TextStyle(fontSize: 13)),
+                style: TextStyle(fontSize: 13.5)),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
               value: days,
@@ -509,7 +509,7 @@ class _DocViewer extends StatelessWidget {
           const SizedBox(height: 6),
           SelectableText(url,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white38, fontSize: 11)),
+              style: const TextStyle(color: Colors.white38, fontSize: 11.5)),
         ]),
       );
 

@@ -68,7 +68,7 @@ class _BannerCard extends StatelessWidget {
                 color: AppColors.error.withOpacity(0.08),
                 alignment: Alignment.center,
                 child: const Text('تعذّر تحميل الصورة — تحقق من الرابط',
-                    style: TextStyle(fontSize: 12, color: AppColors.error)),
+                    style: TextStyle(fontSize: 12.5, color: AppColors.error)),
               ),
             ),
             if (!b.isActive)
@@ -79,7 +79,7 @@ class _BannerCard extends StatelessWidget {
                     style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 16)),
+                        fontSize: 17)),
               ),
           ]),
         ),
@@ -108,7 +108,7 @@ class _BannerCard extends StatelessWidget {
             onChanged: (v) => service.setBannerActive(b.id, v),
           ),
           Text(b.isActive ? 'فعّال' : 'موقَف',
-              style: const TextStyle(fontSize: 12)),
+              style: const TextStyle(fontSize: 12.5)),
           const Spacer(),
           IconButton(
             tooltip: 'تعديل',

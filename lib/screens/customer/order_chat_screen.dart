@@ -110,7 +110,7 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                         Row(mainAxisSize: MainAxisSize.min, children: [
                           Text(m.senderName,
                               style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.bold,
                                   color: isAdminMsg
                                       ? Colors.deepPurple
@@ -123,7 +123,7 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(_roleLabel(m.senderRole),
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: roleColor)),
+                                style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: roleColor)),
                           ),
                         ]),
                         const SizedBox(height: 2),

@@ -155,7 +155,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                 Expanded(
                   child: Text(
                     count == 1 ? 'طلب جديد وصل الآن' : '$count طلبات جديدة وصلت الآن',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.5),
                   ),
                 ),
                 const Icon(Icons.chevron_left_rounded, color: Colors.white),
@@ -309,7 +309,7 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
           labelColor: context.flavorColors.primary,
           unselectedLabelColor: AppColors.textGray,
           indicatorColor: context.flavorColors.primary,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
           tabs: const [
             Tab(text: 'نشطة'),
             Tab(text: 'منتهية'),
@@ -679,10 +679,10 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         ]),
         const SizedBox(height: 10),
         Row(children: [
-          Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const Spacer(),
           Text(formatCurrency(order.itemsTotal),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 15)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14.5)),
         ]),
         const SizedBox(height: 4),
         Row(children: [
@@ -690,13 +690,13 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           const SizedBox(width: 6),
           Expanded(
             child: Text(order.customerName,
-                style: const TextStyle(fontSize: 13, color: AppColors.textGray)),
+                style: const TextStyle(fontSize: 13.5, color: AppColors.textGray)),
           ),
           const SizedBox(width: 8),
           Icon(Icons.timer_outlined, size: 14, color: AppColors.textGray.withOpacity(0.8)),
           const SizedBox(width: 3),
           Text(_waitingLabel(),
-              style: TextStyle(fontSize: 12, color: AppColors.textGray.withOpacity(0.8))),
+              style: TextStyle(fontSize: 12.5, color: AppColors.textGray.withOpacity(0.8))),
           if (order.customerPhone.trim().isNotEmpty)
             IconButton(
               tooltip: 'الاتصال بالعميل',
@@ -719,7 +719,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                   ),
                   child: Text('${item.quantity}',
                       style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.primary)),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -730,7 +730,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(item.extras!,
-                            style: TextStyle(fontSize: 12, color: AppColors.textGray.withOpacity(0.9))),
+                            style: TextStyle(fontSize: 12.5, color: AppColors.textGray.withOpacity(0.9))),
                       ),
                   ]),
                 ),
@@ -934,7 +934,7 @@ class _LockedHandoverHint extends StatelessWidget {
             child: Text(
               'زرّ «سلّمتُ الطلب» يفتح فور تسجيل الكابتن وصوله للمطعم — '
               'فالإقرار لا يسبق الواقعة.',
-              style: TextStyle(fontSize: 12, color: AppColors.textGray),
+              style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
             ),
           ),
         ]),
@@ -964,7 +964,7 @@ class _HandoverStamp extends StatelessWidget {
         const SizedBox(width: 8),
         Text('سلّمتَ الطلب للسائق — $clock',
             style: const TextStyle(
-                fontSize: 13,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w700,
                 color: AppColors.success)),
       ]),

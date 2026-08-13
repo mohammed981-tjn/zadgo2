@@ -107,7 +107,7 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(owes ? 'على السائق للتطبيق' : 'للسائق لدى التطبيق',
-                        style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                        style: const TextStyle(color: Colors.white70, fontSize: 13.5)),
                     const SizedBox(height: 4),
                     Text(formatCurrency(d.balance.abs()),
                         style: const TextStyle(
@@ -117,7 +117,7 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text('${d.totalDeliveries} توصيلة • صُرف له '
                         '${formatCurrency(d.totalEarnings)}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                        style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
                     const SizedBox(height: 8),
                     // كود إحالته — يسأل عنه السائق أحياناً عبر الهاتف.
                     DriverReferralCodeChip(driver: d),
@@ -296,7 +296,7 @@ class _LedgerTile extends StatelessWidget {
           backgroundColor: color.withOpacity(0.12),
           child: Icon(tx.type.icon, size: 16, color: color),
         ),
-        title: Text(tx.type.label, style: const TextStyle(fontSize: 13)),
+        title: Text(tx.type.label, style: const TextStyle(fontSize: 13.5)),
         subtitle: Text(
           [
             if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
@@ -304,7 +304,7 @@ class _LedgerTile extends StatelessWidget {
             '${tx.createdAt.day}/${tx.createdAt.month} '
                 '${tx.createdAt.hour}:${tx.createdAt.minute.toString().padLeft(2, '0')}',
           ].join(' • '),
-          style: const TextStyle(fontSize: 11, color: AppColors.textGray),
+          style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -312,9 +312,9 @@ class _LedgerTile extends StatelessWidget {
           children: [
             Text('${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, color: color, fontSize: 13)),
+                    fontWeight: FontWeight.bold, color: color, fontSize: 13.5)),
             Text('الرصيد: ${formatCurrency(tx.balanceAfter)}',
-                style: const TextStyle(fontSize: 10, color: AppColors.textGray)),
+                style: const TextStyle(fontSize: 10.5, color: AppColors.textGray)),
           ],
         ),
       ),

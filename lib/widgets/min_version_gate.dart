@@ -65,7 +65,7 @@ class _BlockedScreen extends StatelessWidget {
                     'هذه النسخة لم تعد مدعومة. حدّث التطبيق لتتمكّن من '
                     'المتابعة — بياناتك محفوظة ولن يضيع منها شيء.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: AppColors.textGray),
+                    style: TextStyle(fontSize: 14.5, color: AppColors.textGray),
                   ),
                   const SizedBox(height: 20),
                   // الرقمان يُعرضان ليصف المستخدم مشكلته للدعم بدقة بدل

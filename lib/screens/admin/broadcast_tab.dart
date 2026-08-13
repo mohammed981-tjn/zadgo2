@@ -120,7 +120,7 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('إرسال رسالة جماعية لكل $audienceLabel',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
               const SizedBox(height: 12),
               TextField(
                 controller: _titleCtrl,
@@ -165,7 +165,7 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
                       subtitle: Text(m.body),
                       trailing: Text(
                         '${m.createdAt.day}/${m.createdAt.month} ${m.createdAt.hour}:${m.createdAt.minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textGray),
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
                       ),
                     ),
                   );

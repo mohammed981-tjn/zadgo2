@@ -72,7 +72,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
                 Text('${sold.length} طلب مكتمل',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
               ]),
             ),
             const SizedBox(height: 12),
@@ -110,7 +110,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                           alignment: AlignmentDirectional.centerStart,
                           child: Text('دفتر المستحقّات',
                               style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                                  fontWeight: FontWeight.bold, fontSize: 14.5)),
                         ),
                         const SizedBox(height: 6),
                         PriceRow(
@@ -160,11 +160,11 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                                     child: Text(
                                         '${x.createdAt.year}/${x.createdAt.month}/${x.createdAt.day}'
                                         '${x.method.isEmpty ? '' : ' — ${x.method}'}',
-                                        style: const TextStyle(fontSize: 12)),
+                                        style: const TextStyle(fontSize: 12.5)),
                                   ),
                                   Text(formatCurrency(x.amount),
                                       style: const TextStyle(
-                                          fontSize: 12,
+                                          fontSize: 12.5,
                                           fontWeight: FontWeight.w600)),
                                 ]),
                               )),
