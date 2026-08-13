@@ -151,6 +151,37 @@ class FirebaseService {
 
   /// يتابع مستند المستخدم لحظياً — تحتاجه شاشة «حسابي» ليظهر رصيد المحفظة
   /// محدَّثاً فور إضافة استرداد من الإدارة، بدل قيمة قديمة من وقت الدخول.
+  CollectionReference<Map<String, dynamic>> get _restaurantRequests =>
+      _db.collection('restaurant_requests');
+
+  /// تسجيل طلب «أضيفوا هذا المطعم» (ح5): المعرّف الاسم مطبَّعاً فتتجمع
+  /// طلبات نفس المطعم عدّاداً واحداً. set بدمج: أول طالبٍ يُنشئ والباقون
+  /// يزيدون — والقواعد تضبط الزيادة +1 كنمط عدّاد الكوبون.
+  Future<void> requestRestaurant(String rawName) async {
+    final name = rawName.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (name.length < 2) throw Exception('اكتب اسم المطعم');
+    final slug = name.replaceAll(' ', '-');
+    await _restaurantRequests.doc(slug).set({
+      'name': name,
+      'count': FieldValue.increment(1),
+      'lastRequestedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Stream<List<models.RestaurantRequest>> streamRestaurantRequests() =>
+      _restaurantRequests.snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.RestaurantRequest.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) => b.count.compareTo(a.count));
+        return list;
+      });
+
+  Future<void> removeRestaurantRequest(String id) =>
+      _restaurantRequests.doc(id).delete().then((_) {
+        logAdminAction('restaurantRequest.done', 'مطعم مطلوب أُضيف: $id');
+      });
+
   /// تبديل مطعم في مفضلة العميل (ح2) — arrayUnion/Remove ذرّيتان فلا
   /// يفسد سباقُ ضغطتين متتاليتين المصفوفةَ، والقاعدة القائمة تسمح بها
   /// (المستخدم يعدّل مستنده عدا الدور والتفعيل والرصيد صعوداً).

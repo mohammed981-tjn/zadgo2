@@ -1028,6 +1028,32 @@ class ChallengeTier {
 /// المبالغ الافتراضية محسوبة على اقتصاد ZadGo: كل توصيلة تُدخل للمنصّة
 /// رسمها الثابت (3 ر.س)، فشرط 30 توصيلة يعني 90 ر.س دخلاً قبل صرف 80 ر.س
 /// مكافآت — أي أن الإحالة مربحة من أول سائق.
+/// طلب عميلٍ إضافةَ مطعم غير موجود (ح5 — خطة الإطلاق). معرّف المستند
+/// هو الاسم مطبَّعاً (فرغات موحّدة) فتتجمع طلبات نفس المطعم في عدّاد
+/// واحد بلا استعلام تجميع.
+class RestaurantRequest {
+  final String id;
+  final String name;
+  final int count;
+  final DateTime lastRequestedAt;
+
+  const RestaurantRequest({
+    required this.id,
+    required this.name,
+    required this.count,
+    required this.lastRequestedAt,
+  });
+
+  factory RestaurantRequest.fromMap(Map<String, dynamic> map, String id) =>
+      RestaurantRequest(
+        id: id,
+        name: map['name'] as String? ?? id,
+        count: (map['count'] as num?)?.toInt() ?? 0,
+        lastRequestedAt:
+            (map['lastRequestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+}
+
 class IncentiveSettings {
   // ————— برنامج الإحالة —————
   final bool referralEnabled;

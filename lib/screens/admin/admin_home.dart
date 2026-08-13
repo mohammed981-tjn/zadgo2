@@ -23,6 +23,7 @@ import 'admin_incentives_screen.dart';
 import 'admin_driver_applications_screen.dart';
 import '../auth/change_password_screen.dart';
 import 'admin_registration_codes_screen.dart';
+import 'admin_restaurant_requests_screen.dart';
 import 'admin_diagnostics_screen.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
@@ -154,6 +155,15 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد التسجيل', child: AdminRegistrationCodesScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_business_outlined),
+              title: const Text('طلبات المطاعم'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات المطاعم — خريطة مبيعاتك', child: AdminRestaurantRequestsScreen())));
               },
             ),
             ListTile(
