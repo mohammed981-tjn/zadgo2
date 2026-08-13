@@ -45,8 +45,8 @@ class _CustomerHomeState extends State<CustomerHome> {
         title: Text(isGuest ? 'مرحباً بك في ZadGo' : 'مرحباً ${auth.user?.name ?? ""}'),
         actions: [
           badges.Badge(showBadge: cart.itemCount > 0,
-            badgeContent: Text('${cart.itemCount}', style: const TextStyle(color: Colors.white, fontSize: 10)),
-            child: IconButton(icon: const Icon(Icons.shopping_cart_outlined),
+            badgeContent: Text('${cart.itemCount}', style: const TextStyle(color: Colors.white, fontSize: 10.5)),
+            child: IconButton(icon: PhosphorIcon(PhosphorIcons.shoppingCartSimple()),
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CartScreen())))),
           if (isGuest)
             TextButton(
@@ -55,7 +55,7 @@ class _CustomerHomeState extends State<CustomerHome> {
               child: const Text('تسجيل الدخول'),
             )
           else
-            IconButton(icon: const Icon(Icons.logout), onPressed: () async {
+            IconButton(icon: PhosphorIcon(PhosphorIcons.signOut()), onPressed: () async {
               await auth.logout();
               if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
             }),
@@ -118,10 +118,10 @@ class _GuestOrdersPrompt extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.receipt_long_outlined, size: 64, color: AppColors.textGray),
+            PhosphorIcon(PhosphorIcons.receipt(), size: 64, color: AppColors.textGray),
             const SizedBox(height: 16),
             const Text('سجّل حسابك لمتابعة طلباتك',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textDark),
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
             const Text('يمكنك تصفح المطاعم بحرية، وتحتاج حساباً فقط لمتابعة طلباتك',
@@ -198,7 +198,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           onChanged: _onSearchChanged,
           decoration: InputDecoration(
             hintText: 'ابحث عن مطعم أو صنف...',
-            prefixIcon: const Icon(Icons.search),
+            prefixIcon: PhosphorIcon(PhosphorIcons.magnifyingGlass(), size: 20),
             suffixIcon: _query.isEmpty
                 ? null
                 : IconButton(
@@ -299,7 +299,7 @@ class _RestaurantCard extends StatelessWidget {
               Row(children: [
                 Expanded(
                   child: Text(r.displayName,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textDark),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.textDark),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
                 StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.success : Colors.grey),
@@ -308,10 +308,10 @@ class _RestaurantCard extends StatelessWidget {
               // المسافة/الحي: يميّز بين فرعين لنفس المطعم في حيَّين مختلفين.
               if (r.address.trim().isNotEmpty)
                 Row(children: [
-                  const Icon(Icons.place_outlined, size: 13, color: AppColors.textGray),
+                  PhosphorIcon(PhosphorIcons.mapPin(), size: 13, color: AppColors.textGray),
                   const SizedBox(width: 3),
                   Expanded(child: Text(r.address, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textGray, fontSize: 12))),
+                      style: const TextStyle(color: AppColors.textGray, fontSize: 12.5))),
                 ]),
               const SizedBox(height: 6),
               Wrap(spacing: 10, runSpacing: 4, children: [
@@ -353,6 +353,6 @@ class _MetaChip extends StatelessWidget {
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 3),
-        Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+        Text(label, style: TextStyle(fontSize: 12.5, color: color, fontWeight: FontWeight.w600)),
       ]);
 }
