@@ -135,6 +135,9 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addrCtrl = TextEditingController();
   PaymentMethod _payment = PaymentMethod.cash;
+
+  /// موعد التوصيل المجدول (ح4) — فارغ = «في أقرب وقت» (السلوك القائم).
+  DateTime? _scheduledFor;
   bool _loading = false;
   /// هل يطبّق العميل رصيد محفظته على هذا الطلب؟
   bool _useWallet = true;
@@ -455,6 +458,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // وتُحفظ محسوبةً فتبقى الفاتورة صحيحة لو عُدّل الكوبون أو حُذف.
       couponCode: _coupon?.code,
       discountAmount: _discount,
+      scheduledFor: _scheduledFor,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,
@@ -557,6 +561,58 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               prefixIcon: PhosphorIcon(PhosphorIcons.mapPin(), size: 20),
             ),
           ),
+          const SizedBox(height: 10),
+          // وقت التوصيل (ح4): «في أقرب وقت» افتراضاً، أو موعدٌ يختاره —
+          // بين ساعةٍ من الآن ويومين، فلا جدولة على مواعيد مضت ولا
+          // التزامات بعيدة تُنسى.
+          Row(children: [
+            const Icon(Icons.schedule_rounded,
+                size: 18, color: AppColors.textGray),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _scheduledFor == null
+                    ? 'التوصيل: في أقرب وقت'
+                    : 'مجدول: ${formatDateTime(_scheduledFor!)}',
+                style: const TextStyle(fontSize: 13.5),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                final now = DateTime.now();
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: now,
+                  firstDate: now,
+                  lastDate: now.add(const Duration(days: 2)),
+                );
+                if (date == null || !context.mounted) return;
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime:
+                      TimeOfDay.fromDateTime(now.add(const Duration(hours: 2))),
+                );
+                if (time == null) return;
+                final picked = DateTime(date.year, date.month, date.day,
+                    time.hour, time.minute);
+                if (picked.isBefore(now.add(const Duration(hours: 1)))) {
+                  if (context.mounted) {
+                    showError(context,
+                        'أقرب موعد جدولة بعد ساعة من الآن — لما هو أعجل اختر «في أقرب وقت»');
+                  }
+                  return;
+                }
+                setState(() => _scheduledFor = picked);
+              },
+              child: Text(_scheduledFor == null ? 'جدولة' : 'تغيير'),
+            ),
+            if (_scheduledFor != null)
+              IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                tooltip: 'إلغاء الجدولة',
+                onPressed: () => setState(() => _scheduledFor = null),
+              ),
+          ]),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _pickLocation,
