@@ -1171,6 +1171,11 @@ class FirebaseService {
   /// فوراً وبعلم إقرار مسبق فلا يظهر له شيء أصلاً.
   Future<bool> autoAssignNearestDriver(models.Order order,
       {String? excludeDriverId}) async {
+    // الطلب المجدول (ح4): لا إسناد قبل نافذة موعده — البوابة هنا في
+    // القلب لا عند المستدعين، فتحمي كل المسارات (قبول المطعم، إعادة
+    // المحاولة، المصالحة، معالجات التعليق) دفعةً واحدة.
+    if (order.scheduledStillEarly) return false;
+
     final driversSnap = await _drivers.get();
     final online = driversSnap.docs
         .map((doc) => models.Driver.fromMap(doc.data(), doc.id))

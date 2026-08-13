@@ -1848,6 +1848,21 @@ class Order {
   /// يطرح منه، وكلاهما مختوم على مستند الطلب فيقرؤه الدفتران مباشرة.
   final double restaurantChargeback;
 
+  /// موعد التوصيل المطلوب (ح4) — فارغ يعني «في أقرب وقت» (السلوك القائم
+  /// حرفياً). طلبٌ مجدول يمرّ بنفس الدورة تماماً إلا أن الإسناد التلقائي
+  /// يمتنع عنه ما دام موعده بعيداً — وإلا استُدعي كابتنٌ ظهراً لطلبِ
+  /// الثامنة مساءً فوقف ينتظر أو هجر العرض.
+  final DateTime? scheduledFor;
+
+  bool get isScheduled => scheduledFor != null;
+
+  /// هل ما يزال مبكراً على تحريك هذا الطلب المجدول؟ نافذة ٤٥ دقيقة قبل
+  /// الموعد: تكفي تحضيراً وتوصيلاً داخل المدينة، وتفتح باب الإسناد قبل
+  /// الموعد لا عنده — فالكابتن يحتاج وقت وصولٍ للمطعم.
+  bool get scheduledStillEarly =>
+      scheduledFor != null &&
+      scheduledFor!.difference(DateTime.now()).inMinutes > 45;
+
   /// لحظة تأكيد **المطعم** تسليمَ الطلب للكابتن — الوجه الثاني للاستلام
   /// (طلب المالك ٢٠٢٦-٠٨-١١): ضغطة الكابتن وحدها إقرارُ طرفٍ واحد، فإن
   /// أنكر المطعم التسليم أو ادّعى تأخّر الكابتن لم يكن في السجل ما يفصل.
@@ -1901,6 +1916,7 @@ class Order {
     this.restaurantHandoverAt,
     this.restaurantCompensation = 0,
     this.restaurantChargeback = 0,
+    this.scheduledFor,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -2037,6 +2053,7 @@ class Order {
             (map['restaurantCompensation'] as num?)?.toDouble() ?? 0,
         restaurantChargeback:
             (map['restaurantChargeback'] as num?)?.toDouble() ?? 0,
+        scheduledFor: (map['scheduledFor'] as Timestamp?)?.toDate(),
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -2084,6 +2101,8 @@ class Order {
           'restaurantHandoverAt': Timestamp.fromDate(restaurantHandoverAt!),
         'restaurantCompensation': restaurantCompensation,
         'restaurantChargeback': restaurantChargeback,
+        if (scheduledFor != null)
+          'scheduledFor': Timestamp.fromDate(scheduledFor!),
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2146,6 +2165,7 @@ class Order {
         restaurantHandoverAt: restaurantHandoverAt,
         restaurantCompensation: restaurantCompensation,
         restaurantChargeback: restaurantChargeback,
+        scheduledFor: scheduledFor,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );

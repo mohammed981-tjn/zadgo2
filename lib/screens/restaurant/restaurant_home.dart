@@ -507,9 +507,16 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           await widget.service.tryAutoAssignOnAcceptance(widget.order);
       // إخفاق الإسناد لحظة القبول لم يعد صامتاً أيضاً (كان الصمت هنا يخفي
       // العطل حتى لحظة الجهوزية، فيظن المطعم أن كابتناً في الطريق).
+      // والطلب المجدول البعيد ليس إخفاقاً أصلاً — الإسناد ممتنع عمداً
+      // حتى نافذة موعده، فرسالته طمأنة لا خطأ.
       if (!assigned && context.mounted) {
-        showError(context,
-            'قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة');
+        if (widget.order.scheduledStillEarly) {
+          showSuccess(context,
+              'قُبل الطلب المجدول — يُسنَد كابتن قرب موعده (${formatDateTime(widget.order.scheduledFor!)})');
+        } else {
+          showError(context,
+              'قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة');
+        }
       }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
@@ -568,6 +575,13 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     setState(() => _actionLoading = true);
     try {
       await widget.service.updateOrderStatus(widget.order.id, to);
+      // طلبٌ بلا كابتن يبدأ تحضيره: أعد محاولة الإسناد — المسار الطبيعي
+      // للمجدول (بوابة القلب كانت تمنعه والآن حانت نافذته أو قاربت)،
+      // وشبكة أمان لأي طلب فاته الإسناد لحظة القبول.
+      if (to == OrderStatus.preparing &&
+          (widget.order.driverId ?? '').isEmpty) {
+        await widget.service.retryAutoAssignIfNeeded(widget.order);
+      }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
     } finally {
@@ -684,6 +698,28 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           Text(formatCurrency(order.itemsTotal),
               style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14.5)),
         ]),
+        // موعد الطلب المجدول (ح4) — بارزاً بلون تحذيري: أخطر خطأ تشغيلي
+        // هنا أن يُحضَّر طلب الثامنة ظهراً فيبرد قبل موعده.
+        if (order.isScheduled) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.schedule_rounded,
+                  size: 15, color: AppColors.warning),
+              const SizedBox(width: 6),
+              Text('مجدول: ${formatDateTime(order.scheduledFor!)} — لا تحضّره مبكراً',
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.warning)),
+            ]),
+          ),
+        ],
         const SizedBox(height: 4),
         Row(children: [
           const Icon(Icons.person_outline, size: 15, color: AppColors.textGray),
