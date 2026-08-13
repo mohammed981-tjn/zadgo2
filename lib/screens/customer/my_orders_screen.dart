@@ -210,7 +210,7 @@ class _LiveTrackingCard extends StatelessWidget {
                   children: [
                     Text(title,
                         style: TextStyle(
-                            fontSize: 16.5,
+                            fontSize: 17,
                             fontWeight: FontWeight.w800,
                             color: st.color)),
                     if (subtitle.isNotEmpty)
@@ -221,7 +221,7 @@ class _LiveTrackingCard extends StatelessWidget {
             ),
             Text('#${order.orderNumber}',
                 style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.bold)),
+                    fontSize: 12.5, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 14),
 
@@ -259,7 +259,7 @@ class _LiveTrackingCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Text(etaText,
                               style: const TextStyle(
-                                  fontSize: 15.5,
+                                  fontSize: 14.5,
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.primaryDark)),
                           const SizedBox(width: 10),
@@ -307,9 +307,46 @@ class _LiveTrackingCard extends StatelessWidget {
               ),
             ),
           ]),
+          // إلغاء الطلب قبل استلام المطعم (ملاحظة المالك 2026-08-13):
+          // الزر كان في البطاقات العادية وغاب عن بطاقة التتبّع — وأحدثُ
+          // طلبٍ جارٍ يُعرض فيها حصراً، أي أن الطلب في أَولى لحظات جواز
+          // إلغائه («بانتظار الموافقة») كان بلا زر إلغاء أصلاً. نصٌّ لا
+          // زرٌّ عريض عمداً: خيار هروب لا دعوة ضغط.
+          if (order.canCustomerCancel) ...[
+            const SizedBox(height: 4),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => _cancelFromCard(context),
+                icon: const Icon(Icons.cancel_outlined,
+                    size: 16, color: AppColors.error),
+                label: const Text('إلغاء الطلب',
+                    style: TextStyle(color: AppColors.error, fontSize: 12.5)),
+              ),
+            ),
+          ],
         ]),
       ),
     );
+  }
+
+  Future<void> _cancelFromCard(BuildContext context) async {
+    final service = context.read<FirebaseService>();
+    final ok = await showConfirmDialog(
+      context,
+      title: 'إلغاء الطلب',
+      content: 'هل تريد إلغاء طلبك #${order.orderNumber}؟',
+      confirmLabel: 'إلغاء الطلب',
+      confirmColor: AppColors.error,
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await service.cancelOrderByCustomer(order.id);
+      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+    } catch (_) {
+      if (context.mounted) {
+        showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
+      }
+    }
   }
 }
 
@@ -421,7 +458,7 @@ class _DriverStrip extends StatelessWidget {
                 children: [
                   Text(driver.name,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 14)),
+                          fontWeight: FontWeight.w700, fontSize: 14.5)),
                   Text(
                     driver.ratingCount > 0
                         ? '⭐ ${driver.rating.toStringAsFixed(1)} · ${driver.totalDeliveries} توصيلة'
@@ -528,7 +565,7 @@ class _OrderCard extends StatelessWidget {
                     Expanded(
                       child: Text(order.restaurantName,
                           style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 14),
+                              fontWeight: FontWeight.w700, fontSize: 14.5),
                           overflow: TextOverflow.ellipsis),
                     ),
                     Text(time,
@@ -542,7 +579,7 @@ class _OrderCard extends StatelessWidget {
                           .map((i) => '${i.name} ×${i.quantity}')
                           .join('، '),
                       style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 12.5,
                           color: AppColors.textGray,
                           height: 1.5),
                       maxLines: 2,
@@ -655,7 +692,7 @@ class _OrderCard extends StatelessWidget {
                         Text(
                             'تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
                             style: const TextStyle(
-                                fontSize: 12, color: AppColors.textGray)),
+                                fontSize: 12.5, color: AppColors.textGray)),
                       ]),
                     ),
                   if (order.status.isActive && !order.canCustomerCancel)

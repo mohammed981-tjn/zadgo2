@@ -71,9 +71,12 @@ service cloud.firestore {
       // restaurantCompensation: تعويض المطعم عن إلغاء بعد التحضير — مبلغ
       // مالي يقيّده المدير وحده (بند د١: كل حقل مالي جديد يُحمى فور
       // إضافته)، وإلا سكّه عميلٌ معدَّل البرمجية لصالح مطعمٍ يواطئه.
+      // restaurantChargeback: خصمُ شكوى جودة على المطعم لصالح العميل —
+      // مبلغ مالي يختمه المدير وحده (بند د١)، وإلا مسحه مطعمٌ معدَّل
+      // البرمجية عن نفسه أو سكّه عميلٌ على مطعمٍ يخاصمه.
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
-              'restaurantCompensation'];
+              'restaurantCompensation', 'restaurantChargeback'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:

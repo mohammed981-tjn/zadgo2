@@ -88,7 +88,13 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
               // جزءاً من خطأ غيره.
               final compensations =
                   orders.fold(0.0, (s, o) => s + o.restaurantCompensation);
-              final net = totalMealsValue - commission + compensations;
+              // خصومات شكاوى الجودة المقبولة (سياسة المالك 2026-08-13):
+              // استردادها على حساب المطعم لا المنصّة — فمن أفسد الطلب
+              // يدفع ثمنه. تُطرح من المستحق كما تُضاف التعويضات إليه.
+              final chargebacks =
+                  orders.fold(0.0, (s, o) => s + o.restaurantChargeback);
+              final net =
+                  totalMealsValue - commission + compensations - chargebacks;
               return AppStreamBuilder<List<RestaurantSettlement>>(
                 stream: () =>
                     service.streamRestaurantSettlements(widget.restaurantId),
@@ -117,6 +123,10 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                           PriceRow(
                               label: 'تعويض طلبات أُلغيت بعد التحضير',
                               value: '+ ${formatCurrency(compensations)}'),
+                        if (chargebacks > 0)
+                          PriceRow(
+                              label: 'خصومات شكاوى جودة (لصالح العملاء)',
+                              value: '- ${formatCurrency(chargebacks)}'),
                         PriceRow(
                             label: 'صافي المستحق',
                             value: formatCurrency(net)),
@@ -240,6 +250,12 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                             label: 'تعويض إلغاء بعد التحضير',
                             value:
                                 '+ ${formatCurrency(o.restaurantCompensation)}',
+                            bold: true),
+                      if (o.restaurantChargeback > 0)
+                        PriceRow(
+                            label: 'خصم شكوى جودة (لصالح العميل)',
+                            value:
+                                '- ${formatCurrency(o.restaurantChargeback)}',
                             bold: true),
                     ]),
                   ),

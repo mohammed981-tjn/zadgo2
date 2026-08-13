@@ -28,7 +28,7 @@ class RestaurantDetailScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(restaurant.address,
-                      style: const TextStyle(color: AppColors.textGray, fontSize: 13)),
+                      style: const TextStyle(color: AppColors.textGray, fontSize: 13.5)),
                 ),
               ),
       ),
@@ -141,7 +141,7 @@ class RestaurantDetailScreen extends StatelessWidget {
                       child: Padding(
                         padding: EdgeInsets.all(32),
                         child: Text('لا توجد أصناف متاحة حالياً',
-                            style: TextStyle(fontSize: 16)),
+                            style: TextStyle(fontSize: 17)),
                       ),
                     );
                   }
@@ -230,7 +230,7 @@ class _InfoChip extends StatelessWidget {
         const SizedBox(width: 3),
         Text(label,
             style: TextStyle(
-                fontSize: 13, color: color, fontWeight: FontWeight.w600)),
+                fontSize: 13.5, color: color, fontWeight: FontWeight.w600)),
       ]);
 }
 
@@ -277,7 +277,7 @@ class _ItemTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        fontSize: 14.5,
                         color: AppColors.textDark),
                   ),
                   if (item.description.trim().isNotEmpty) ...[
@@ -312,7 +312,7 @@ class _ItemTile extends StatelessWidget {
                         style: const TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w700,
-                            fontSize: 14),
+                            fontSize: 14.5),
                       ),
                       _AddOrCounter(item: item, restaurant: restaurant, qty: qty),
                     ],
@@ -326,7 +326,7 @@ class _ItemTile extends StatelessWidget {
                       Flexible(
                         child: Text('بيانات الصنف غير مكتملة',
                             style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 11.5,
                                 color: AppColors.warning,
                                 fontWeight: FontWeight.w600)),
                       ),
@@ -409,7 +409,7 @@ class _AddOrCounter extends StatelessWidget {
           ),
           onPressed: addToCart,
           child: Text(item.hasOptions ? 'أضف +' : 'أضف',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
         ),
       );
     }
@@ -434,7 +434,7 @@ class _AddOrCounter extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                  fontSize: 14.5,
                   color: onGold)),
         ),
         IconButton(
@@ -499,11 +499,11 @@ void _showOptionsSheet(
                   Expanded(
                     child: Text(item.name,
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                            fontSize: 17, fontWeight: FontWeight.bold)),
                   ),
                   Text(formatCurrency(unitPrice),
                       style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 17,
                           fontWeight: FontWeight.w800,
                           color: AppColors.primary)),
                 ]),
@@ -526,7 +526,7 @@ void _showOptionsSheet(
                                     ? 'اختياري'
                                     : 'إلزامي',
                                 style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 11.5,
                                     color: item.optionGroups[g].multiSelect
                                         ? AppColors.textGray
                                         : AppColors.warning)),
