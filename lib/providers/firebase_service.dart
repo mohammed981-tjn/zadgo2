@@ -151,6 +151,17 @@ class FirebaseService {
 
   /// يتابع مستند المستخدم لحظياً — تحتاجه شاشة «حسابي» ليظهر رصيد المحفظة
   /// محدَّثاً فور إضافة استرداد من الإدارة، بدل قيمة قديمة من وقت الدخول.
+  /// تبديل مطعم في مفضلة العميل (ح2) — arrayUnion/Remove ذرّيتان فلا
+  /// يفسد سباقُ ضغطتين متتاليتين المصفوفةَ، والقاعدة القائمة تسمح بها
+  /// (المستخدم يعدّل مستنده عدا الدور والتفعيل والرصيد صعوداً).
+  Future<void> toggleFavoriteRestaurant(
+      String uid, String restaurantId, bool add) =>
+      _users.doc(uid).update({
+        'favoriteRestaurantIds': add
+            ? FieldValue.arrayUnion([restaurantId])
+            : FieldValue.arrayRemove([restaurantId]),
+      });
+
   Stream<models.AppUser?> streamUser(String uid) => _users.doc(uid).snapshots().map(
       (d) => d.exists && d.data() != null ? models.AppUser.fromMap(d.data()!, d.id) : null);
 

@@ -468,6 +468,9 @@ class AppUser {
         savedAddresses: ((map['savedAddresses'] as List?) ?? [])
             .map((e) => SavedAddress.fromMap((e as Map).cast<String, dynamic>()))
             .toList(),
+        favoriteRestaurantIds: ((map['favoriteRestaurantIds'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
         registrationCode: map['registrationCode'] as String? ?? '',
       );
 
@@ -484,6 +487,7 @@ class AppUser {
         'isActive': isActive,
         'walletBalance': walletBalance,
         'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
+        'favoriteRestaurantIds': favoriteRestaurantIds,
         'registrationCode': registrationCode,
       };
 
@@ -497,6 +501,7 @@ class AppUser {
     String? nationalId,
     double? walletBalance,
     List<SavedAddress>? savedAddresses,
+    List<String>? favoriteRestaurantIds,
   }) =>
       AppUser(
         uid: uid,
@@ -512,6 +517,8 @@ class AppUser {
         nationalId: nationalId ?? this.nationalId,
         walletBalance: walletBalance ?? this.walletBalance,
         savedAddresses: savedAddresses ?? this.savedAddresses,
+        favoriteRestaurantIds:
+            favoriteRestaurantIds ?? this.favoriteRestaurantIds,
       );
 }
 
