@@ -1,5 +1,6 @@
 // lib/screens/customer/cart_screen.dart
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:latlong2/latlong.dart';
@@ -523,7 +524,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('عناويني',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
@@ -533,7 +534,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       return ChoiceChip(
                         label: Text(a.label),
                         selected: selected,
-                        avatar: const Icon(Icons.place_outlined, size: 16),
+                        avatar: PhosphorIcon(PhosphorIcons.mapPin(), size: 16),
                         onSelected: (_) => setState(() {
                           _addrCtrl.text = a.address;
                           _lat = a.lat;
@@ -550,9 +551,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           TextField(
             controller: _addrCtrl,
             maxLines: 2,
-            decoration: const InputDecoration(
+            // أيقونة Phosphor ليست ثابتة تصريفياً — فك const عن الزخرفة.
+            decoration: InputDecoration(
               hintText: 'عنوان التوصيل بالتفصيل',
-              prefixIcon: Icon(Icons.location_on_outlined),
+              prefixIcon: PhosphorIcon(PhosphorIcons.mapPin(), size: 20),
             ),
           ),
           const SizedBox(height: 12),
@@ -585,7 +587,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     'الموقع يبعد ${_distanceKm!.toStringAsFixed(0)} كم عن المطعم — '
                     'خارج نطاق التوصيل (${Pricing.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
                     'اختر موقعاً أقرب.',
-                    style: const TextStyle(color: AppColors.error, fontSize: 12),
+                    style: const TextStyle(color: AppColors.error, fontSize: 12.5),
                   ),
                 ),
               ]),
@@ -599,15 +601,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: SwitchListTile(
                 value: _useWallet,
                 onChanged: (v) => setState(() => _useWallet = v),
-                secondary: const Icon(Icons.account_balance_wallet_rounded,
+                secondary: PhosphorIcon(PhosphorIcons.wallet(),
                     color: AppColors.success),
                 title: Text('استخدام رصيد المحفظة (${formatCurrency(walletBalance)})',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
                 subtitle: Text(
                   _useWallet && walletApplied > 0
                       ? 'سيُخصم ${formatCurrency(walletApplied)} من رصيدك'
                       : 'الرصيد لن يُستخدم في هذا الطلب',
-                  style: const TextStyle(fontSize: 11),
+                  style: const TextStyle(fontSize: 11.5),
                 ),
               ),
             ),
@@ -631,7 +633,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               title: Text(p.label),
               subtitle: p == PaymentMethod.card && PaymentConfig_.isTestKey
                   ? const Text('وضع الاختبار — لن يُسحب مبلغ حقيقي',
-                      style: TextStyle(fontSize: 11, color: AppColors.warning))
+                      style: TextStyle(fontSize: 11.5, color: AppColors.warning))
                   : null,
             ),
           ),
@@ -647,7 +649,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 enabled: _coupon == null,
                 decoration: InputDecoration(
                   labelText: 'كود الخصم (اختياري)',
-                  prefixIcon: const Icon(Icons.local_offer_outlined),
+                  prefixIcon: PhosphorIcon(PhosphorIcons.ticket(), size: 20),
                   suffixIcon: _coupon == null
                       ? null
                       : IconButton(

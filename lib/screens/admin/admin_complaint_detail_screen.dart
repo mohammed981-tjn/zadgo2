@@ -64,6 +64,12 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
   Future<void> _showResolveDialog(BuildContext context, Order order) async {
     double? refundPercentage;
     bool warnParty = false;
+    // الخصم على المطعم (سياسة المالك 2026-08-13): شكاوى الجودة والمطابقة
+    // يتحمّل المطعم استردادها. الافتراض مسبق التحديد لهذين النوعين تحديداً
+    // — والمدير يملك عكسه في كل حال (قد يتبيّن أن التلف من التأخر مثلاً).
+    bool chargeRestaurant =
+        widget.complaint.type == ComplaintType.badQuality ||
+            widget.complaint.type == ComplaintType.wrongOrder;
     Driver? reassignTo;
     // خانة الردّ النصّي (نفذ ٢): كان مقدّم الشكوى يرى نصاً آلياً «تم الحل
     // بلا إجراء إضافي» — جوابٌ يُقرأ استخفافاً. الخانة اختيارية عمداً:
@@ -107,6 +113,21 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                     'سيُضاف ${(refundPercentage! >= 100 ? order.payableTotal : order.itemsTotal * (refundPercentage! / 100)).toStringAsFixed(2)} ر.س لمحفظة العميل',
                     style: const TextStyle(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.bold),
                   ),
+                ),
+              if (refundPercentage != null)
+                CheckboxListTile(
+                  value: chargeRestaurant,
+                  onChanged: (v) =>
+                      setDialogState(() => chargeRestaurant = v ?? false),
+                  title: const Text('الخصم على المطعم لصالح العميل',
+                      style: TextStyle(fontSize: 13)),
+                  subtitle: const Text(
+                      'لشكاوى الجودة (رديء/بارد/ناقص): يُطرح الاسترداد من '
+                      'مستحقّات المطعم بدل أن تتحمّله المنصّة — بسقف صافي '
+                      'المطعم من هذا الطلب',
+                      style: TextStyle(fontSize: 11)),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
                 ),
               const Divider(height: 24),
               if (widget.complaint.againstRole == UserRole.driver) ...[
@@ -170,6 +191,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
         resolution: resolutionCtrl.text.trim().isEmpty
             ? null
             : resolutionCtrl.text.trim(),
+        chargeRestaurant:
+            chargeRestaurant && (refundPercentage ?? 0) > 0,
       );
       if (mounted) {
         showSuccess(context, 'تم حل الشكوى بنجاح');

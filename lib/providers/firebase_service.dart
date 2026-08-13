@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
 import '../models/models.dart' as models;
 import '../utils/api_config.dart';
+import '../utils/dispatch_score.dart';
 import '../utils/helpers.dart' show haversineDistanceKm;
 import 'notify_relay.dart';
 
@@ -1256,7 +1257,7 @@ class FirebaseService {
     // الأثر في أولوية الترشيح وحدها (بند ج١ سليم).
     pool.sort((a, b) {
       double score(models.Driver d) =>
-          (d.acceptanceRate ?? 1.0) * 2 + (d.rating / 5.0);
+          dispatchScore(acceptanceRate: d.acceptanceRate, rating: d.rating);
       return score(b).compareTo(score(a));
     });
     final chosen = pool.first;
@@ -2471,6 +2472,7 @@ class FirebaseService {
     String? reassignToDriverName,
     String? adminNote,
     String? resolution,
+    bool chargeRestaurant = false,
   }) async {
     // حارس المضاعفة: الحل يُنفَّذ مرة واحدة. ضغطتان متتاليتان على «تأكيد
     // الحل» (أو نقرة من جهازين) كانتا تضيفان الاسترداد مرتين لمحفظة العميل.
@@ -2504,6 +2506,23 @@ class FirebaseService {
         orderNumber: order.orderNumber,
         note: 'استرداد ${refundPercentage.toStringAsFixed(0)}% — شكوى',
       );
+
+      // الخصم على المطعم (سياسة المالك 2026-08-13): شكوى الجودة المقبولة
+      // يتحمّل المطعمُ استردادَها لا المنصّة. يُختم على الطلب فيطرحه
+      // الدفتران (المطعم والإدارة) من المستحق. مسقوف بصافي المطعم من
+      // الطلب: لا يُحمَّل من طلبٍ واحد أكثرَ مما كسب منه.
+      if (chargeRestaurant) {
+        final cap = (order.restaurantNet - order.restaurantChargeback)
+            .clamp(0.0, double.infinity);
+        final charge = refundAmount.clamp(0.0, cap);
+        if (charge > 0) {
+          await _orders.doc(order.id).update({
+            'restaurantChargeback':
+                order.restaurantChargeback + charge,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
 
       // الاسترداد الكامل يُنهي الطلب مالياً، فتُضبط حالته على «تم الاسترداد»
       // بدل بقائه «تم التوصيل» فيظهر في التقارير كإيراد محقّق.
@@ -2545,7 +2564,8 @@ class FirebaseService {
 
     final actionsSummary = <String>[
       if (refundPercentage != null && refundPercentage > 0)
-        'استرداد ${refundPercentage.toStringAsFixed(0)}%',
+        'استرداد ${refundPercentage.toStringAsFixed(0)}%'
+            '${chargeRestaurant ? " على حساب المطعم" : ""}',
       if (warnAgainstParty) 'تسجيل إنذار',
       if (reassignToDriverId != null) 'نقل الطلب لسائق آخر',
     ].join(' + ');
