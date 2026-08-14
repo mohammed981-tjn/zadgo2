@@ -271,7 +271,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                   // الإجمالي في الشريط (نمط كيتا): يعرف كم جمّع قبل فتح
                   // السلة — طمأنة تدفع للإضافة لا للتوقف.
                   child: Text(
-                      'عرض السلة (${cart.itemCount}) — ${formatCurrency(cart.itemsTotal)}'),
+                      'السلة (${cart.itemCount}) — ${formatCurrency(cart.itemsTotal)}'),
                 ),
               ),
             )
@@ -449,11 +449,11 @@ class _AddOrCounter extends StatelessWidget {
         // تلقين التدفق **مرة واحدة في الجلسة** (ملاحظة المالك بالصور
         // 2026-08-14: الرسالة مع كل إضافة صارت هي المزعجة — عشرة أصناف
         // تعني عشر رسائل تغطي المنيو). أول إضافة تكفي درساً، وشريط
-        // «عرض السلة» الدائم بالأسفل يقول الباقي.
+        // «السلة» الدائم بالأسفل يقول الباقي.
         if (context.mounted && !_addHintShown) {
           _addHintShown = true;
           showSuccess(context,
-              'أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «عرض السلة» بالأسفل');
+              'أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «السلة» بالأسفل');
         }
       }
     }
