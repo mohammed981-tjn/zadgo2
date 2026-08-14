@@ -160,7 +160,7 @@ class _RestaurantForm extends StatefulWidget {
 class _RestaurantFormState extends State<_RestaurantForm> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _name, _branch, _desc, _phone, _addr,
-      _min, _time, _emoji;
+      _min, _time, _emoji, _commission;
   bool _loading = false;
   double? _lat, _lng;
   String? _imageUrl;
@@ -180,6 +180,8 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _min   = TextEditingController(text: r?.minOrder.toString() ?? '20');
     _time  = TextEditingController(text: r?.estimatedTimeMin.toString() ?? '30');
     _emoji = TextEditingController(text: r?.emoji ?? '🍽️');
+    _commission = TextEditingController(
+        text: (r?.commissionPercent ?? 15).toStringAsFixed(0));
     _lat = r?.lat;
     _lng = r?.lng;
     _imageUrl = r?.imageUrl;
@@ -187,7 +189,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
 
   @override
   void dispose() {
-    for (final c in [_name, _branch, _desc, _phone, _addr, _min, _time, _emoji]) {
+    for (final c in [_name, _branch, _desc, _phone, _addr, _min, _time, _emoji, _commission]) {
       c.dispose();
     }
     super.dispose();
@@ -230,6 +232,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       perKmFee: widget.existing?.perKmFee ?? 0,
       freeKm: widget.existing?.freeKm ?? 0,
       minOrder: double.tryParse(_min.text) ?? 20,
+      // العمولة المرنة: سلاح حملة التوقيع («صفر عمولة ٩٠ يوماً») — النسبة
+      // من هذا الحقل لا من الكود، مقيّدة ٠..١٠٠ فلا تشلّها غلطة إدخال.
+      commissionPercent:
+          (double.tryParse(_commission.text.trim()) ?? 15).clamp(0.0, 100.0),
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
       rating: widget.existing?.rating ?? 5.0,
@@ -310,6 +316,16 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                   const SizedBox(width: 10),
                   Expanded(child: _f(_time, 'وقت التوصيل (دقيقة)', type: TextInputType.number)),
                 ]),
+                _f(_commission, 'نسبة عمولة المنصّة ٪ (0 = بلا عمولة)',
+                    type: TextInputType.number),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 4),
+                  child: Text(
+                      'سلاح حملة التوقيع: صفر للمطعم الجديد ٩٠ يوماً ثم '
+                      'ارفعها من هنا — تسري على الطلبات الجديدة فقط، '
+                      'والدفاتر السابقة لا تتحرك.',
+                      style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
                   onPressed: _pickLocation,

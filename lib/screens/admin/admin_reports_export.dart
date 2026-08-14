@@ -187,7 +187,7 @@ Future<void> exportAdminReportExcel({
   put('مبيعات الوجبات', t.meals);
   put('صافي مستحقّات المطاعم', t.meals - t.commission);
   put('أجرة السائقين', t.delivery);
-  put('عمولة الوجبات (15%)', t.commission);
+  put('عمولة الوجبات', t.commission);
   put('رسم التوصيل الثابت', t.fixedFee);
   put('خصومات الكوبونات', t.discounts);
   put('صافي دخل المنصّة', t.commission + t.fixedFee - t.discounts);
@@ -300,7 +300,7 @@ Future<void> exportRestaurantInvoicePdf({
           cellStyle: const pw.TextStyle(fontSize: 10),
           headerStyle:
               pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-          headers: ['الصافي', 'العمولة (15%)', 'قيمة الوجبات', 'التاريخ', 'رقم الطلب'],
+          headers: ['الصافي', 'العمولة', 'قيمة الوجبات', 'التاريخ', 'رقم الطلب'],
           data: orders
               .map((o) => [
                     formatCurrency(o.itemsTotal - o.effectiveCommission),

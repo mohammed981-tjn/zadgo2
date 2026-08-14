@@ -554,6 +554,13 @@ class Restaurant {
   final double? lng;
   final String? imageUrl;
 
+  /// نسبة عمولة المنصّة على وجبات هذا المطعم (العمولة المرنة — من خطة
+  /// الإطلاق): كانت 15% مبرمجة في الكود، فاستحال عرضُ «صفر عمولة ٩٠
+  /// يوماً» الذي تقوم عليه حملة التوقيع، وخالفت روح بند ج١. يضبطها
+  /// المدير من نموذج المطعم، وتُختم على كل طلب لحظة إنشائه فلا يتغير
+  /// تاريخ الدفاتر حين تتغير النسبة لاحقاً.
+  final double commissionPercent;
+
   const Restaurant({
     required this.id,
     required this.name,
@@ -575,6 +582,7 @@ class Restaurant {
     this.lat,
     this.lng,
     this.imageUrl,
+    this.commissionPercent = 15,
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
@@ -600,6 +608,8 @@ class Restaurant {
             (map['deliveryFee'] as num?)?.toDouble() ??
             5.0,
         appShareFee: (map['appShareFee'] as num?)?.toDouble() ?? 0.0,
+        commissionPercent:
+            (map['commissionPercent'] as num?)?.toDouble() ?? 15,
         perKmFee: (map['perKmFee'] as num?)?.toDouble() ?? 0.0,
         freeKm: (map['freeKm'] as num?)?.toDouble() ?? 3.0,
         minOrder: (map['minOrder'] as num?)?.toDouble() ?? 20.0,
@@ -635,6 +645,7 @@ class Restaurant {
         'lat': lat,
         'lng': lng,
         'imageUrl': imageUrl,
+        'commissionPercent': commissionPercent,
       };
 }
 
@@ -1901,6 +1912,11 @@ class Order {
   /// محايد من جيب العميل ليد الكابتن والمنصّة مجرد ناقل.
   final double driverTip;
 
+  /// نسبة العمولة المختومة لحظة إنشاء الطلب من مستند المطعم (العمولة
+  /// المرنة): فارغة في الطلبات القديمة فتُقرأ 15 — تاريخ الدفاتر لا
+  /// يتحرك حين يغيّر المدير نسبة مطعمٍ لاحقاً.
+  final double? commissionPercent;
+
   bool get isScheduled => scheduledFor != null;
 
   /// هل ما يزال مبكراً على تحريك هذا الطلب المجدول؟ نافذة ٤٥ دقيقة قبل
@@ -1965,6 +1981,7 @@ class Order {
     this.restaurantChargeback = 0,
     this.scheduledFor,
     this.driverTip = 0,
+    this.commissionPercent,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -1994,7 +2011,8 @@ class Order {
   /// دفعٌ من رصيده لا تخفيض للقيمة).
   double get payableTotal => grandTotal - discountAmount;
 
-  double get calculatedCommission => itemsTotal * 0.15;
+  double get calculatedCommission =>
+      itemsTotal * ((commissionPercent ?? 15) / 100);
 
   /// عمولة الوجبات **للتقارير**: تُحسب دائماً بالقاعدة المعتمدة (15% من
   /// قيمة الوجبات) وتتجاهل المخزَّن كلياً. كانت تفضّل المخزَّن إن كان
@@ -2103,6 +2121,8 @@ class Order {
             (map['restaurantChargeback'] as num?)?.toDouble() ?? 0,
         scheduledFor: (map['scheduledFor'] as Timestamp?)?.toDate(),
         driverTip: (map['driverTip'] as num?)?.toDouble() ?? 0,
+        commissionPercent:
+            (map['commissionPercent'] as num?)?.toDouble(),
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -2153,6 +2173,8 @@ class Order {
         if (scheduledFor != null)
           'scheduledFor': Timestamp.fromDate(scheduledFor!),
         'driverTip': driverTip,
+        if (commissionPercent != null)
+          'commissionPercent': commissionPercent,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2217,6 +2239,7 @@ class Order {
         restaurantChargeback: restaurantChargeback,
         scheduledFor: scheduledFor,
         driverTip: driverTip,
+        commissionPercent: commissionPercent,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );

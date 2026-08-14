@@ -553,7 +553,7 @@ class _RestaurantReportCard extends StatelessWidget {
             PriceRow(
                 label: 'مبيعات الوجبات', value: formatCurrency(totals.meals)),
             PriceRow(
-                label: 'عمولة التطبيق (15%)',
+                label: 'عمولة التطبيق',
                 value: '- ${formatCurrency(totals.commission)}'),
             const Divider(),
             PriceRow(
