@@ -146,7 +146,13 @@ class _RestaurantsPage extends StatefulWidget {
 class _RestaurantsPageState extends State<_RestaurantsPage> {
   final _searchCtrl = TextEditingController();
   String _query = '';
-  String _category = 'الكل';
+
+  /// المطبخ المختار من ورقة «المطابخ» (ح8 — نمط كيتا): «الكل» افتراضاً.
+  String _cuisine = 'الكل';
+
+  /// الفرز: «الموصى به» (المفتوح أولاً ثم الأعلى تقييماً فالأكثر طلبات)
+  /// أو «الأعلى تقييماً» صرفاً — الخياران اللذان حدّدهما المالك.
+  bool _sortByRatingOnly = false;
 
   /// فلتر المفضلة (ح2) — شريحة مستقلة عن الفئات: «مفضلتي من البرجر»
   /// اختياران متقاطعان لا بديلان.
@@ -172,10 +178,6 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   /// فوراً — تقطيع محسوس على القوائم الكبيرة والأجهزة الضعيفة.
   Timer? _searchDebounce;
 
-  // قائمة الفئات ثابتة في الكود (لا تُقرأ من Firestore)، لذلك تظهر دائماً
-  // حتى لو فشل جلب المطاعم.
-  static const _categories = ['الكل', 'مشاوي', 'برجر', 'بيتزا', 'مشروبات', 'حلويات'];
-
   @override
   void dispose() {
     _searchDebounce?.cancel();
@@ -197,9 +199,14 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
     if (_favoritesOnly) {
       result = result.where((r) => favorites.contains(r.id)).toList();
     }
-    if (_category != 'الكل') {
+    if (_cuisine != 'الكل') {
+      // المطابخ المصنّفة أولاً، وسقوطٌ على مطابقة النص للمطاعم القديمة
+      // التي لم تُصنَّف بعد — كي لا تختفي فجأة من فلترٍ كان يجدها بالاسم.
       result = result.where((r) =>
-          r.name.contains(_category) || r.description.contains(_category)).toList();
+          r.cuisines.contains(_cuisine) ||
+          (r.cuisines.isEmpty &&
+              (r.name.contains(_cuisine) ||
+                  r.description.contains(_cuisine)))).toList();
     }
     if (_query.trim().isNotEmpty) {
       final q = _query.trim();
@@ -207,7 +214,84 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           r.name.contains(q) || r.branchName.contains(q) ||
           r.description.contains(q) || r.address.contains(q)).toList();
     }
+    // الفرز (ح8): المفتوح يتصدر دائماً — مطعم مغلق أعلى القائمة إحباط
+    // مهما علا تقييمه. ثم التقييم، و«الموصى به» يضيف حكمة الجمهور:
+    // الأكثر طلباتٍ يفصل بين متساويي التقييم.
+    result = [...result]..sort((a, b) {
+      if (a.isOpen != b.isOpen) return a.isOpen ? -1 : 1;
+      final byRating = b.rating.compareTo(a.rating);
+      if (_sortByRatingOnly || byRating != 0) return byRating;
+      return b.totalOrders.compareTo(a.totalOrders);
+    });
     return result;
+  }
+
+  /// ورقة «المطابخ» بنمط كيتا — قائمة اختيار واحد تتسع لعشرين مطبخاً
+  /// لا يتسع لها شريط شرائح.
+  Future<void> _showCuisinesSheet() async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            const Center(
+                child: Padding(
+              padding: EdgeInsets.only(bottom: 4),
+              child: Text('المطابخ',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+            )),
+            for (final c in ['الكل', ...kCuisines])
+              RadioListTile<String>(
+                value: c,
+                groupValue: _cuisine,
+                dense: true,
+                title: Text(c, style: const TextStyle(fontSize: 13.5)),
+                onChanged: (v) => Navigator.pop(ctx, v),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && mounted) setState(() => _cuisine = picked);
+  }
+
+  /// ورقة «فرز حسب» — الخياران اللذان حدّدهما المالك من نموذج كيتا.
+  Future<void> _showSortSheet() async {
+    final picked = await showModalBottomSheet<bool>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Text('فرز حسب',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          ),
+          RadioListTile<bool>(
+            value: false,
+            groupValue: _sortByRatingOnly,
+            title: const Text('الموصى به', style: TextStyle(fontSize: 13.5)),
+            subtitle: const Text('المفتوح أولاً، ثم التقييم والأكثر طلباً',
+                style: TextStyle(fontSize: 11.5)),
+            onChanged: (v) => Navigator.pop(ctx, v),
+          ),
+          RadioListTile<bool>(
+            value: true,
+            groupValue: _sortByRatingOnly,
+            title:
+                const Text('الأعلى تقييماً', style: TextStyle(fontSize: 13.5)),
+            onChanged: (v) => Navigator.pop(ctx, v),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (picked != null && mounted) setState(() => _sortByRatingOnly = picked);
   }
 
   @override
@@ -231,46 +315,59 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           ),
         ),
       ),
+      // شريط التصنيف بنمط كيتا (ح8): المفضلة + ورقتا المطابخ والفرز —
+      // عشرون مطبخاً لا يتسع لها شريط شرائح، فتنتقل لورقة سفلية.
       SizedBox(
         height: 42,
-        child: ListView.separated(
+        child: ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: _categories.length + 1,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
-          itemBuilder: (_, i) {
-            // الشريحة الأولى: المفضلة — بقلبٍ يميّزها عن الفئات.
-            if (i == 0) {
-              return ChoiceChip(
-                avatar: Icon(Icons.favorite,
-                    size: 16,
-                    color: _favoritesOnly ? Colors.white : AppColors.error),
-                label: const Text('المفضلة'),
-                selected: _favoritesOnly,
-                onSelected: (_) =>
-                    setState(() => _favoritesOnly = !_favoritesOnly),
-                selectedColor: AppColors.error,
-                labelStyle: TextStyle(
-                  color: _favoritesOnly ? Colors.white : AppColors.textDark,
-                  fontWeight: FontWeight.w600,
-                ),
-                backgroundColor: AppColors.surface,
-              );
-            }
-            final cat = _categories[i - 1];
-            final selected = cat == _category;
-            return ChoiceChip(
-              label: Text(cat),
-              selected: selected,
-              onSelected: (_) => setState(() => _category = cat),
-              selectedColor: AppColors.primary,
+          children: [
+            ChoiceChip(
+              avatar: Icon(Icons.favorite,
+                  size: 16,
+                  color: _favoritesOnly ? Colors.white : AppColors.error),
+              label: const Text('المفضلة'),
+              selected: _favoritesOnly,
+              onSelected: (_) =>
+                  setState(() => _favoritesOnly = !_favoritesOnly),
+              selectedColor: AppColors.error,
               labelStyle: TextStyle(
-                color: selected ? Colors.white : AppColors.textDark,
+                color: _favoritesOnly ? Colors.white : AppColors.textDark,
                 fontWeight: FontWeight.w600,
               ),
               backgroundColor: AppColors.surface,
-            );
-          },
+            ),
+            const SizedBox(width: 8),
+            ActionChip(
+              avatar: Icon(
+                  _cuisine == 'الكل'
+                      ? Icons.restaurant_menu_rounded
+                      : Icons.check_circle_rounded,
+                  size: 16,
+                  color: _cuisine == 'الكل'
+                      ? AppColors.textDark
+                      : AppColors.primary),
+              label: Text(_cuisine == 'الكل' ? 'المطابخ ⌄' : '$_cuisine ⌄',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: _cuisine == 'الكل'
+                          ? AppColors.textDark
+                          : AppColors.primary)),
+              onPressed: _showCuisinesSheet,
+              backgroundColor: AppColors.surface,
+            ),
+            const SizedBox(width: 8),
+            ActionChip(
+              avatar: const Icon(Icons.swap_vert_rounded,
+                  size: 16, color: AppColors.textDark),
+              label: Text(
+                  _sortByRatingOnly ? 'الأعلى تقييماً ⌄' : 'الموصى به ⌄',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              onPressed: _showSortSheet,
+              backgroundColor: AppColors.surface,
+            ),
+          ],
         ),
       ),
       const SizedBox(height: 4),

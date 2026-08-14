@@ -528,6 +528,16 @@ class AppUser {
       );
 }
 
+/// قائمة المطابخ المعتمدة (ح8 — تصنيف كيتا): تُعرض للعميل في ورقة
+/// «المطابخ» وللمدير في نموذج المطعم اختياراً متعدداً. قائمة واحدة
+/// للطرفين كي لا يصنّف المديرُ بمسمى لا يراه العميل.
+const kCuisines = [
+  'سعودي', 'مشاوي', 'مندي وحنيذ', 'برجر', 'دجاج مقلي', 'شاورما',
+  'ساندويتشات', 'بيتزا', 'إيطالي ومكرونة', 'لبناني', 'سوري', 'مصري',
+  'هندي', 'فطائر ومعجنات', 'مخبوزات', 'فلافل', 'سلطات وصحي',
+  'حلويات', 'عصائر', 'قهوة وشاي',
+];
+
 class Restaurant {
   final String id;
   final String name;
@@ -553,6 +563,12 @@ class Restaurant {
   final double? lat;
   final double? lng;
   final String? imageUrl;
+
+  /// مطابخ هذا المطعم من القائمة المعتمدة [kCuisines] — يضبطها المدير
+  /// في نموذج المطعم. فارغة في المطاعم القديمة فتظهر تحت «الكل» وحدها
+  /// (مع سقوطٍ على مطابقة النص القديمة كي لا تختفي فجأة من فلاتر كانت
+  /// تجدها بالاسم).
+  final List<String> cuisines;
 
   /// نسبة عمولة المنصّة على وجبات هذا المطعم (العمولة المرنة — من خطة
   /// الإطلاق): كانت 15% مبرمجة في الكود، فاستحال عرضُ «صفر عمولة ٩٠
@@ -583,6 +599,7 @@ class Restaurant {
     this.lng,
     this.imageUrl,
     this.commissionPercent = 15,
+    this.cuisines = const [],
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
@@ -610,6 +627,9 @@ class Restaurant {
         appShareFee: (map['appShareFee'] as num?)?.toDouble() ?? 0.0,
         commissionPercent:
             (map['commissionPercent'] as num?)?.toDouble() ?? 15,
+        cuisines: ((map['cuisines'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
         perKmFee: (map['perKmFee'] as num?)?.toDouble() ?? 0.0,
         freeKm: (map['freeKm'] as num?)?.toDouble() ?? 3.0,
         minOrder: (map['minOrder'] as num?)?.toDouble() ?? 20.0,
@@ -646,6 +666,7 @@ class Restaurant {
         'lng': lng,
         'imageUrl': imageUrl,
         'commissionPercent': commissionPercent,
+        'cuisines': cuisines,
       };
 }
 

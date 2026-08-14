@@ -164,6 +164,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
   bool _loading = false;
   double? _lat, _lng;
   String? _imageUrl;
+  late final Set<String> _cuisines;
   // معرّف ثابت يُحسب مرة واحدة، ليُرفع الغلاف تحت مسار المطعم نفسه حتى قبل
   // حفظه لأول مرة (بدل توليد معرّف جديد عند الحفظ فتضيع الصورة المرفوعة).
   late final String _restaurantId = widget.existing?.id ?? const Uuid().v4();
@@ -185,6 +186,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _lat = r?.lat;
     _lng = r?.lng;
     _imageUrl = r?.imageUrl;
+    _cuisines = {...?r?.cuisines};
   }
 
   @override
@@ -236,6 +238,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       // من هذا الحقل لا من الكود، مقيّدة ٠..١٠٠ فلا تشلّها غلطة إدخال.
       commissionPercent:
           (double.tryParse(_commission.text.trim()) ?? 15).clamp(0.0, 100.0),
+      cuisines: _cuisines.toList(),
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
       rating: widget.existing?.rating ?? 5.0,
@@ -325,6 +328,29 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                       'ارفعها من هنا — تسري على الطلبات الجديدة فقط، '
                       'والدفاتر السابقة لا تتحرك.',
                       style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                ),
+                const SizedBox(height: 8),
+                const Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('المطابخ (تصنيف كيتا — يظهر في فلتر العميل)',
+                      style: TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(height: 6),
+                StatefulBuilder(
+                  builder: (ctx, setChips) => Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final c in kCuisines)
+                        FilterChip(
+                          label: Text(c, style: const TextStyle(fontSize: 11.5)),
+                          selected: _cuisines.contains(c),
+                          onSelected: (v) => setChips(() =>
+                              v ? _cuisines.add(c) : _cuisines.remove(c)),
+                        ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(
