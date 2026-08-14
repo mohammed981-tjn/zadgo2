@@ -78,7 +78,8 @@ service cloud.firestore {
       // تتجمد: كابتن معدَّل البرمجية يرفع إكراميته بنفسه لولا هذا (د١).
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
-              'restaurantCompensation', 'restaurantChargeback', 'driverTip'];
+              'restaurantCompensation', 'restaurantChargeback', 'driverTip',
+              'commissionPercent'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
@@ -182,7 +183,11 @@ service cloud.firestore {
       // العميل يحدّث تقييم المطعم بعد استلام طلبه — مقصور على حقلَي
       // rating/ratingCount فقط، تماماً كتقييم السائق، فلا يستطيع تعديل
       // الأسعار أو الاسم أو حالة الفتح من تطبيق العميل.
-      allow update: if isAdmin() || isRestaurantManagerOf(restaurantId) ||
+      // مدير المطعم يعدّل كل شيء عدا نسبة عمولته (العمولة المرنة): هي
+      // شرط تعاقدي يضبطه المدير العام وحده — وإلا صفّر مطعمٌ عمولته بيده.
+      allow update: if isAdmin() ||
+          (isRestaurantManagerOf(restaurantId) &&
+              !changedKeys().hasAny(['commissionPercent'])) ||
           (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']));
 
       match /categories/{categoryId} {
@@ -233,6 +238,10 @@ service cloud.firestore {
           request.resource.data.walletUsed >= 0 &&
           request.resource.data.get('driverTip', 0) is number &&
           request.resource.data.get('driverTip', 0) >= 0 &&
+          (!('commissionPercent' in request.resource.data) ||
+              request.resource.data.commissionPercent ==
+                  get(/databases/$(database)/documents/restaurants/$(request.resource.data.restaurantId))
+                      .data.get('commissionPercent', 15)) &&
           (request.resource.data.discountAmount == 0 ||
             (request.resource.data.discountAmount > 0 &&
              request.resource.data.couponCode is string &&
