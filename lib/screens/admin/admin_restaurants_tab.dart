@@ -165,6 +165,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
   double? _lat, _lng;
   String? _imageUrl;
   late final Set<String> _cuisines;
+  int _priceLevel = 0;
   // معرّف ثابت يُحسب مرة واحدة، ليُرفع الغلاف تحت مسار المطعم نفسه حتى قبل
   // حفظه لأول مرة (بدل توليد معرّف جديد عند الحفظ فتضيع الصورة المرفوعة).
   late final String _restaurantId = widget.existing?.id ?? const Uuid().v4();
@@ -187,6 +188,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _lng = r?.lng;
     _imageUrl = r?.imageUrl;
     _cuisines = {...?r?.cuisines};
+    _priceLevel = r?.priceLevel ?? 0;
   }
 
   @override
@@ -239,6 +241,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       commissionPercent:
           (double.tryParse(_commission.text.trim()) ?? 15).clamp(0.0, 100.0),
       cuisines: _cuisines.toList(),
+      priceLevel: _priceLevel,
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
       rating: widget.existing?.rating ?? 5.0,
@@ -351,6 +354,27 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                         ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 8),
+                const Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('مستوى الأسعار (لفلتر العميل)',
+                      style: TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(height: 6),
+                StatefulBuilder(
+                  builder: (ctx, setPrice) => Wrap(spacing: 6, children: [
+                    for (final (lvl, label) in [
+                      (0, 'بلا'), (1, '\$ اقتصادي'), (2, '\$\$ متوسط'), (3, '\$\$\$ مرتفع')
+                    ])
+                      ChoiceChip(
+                        label:
+                            Text(label, style: const TextStyle(fontSize: 11.5)),
+                        selected: _priceLevel == lvl,
+                        onSelected: (_) => setPrice(() => _priceLevel = lvl),
+                      ),
+                  ]),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(

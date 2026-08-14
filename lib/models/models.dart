@@ -570,6 +570,11 @@ class Restaurant {
   /// تجدها بالاسم).
   final List<String> cuisines;
 
+  /// مستوى الأسعار (ح9 — تصفية كيتا): ١ = $ اقتصادي، ٢ = $$ متوسط،
+  /// ٣ = $$$ مرتفع، ٠ = لم يصنَّف بعد (لا يظهر في فلتر السعر ولا
+  /// يُستبعد منه). يضبطه المدير من نموذج المطعم بثلاث شرائح.
+  final int priceLevel;
+
   /// نسبة عمولة المنصّة على وجبات هذا المطعم (العمولة المرنة — من خطة
   /// الإطلاق): كانت 15% مبرمجة في الكود، فاستحال عرضُ «صفر عمولة ٩٠
   /// يوماً» الذي تقوم عليه حملة التوقيع، وخالفت روح بند ج١. يضبطها
@@ -600,6 +605,7 @@ class Restaurant {
     this.imageUrl,
     this.commissionPercent = 15,
     this.cuisines = const [],
+    this.priceLevel = 0,
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
@@ -630,6 +636,7 @@ class Restaurant {
         cuisines: ((map['cuisines'] as List?) ?? [])
             .map((e) => e.toString())
             .toList(),
+        priceLevel: (map['priceLevel'] as num?)?.toInt() ?? 0,
         perKmFee: (map['perKmFee'] as num?)?.toDouble() ?? 0.0,
         freeKm: (map['freeKm'] as num?)?.toDouble() ?? 3.0,
         minOrder: (map['minOrder'] as num?)?.toDouble() ?? 20.0,
@@ -667,6 +674,7 @@ class Restaurant {
         'imageUrl': imageUrl,
         'commissionPercent': commissionPercent,
         'cuisines': cuisines,
+        'priceLevel': priceLevel,
       };
 }
 

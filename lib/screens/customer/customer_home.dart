@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animations/animations.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../../utils/location_guard.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
 import '../../models/models.dart';
@@ -150,9 +151,19 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   /// المطبخ المختار من ورقة «المطابخ» (ح8 — نمط كيتا): «الكل» افتراضاً.
   String _cuisine = 'الكل';
 
-  /// الفرز: «الموصى به» (المفتوح أولاً ثم الأعلى تقييماً فالأكثر طلبات)
-  /// أو «الأعلى تقييماً» صرفاً — الخياران اللذان حدّدهما المالك.
-  bool _sortByRatingOnly = false;
+  /// الفرز (ح8+ح9 — ورقة كيتا كاملة عدا «الأعلى خصماً» المحفوظة لميزة
+  /// عروض المطاعم): الموصى به / الأعلى تقييماً / الأقرب / مدة التوصيل.
+  _HomeSort _sort = _HomeSort.recommended;
+
+  /// موقع العميل لفرز «الأقرب» — يُجلب مرة عند أول اختيار له ويُحفظ.
+  double? _myLat, _myLng;
+
+  /// عوامل التصفية السريعة (ح9 — نمط كيتا): تُطبَّق معاً (AND).
+  bool _fNew = false, _f30min = false, _f45rating = false;
+  final Set<int> _fPriceLevels = {};
+
+  bool get _hasQuickFilters =>
+      _fNew || _f30min || _f45rating || _fPriceLevels.isNotEmpty;
 
   /// فلتر المفضلة (ح2) — شريحة مستقلة عن الفئات: «مفضلتي من البرجر»
   /// اختياران متقاطعان لا بديلان.
@@ -214,16 +225,64 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           r.name.contains(q) || r.branchName.contains(q) ||
           r.description.contains(q) || r.address.contains(q)).toList();
     }
-    // الفرز (ح8): المفتوح يتصدر دائماً — مطعم مغلق أعلى القائمة إحباط
-    // مهما علا تقييمه. ثم التقييم، و«الموصى به» يضيف حكمة الجمهور:
-    // الأكثر طلباتٍ يفصل بين متساويي التقييم.
+    // عوامل التصفية السريعة (ح9) — تُطبَّق معاً:
+    if (_fNew) result = result.where((r) => r.isNewlyListed).toList();
+    if (_f30min) {
+      result = result.where((r) => r.estimatedTimeMin <= 30).toList();
+    }
+    if (_f45rating) {
+      // المطعم الجديد بلا تقييمات لا يُعاقب بفلتر التقييم — يُستثنى منه
+      // كما تُعرض له شارة «جديد» بدل رقمٍ موهم.
+      result = result
+          .where((r) => r.ratingCount == 0 || r.rating >= 4.5)
+          .toList();
+    }
+    if (_fPriceLevels.isNotEmpty) {
+      // غير المصنَّف (٠) لا يُستبعد — استبعاده يعاقب مطاعم لم تُصنَّف بعد.
+      result = result
+          .where((r) =>
+              r.priceLevel == 0 || _fPriceLevels.contains(r.priceLevel))
+          .toList();
+    }
+    // الفرز: المفتوح يتصدر دائماً — مطعم مغلق أعلى القائمة إحباط مهما
+    // علا تقييمه — ثم معيار الاختيار.
+    double dist(Restaurant r) =>
+        (r.lat == null || r.lng == null || _myLat == null)
+            ? double.infinity
+            : haversineDistanceKm(_myLat!, _myLng!, r.lat!, r.lng!);
     result = [...result]..sort((a, b) {
       if (a.isOpen != b.isOpen) return a.isOpen ? -1 : 1;
-      final byRating = b.rating.compareTo(a.rating);
-      if (_sortByRatingOnly || byRating != 0) return byRating;
-      return b.totalOrders.compareTo(a.totalOrders);
+      switch (_sort) {
+        case _HomeSort.nearest:
+          return dist(a).compareTo(dist(b));
+        case _HomeSort.deliveryTime:
+          return a.estimatedTimeMin.compareTo(b.estimatedTimeMin);
+        case _HomeSort.rating:
+          return b.rating.compareTo(a.rating);
+        case _HomeSort.recommended:
+          final byRating = b.rating.compareTo(a.rating);
+          if (byRating != 0) return byRating;
+          return b.totalOrders.compareTo(a.totalOrders);
+      }
     });
     return result;
+  }
+
+  /// جلب موقع العميل لفرز «الأقرب» — مرة واحدة، وبرفضٍ مُفسَّر لا صامت.
+  Future<bool> _ensureMyLocation() async {
+    if (_myLat != null) return true;
+    try {
+      final pos = await LocationGuard.currentPosition();
+      _myLat = pos.latitude;
+      _myLng = pos.longitude;
+      return true;
+    } catch (_) {
+      if (mounted) {
+        showError(context,
+            'فرز «الأقرب» يحتاج إذن الموقع — فعّله من إعدادات جهازك');
+      }
+      return false;
+    }
   }
 
   /// ورقة «المطابخ» بنمط كيتا — قائمة اختيار واحد تتسع لعشرين مطبخاً
@@ -259,9 +318,17 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
     if (picked != null && mounted) setState(() => _cuisine = picked);
   }
 
-  /// ورقة «فرز حسب» — الخياران اللذان حدّدهما المالك من نموذج كيتا.
+  static const _sortLabels = {
+    _HomeSort.recommended: 'الموصى به',
+    _HomeSort.rating: 'الأعلى تقييماً',
+    _HomeSort.nearest: 'الأقرب',
+    _HomeSort.deliveryTime: 'مدة التوصيل',
+  };
+
+  /// ورقة «فرز حسب» — ورقة كيتا كاملة عدا «الأعلى خصماً» (محفوظة لميزة
+  /// عروض المطاعم بأمر المالك 2026-08-14).
   Future<void> _showSortSheet() async {
-    final picked = await showModalBottomSheet<bool>(
+    final picked = await showModalBottomSheet<_HomeSort>(
       context: context,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -272,26 +339,106 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             child: Text('فرز حسب',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           ),
-          RadioListTile<bool>(
-            value: false,
-            groupValue: _sortByRatingOnly,
-            title: const Text('الموصى به', style: TextStyle(fontSize: 13.5)),
-            subtitle: const Text('المفتوح أولاً، ثم التقييم والأكثر طلباً',
-                style: TextStyle(fontSize: 11.5)),
-            onChanged: (v) => Navigator.pop(ctx, v),
-          ),
-          RadioListTile<bool>(
-            value: true,
-            groupValue: _sortByRatingOnly,
-            title:
-                const Text('الأعلى تقييماً', style: TextStyle(fontSize: 13.5)),
-            onChanged: (v) => Navigator.pop(ctx, v),
-          ),
+          for (final o in _HomeSort.values)
+            RadioListTile<_HomeSort>(
+              value: o,
+              groupValue: _sort,
+              dense: true,
+              title: Text(_sortLabels[o]!,
+                  style: const TextStyle(fontSize: 13.5)),
+              subtitle: o == _HomeSort.recommended
+                  ? const Text('المفتوح أولاً، ثم التقييم والأكثر طلباً',
+                      style: TextStyle(fontSize: 11.5))
+                  : null,
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
           const SizedBox(height: 8),
         ]),
       ),
     );
-    if (picked != null && mounted) setState(() => _sortByRatingOnly = picked);
+    if (picked == null || !mounted) return;
+    if (picked == _HomeSort.nearest && !await _ensureMyLocation()) return;
+    if (mounted) setState(() => _sort = picked);
+  }
+
+  /// ورقة «عوامل التصفية» (ح9 — نمط كيتا): سريعة + السعر، بتطبيقٍ
+  /// و«حذف الكل».
+  Future<void> _showFiltersSheet() async {
+    var fNew = _fNew, f30 = _f30min, f45 = _f45rating;
+    final prices = {..._fPriceLevels};
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Center(
+                  child: Text('عوامل التصفية',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14.5))),
+              const SizedBox(height: 10),
+              const Text('عوامل تصفية سريعة',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 8, children: [
+                FilterChip(
+                    label: const Text('جديد'),
+                    selected: fNew,
+                    onSelected: (v) => setSheet(() => fNew = v)),
+                FilterChip(
+                    label: const Text('خلال ٣٠ دقيقة'),
+                    selected: f30,
+                    onSelected: (v) => setSheet(() => f30 = v)),
+                FilterChip(
+                    label: const Text('التقييمات 4.5+'),
+                    selected: f45,
+                    onSelected: (v) => setSheet(() => f45 = v)),
+              ]),
+              const SizedBox(height: 12),
+              const Text('السعر',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+              const SizedBox(height: 6),
+              Wrap(spacing: 8, children: [
+                for (final (lvl, label) in [(1, '\$'), (2, '\$\$'), (3, '\$\$\$')])
+                  FilterChip(
+                      label: Text(label),
+                      selected: prices.contains(lvl),
+                      onSelected: (v) => setSheet(
+                          () => v ? prices.add(lvl) : prices.remove(lvl))),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => setSheet(() {
+                      fNew = false; f30 = false; f45 = false; prices.clear();
+                    }),
+                    child: const Text('حذف الكل'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('تطبيق'),
+                  ),
+                ),
+              ]),
+            ]),
+          ),
+        ),
+      ),
+    );
+    if (applied == true && mounted) {
+      setState(() {
+        _fNew = fNew; _f30min = f30; _f45rating = f45;
+        _fPriceLevels..clear()..addAll(prices);
+      });
+    }
   }
 
   @override
@@ -361,10 +508,25 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             ActionChip(
               avatar: const Icon(Icons.swap_vert_rounded,
                   size: 16, color: AppColors.textDark),
-              label: Text(
-                  _sortByRatingOnly ? 'الأعلى تقييماً ⌄' : 'الموصى به ⌄',
+              label: Text('${_sortLabels[_sort]} ⌄',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
               onPressed: _showSortSheet,
+              backgroundColor: AppColors.surface,
+            ),
+            const SizedBox(width: 8),
+            ActionChip(
+              avatar: Icon(Icons.tune_rounded,
+                  size: 16,
+                  color: _hasQuickFilters
+                      ? AppColors.primary
+                      : AppColors.textDark),
+              label: Text('تصفية ⌄',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: _hasQuickFilters
+                          ? AppColors.primary
+                          : AppColors.textDark)),
+              onPressed: _showFiltersSheet,
               backgroundColor: AppColors.surface,
             ),
           ],
@@ -569,3 +731,7 @@ class _MetaChip extends StatelessWidget {
         Text(label, style: TextStyle(fontSize: 12.5, color: color, fontWeight: FontWeight.w600)),
       ]);
 }
+
+/// خيارات فرز الرئيسة (ح8+ح9) — «الأعلى خصماً» محفوظة عمداً حتى تُبنى
+/// ميزة عروض المطاعم (قرار المالك 2026-08-14).
+enum _HomeSort { recommended, rating, nearest, deliveryTime }
