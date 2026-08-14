@@ -470,6 +470,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       discountAmount: _discount,
       scheduledFor: _scheduledFor,
       driverTip: _tip,
+      // ختم نسبة عمولة المطعم لحظة الإنشاء (العمولة المرنة) — والقواعد
+      // تتحقق أنها نسبة مستند المطعم نفسها لا رقماً يختلقه عميل معدَّل.
+      commissionPercent: _restaurant?.commissionPercent,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,

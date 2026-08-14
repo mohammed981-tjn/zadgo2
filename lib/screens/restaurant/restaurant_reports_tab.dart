@@ -117,7 +117,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                             label: 'مبيعات الوجبات',
                             value: formatCurrency(totalMealsValue)),
                         PriceRow(
-                            label: 'عمولة المنصّة (15%)',
+                            label: 'عمولة المنصّة',
                             value: '- ${formatCurrency(commission)}'),
                         if (compensations > 0)
                           PriceRow(
@@ -237,7 +237,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                       PriceRow(label: 'قيمة الوجبات', value: formatCurrency(o.itemsTotal), bold: true),
                       if (o.status == OrderStatus.delivered) ...[
                         PriceRow(
-                            label: 'عمولة المنصّة (15%)',
+                            label: 'عمولة المنصّة',
                             value: '- ${formatCurrency(o.effectiveCommission)}'),
                         PriceRow(
                             label: 'صافيك من الطلب',

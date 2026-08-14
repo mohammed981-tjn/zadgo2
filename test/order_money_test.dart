@@ -12,6 +12,7 @@ Order _order({
   double discountAmount = 0,
   double walletUsed = 0,
   double restaurantChargeback = 0,
+  double? commissionPercent,
 }) =>
     Order(
       id: 'o1',
@@ -34,6 +35,7 @@ Order _order({
       discountAmount: discountAmount,
       walletUsed: walletUsed,
       restaurantChargeback: restaurantChargeback,
+      commissionPercent: commissionPercent,
     );
 
 void main() {
@@ -60,9 +62,19 @@ void main() {
   });
 
   group('حصص الأطراف', () {
-    test('عمولة الوجبات للتقارير = 15% محسوبة دائماً لا مخزَّنة', () {
-      // طلب قديم بعمولة مخزَّنة خاطئة يجب أن يُقرأ بالقاعدة الثابتة.
+    test('طلب قديم بلا نسبة مختومة = 15% الافتراضية', () {
       expect(_order().effectiveCommission, closeTo(68 * 0.15, 0.001));
+    });
+    test('العمولة المرنة: النسبة المختومة تحكم — صفر حملة التوقيع صفرٌ فعلاً', () {
+      // «صفر عمولة ٩٠ يوماً» وعد حملة الإطلاق — الاختبار يحرسه رقمياً.
+      expect(_order(commissionPercent: 0).effectiveCommission, 0);
+      expect(_order(commissionPercent: 10).effectiveCommission,
+          closeTo(6.8, 0.001));
+    });
+    test('تغيير نسبة المطعم لاحقاً لا يحرك دفاتر الطلبات المختومة', () {
+      // الطلب يقرأ نسبته المختومة هو، لا نسبة المطعم الحالية.
+      final sealed = _order(commissionPercent: 5);
+      expect(sealed.effectiveCommission, closeTo(3.4, 0.001));
     });
     test('صافي المطعم = الوجبات − العمولة', () {
       expect(_order().restaurantNet, closeTo(68 - 10.2, 0.001));
