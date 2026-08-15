@@ -142,6 +142,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// إكرامية الكابتن (ح3) — صفر افتراضاً، وخياراتها من إعدادات المدير.
   double _tip = 0;
   List<double> _tipOptions = const [2, 5, 10];
+  // إعدادات المنصّة (أجرة التوصيل + الإكرامية) من اللوحة — الافتراضي مطابق
+  // للقيم القديمة، فلا يتغيّر السلوك حتى يعدّلها المدير.
+  IncentiveSettings _settings = const IncentiveSettings();
   bool _loading = false;
   /// هل يطبّق العميل رصيد محفظته على هذا الطلب؟
   bool _useWallet = true;
@@ -158,7 +161,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.initState();
     // خيارات الإكرامية من لوحة المدير (ج١) — فشل الجلب يبقي الافتراضي.
     context.read<FirebaseService>().getIncentiveSettings().then((v) {
-      if (mounted) setState(() => _tipOptions = v.tipOptions);
+      if (mounted) setState(() {
+        _settings = v;
+        _tipOptions = v.tipOptions;
+      });
     }).catchError((_) {});
     _loadRestaurant();
   }
@@ -201,7 +207,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// أجرة التوصيل حسب المسافة المحسوبة؛ وإن تعذّر حساب المسافة (لا موقع للمطعم
   /// مثلاً) نكتفي بأجرة الأساس (أول 7 كم) بدل ترك التوصيل مجهولاً.
   double get _deliveryFee =>
-      Pricing.deliveryFee(_distanceKm ?? 0);
+      _settings.deliveryFeeFor(_distanceKm ?? 0);
 
   /// الكوبون المطبَّق (بعد تحقّق ناجح) وقيمة خصمه.
   Coupon? _coupon;
@@ -218,7 +224,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double _orderTotal() {
     final itemsTotal = context.read<CartProvider>().itemsTotal;
     final total =
-        itemsTotal + _deliveryFee + Pricing.fixedDeliveryCommission - _discount;
+        itemsTotal + _deliveryFee + _settings.deliveryAppCut - _discount;
     return total < 0 ? 0 : total;
   }
 
@@ -327,10 +333,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // منع الطلب خارج نطاق الخدمة: بدونه يُحتسب توصيل بمئات الريالات على طلب
     // لا يستطيع أي سائق تنفيذه.
     final distance = _distanceKm;
-    if (distance != null && Pricing.isOutOfRange(distance)) {
+    if (distance != null && _settings.isOutOfRange(distance)) {
       showError(context,
           'الموقع خارج نطاق التوصيل (${distance.toStringAsFixed(0)} كم). '
-          'الحد الأقصى ${Pricing.maxDeliveryDistanceKm.toStringAsFixed(0)} كم');
+          'الحد الأقصى ${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم');
       return;
     }
 
@@ -427,7 +433,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (restaurant?.lat != null && restaurant?.lng != null) {
       distanceKm = haversineDistanceKm(restaurant!.lat!, restaurant.lng!, _lat!, _lng!);
     }
-    final driverDeliveryFee = Pricing.deliveryFee(distanceKm ?? 0);
+    final driverDeliveryFee = _settings.deliveryFeeFor(distanceKm ?? 0);
 
     final order = Order(
       id: orderId,
@@ -459,7 +465,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,
-      appShare: Pricing.fixedDeliveryCommission,
+      appShare: _settings.deliveryAppCut,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
       platformCommission: Pricing.appCommission(cart.itemsTotal),
       deliveryLat: _lat,
@@ -511,14 +517,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final itemsTotal = cart.itemsTotal;
     final locationSet = _lat != null && _lng != null;
     final delivery = _deliveryFee;
-    const fixedFee = Pricing.fixedDeliveryCommission;
+    final fixedFee = _settings.deliveryAppCut;
     // العميل يدفع الوجبات + التوصيل + الرسم الثابت، ناقصاً ما يُخصم من رصيد
     // محفظته (عمولة 15% تُخصم من المطعم ولا تظهر للعميل).
     final walletBalance = _walletBalance;
     final discount = _discount;
     final walletApplied = _walletApplied();
     final amountDue = _amountDue();
-    final outOfRange = _distanceKm != null && Pricing.isOutOfRange(_distanceKm!);
+    final outOfRange = _distanceKm != null && _settings.isOutOfRange(_distanceKm!);
 
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
@@ -680,7 +686,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 Expanded(
                   child: Text(
                     'الموقع يبعد ${_distanceKm!.toStringAsFixed(0)} كم عن المطعم — '
-                    'خارج نطاق التوصيل (${Pricing.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
+                    'خارج نطاق التوصيل (${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
                     'اختر موقعاً أقرب.',
                     style: const TextStyle(color: AppColors.error, fontSize: 12.5),
                   ),

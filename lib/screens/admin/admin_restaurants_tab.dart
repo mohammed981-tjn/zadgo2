@@ -90,10 +90,9 @@ class _RestaurantCard extends StatelessWidget {
               children: [
                 InfoRow(icon: Icons.phone_outlined, text: restaurant.phone),
                 InfoRow(icon: Icons.location_on_outlined, text: restaurant.address),
-                InfoRow(
+                const InfoRow(
                   icon: Icons.delivery_dining_outlined,
-                  text:
-                      'التوصيل (موحّد للمنصة): ${formatCurrency(Pricing.baseDeliveryFee)} لأول ${Pricing.baseDeliveryKm.toStringAsFixed(0)} كم + ${formatCurrency(Pricing.perExtraKmFee)}/كم إضافي',
+                  text: 'أجرة التوصيل موحّدة للمنصّة — تُضبط من شاشة «الحوافز»',
                 ),
                 InfoRow(
                   icon: Icons.timer_outlined,

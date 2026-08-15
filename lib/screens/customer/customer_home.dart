@@ -162,6 +162,18 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   bool _fNew = false, _f30min = false, _f45rating = false;
   final Set<int> _fPriceLevels = {};
 
+  /// إعدادات المنصّة (أجرة التوصيل) لعرض «التوصيل من X» بدقّة — من اللوحة
+  /// لا رقماً مبرمَجاً. الافتراضي مطابق للقيم القديمة حتى يُحمَّل الفعلي.
+  IncentiveSettings _settings = const IncentiveSettings();
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<FirebaseService>().getIncentiveSettings().then((v) {
+      if (mounted) setState(() => _settings = v);
+    }).catchError((_) {});
+  }
+
   bool get _hasQuickFilters =>
       _fNew || _f30min || _f45rating || _fPriceLevels.isNotEmpty;
 
@@ -706,7 +718,7 @@ class _RestaurantCard extends StatelessWidget {
                     // الدفع ويفقد الثقة. الصدق أرخص، والرقم شامل الرسم الثابت
                     // (قاعدة المالك: التوصيل المعروض = الأجرة + العمولة).
                     label:
-                        'التوصيل من ${(Pricing.baseDeliveryFee + Pricing.fixedDeliveryCommission).toStringAsFixed(0)} ر.س',
+                        'التوصيل من ${(_settings.deliveryBaseFee + _settings.deliveryAppCut).toStringAsFixed(0)} ر.س',
                     color: AppColors.textGray),
                 if (isPopular)
                   const _MetaChip(icon: Icons.local_fire_department_rounded, label: 'الأكثر طلباً', color: AppColors.primary),
