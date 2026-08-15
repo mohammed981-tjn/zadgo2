@@ -516,8 +516,12 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                           }
                         }),
                       ),
+                      // الأحد أولاً والسبت آخراً — أسبوع العمل السعودي،
+                      // لا ترتيب DateTime الأوروبي (الاثنين أولاً) الذي
+                      // ظهر في تجربة المالك الميدانية 2026-08-15.
                       if (_useSchedule)
-                        for (var day = 1; day <= 7; day++) _dayRow(day, setHrs),
+                        for (final day in const [7, 1, 2, 3, 4, 5, 6])
+                          _dayRow(day, setHrs),
                     ],
                   ),
                 ),
