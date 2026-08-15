@@ -13,24 +13,22 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  firebase_core: 3.8.0
-  firebase_auth: 5.3.3
-  cloud_firestore: 5.5.0
-  firebase_messaging: 15.1.5
-  # مثبّت على 12.3.6 عمداً: الإصدارات 12.3.7+ تتطلّب firebase_core ^3.8.1،
-  # بينما بقية حزم Firebase هنا مثبّتة على إصدارات محدّدة مع firebase_core
-  # 3.8.0. ترقية firebase_core كانت ستجرّ ترقية auth وfirestore وmessaging
-  # معاً — تغيير واسع لا مبرّر له لإضافة التخزين وحده.
-  firebase_storage: 12.3.6
+  firebase_core: 3.15.2
+  firebase_auth: 5.7.0
+  cloud_firestore: 5.6.12
+  firebase_messaging: 15.2.10
+  # Gemini داخل التطبيق بلا خادم ولا مفتاح مكشوف (يعمل على Spark) —
+  # مساعد ردود الشكاوى (2026-08-15). الطقم أعلاه رُفع لأن 2.3.0 تطلب
+  # core ^3.15.2 — تحقق توافق من pub.dev قبل التثبيت (بند أ٦).
+  firebase_ai: 2.3.0
+  # 12.4.10 موافق core ^3.15.2 — رُفعت مع الطقم كله لدفعة firebase_ai
+  # (التعليق القديم عن التثبيت على 12.3.6 زال سببه بترقية core).
+  firebase_storage: 12.4.10
 
   # تسجيل الانهيارات — مجاني بالكامل على خطة Spark (لا علاقة له بـBlaze).
-  #
-  # مثبّت على 4.1.5 بالتحقّق لا بالتخمين: هو **آخر** إصدار يشترط
-  # `firebase_core ^3.8.0` — وهو بالضبط المثبَّت أعلاه. الإصدار 4.1.6+
-  # يقفز إلى `^3.9.0`، و5.x إلى `^4.7.0`، وأيّهما يجرّ ترقية firebase_core
-  # ومعها auth وfirestore وmessaging — وهو ما رُفض عمداً عند إضافة
-  # firebase_storage للسبب نفسه.
-  firebase_crashlytics: 4.1.5
+  # 4.3.10 موافق core ^3.15.2 — رُفع مع طقم دفعة firebase_ai 2026-08-15
+  # (التثبيت القديم على 4.1.5 كان لموافقة core 3.8.0 وقد زال سببه).
+  firebase_crashlytics: 4.3.10
 
   # اختيار صور الأصناف والمطاعم من الجهاز ورفعها من داخل لوحة الإدارة.
   image_picker: ^1.1.2
