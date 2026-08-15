@@ -610,7 +610,9 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             final card = _RestaurantCard(
                 restaurant: filtered[i],
                 isFavorite: favorites.contains(filtered[i].id),
-                canFavorite: userSnap.data != null);
+                canFavorite: userSnap.data != null,
+                deliveryFromFee:
+                    _settings.deliveryBaseFee + _settings.deliveryAppCut);
             if (i >= 8) return card;
             return card
                 .animate(delay: (55 * i).ms)
@@ -629,10 +631,14 @@ class _RestaurantCard extends StatelessWidget {
   final Restaurant restaurant;
   final bool isFavorite;
   final bool canFavorite;
+  /// أدنى أجرة توصيل (الأساس + رسم المنصّة) من إعدادات اللوحة — تُمرَّر من
+  /// الحالة لأن البطاقة StatelessWidget لا تصل إلى `_settings`.
+  final double deliveryFromFee;
   const _RestaurantCard(
       {required this.restaurant,
       this.isFavorite = false,
-      this.canFavorite = false});
+      this.canFavorite = false,
+      this.deliveryFromFee = 12});
 
   @override
   Widget build(BuildContext context) {
@@ -717,8 +723,7 @@ class _RestaurantCard extends StatelessWidget {
                     // بينما التسعير الموحّد يحصّل فعلاً — فيصدم العميل في
                     // الدفع ويفقد الثقة. الصدق أرخص، والرقم شامل الرسم الثابت
                     // (قاعدة المالك: التوصيل المعروض = الأجرة + العمولة).
-                    label:
-                        'التوصيل من ${(_settings.deliveryBaseFee + _settings.deliveryAppCut).toStringAsFixed(0)} ر.س',
+                    label: 'التوصيل من ${deliveryFromFee.toStringAsFixed(0)} ر.س',
                     color: AppColors.textGray),
                 if (isPopular)
                   const _MetaChip(icon: Icons.local_fire_department_rounded, label: 'الأكثر طلباً', color: AppColors.primary),
