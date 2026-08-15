@@ -781,6 +781,66 @@ class FirebaseService {
     return order.id;
   }
 
+  /// إنشاء الطلب وخصم المحفظة في **معاملة ذرّية واحدة**.
+  ///
+  /// كان الخصم (`spendFromWallet`) والإنشاء (`placeOrder`) نداءين منفصلين:
+  /// لو نجح الخصم ثم فشل الإنشاء (شبكة/صلاحية) خسر العميل رصيده على طلبٍ لا
+  /// وجود له — **ولا يستطيع ردّه بنفسه** لأن القواعد تمنع العميل من زيادة
+  /// رصيده (وهو الصحيح: الزيادة استرداد إداري لا شحن ذاتي). الجمع في معاملة
+  /// واحدة يجعل الخصم والإنشاء يقعان معاً أو لا يقع أيٌّ منهما — فلا رصيدَ
+  /// يُخصم بلا طلب. بلا محفظة، يمرّ الطلب عبر المسار العادي بلا معاملة.
+  Future<String> placeOrderWithWallet(
+      models.Order order, double walletAmount) async {
+    if (walletAmount <= 0) return placeOrder(order);
+
+    final userRef = _users.doc(order.customerId);
+    final walletTxRef = _walletTransactions.doc();
+    await _db.runTransaction((transaction) async {
+      final snap = await transaction.get(userRef);
+      final data = snap.data();
+      if (!snap.exists || data == null) {
+        throw Exception('حساب العميل غير موجود');
+      }
+      final current = (data['walletBalance'] as num?)?.toDouble() ?? 0;
+      if (current + 0.001 < walletAmount) {
+        throw Exception('رصيد المحفظة غير كافٍ');
+      }
+      transaction.update(userRef, {'walletBalance': current - walletAmount});
+      transaction.set(
+        walletTxRef,
+        models.WalletTransaction(
+          id: walletTxRef.id,
+          userId: order.customerId,
+          type: models.WalletTransactionType.orderPayment,
+          amount: -walletAmount,
+          balanceAfter: current - walletAmount,
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
+      transaction.set(_orders.doc(order.id), {
+        ...order.toMap(),
+        if (order.statusChangedAt == null)
+          'statusChangedAt': FieldValue.serverTimestamp(),
+      });
+    });
+
+    // بعد ثبوت الطلب والخصم معاً: تقييد الكوبون (غير حرج، لا يُسقط الطلب)
+    // ثم إشعار المطعم — كما في `placeOrder` تماماً.
+    final code = order.couponCode;
+    if (code != null && code.isNotEmpty && order.discountAmount > 0) {
+      try {
+        await _recordCouponUse(
+            code: code, userId: order.customerId, orderId: order.id);
+      } catch (e) {
+        debugPrint('⚠️ تعذّر تقييد استخدام الكوبون $code: $e');
+      }
+    }
+    NotifyRelay.orderEvent(order.id, OrderEvent.created);
+    return order.id;
+  }
+
   // ---------------------------------------------------------------------
   // حدود التدفقات: كانت كل تدفقات الطلبات بلا limit، أي أن فتح أي شاشة
   // يُنزّل تاريخ الطلبات كاملاً منذ إنشاء المنصة ويعيد تنزيله مع كل تعديل —
@@ -1613,6 +1673,13 @@ class FirebaseService {
       throw Exception('الطلب غير موجود');
     }
     final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
+    // حصانة التكرار: طلبٌ سُلّم فعلاً يخرج بلا أثر. بدون هذا كان
+    // `_isValidStatusTransition` يمرّر delivered→delivered (from==to)، فتُقيَّد
+    // أجرة السائق وإكراميته **مرّتين** ويتضاعف عدّاد توصيلاته مع ضغطتين
+    // سريعتين على «تأكيد التوصيل» (بطاقة السائق أو إنهاء المدير) قبل تحدُّث
+    // الحالة. الفحص هنا لا في `_isValidStatusTransition` كي لا نغيّر سلوك
+    // بقية المستدعين المعتمدين على تمرير from==to.
+    if (order.status == models.OrderStatus.delivered) return;
     if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
       throw Exception(
           'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
@@ -2105,6 +2172,16 @@ class FirebaseService {
   /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
   Future<void> cancelOrder(String orderId) async {
     final order = await _getOrderOrThrow(orderId);
+    // حصانة التكرار (idempotency): طلبٌ أُلغي أو رُدّ ماله فعلاً يجب ألا
+    // يُعالَج ثانيةً. بدون هذا الحارس كان `updateOrderStatus` يمرّر
+    // cancelled→cancelled (لأن `_isValidStatusTransition` تعيد true حين
+    // from==to)، فيُعاد استرداد المحفظة وعكس العُهدة مرّتين مع كل ضغطة
+    // «إلغاء» متكرّرة أو ضغطتين متزامنتين من جهازين. لا نحجب noDriverFound
+    // فإلغاؤه مسار مشروع لم يُسترَدّ ماله بعد.
+    if (order.status == models.OrderStatus.cancelled ||
+        order.status == models.OrderStatus.refunded) {
+      return;
+    }
     await updateOrderStatus(orderId, models.OrderStatus.cancelled);
     await _refundWalletOnCancel(order);
     // إن كان السائق قد استلم الطلب فعُهدته مقيّدة عليه — تُردّ له، فالطلب
@@ -2439,6 +2516,12 @@ class FirebaseService {
     String? review,
     String? restaurantId,
   }) async {
+    // حصانة التكرار: طلبٌ مُقيَّم فعلاً لا يُقيَّم ثانيةً. `updateDriverRating`
+    // و`updateRestaurantRating` يزيدان `ratingCount` ويعيدان حساب المتوسط في
+    // كل نداء، فتقييمٌ متكرّر (إعادة إرسال شبكي أو فتح الشاشة من جهازين)
+    // كان يضخّم عدد التقييمات ويحرّف متوسط السائق والمطعم.
+    final existing = await _orders.doc(orderId).get();
+    if (existing.data()?['isRated'] == true) return;
     await _orders.doc(orderId).update({
       'customerRating': orderRating,
       'driverRating': driverRating,

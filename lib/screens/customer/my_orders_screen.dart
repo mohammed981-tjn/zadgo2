@@ -810,7 +810,7 @@ class _OrderCard extends StatelessWidget {
         if (context.mounted) showError(context, 'هذا المطعم لم يعد متوفراً');
         return;
       }
-      if (!restaurant.isOpen) {
+      if (!restaurant.isOpenNow) {
         if (context.mounted) {
           showError(context, '${restaurant.name} مغلق حالياً — جرّب لاحقاً');
         }

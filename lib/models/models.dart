@@ -528,6 +528,69 @@ class AppUser {
       );
 }
 
+/// قائمة المطابخ المعتمدة (ح8 — تصنيف كيتا): تُعرض للعميل في ورقة
+/// «المطابخ» وللمدير في نموذج المطعم اختياراً متعدداً. قائمة واحدة
+/// للطرفين كي لا يصنّف المديرُ بمسمى لا يراه العميل.
+const kCuisines = [
+  'سعودي', 'مشاوي', 'مندي وحنيذ', 'برجر', 'دجاج مقلي', 'شاورما',
+  'ساندويتشات', 'بيتزا', 'إيطالي ومكرونة', 'لبناني', 'سوري', 'مصري',
+  'هندي', 'فطائر ومعجنات', 'مخبوزات', 'فلافل', 'سلطات وصحي',
+  'حلويات', 'عصائر', 'قهوة وشاي',
+];
+
+/// جدول عمل يومٍ واحد للمطعم (ساعات العمل المجدولة — أبرز فجوة قبل
+/// الإطلاق: كان `isOpen` مفتاحاً يدوياً فقط، فيبقى المطعم «مفتوحاً» ليلاً
+/// ما لم يُطفئه أحد، فيطلب العميل من مطعمٍ نائم). الوقت "HH:mm" بنظام ٢٤
+/// ساعة. `closed=true` يعني اليوم مغلق كلياً. ويدعم ما بعد منتصف الليل:
+/// إغلاقٌ أبكر من الفتح (16:00→02:00) يعني الامتداد لليوم التالي.
+class DaySchedule {
+  final bool closed;
+  final String open;
+  final String close;
+
+  const DaySchedule({
+    this.closed = false,
+    this.open = '09:00',
+    this.close = '23:00',
+  });
+
+  factory DaySchedule.fromMap(Map<String, dynamic> map) => DaySchedule(
+        closed: map['closed'] as bool? ?? false,
+        open: map['open'] as String? ?? '09:00',
+        close: map['close'] as String? ?? '23:00',
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'closed': closed, 'open': open, 'close': close};
+
+  DaySchedule copyWith({bool? closed, String? open, String? close}) =>
+      DaySchedule(
+        closed: closed ?? this.closed,
+        open: open ?? this.open,
+        close: close ?? this.close,
+      );
+
+  static int _toMinutes(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return 0;
+    final h = (int.tryParse(parts[0]) ?? 0).clamp(0, 23);
+    final m = (int.tryParse(parts[1]) ?? 0).clamp(0, 59);
+    return h * 60 + m;
+  }
+
+  /// هل هذا اليوم مفتوح عند [nowMinutes] (دقائق منذ منتصف الليل)؟
+  bool isOpenAt(int nowMinutes) {
+    if (closed) return false;
+    final o = _toMinutes(open);
+    final c = _toMinutes(close);
+    if (o == c) return true; // فتح=إغلاق ⇒ ٢٤ ساعة
+    if (o < c) return nowMinutes >= o && nowMinutes < c;
+    // يمتد بعد منتصف الليل (16:00→02:00): مفتوحٌ من الفتح لآخر اليوم، ومن
+    // بدايته حتى الإغلاق.
+    return nowMinutes >= o || nowMinutes < c;
+  }
+}
+
 class Restaurant {
   final String id;
   final String name;
@@ -554,12 +617,34 @@ class Restaurant {
   final double? lng;
   final String? imageUrl;
 
+  /// مطابخ هذا المطعم من القائمة المعتمدة [kCuisines] — يضبطها المدير
+  /// في نموذج المطعم. فارغة في المطاعم القديمة فتظهر تحت «الكل» وحدها
+  /// (مع سقوطٍ على مطابقة النص القديمة كي لا تختفي فجأة من فلاتر كانت
+  /// تجدها بالاسم).
+  final List<String> cuisines;
+
+  /// مستوى الأسعار (ح9 — تصفية كيتا): ١ = $ اقتصادي، ٢ = $$ متوسط،
+  /// ٣ = $$$ مرتفع، ٠ = لم يصنَّف بعد (لا يظهر في فلتر السعر ولا
+  /// يُستبعد منه). يضبطه المدير من نموذج المطعم بثلاث شرائح.
+  final int priceLevel;
+
   /// نسبة عمولة المنصّة على وجبات هذا المطعم (العمولة المرنة — من خطة
   /// الإطلاق): كانت 15% مبرمجة في الكود، فاستحال عرضُ «صفر عمولة ٩٠
   /// يوماً» الذي تقوم عليه حملة التوقيع، وخالفت روح بند ج١. يضبطها
   /// المدير من نموذج المطعم، وتُختم على كل طلب لحظة إنشائه فلا يتغير
   /// تاريخ الدفاتر حين تتغير النسبة لاحقاً.
   final double commissionPercent;
+
+  /// تاريخ انتهاء الإعفاء من العمولة (حملة «٣ شهور مجاناً»): ما دام في
+  /// المستقبل تكون العمولة الفعّالة صفراً مهما كانت [commissionPercent]،
+  /// ثم تعود النسبة المتفَّق عليها **تلقائياً** بلا تدخل المدير. null =
+  /// لا إعفاء (النسبة تسري فوراً). يضبطه المدير مرة واحدة يوم التوقيع.
+  final DateTime? commissionFreeUntil;
+
+  /// ساعات العمل المجدولة لكل يوم أسبوع (مفتاح 1=الاثنين .. 7=الأحد،
+  /// موافقٌ لـ DateTime.weekday). فارغة في المطاعم القديمة فيحكمها المفتاح
+  /// اليدوي [isOpen] وحده (توافق خلفي: لا نغلق مطعماً فجأة بلا جدول).
+  final Map<int, DaySchedule> openingHours;
 
   const Restaurant({
     required this.id,
@@ -583,9 +668,57 @@ class Restaurant {
     this.lng,
     this.imageUrl,
     this.commissionPercent = 15,
+    this.cuisines = const [],
+    this.priceLevel = 0,
+    this.openingHours = const {},
+    this.commissionFreeUntil,
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
+
+  /// النسبة الفعّالة الآن: صفرٌ ما دام [commissionFreeUntil] في المستقبل
+  /// (فترة الإعفاء)، ثم النسبة المتفَّق عليها. هذه هي التي تُختم على الطلب
+  /// لحظة إنشائه، فينتهي الإعفاء تلقائياً في موعده بلا لمسِ المدير شيئاً.
+  double get effectiveCommissionPercent {
+    final until = commissionFreeUntil;
+    if (until != null && DateTime.now().isBefore(until)) return 0;
+    return commissionPercent;
+  }
+
+  /// هل المطعم مفتوح **الآن فعلاً**؟ يجمع المفتاح اليدوي (سيّدٌ: إطفاؤه
+  /// يغلق فوراً مهما قال الجدول — «مشغول اليوم») مع ساعات العمل المجدولة.
+  /// بلا جدول (مطاعم قديمة) يحكم المفتاح اليدوي وحده. يومٌ غير مضبوط في
+  /// جدولٍ موجود = مغلق ذلك اليوم.
+  bool get isOpenNow {
+    if (!isOpen) return false;
+    if (openingHours.isEmpty) return true;
+    final now = DateTime.now();
+    final today = openingHours[now.weekday];
+    if (today == null) return false;
+    return today.isOpenAt(now.hour * 60 + now.minute);
+  }
+
+  /// نصّ حالة العمل للعميل: «مفتوح» أو «مغلق» أو «مغلق — يفتح 16:00» حين
+  /// يكون اليوم له موعد فتحٍ قادم. رسالةٌ تطمئن المنتظِر بدل «مغلق» جافّة.
+  String get openStatusLabel {
+    if (isOpenNow) return 'مفتوح';
+    if (!isOpen || openingHours.isEmpty) return 'مغلق';
+    final today = openingHours[DateTime.now().weekday];
+    if (today == null || today.closed) return 'مغلق اليوم';
+    return 'مغلق — يفتح ${today.open}';
+  }
+
+  static Map<int, DaySchedule> _parseHours(dynamic raw) {
+    if (raw is! Map) return const {};
+    final out = <int, DaySchedule>{};
+    raw.forEach((k, v) {
+      final day = int.tryParse(k.toString());
+      if (day != null && day >= 1 && day <= 7 && v is Map) {
+        out[day] = DaySchedule.fromMap(v.cast<String, dynamic>());
+      }
+    });
+    return out;
+  }
 
   /// الاسم المعروض للعميل — يضمّ اسم الفرع إن وُجد، فيميّز فرعين لنفس
   /// العلامة التجارية بوضوح: «فطير ستيشن — العزيزية».
@@ -610,6 +743,10 @@ class Restaurant {
         appShareFee: (map['appShareFee'] as num?)?.toDouble() ?? 0.0,
         commissionPercent:
             (map['commissionPercent'] as num?)?.toDouble() ?? 15,
+        cuisines: ((map['cuisines'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        priceLevel: (map['priceLevel'] as num?)?.toInt() ?? 0,
         perKmFee: (map['perKmFee'] as num?)?.toDouble() ?? 0.0,
         freeKm: (map['freeKm'] as num?)?.toDouble() ?? 3.0,
         minOrder: (map['minOrder'] as num?)?.toDouble() ?? 20.0,
@@ -622,6 +759,9 @@ class Restaurant {
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         imageUrl: map['imageUrl'] as String?,
+        openingHours: _parseHours(map['openingHours']),
+        commissionFreeUntil:
+            (map['commissionFreeUntil'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -646,6 +786,13 @@ class Restaurant {
         'lng': lng,
         'imageUrl': imageUrl,
         'commissionPercent': commissionPercent,
+        'cuisines': cuisines,
+        'priceLevel': priceLevel,
+        'openingHours':
+            openingHours.map((k, v) => MapEntry(k.toString(), v.toMap())),
+        'commissionFreeUntil': commissionFreeUntil == null
+            ? null
+            : Timestamp.fromDate(commissionFreeUntil!),
       };
 }
 

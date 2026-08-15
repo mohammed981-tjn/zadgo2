@@ -164,6 +164,15 @@ class _RestaurantFormState extends State<_RestaurantForm> {
   bool _loading = false;
   double? _lat, _lng;
   String? _imageUrl;
+  late final Set<String> _cuisines;
+  int _priceLevel = 0;
+  // ساعات العمل المجدولة: خريطة يوم(1..7)→جدول. فارغة = بلا جدول (المفتاح
+  // اليدوي وحده). _useSchedule يفصل «بلا جدول» عن «جدول كل أيامه مغلقة».
+  late final Map<int, DaySchedule> _hours;
+  bool _useSchedule = false;
+  // تاريخ انتهاء الإعفاء من العمولة (حملة «٣ شهور مجاناً»): تُختم النسبة
+  // صفراً حتى هذا التاريخ ثم تعود المضبوطة تلقائياً. null = بلا إعفاء.
+  DateTime? _commissionFreeUntil;
   // معرّف ثابت يُحسب مرة واحدة، ليُرفع الغلاف تحت مسار المطعم نفسه حتى قبل
   // حفظه لأول مرة (بدل توليد معرّف جديد عند الحفظ فتضيع الصورة المرفوعة).
   late final String _restaurantId = widget.existing?.id ?? const Uuid().v4();
@@ -185,6 +194,11 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _lat = r?.lat;
     _lng = r?.lng;
     _imageUrl = r?.imageUrl;
+    _cuisines = {...?r?.cuisines};
+    _priceLevel = r?.priceLevel ?? 0;
+    _hours = {...?r?.openingHours};
+    _useSchedule = _hours.isNotEmpty;
+    _commissionFreeUntil = r?.commissionFreeUntil;
   }
 
   @override
@@ -212,6 +226,60 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     }
   }
 
+  static const _dayNames = {
+    1: 'الاثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس',
+    5: 'الجمعة', 6: 'السبت', 7: 'الأحد',
+  };
+
+  Future<void> _pickTime(
+      int day, bool isOpenField, void Function(void Function()) setHrs) async {
+    final d = _hours[day] ?? const DaySchedule();
+    final parts = (isOpenField ? d.open : d.close).split(':');
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: int.tryParse(parts.isNotEmpty ? parts[0] : '9') ?? 9,
+        minute: int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0,
+      ),
+    );
+    if (picked == null) return;
+    final hhmm = '${picked.hour.toString().padLeft(2, '0')}:'
+        '${picked.minute.toString().padLeft(2, '0')}';
+    setHrs(() {
+      final cur = _hours[day] ?? const DaySchedule();
+      _hours[day] =
+          isOpenField ? cur.copyWith(open: hhmm) : cur.copyWith(close: hhmm);
+    });
+  }
+
+  Widget _dayRow(int day, void Function(void Function()) setHrs) {
+    final d = _hours[day] ?? const DaySchedule();
+    return Row(children: [
+      SizedBox(
+          width: 58,
+          child: Text(_dayNames[day]!, style: const TextStyle(fontSize: 12.5))),
+      Checkbox(
+        visualDensity: VisualDensity.compact,
+        value: d.closed,
+        onChanged: (v) =>
+            setHrs(() => _hours[day] = d.copyWith(closed: v ?? false)),
+      ),
+      const Text('مغلق', style: TextStyle(fontSize: 11.5)),
+      const Spacer(),
+      if (d.closed)
+        const Text('—', style: TextStyle(fontSize: 13, color: AppColors.textGray))
+      else ...[
+        TextButton(
+            onPressed: () => _pickTime(day, true, setHrs),
+            child: Text(d.open, style: const TextStyle(fontSize: 13))),
+        const Text('–', style: TextStyle(fontSize: 12)),
+        TextButton(
+            onPressed: () => _pickTime(day, false, setHrs),
+            child: Text(d.close, style: const TextStyle(fontSize: 13))),
+      ],
+    ]);
+  }
+
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     setState(() => _loading = true);
@@ -236,8 +304,12 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       // من هذا الحقل لا من الكود، مقيّدة ٠..١٠٠ فلا تشلّها غلطة إدخال.
       commissionPercent:
           (double.tryParse(_commission.text.trim()) ?? 15).clamp(0.0, 100.0),
+      commissionFreeUntil: _commissionFreeUntil,
+      cuisines: _cuisines.toList(),
+      priceLevel: _priceLevel,
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
       isOpen: widget.existing?.isOpen ?? true,
+      openingHours: _useSchedule ? _hours : const {},
       rating: widget.existing?.rating ?? 5.0,
       ratingCount: widget.existing?.ratingCount ?? 0,
       totalOrders: widget.existing?.totalOrders ?? 0,
@@ -321,10 +393,125 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 const Padding(
                   padding: EdgeInsets.only(bottom: 4),
                   child: Text(
-                      'سلاح حملة التوقيع: صفر للمطعم الجديد ٩٠ يوماً ثم '
-                      'ارفعها من هنا — تسري على الطلبات الجديدة فقط، '
-                      'والدفاتر السابقة لا تتحرك.',
+                      'اضبط النسبة المتفَّق عليها هنا، وحدّد أدناه «مجاني حتى» '
+                      'تاريخَ انتهاء الإعفاء — تبقى العمولة صفراً حتى ذلك '
+                      'اليوم ثم تسري النسبة تلقائياً. الدفاتر السابقة لا تتحرك.',
                       style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                ),
+                // «مجاني حتى» (العمولة التلقائية): تختار التاريخ مرة واحدة يوم
+                // التوقيع، فينتهي الإعفاء وحده في موعده بلا متابعة يدوية.
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _commissionFreeUntil ??
+                          now.add(const Duration(days: 90)),
+                      firstDate: now,
+                      lastDate: now.add(const Duration(days: 730)),
+                    );
+                    if (picked != null) {
+                      setState(() => _commissionFreeUntil = picked);
+                    }
+                  },
+                  icon: Icon(
+                      _commissionFreeUntil != null
+                          ? Icons.event_available
+                          : Icons.event_outlined,
+                      size: 18,
+                      color: _commissionFreeUntil != null
+                          ? AppColors.success
+                          : null),
+                  label: Text(_commissionFreeUntil != null
+                      ? 'عمولة صفر حتى ${_commissionFreeUntil!.year}/${_commissionFreeUntil!.month}/${_commissionFreeUntil!.day} (اضغط للتعديل)'
+                      : 'مجاني حتى تاريخ (اختياري — للإعفاء المؤقت)'),
+                ),
+                if (_commissionFreeUntil != null)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          setState(() => _commissionFreeUntil = null),
+                      icon: const Icon(Icons.close, size: 15),
+                      label: const Text('إلغاء الإعفاء',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                const Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('المطابخ (تصنيف كيتا — يظهر في فلتر العميل)',
+                      style: TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(height: 6),
+                StatefulBuilder(
+                  builder: (ctx, setChips) => Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final c in kCuisines)
+                        FilterChip(
+                          label: Text(c, style: const TextStyle(fontSize: 11.5)),
+                          selected: _cuisines.contains(c),
+                          onSelected: (v) => setChips(() =>
+                              v ? _cuisines.add(c) : _cuisines.remove(c)),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('مستوى الأسعار (لفلتر العميل)',
+                      style: TextStyle(
+                          fontSize: 13.5, fontWeight: FontWeight.w700)),
+                ),
+                const SizedBox(height: 6),
+                StatefulBuilder(
+                  builder: (ctx, setPrice) => Wrap(spacing: 6, children: [
+                    for (final (lvl, label) in [
+                      (0, 'بلا'), (1, '\$ اقتصادي'), (2, '\$\$ متوسط'), (3, '\$\$\$ مرتفع')
+                    ])
+                      ChoiceChip(
+                        label:
+                            Text(label, style: const TextStyle(fontSize: 11.5)),
+                        selected: _priceLevel == lvl,
+                        onSelected: (_) => setPrice(() => _priceLevel = lvl),
+                      ),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+                StatefulBuilder(
+                  builder: (ctx, setHrs) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        title: const Text('ساعات عمل مجدولة',
+                            style: TextStyle(
+                                fontSize: 13.5, fontWeight: FontWeight.w700)),
+                        subtitle: const Text(
+                            'يفتح ويغلق المطعم تلقائياً حسب اليوم والساعة. '
+                            'المفتاح اليدوي يبقى سيّداً لإغلاقٍ طارئ.',
+                            style: TextStyle(fontSize: 11.5)),
+                        value: _useSchedule,
+                        onChanged: (v) => setHrs(() {
+                          _useSchedule = v;
+                          // تفعيلٌ أولُ مرة: املأ الأيام السبعة بجدول افتراضي
+                          // كي يرى المدير أسبوعاً كاملاً بدل فراغ.
+                          if (v && _hours.isEmpty) {
+                            for (var d = 1; d <= 7; d++) {
+                              _hours[d] = const DaySchedule();
+                            }
+                          }
+                        }),
+                      ),
+                      if (_useSchedule)
+                        for (var day = 1; day <= 7; day++) _dayRow(day, setHrs),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton.icon(

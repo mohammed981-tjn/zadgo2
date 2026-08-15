@@ -1,0 +1,43 @@
+# نبضة Supabase — تمنع إيقاف المشروع المجاني بسبب الخمول.
+#
+# لماذا: مشاريع Supabase المجانية تتوقف بعد ٧ أيام بلا نشاط API — أي
+# طلب واحد يصفّر العدّاد. هذه النبضة كل يومين تُبقي مشروع zol-adcraft
+# (مشروع المالك الآخر) حياً بلا تدخل يدوي.
+#
+# ⚠️ الجدولة (schedule) لا تعمل إلا حين يصل هذا الملف إلى الفرع
+# الافتراضي main — وmain مجمّد بأمر المالك، فدفع هذا الملف إليه
+# يحتاج أمره الصريح.
+#
+# الإعداد (مرة واحدة): Settings → Secrets and variables → Actions:
+#   SUPABASE_URL       عنوان المشروع، مثل https://xxxx.supabase.co
+#   SUPABASE_ANON_KEY  مفتاح anon العلني (لوحة Supabase → Settings → API)
+# مفتاح anon مصمَّم ليكون علنياً (هو داخل تطبيق الويب أصلاً) — وضعه
+# سرّاً هنا نظافةُ ترتيبٍ لا حمايةُ خزنة.
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    - cron: '41 5 */2 * *' # كل يومين 05:41 UTC — بعيداً عن زحام الدقيقة صفر
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: نبضة قاعدة البيانات
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::أضف SUPABASE_URL و SUPABASE_ANON_KEY في أسرار المستودع أولاً"
+            exit 1
+          fi
+          # طلبان: فحص الصحة يثبت أن المشروع مستجيب، وطلب REST يسجَّل
+          # نشاطَ API فيصفّر عدّاد الخمول — وهو الغاية كلها.
+          curl -sf "$SUPABASE_URL/auth/v1/health" -H "apikey: $SUPABASE_ANON_KEY"
+          echo
+          curl -sf -o /dev/null -w 'REST %{http_code}\n' "$SUPABASE_URL/rest/v1/" \
+               -H "apikey: $SUPABASE_ANON_KEY" \
+               -H "Authorization: Bearer $SUPABASE_ANON_KEY"
+          echo "نبضة ناجحة — $(date -u '+%Y-%m-%d %H:%M') UTC"
