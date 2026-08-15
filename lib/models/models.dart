@@ -1251,6 +1251,39 @@ class IncentiveSettings {
   /// المعيار العالمي). صفر يعني «لا تعويض».
   final double restaurantCancelCompensationPercent;
 
+  // ————— أجرة التوصيل (موحّدة للجميع، من اللوحة لا من الكود) —————
+  //
+  // كانت في class Pricing أرقاماً مبرمَجة صلباً (٩/٧/١/٣/٢٥) — نقلها المالك
+  // إلى اللوحة (2026-08-15). موحّدة لكل السائقين بقرار المالك: أجورٌ مختلفة
+  // لعملٍ متطابق ظلمٌ ونزاع؛ وتمييز سائقٍ مميّز يكون بمكافأة من الحوافز لا
+  // بأجرة أساس مختلفة. مكانها هنا (لا في config) لأن **تطبيق العميل** يقرؤها
+  // ليحسب أجرة الطلب، ومستند incentives وحده يقرؤه أي مسجَّل.
+  //
+  /// أجرة توصيل أول [deliveryBaseKm] كيلومتراً (ثابتة).
+  final double deliveryBaseFee;
+  final double deliveryBaseKm;
+
+  /// أجرة كل كيلومتر إضافي فوق المدى الأساسي.
+  final double deliveryPerKmFee;
+
+  /// رسم التوصيل الثابت للمنصّة (حصّتها من كل طلب، يتحمّله العميل).
+  final double deliveryAppCut;
+
+  /// أقصى مسافة توصيل مقبولة — بلا هذا الحدّ تُحتسب أجرةٌ خيالية على طلبٍ
+  /// لا يُنفَّذ (موقعٌ في مدينة أخرى).
+  final double maxDeliveryDistanceKm;
+
+  /// أجرة التوصيل حسب المسافة: أساسٌ لأول [deliveryBaseKm]، ثم لكل كم زائد
+  /// (بكسورٍ مجبورةٍ للأعلى: 9.8كم → 10). موحّدة لكل السائقين.
+  double deliveryFeeFor(double distanceKm) {
+    final extra = distanceKm - deliveryBaseKm;
+    final extraKm = extra <= 0 ? 0 : extra.ceil();
+    return deliveryBaseFee + extraKm * deliveryPerKmFee;
+  }
+
+  /// هل الموقع خارج نطاق التوصيل؟
+  bool isOutOfRange(double distanceKm) => distanceKm > maxDeliveryDistanceKm;
+
   // ————— تحدي نهاية الأسبوع —————
   final bool challengeEnabled;
 
@@ -1288,6 +1321,11 @@ class IncentiveSettings {
     this.maxOrdersPerDriver = 3,
     this.stackRadiusKm = 2.0,
     this.restaurantCancelCompensationPercent = 100,
+    this.deliveryBaseFee = 9.0,
+    this.deliveryBaseKm = 7.0,
+    this.deliveryPerKmFee = 1.0,
+    this.deliveryAppCut = 3.0,
+    this.maxDeliveryDistanceKm = 25.0,
     this.challengeEnabled = true,
     this.challengeWeekdays = const [DateTime.thursday, DateTime.friday],
     this.tiers = const [
@@ -1326,6 +1364,16 @@ class IncentiveSettings {
       restaurantCancelCompensationPercent:
           (map['restaurantCancelCompensationPercent'] as num?)?.toDouble() ??
               d.restaurantCancelCompensationPercent,
+      deliveryBaseFee:
+          (map['deliveryBaseFee'] as num?)?.toDouble() ?? d.deliveryBaseFee,
+      deliveryBaseKm:
+          (map['deliveryBaseKm'] as num?)?.toDouble() ?? d.deliveryBaseKm,
+      deliveryPerKmFee:
+          (map['deliveryPerKmFee'] as num?)?.toDouble() ?? d.deliveryPerKmFee,
+      deliveryAppCut:
+          (map['deliveryAppCut'] as num?)?.toDouble() ?? d.deliveryAppCut,
+      maxDeliveryDistanceKm: (map['maxDeliveryDistanceKm'] as num?)?.toDouble() ??
+          d.maxDeliveryDistanceKm,
       challengeEnabled: map['challengeEnabled'] as bool? ?? d.challengeEnabled,
       challengeWeekdays: rawDays is List && rawDays.isNotEmpty
           ? rawDays.map((e) => (e as num).toInt()).toList()
@@ -1363,6 +1411,11 @@ class IncentiveSettings {
         'stackRadiusKm': stackRadiusKm,
         'restaurantCancelCompensationPercent':
             restaurantCancelCompensationPercent,
+        'deliveryBaseFee': deliveryBaseFee,
+        'deliveryBaseKm': deliveryBaseKm,
+        'deliveryPerKmFee': deliveryPerKmFee,
+        'deliveryAppCut': deliveryAppCut,
+        'maxDeliveryDistanceKm': maxDeliveryDistanceKm,
         'challengeEnabled': challengeEnabled,
         'challengeWeekdays': challengeWeekdays,
         'tiers': tiers.map((t) => t.toMap()).toList(),
@@ -1381,6 +1434,11 @@ class IncentiveSettings {
     int? maxOrdersPerDriver,
     double? stackRadiusKm,
     double? restaurantCancelCompensationPercent,
+    double? deliveryBaseFee,
+    double? deliveryBaseKm,
+    double? deliveryPerKmFee,
+    double? deliveryAppCut,
+    double? maxDeliveryDistanceKm,
     bool? challengeEnabled,
     List<int>? challengeWeekdays,
     List<ChallengeTier>? tiers,
@@ -1400,6 +1458,12 @@ class IncentiveSettings {
         restaurantCancelCompensationPercent:
             restaurantCancelCompensationPercent ??
                 this.restaurantCancelCompensationPercent,
+        deliveryBaseFee: deliveryBaseFee ?? this.deliveryBaseFee,
+        deliveryBaseKm: deliveryBaseKm ?? this.deliveryBaseKm,
+        deliveryPerKmFee: deliveryPerKmFee ?? this.deliveryPerKmFee,
+        deliveryAppCut: deliveryAppCut ?? this.deliveryAppCut,
+        maxDeliveryDistanceKm:
+            maxDeliveryDistanceKm ?? this.maxDeliveryDistanceKm,
         challengeEnabled: challengeEnabled ?? this.challengeEnabled,
         challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
         tiers: tiers ?? this.tiers,

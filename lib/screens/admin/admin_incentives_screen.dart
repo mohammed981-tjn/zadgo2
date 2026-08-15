@@ -307,7 +307,8 @@ class _SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<_SettingsForm> {
   late bool _referralOn, _challengeOn;
   late final TextEditingController _referrer, _referee, _deliveries,
-      _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions;
+      _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions,
+      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist;
   late bool _autoPay;
   late List<int> _days;
   late List<({TextEditingController d, TextEditingController b})> _tiers;
@@ -331,6 +332,14 @@ class _SettingsFormState extends State<_SettingsForm> {
         text: s.restaurantCancelCompensationPercent.toStringAsFixed(0));
     _tipOptions = TextEditingController(
         text: s.tipOptions.map((v) => v.toStringAsFixed(0)).join('، '));
+    _delivBase = TextEditingController(text: s.deliveryBaseFee.toStringAsFixed(0));
+    _delivKm = TextEditingController(text: s.deliveryBaseKm.toStringAsFixed(0));
+    _delivPerKm =
+        TextEditingController(text: s.deliveryPerKmFee.toStringAsFixed(1));
+    _delivAppCut =
+        TextEditingController(text: s.deliveryAppCut.toStringAsFixed(0));
+    _maxDist =
+        TextEditingController(text: s.maxDeliveryDistanceKm.toStringAsFixed(0));
     _autoPay = s.autoPay;
     _days = [...s.challengeWeekdays];
     _tiers = s.tiers
@@ -346,6 +355,7 @@ class _SettingsFormState extends State<_SettingsForm> {
     for (final c in [
       _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
       _maxLoad, _stackKm, _compPct, _tipOptions,
+      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist,
     ]) {
       c.dispose();
     }
@@ -399,6 +409,18 @@ class _SettingsFormState extends State<_SettingsForm> {
                   (double.tryParse(_compPct.text.trim()) ?? 100)
                       .clamp(0.0, 100.0),
               tipOptions: _parseTips(_tipOptions.text),
+              // أجرة التوصيل — بحرّاس مدى تمنع رقماً يشلّ التسعير بغلطة
+              // إدخال (أساس/كم/زائد ≥ صفر، والمسافة القصوى ≥ ١ كم).
+              deliveryBaseFee:
+                  (double.tryParse(_delivBase.text.trim()) ?? 9).clamp(0.0, 500.0),
+              deliveryBaseKm:
+                  (double.tryParse(_delivKm.text.trim()) ?? 7).clamp(0.0, 100.0),
+              deliveryPerKmFee: (double.tryParse(_delivPerKm.text.trim()) ?? 1)
+                  .clamp(0.0, 100.0),
+              deliveryAppCut: (double.tryParse(_delivAppCut.text.trim()) ?? 3)
+                  .clamp(0.0, 500.0),
+              maxDeliveryDistanceKm: (double.tryParse(_maxDist.text.trim()) ?? 25)
+                  .clamp(1.0, 500.0),
             ),
           );
       if (mounted) {
@@ -527,6 +549,35 @@ class _SettingsFormState extends State<_SettingsForm> {
                 'طلبٌ أُلغي بعد «جاري التحضير» يُقيَّد للمطعم بهذه النسبة من '
                 'قيمة وجباته وبلا عمولة. ١٠٠٪ هو المعيار العالمي، وصفر يعني '
                 'لا تعويض. الإلغاء قبل التحضير لا يُعوَّض أصلاً.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+          ),
+
+          const Divider(height: 26),
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('أجرة التوصيل (موحّدة لكل السائقين)',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: _num(_delivBase, 'أجرة الأساس (ر.س)')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_delivKm, 'كم مشمولة بالأساس')),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _num(_delivPerKm, 'لكل كم إضافي (ر.س)')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_delivAppCut, 'رسم المنصّة الثابت')),
+          ]),
+          const SizedBox(height: 10),
+          _num(_maxDist, 'أقصى مسافة توصيل (كم)'),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'مثال: ٩ ر.س لأول ٧ كم + ١ لكل كم إضافي، ورسم منصّة ثابت ٣. '
+                'تُطبَّق على كل السائقين بالتساوي — لتمييز سائقٍ مميّز استخدم '
+                'الحوافز لا أجرة أساس مختلفة. تسري على الطلبات الجديدة فقط.',
                 style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ),
 
