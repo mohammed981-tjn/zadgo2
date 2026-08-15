@@ -101,7 +101,15 @@ service cloud.firestore {
     function couponGrantsDiscount(code, amount) {
       let path = /databases/$(database)/documents/coupons/$(code);
       let c = exists(path) ? get(path).data : {};
+      // حدّ «مرة واحدة لكل عميل» يُفرض هنا لا في التطبيق وحده (فحص مساعد
+      // الويب، البند F): نسخةٌ معدَّلة كانت تعيد استخدام الكود حتى سقفه
+      // العام متجاوزةً حدّ الفرد. معرّف مستند الاستخدام: `كود_معرّفالعميل`
+      // (نفس صيغة _usageId في التطبيق). perUserLimit صفر = بلا حدّ فردي.
+      let usagePath = /databases/$(database)/documents/coupon_usages/$(code + '_' + currentUid());
+      let used = exists(usagePath) ? get(usagePath).data.get('count', 0) : 0;
       return c.get('isActive', false) == true &&
+          (c.get('perUserLimit', 0) <= 0 ||
+              used < c.get('perUserLimit', 0)) &&
           (c.get('expiresAt', null) == null ||
               request.time < c.get('expiresAt', null)) &&
           // الثابت مسقوف بقيمته، والنسبة مسقوفة بـ maxDiscount **الإلزامي**:
@@ -267,6 +275,13 @@ service cloud.firestore {
           (request.resource.data.get('paymentId', '') == '' ||
               (exists(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)) &&
                get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid())) &&
+          // «مدفوع» عند الإنشاء يستلزم سنداً (فحص مساعد الويب، البند C):
+          // ختم بطاقة موثَّق أو دفعاً من المحفظة. الطلب النقدي الخالص يبدأ
+          // غير مدفوع حتماً — نسخةٌ معدَّلة كانت تنشئه isPaid:true فتوهم
+          // التقارير والمطعم بتحصيلٍ لم يقع.
+          (request.resource.data.get('paymentId', '') != '' ||
+              request.resource.data.walletUsed > 0 ||
+              request.resource.data.get('isPaid', false) == false) &&
           request.resource.data.discountAmount is number &&
           request.resource.data.walletUsed is number &&
           request.resource.data.walletUsed >= 0 &&
@@ -798,11 +813,18 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
             isAdmin() || resource.data.driverId == currentUid()
           );
+      // سقف السحب مربوط بالرصيد المرصود **في القاعدة** لا في الواجهة وحدها
+      // (توصية فحص مساعد الويب 2026-08-15، البند B-الجزئي): كابتن معدَّل
+      // كان يقدّم طلب سحب بأي مبلغ ويبقى صدُّه على انتباه المدير وحده.
+      // لا يغلق سكّ الرصيد نفسه (مؤجَّل للخادم) لكنه يضيف حاجزاً ثانياً.
       allow create: if isDriver() &&
           request.resource.data.driverId == currentUid() &&
           request.resource.data.status == 'pending' &&
           request.resource.data.amount is number &&
-          request.resource.data.amount > 0;
+          request.resource.data.amount > 0 &&
+          request.resource.data.amount <=
+              get(/databases/$(database)/documents/drivers/$(currentUid()))
+                  .data.get('balance', 0);
       allow update: if isAdmin();
       allow delete: if false;
     }
