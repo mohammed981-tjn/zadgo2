@@ -111,6 +111,19 @@ service cloud.firestore {
                   amount <= c.get('maxDiscount', 0)));
     }
 
+    /// النسبة الفعّالة لعمولة المطعم الآن: صفرٌ ما دام تاريخ الإعفاء
+    /// `commissionFreeUntil` في المستقبل (حملة «٣ شهور مجاناً»)، ثم النسبة
+    /// المضبوطة. تحرسها قاعدة إنشاء الطلب فتقبل صفراً في فترة الإعفاء دون
+    /// أن يستطيع عميلٌ معدَّل ادّعاء صفرٍ بعد انتهائها. تغيير النسبة أو
+    /// التاريخ من اللوحة **بيانات** لا يمسّ هذه القاعدة إطلاقاً.
+    function effectiveCommission(restaurantId) {
+      let r = get(/databases/$(database)/documents/restaurants/$(restaurantId)).data;
+      let until = r.get('commissionFreeUntil', null);
+      return (until != null && request.time < until)
+          ? 0
+          : r.get('commissionPercent', 15);
+    }
+
     /// هل يمنح كودُ التسجيل هذا الدورَ لهذا المستخدم؟
     ///
     /// حارس تصعيد الصلاحية: كانت قاعدة إنشاء المستخدم تفحص الرصيد ولا
@@ -252,8 +265,7 @@ service cloud.firestore {
           request.resource.data.get('driverTip', 0) >= 0 &&
           (!('commissionPercent' in request.resource.data) ||
               request.resource.data.commissionPercent ==
-                  get(/databases/$(database)/documents/restaurants/$(request.resource.data.restaurantId))
-                      .data.get('commissionPercent', 15)) &&
+                  effectiveCommission(request.resource.data.restaurantId)) &&
           (request.resource.data.discountAmount == 0 ||
             (request.resource.data.discountAmount > 0 &&
              request.resource.data.couponCode is string &&

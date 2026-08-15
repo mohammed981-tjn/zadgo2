@@ -170,6 +170,9 @@ class _RestaurantFormState extends State<_RestaurantForm> {
   // اليدوي وحده). _useSchedule يفصل «بلا جدول» عن «جدول كل أيامه مغلقة».
   late final Map<int, DaySchedule> _hours;
   bool _useSchedule = false;
+  // تاريخ انتهاء الإعفاء من العمولة (حملة «٣ شهور مجاناً»): تُختم النسبة
+  // صفراً حتى هذا التاريخ ثم تعود المضبوطة تلقائياً. null = بلا إعفاء.
+  DateTime? _commissionFreeUntil;
   // معرّف ثابت يُحسب مرة واحدة، ليُرفع الغلاف تحت مسار المطعم نفسه حتى قبل
   // حفظه لأول مرة (بدل توليد معرّف جديد عند الحفظ فتضيع الصورة المرفوعة).
   late final String _restaurantId = widget.existing?.id ?? const Uuid().v4();
@@ -195,6 +198,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     _priceLevel = r?.priceLevel ?? 0;
     _hours = {...?r?.openingHours};
     _useSchedule = _hours.isNotEmpty;
+    _commissionFreeUntil = r?.commissionFreeUntil;
   }
 
   @override
@@ -300,6 +304,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       // من هذا الحقل لا من الكود، مقيّدة ٠..١٠٠ فلا تشلّها غلطة إدخال.
       commissionPercent:
           (double.tryParse(_commission.text.trim()) ?? 15).clamp(0.0, 100.0),
+      commissionFreeUntil: _commissionFreeUntil,
       cuisines: _cuisines.toList(),
       priceLevel: _priceLevel,
       estimatedTimeMin: int.tryParse(_time.text) ?? 30,
@@ -388,11 +393,50 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 const Padding(
                   padding: EdgeInsets.only(bottom: 4),
                   child: Text(
-                      'سلاح حملة التوقيع: صفر للمطعم الجديد ٩٠ يوماً ثم '
-                      'ارفعها من هنا — تسري على الطلبات الجديدة فقط، '
-                      'والدفاتر السابقة لا تتحرك.',
+                      'اضبط النسبة المتفَّق عليها هنا، وحدّد أدناه «مجاني حتى» '
+                      'تاريخَ انتهاء الإعفاء — تبقى العمولة صفراً حتى ذلك '
+                      'اليوم ثم تسري النسبة تلقائياً. الدفاتر السابقة لا تتحرك.',
                       style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
                 ),
+                // «مجاني حتى» (العمولة التلقائية): تختار التاريخ مرة واحدة يوم
+                // التوقيع، فينتهي الإعفاء وحده في موعده بلا متابعة يدوية.
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final now = DateTime.now();
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _commissionFreeUntil ??
+                          now.add(const Duration(days: 90)),
+                      firstDate: now,
+                      lastDate: now.add(const Duration(days: 730)),
+                    );
+                    if (picked != null) {
+                      setState(() => _commissionFreeUntil = picked);
+                    }
+                  },
+                  icon: Icon(
+                      _commissionFreeUntil != null
+                          ? Icons.event_available
+                          : Icons.event_outlined,
+                      size: 18,
+                      color: _commissionFreeUntil != null
+                          ? AppColors.success
+                          : null),
+                  label: Text(_commissionFreeUntil != null
+                      ? 'عمولة صفر حتى ${_commissionFreeUntil!.year}/${_commissionFreeUntil!.month}/${_commissionFreeUntil!.day} (اضغط للتعديل)'
+                      : 'مجاني حتى تاريخ (اختياري — للإعفاء المؤقت)'),
+                ),
+                if (_commissionFreeUntil != null)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          setState(() => _commissionFreeUntil = null),
+                      icon: const Icon(Icons.close, size: 15),
+                      label: const Text('إلغاء الإعفاء',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 const Align(
                   alignment: AlignmentDirectional.centerStart,

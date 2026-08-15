@@ -453,7 +453,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       driverTip: _tip,
       // ختم نسبة عمولة المطعم لحظة الإنشاء (العمولة المرنة) — والقواعد
       // تتحقق أنها نسبة مستند المطعم نفسها لا رقماً يختلقه عميل معدَّل.
-      commissionPercent: _restaurant?.commissionPercent,
+      // النسبة الفعّالة لا الاسمية: صفرٌ في فترة الإعفاء «مجاني حتى تاريخ»،
+      // ثم المتفَّق عليها — تُختم على الطلب فينتهي الإعفاء تلقائياً في موعده.
+      commissionPercent: restaurant?.effectiveCommissionPercent,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,

@@ -635,6 +635,12 @@ class Restaurant {
   /// تاريخ الدفاتر حين تتغير النسبة لاحقاً.
   final double commissionPercent;
 
+  /// تاريخ انتهاء الإعفاء من العمولة (حملة «٣ شهور مجاناً»): ما دام في
+  /// المستقبل تكون العمولة الفعّالة صفراً مهما كانت [commissionPercent]،
+  /// ثم تعود النسبة المتفَّق عليها **تلقائياً** بلا تدخل المدير. null =
+  /// لا إعفاء (النسبة تسري فوراً). يضبطه المدير مرة واحدة يوم التوقيع.
+  final DateTime? commissionFreeUntil;
+
   /// ساعات العمل المجدولة لكل يوم أسبوع (مفتاح 1=الاثنين .. 7=الأحد،
   /// موافقٌ لـ DateTime.weekday). فارغة في المطاعم القديمة فيحكمها المفتاح
   /// اليدوي [isOpen] وحده (توافق خلفي: لا نغلق مطعماً فجأة بلا جدول).
@@ -665,9 +671,19 @@ class Restaurant {
     this.cuisines = const [],
     this.priceLevel = 0,
     this.openingHours = const {},
+    this.commissionFreeUntil,
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
+
+  /// النسبة الفعّالة الآن: صفرٌ ما دام [commissionFreeUntil] في المستقبل
+  /// (فترة الإعفاء)، ثم النسبة المتفَّق عليها. هذه هي التي تُختم على الطلب
+  /// لحظة إنشائه، فينتهي الإعفاء تلقائياً في موعده بلا لمسِ المدير شيئاً.
+  double get effectiveCommissionPercent {
+    final until = commissionFreeUntil;
+    if (until != null && DateTime.now().isBefore(until)) return 0;
+    return commissionPercent;
+  }
 
   /// هل المطعم مفتوح **الآن فعلاً**؟ يجمع المفتاح اليدوي (سيّدٌ: إطفاؤه
   /// يغلق فوراً مهما قال الجدول — «مشغول اليوم») مع ساعات العمل المجدولة.
@@ -744,6 +760,8 @@ class Restaurant {
         lng: (map['lng'] as num?)?.toDouble(),
         imageUrl: map['imageUrl'] as String?,
         openingHours: _parseHours(map['openingHours']),
+        commissionFreeUntil:
+            (map['commissionFreeUntil'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -772,6 +790,9 @@ class Restaurant {
         'priceLevel': priceLevel,
         'openingHours':
             openingHours.map((k, v) => MapEntry(k.toString(), v.toMap())),
+        'commissionFreeUntil': commissionFreeUntil == null
+            ? null
+            : Timestamp.fromDate(commissionFreeUntil!),
       };
 }
 
