@@ -429,25 +429,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
     final driverDeliveryFee = Pricing.deliveryFee(distanceKm ?? 0);
 
-    // خصم الرصيد قبل إنشاء الطلب: لو فشل الخصم (رصيد غير كافٍ لتغيّره من جهاز
-    // آخر) لا يُنشأ طلب يفترض خصماً لم يحدث.
-    if (walletApplied > 0) {
-      try {
-        await service.spendFromWallet(
-          userId: user.uid,
-          amount: walletApplied,
-          orderId: orderId,
-          orderNumber: orderId.substring(0, 6).toUpperCase(),
-        );
-      } catch (_) {
-        if (mounted) {
-          setState(() => _loading = false);
-          showError(context, 'تعذّر خصم رصيد المحفظة، حدّث الصفحة وحاول مجدداً');
-        }
-        return;
-      }
-    }
-
     final order = Order(
       id: orderId,
       restaurantId: cart.restaurantId!,
@@ -486,7 +467,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     try {
-      await service.placeOrder(order);
+      // خصم المحفظة وإنشاء الطلب معاً في معاملة ذرّية: لا يُخصم رصيدٌ إلا مع
+      // ثبوت الطلب، فإن فشل الإنشاء رجع الرصيد تلقائياً (لا يقدر العميل ردّه
+      // بنفسه — القواعد تمنع زيادة الرصيد). بلا محفظة يمرّ عبر placeOrder.
+      await service.placeOrderWithWallet(order, walletApplied);
       cart.clear();
 
       if (!mounted) return;
@@ -500,7 +484,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       showSuccess(context, 'تم إرسال طلبك بنجاح!');
     } catch (e) {
       setState(() => _loading = false);
-      if (mounted) showError(context, 'فشل إرسال الطلب');
+      if (!mounted) return;
+      // فشل إنشاء الطلب: المحفظة رجعت ذرّياً. لكن إن كانت البطاقة قد شُحنت
+      // فعلاً (paymentId موجود) فالمبلغ محجوز عند البوابة بلا طلب — لا نُخفي
+      // ذلك برسالة عامة، بل نعطي العميل رقمه ليستردّه عبر الدعم (الاسترداد
+      // الآلي يحتاج خادماً — مؤجَّل لـBlaze).
+      if (paymentId != null) {
+        await showConfirmDialog(
+          context,
+          title: 'تعذّر إنشاء الطلب بعد الدفع',
+          content: 'خُصم مبلغ بطاقتك (رقم العملية: $paymentId) لكن تعذّر إنشاء '
+              'الطلب. احتفظ بالرقم وتواصل مع الدعم — سيُستردّ مبلغك كاملاً.',
+          confirmLabel: 'حسناً',
+        );
+      } else {
+        showError(context, 'فشل إرسال الطلب، حاول مجدداً');
+      }
     }
   }
 

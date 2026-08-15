@@ -100,10 +100,15 @@ service cloud.firestore {
       return c.get('isActive', false) == true &&
           (c.get('expiresAt', null) == null ||
               request.time < c.get('expiresAt', null)) &&
-          (c.get('type', 'percentage') != 'fixed' ||
-              amount <= c.get('value', 0)) &&
-          (c.get('maxDiscount', 0) <= 0 ||
-              amount <= c.get('maxDiscount', 0));
+          // الثابت مسقوف بقيمته، والنسبة مسقوفة بـ maxDiscount **الإلزامي**:
+          // كوبون نسبة بلا سقف لا يمكن التحقق من مبلغه هنا (يتطلّب جمع الأصناف
+          // على الخادم)، وكان يقبل أي discountAmount — فيسكّ عميلٌ معدَّل خصماً
+          // 99999 يجعل payableTotal سالباً (المنصّة تدفع له). الآن كوبون النسبة
+          // بلا maxDiscount موجب لا يمنح خصماً إطلاقاً — لكل نسبة سقفٌ صريح.
+          (c.get('type', 'percentage') == 'fixed'
+              ? amount <= c.get('value', 0)
+              : (c.get('maxDiscount', 0) > 0 &&
+                  amount <= c.get('maxDiscount', 0)));
     }
 
     /// هل يمنح كودُ التسجيل هذا الدورَ لهذا المستخدم؟
@@ -158,8 +163,13 @@ service cloud.firestore {
           );
       allow update: if isSignedIn() && (
             isAdmin() ||
+            // restaurantId ضمن المحميّة: دالّة `isRestaurantManagerOf` كلها
+            // مبنية على تطابق `userData().restaurantId` مع معرّف المطعم، فلو
+            // ترك حرّاً غيّره مدير مطعمٍ واحد إلى مطعم منافس فاستولى على
+            // منيوه وأسعاره وطلباته وتسوياته المالية — تصعيدٌ أفقي من مطعم
+            // إلى كل المطاعم. الدور مثبَّت لكن معرّف المطعم كان ثغرته.
             (currentUid() == userId &&
-                !changedKeys().hasAny(['role', 'isActive']) &&
+                !changedKeys().hasAny(['role', 'isActive', 'restaurantId']) &&
                 // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
                 // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
                 // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
@@ -188,7 +198,9 @@ service cloud.firestore {
       allow update: if isAdmin() ||
           (isRestaurantManagerOf(restaurantId) &&
               !changedKeys().hasAny(['commissionPercent'])) ||
-          (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']));
+          (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']) &&
+              request.resource.data.get('rating', 0) >= 0 &&
+              request.resource.data.get('rating', 0) <= 5);
 
       match /categories/{categoryId} {
         allow read: if true;
@@ -259,10 +271,18 @@ service cloud.firestore {
             isAdmin() ||
             (resource.data.customerId == currentUid() &&
                 !changedKeys().hasAny(orderMoneyKeys())) ||
+            // السائق المُسنَد يكتب isPaid وplatformCommission وحدهما من
+            // الحقول المالية (عند التسليم markOrderDelivered)، فقائمته =
+            // orderMoneyKeys() ناقص هذين. كانت تنقصها restaurantCompensation
+            // وrestaurantChargeback وcommissionPercent، فسائقٌ معدَّل على
+            // طلبه المُسنَد كان يصفّر تعويض المطعم أو يخفّض عمولة المنصّة (د١).
             (resource.data.driverId == currentUid() &&
                 !changedKeys().hasAny(['items', 'driverShare', 'appShare',
                                        'customerId', 'restaurantId',
-                                       'orderNumber', 'driverTip'])) ||
+                                       'orderNumber', 'driverTip',
+                                       'restaurantCompensation',
+                                       'restaurantChargeback',
+                                       'commissionPercent'])) ||
             // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
             // بعد رفضه إياه — يمرّره جهازُه تلقائياً لأقرب سائق آخر
             // (driverId لغيره). كان الشرط يُلزم أن يكون المعرّف الجديد هو
@@ -300,7 +320,14 @@ service cloud.firestore {
     match /drivers/{driverId} {
       allow get: if isSignedIn();
       allow list: if isAdmin() || isDriver() || hasRole('restaurantManager');
-      allow create: if isSignedIn() && currentUid() == driverId;
+      // إنشاء مستند السائق: يبدأ بأرصدة صفرية إلزاماً. بلا هذا القيد كان
+      // سائقٌ مقبول (يملك كوداً) يُنشئ مستنده مباشرةً بـ balance/totalEarnings
+      // مختلَقين بدل المرور بمسار التطبيق — مسارٌ بديل للسرقة يعمل حتى لو
+      // أُحكمت قاعدة التحديث. الرصيد ينمو لاحقاً بحركات دفتر لكلٍّ سببها.
+      allow create: if isSignedIn() && currentUid() == driverId &&
+          request.resource.data.get('balance', 0) == 0 &&
+          request.resource.data.get('totalEarnings', 0) == 0 &&
+          request.resource.data.get('warningCount', 0) == 0;
       // كتابة السائق على مستنده مقيّدة: كانت بلا قيد على الحقول، فيمكنه
       // ضبط إنذاراته صفراً أو تضخيم totalEarnings. الرصيد يبقى مسموحاً له
       // لأن قيد العُهدة وأجرة التوصيل يُكتبان من جهازه (لا Cloud Functions
@@ -315,8 +342,16 @@ service cloud.firestore {
                     ['warningCount', 'totalEarnings', 'rating', 'ratingCount',
                      'referredByCode', 'referralRewarded',
                      'lastChallengeWindow'])) ||
-            (!isCustomer() && changedKeys().hasOnly(['isAvailable'])) ||
-            (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']))
+            // قلب توفّر السائق: يفعله جهازُ المطعم أثناء الإسناد التلقائي
+            // (لا خادم بعد)، والسائق نفسه، والمدير. كان الشرط `!isCustomer()`
+            // يسمح به لأي مصادَقٍ بلا دور «عميل» — بمن فيهم المصادَق مجهولاً
+            // من صفحة الانضمام — فيعطّل منافساً أو يدفعه لطلبات وهو غير جاهز.
+            // حصرناه بالأدوار الثلاثة الفعلية فأُغلق باب المجهول دون كسر الإسناد.
+            ((isDriver() || isAdmin() || hasRole('restaurantManager')) &&
+                changedKeys().hasOnly(['isAvailable'])) ||
+            (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']) &&
+                request.resource.data.get('rating', 0) >= 0 &&
+                request.resource.data.get('rating', 0) <= 5)
           );
       allow delete: if isAdmin();
     }
