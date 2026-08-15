@@ -538,6 +538,59 @@ const kCuisines = [
   'حلويات', 'عصائر', 'قهوة وشاي',
 ];
 
+/// جدول عمل يومٍ واحد للمطعم (ساعات العمل المجدولة — أبرز فجوة قبل
+/// الإطلاق: كان `isOpen` مفتاحاً يدوياً فقط، فيبقى المطعم «مفتوحاً» ليلاً
+/// ما لم يُطفئه أحد، فيطلب العميل من مطعمٍ نائم). الوقت "HH:mm" بنظام ٢٤
+/// ساعة. `closed=true` يعني اليوم مغلق كلياً. ويدعم ما بعد منتصف الليل:
+/// إغلاقٌ أبكر من الفتح (16:00→02:00) يعني الامتداد لليوم التالي.
+class DaySchedule {
+  final bool closed;
+  final String open;
+  final String close;
+
+  const DaySchedule({
+    this.closed = false,
+    this.open = '09:00',
+    this.close = '23:00',
+  });
+
+  factory DaySchedule.fromMap(Map<String, dynamic> map) => DaySchedule(
+        closed: map['closed'] as bool? ?? false,
+        open: map['open'] as String? ?? '09:00',
+        close: map['close'] as String? ?? '23:00',
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'closed': closed, 'open': open, 'close': close};
+
+  DaySchedule copyWith({bool? closed, String? open, String? close}) =>
+      DaySchedule(
+        closed: closed ?? this.closed,
+        open: open ?? this.open,
+        close: close ?? this.close,
+      );
+
+  static int _toMinutes(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return 0;
+    final h = (int.tryParse(parts[0]) ?? 0).clamp(0, 23);
+    final m = (int.tryParse(parts[1]) ?? 0).clamp(0, 59);
+    return h * 60 + m;
+  }
+
+  /// هل هذا اليوم مفتوح عند [nowMinutes] (دقائق منذ منتصف الليل)؟
+  bool isOpenAt(int nowMinutes) {
+    if (closed) return false;
+    final o = _toMinutes(open);
+    final c = _toMinutes(close);
+    if (o == c) return true; // فتح=إغلاق ⇒ ٢٤ ساعة
+    if (o < c) return nowMinutes >= o && nowMinutes < c;
+    // يمتد بعد منتصف الليل (16:00→02:00): مفتوحٌ من الفتح لآخر اليوم، ومن
+    // بدايته حتى الإغلاق.
+    return nowMinutes >= o || nowMinutes < c;
+  }
+}
+
 class Restaurant {
   final String id;
   final String name;
@@ -582,6 +635,11 @@ class Restaurant {
   /// تاريخ الدفاتر حين تتغير النسبة لاحقاً.
   final double commissionPercent;
 
+  /// ساعات العمل المجدولة لكل يوم أسبوع (مفتاح 1=الاثنين .. 7=الأحد،
+  /// موافقٌ لـ DateTime.weekday). فارغة في المطاعم القديمة فيحكمها المفتاح
+  /// اليدوي [isOpen] وحده (توافق خلفي: لا نغلق مطعماً فجأة بلا جدول).
+  final Map<int, DaySchedule> openingHours;
+
   const Restaurant({
     required this.id,
     required this.name,
@@ -606,9 +664,45 @@ class Restaurant {
     this.commissionPercent = 15,
     this.cuisines = const [],
     this.priceLevel = 0,
+    this.openingHours = const {},
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
+
+  /// هل المطعم مفتوح **الآن فعلاً**؟ يجمع المفتاح اليدوي (سيّدٌ: إطفاؤه
+  /// يغلق فوراً مهما قال الجدول — «مشغول اليوم») مع ساعات العمل المجدولة.
+  /// بلا جدول (مطاعم قديمة) يحكم المفتاح اليدوي وحده. يومٌ غير مضبوط في
+  /// جدولٍ موجود = مغلق ذلك اليوم.
+  bool get isOpenNow {
+    if (!isOpen) return false;
+    if (openingHours.isEmpty) return true;
+    final now = DateTime.now();
+    final today = openingHours[now.weekday];
+    if (today == null) return false;
+    return today.isOpenAt(now.hour * 60 + now.minute);
+  }
+
+  /// نصّ حالة العمل للعميل: «مفتوح» أو «مغلق» أو «مغلق — يفتح 16:00» حين
+  /// يكون اليوم له موعد فتحٍ قادم. رسالةٌ تطمئن المنتظِر بدل «مغلق» جافّة.
+  String get openStatusLabel {
+    if (isOpenNow) return 'مفتوح';
+    if (!isOpen || openingHours.isEmpty) return 'مغلق';
+    final today = openingHours[DateTime.now().weekday];
+    if (today == null || today.closed) return 'مغلق اليوم';
+    return 'مغلق — يفتح ${today.open}';
+  }
+
+  static Map<int, DaySchedule> _parseHours(dynamic raw) {
+    if (raw is! Map) return const {};
+    final out = <int, DaySchedule>{};
+    raw.forEach((k, v) {
+      final day = int.tryParse(k.toString());
+      if (day != null && day >= 1 && day <= 7 && v is Map) {
+        out[day] = DaySchedule.fromMap(v.cast<String, dynamic>());
+      }
+    });
+    return out;
+  }
 
   /// الاسم المعروض للعميل — يضمّ اسم الفرع إن وُجد، فيميّز فرعين لنفس
   /// العلامة التجارية بوضوح: «فطير ستيشن — العزيزية».
@@ -649,6 +743,7 @@ class Restaurant {
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         imageUrl: map['imageUrl'] as String?,
+        openingHours: _parseHours(map['openingHours']),
       );
 
   Map<String, dynamic> toMap() => {
@@ -675,6 +770,8 @@ class Restaurant {
         'commissionPercent': commissionPercent,
         'cuisines': cuisines,
         'priceLevel': priceLevel,
+        'openingHours':
+            openingHours.map((k, v) => MapEntry(k.toString(), v.toMap())),
       };
 }
 

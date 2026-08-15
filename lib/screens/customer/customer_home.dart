@@ -251,7 +251,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             ? double.infinity
             : haversineDistanceKm(_myLat!, _myLng!, r.lat!, r.lng!);
     result = [...result]..sort((a, b) {
-      if (a.isOpen != b.isOpen) return a.isOpen ? -1 : 1;
+      if (a.isOpenNow != b.isOpenNow) return a.isOpenNow ? -1 : 1;
       switch (_sort) {
         case _HomeSort.nearest:
           return dist(a).compareTo(dist(b));
@@ -636,13 +636,13 @@ class _RestaurantCard extends StatelessWidget {
       openColor: Colors.white,
       closedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       transitionDuration: const Duration(milliseconds: 380),
-      tappable: r.isOpen,
+      tappable: r.isOpenNow,
       openBuilder: (_, __) => RestaurantDetailScreen(restaurant: r),
       closedBuilder: (ctx, open) => Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: r.isOpen ? open : null,
+        onTap: r.isOpenNow ? open : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -677,7 +677,7 @@ class _RestaurantCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                StatusBadge(label: r.isOpen ? 'مفتوح' : 'مغلق', color: r.isOpen ? AppColors.success : Colors.grey),
+                StatusBadge(label: r.openStatusLabel, color: r.isOpenNow ? AppColors.success : Colors.grey),
               ]),
               const SizedBox(height: 2),
               // المسافة/الحي: يميّز بين فرعين لنفس المطعم في حيَّين مختلفين.
