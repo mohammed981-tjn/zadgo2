@@ -1,0 +1,47 @@
+# نشر قواعد وفهارس Firestore تلقائياً — يغني المالك عن فتح كونسول فيربيز.
+#
+# بأمر المالك (2026-08-15) اعتماداً يخالف بند أ٥ («القواعد يَنشرها المالك
+# يدوياً»): صار النشر آلياً من هذا الـWorkflow كلما تغيّر ملف القواعد أو
+# الفهارس على main — فالمساعد يتحكّم في فيربيز عبر الكود، والمالك لا يفتح
+# الكونسول. يبقى على خطة Spark المجانية (نشر القواعد لا يحتاج Blaze).
+#
+# الإعداد مرة واحدة: Firebase Console → Project settings → Service accounts
+# → Generate new private key → انسخ محتوى ملف JSON، وأضِفه سرّاً في
+# GitHub (Settings → Secrets and variables → Actions) باسم:
+#   FIREBASE_SERVICE_ACCOUNT
+# ⚠️ لا تلصق الملف في أي محادثة — سرٌّ يمنح صلاحية النشر.
+name: Deploy Firestore Rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install -g firebase-tools
+      - name: نشر القواعد والفهارس
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          # قبل إضافة السرّ: تخطٍّ رشيق (أخضر) لا فشل — كي لا يُربك المالك
+          # قبل أن يكمل الإعداد لأول مرة.
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT غير مضبوط بعد — تخطّي النشر. أضِف السرّ لتفعيل النشر التلقائي."
+            exit 0
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          firebase deploy \
+            --only firestore:rules,firestore:indexes \
+            --project restaurant-app-ed699 \
+            --non-interactive
