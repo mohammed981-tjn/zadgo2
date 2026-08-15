@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
+import '../../providers/ai_assist.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
@@ -76,6 +77,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     // الإجراءات (استرداد/إنذار/نقل) تُلخَّص آلياً إن سكت المدير، لكن
     // كلمةً منه تسبقها أفضل أثراً من أدقّ تلخيص آلي.
     final resolutionCtrl = TextEditingController();
+    bool aiLoading = false;
     final service = context.read<FirebaseService>();
     final auth = context.read<app_auth.AuthProvider>();
 
@@ -95,7 +97,48 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   alignLabelWithHint: true,
                 ),
               ),
-              const SizedBox(height: 12),
+              // زر الاقتراح (دفعة الذكاء ١): يملأ الخانة ولا يرسل شيئاً —
+              // المدير يعدّل ثم يقرّر. يقرأ مسودّته إن كتبها ليذكر الإجراء
+              // المتخذ بدل اختلاقه.
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton.icon(
+                  icon: aiLoading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.auto_awesome, size: 16),
+                  label: const Text('اقترح رداً',
+                      style: TextStyle(fontSize: 12.5)),
+                  onPressed: aiLoading
+                      ? null
+                      : () async {
+                          setDialogState(() => aiLoading = true);
+                          try {
+                            final s = await AiAssist.suggestComplaintReply(
+                              complaint: widget.complaint,
+                              resolutionDraft: resolutionCtrl.text,
+                            );
+                            resolutionCtrl.text = s;
+                          } catch (e) {
+                            if (mounted) {
+                              showError(
+                                  context,
+                                  e
+                                      .toString()
+                                      .replaceFirst('Exception: ', ''));
+                            }
+                          }
+                          // قد يُغلق الحوار أثناء الانتظار — لا setState
+                          // على عنصر مُتخلَّص منه.
+                          if (dialogCtx2.mounted) {
+                            setDialogState(() => aiLoading = false);
+                          }
+                        },
+                ),
+              ),
+              const SizedBox(height: 4),
               const Text('استرداد جزئي (نسبة من قيمة الطلب)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [0, 10, 20, 50, 100].map((pct) {
@@ -209,28 +252,67 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
   /// (صرف/تسوية) يُنفَّذ من شاشته المختصة (طلبات السحب/دفتر السائق) لا هنا.
   Future<void> _showResolveTicketDialog(BuildContext context) async {
     final resolutionCtrl = TextEditingController();
+    bool aiLoading = false;
     final service = context.read<FirebaseService>();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dCtx) => AlertDialog(
-        title: const Text('حل التذكرة'),
-        content: TextField(
-          controller: resolutionCtrl,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'القرار (يظهر لمقدّم التذكرة)',
-            hintText: 'مثال: حُدّث الآيبان في ملفك — تأكد منه في حسابك',
-            alignLabelWithHint: true,
-          ),
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx2, setDialogState) => AlertDialog(
+          title: const Text('حل التذكرة'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: resolutionCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'القرار (يظهر لمقدّم التذكرة)',
+                hintText: 'مثال: حُدّث الآيبان في ملفك — تأكد منه في حسابك',
+                alignLabelWithHint: true,
+              ),
+            ),
+            // نفس زر الاقتراح في حوار الشكوى — يملأ ولا يرسل.
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton.icon(
+                icon: aiLoading
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome, size: 16),
+                label:
+                    const Text('اقترح رداً', style: TextStyle(fontSize: 12.5)),
+                onPressed: aiLoading
+                    ? null
+                    : () async {
+                        setDialogState(() => aiLoading = true);
+                        try {
+                          final s = await AiAssist.suggestComplaintReply(
+                            complaint: widget.complaint,
+                            resolutionDraft: resolutionCtrl.text,
+                          );
+                          resolutionCtrl.text = s;
+                        } catch (e) {
+                          if (mounted) {
+                            showError(context,
+                                e.toString().replaceFirst('Exception: ', ''));
+                          }
+                        }
+                        if (dCtx2.mounted) {
+                          setDialogState(() => aiLoading = false);
+                        }
+                      },
+              ),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dCtx, false),
+                child: const Text('إلغاء')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(dCtx, true),
+                child: const Text('حل التذكرة')),
+          ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dCtx, false),
-              child: const Text('إلغاء')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('حل التذكرة')),
-        ],
       ),
     );
     if (confirmed != true || !mounted) return;
