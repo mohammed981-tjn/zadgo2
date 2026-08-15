@@ -689,13 +689,32 @@ class Restaurant {
   /// يغلق فوراً مهما قال الجدول — «مشغول اليوم») مع ساعات العمل المجدولة.
   /// بلا جدول (مطاعم قديمة) يحكم المفتاح اليدوي وحده. يومٌ غير مضبوط في
   /// جدولٍ موجود = مغلق ذلك اليوم.
+  ///
+  /// فترة ما بعد منتصف الليل تُنسب **لوردية أمس** (مراجعة 2026-08-15):
+  /// دوام الخميس 16:00→02:00 والجمعة إجازة — الجمعة 01:00 وردية الخميس
+  /// ما زالت قائمة، فيُفحص جدول أمس أيضاً؛ قبلها كان جدول «اليوم الجديد»
+  /// وحده يحكم فيُغلق المطعم قبل موعده بساعتين.
   bool get isOpenNow {
     if (!isOpen) return false;
     if (openingHours.isEmpty) return true;
     final now = DateTime.now();
-    final today = openingHours[now.weekday];
-    if (today == null) return false;
-    return today.isOpenAt(now.hour * 60 + now.minute);
+    return scheduleOpenAt(openingHours, now.weekday, now.hour * 60 + now.minute);
+  }
+
+  /// منطق الجدول الخالص — الزمن يُمرَّر لا يُقرأ، فيُختبر حتمياً.
+  static bool scheduleOpenAt(
+      Map<int, DaySchedule> hours, int weekday, int minutes) {
+    final today = hours[weekday];
+    if (today != null && today.isOpenAt(minutes)) return true;
+    // وردية أمس الممتدة: جدول أمس بنطاق عابر لمنتصف الليل (إغلاق أبكر من
+    // فتح) ولم يبلغ إغلاقه بعد.
+    final yesterday = hours[weekday == 1 ? 7 : weekday - 1];
+    if (yesterday != null && !yesterday.closed) {
+      final o = DaySchedule._toMinutes(yesterday.open);
+      final c = DaySchedule._toMinutes(yesterday.close);
+      if (c < o && minutes < c) return true;
+    }
+    return false;
   }
 
   /// نصّ حالة العمل للعميل: «مفتوح» أو «مغلق» أو «مغلق — يفتح 16:00» حين
@@ -703,9 +722,15 @@ class Restaurant {
   String get openStatusLabel {
     if (isOpenNow) return 'مفتوح';
     if (!isOpen || openingHours.isEmpty) return 'مغلق';
-    final today = openingHours[DateTime.now().weekday];
+    final now = DateTime.now();
+    final today = openingHours[now.weekday];
     if (today == null || today.closed) return 'مغلق اليوم';
-    return 'مغلق — يفتح ${today.open}';
+    // «يفتح 09:00» فقط ما دام الموعد أمامنا — بعد إغلاق اليوم كان يَعِد
+    // بموعدٍ مضى (23:30 يقول «يفتح 09:00») فيبدو التطبيق مرتبكاً.
+    final minutes = now.hour * 60 + now.minute;
+    return minutes < DaySchedule._toMinutes(today.open)
+        ? 'مغلق — يفتح ${today.open}'
+        : 'مغلق';
   }
 
   static Map<int, DaySchedule> _parseHours(dynamic raw) {
@@ -2236,8 +2261,15 @@ class Order {
   /// رسم التوصيل الثابت **للتقارير**: المخزَّن إن وُجد، وإلا القيمة المعتمدة
   /// حالياً — لنفس سبب [effectiveCommission] (طلبات قديمة بـ appShare = 0
   /// كانت تُظهر «عمولة التوصيل: 0.00»).
+  ///
+  /// السقوط على 3 يقتصر على **القديم قبل 2026-08-15** (مراجعة اليوم نفسه):
+  /// بعدها صار الرسم يُضبط من اللوحة وقد يكون **صفراً مقصوداً** (عرض
+  /// «توصيل بلا رسوم») — سقوطٌ أعمى كان سيُظهر في التقارير رسماً لم
+  /// يُحصَّل ويضخّم دخل المنصّة.
   double get effectiveAppShare =>
-      appShare > 0 ? appShare : Pricing.fixedDeliveryCommission;
+      appShare > 0 || createdAt.isAfter(DateTime(2026, 8, 15))
+          ? appShare
+          : Pricing.fixedDeliveryCommission;
 
   /// صافي مستحقّات المطعم = قيمة الوجبات بعد خصم عمولة التطبيق (15%). قيمة
   /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.

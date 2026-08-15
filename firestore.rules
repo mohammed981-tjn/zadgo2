@@ -76,10 +76,14 @@ service cloud.firestore {
       // البرمجية عن نفسه أو سكّه عميلٌ على مطعمٍ يخاصمه.
       // driverTip: إكرامية الكابتن — يكتبها العميل مرة عند الإنشاء ثم
       // تتجمد: كابتن معدَّل البرمجية يرفع إكراميته بنفسه لولا هذا (د١).
+      // walletRefundPending: علم «ردّ رصيد الإلغاء الذاتي» — يقود صرفاً
+      // إدارياً حقيقياً، فرفعه الحرّ احتيال (عميل يرفعه على طلب مُسلَّم
+      // فيصرفه المدير). محمي هنا، مع استثناء دقيق في فرع العميل لكتابة
+      // الإلغاء الذاتي المشروعة وحدها.
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
               'restaurantCompensation', 'restaurantChargeback', 'driverTip',
-              'commissionPercent'];
+              'commissionPercent', 'walletRefundPending'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
@@ -111,17 +115,22 @@ service cloud.firestore {
                   amount <= c.get('maxDiscount', 0)));
     }
 
-    /// النسبة الفعّالة لعمولة المطعم الآن: صفرٌ ما دام تاريخ الإعفاء
-    /// `commissionFreeUntil` في المستقبل (حملة «٣ شهور مجاناً»)، ثم النسبة
-    /// المضبوطة. تحرسها قاعدة إنشاء الطلب فتقبل صفراً في فترة الإعفاء دون
-    /// أن يستطيع عميلٌ معدَّل ادّعاء صفرٍ بعد انتهائها. تغيير النسبة أو
-    /// التاريخ من اللوحة **بيانات** لا يمسّ هذه القاعدة إطلاقاً.
-    function effectiveCommission(restaurantId) {
+    /// هل نسبة العمولة المختومة على الطلب مقبولة لهذا المطعم؟ تُقبل قيمتان:
+    /// **الفعّالة** (صفر في فترة إعفاء `commissionFreeUntil` ثم المضبوطة) أو
+    /// **الاسمية** (المضبوطة دائماً). السماحان معاً مقصودان (مراجعة
+    /// 2026-08-15): التطبيق يحسب الفعّالة بساعة الجهاز والقاعدة بساعة
+    /// الخادم — تطابقٌ حرفي واحد كان يرفض طلباً شرعياً عند حدود فترة
+    /// الإعفاء (انحراف ساعات) وعند النسخ القديمة التي تختم الاسمية —
+    /// **بعد شحن البطاقة**. وقبول الاسمية في فترة الإعفاء لا يضرّ: من يختم
+    /// نسبةً أعلى من الفعّالة يظلم نفسه لصالح المنصّة لا العكس، والعميل
+    /// المعدَّل ما زال ممنوعاً من ادّعاء صفرٍ بعد انتهاء الإعفاء.
+    /// تغيير النسبة أو التاريخ من اللوحة **بيانات** لا يمسّ هذه القاعدة.
+    function commissionAccepted(restaurantId, claimed) {
       let r = get(/databases/$(database)/documents/restaurants/$(restaurantId)).data;
       let until = r.get('commissionFreeUntil', null);
-      return (until != null && request.time < until)
-          ? 0
-          : r.get('commissionPercent', 15);
+      let nominal = r.get('commissionPercent', 15);
+      let free = until != null && request.time < until;
+      return claimed == nominal || (free && claimed == 0);
     }
 
     /// هل يمنح كودُ التسجيل هذا الدورَ لهذا المستخدم؟
@@ -264,8 +273,8 @@ service cloud.firestore {
           request.resource.data.get('driverTip', 0) is number &&
           request.resource.data.get('driverTip', 0) >= 0 &&
           (!('commissionPercent' in request.resource.data) ||
-              request.resource.data.commissionPercent ==
-                  effectiveCommission(request.resource.data.restaurantId)) &&
+              commissionAccepted(request.resource.data.restaurantId,
+                  request.resource.data.commissionPercent)) &&
           (request.resource.data.discountAmount == 0 ||
             (request.resource.data.discountAmount > 0 &&
              request.resource.data.couponCode is string &&
@@ -281,8 +290,19 @@ service cloud.firestore {
       // دفع، أو تصفير عمولة التطبيق وأجرة السائق.
       allow update: if isSignedIn() && (
             isAdmin() ||
+            // فرع العميل، وله استثناء واحد دقيق: كتابة الإلغاء الذاتي التي
+            // ترفع علم ردّ الرصيد — بشكلها الحرفي فقط (من حالةٍ يجوز
+            // إلغاؤها، إلى cancelled، وللطلب رصيد محفظة مستخدم فعلاً).
+            // أي شكل آخر يرفع العلم يُرفض — فلا يُصرف ردٌّ لغير مستحقه.
             (resource.data.customerId == currentUid() &&
-                !changedKeys().hasAny(orderMoneyKeys())) ||
+                (!changedKeys().hasAny(orderMoneyKeys()) ||
+                    (changedKeys().hasOnly(['status', 'updatedAt',
+                            'statusChangedAt', 'walletRefundPending']) &&
+                        request.resource.data.walletRefundPending == true &&
+                        request.resource.data.status == 'cancelled' &&
+                        resource.data.status in ['created',
+                            'restaurantPending', 'restaurantAccepted'] &&
+                        resource.data.get('walletUsed', 0) > 0))) ||
             // السائق المُسنَد يكتب isPaid وplatformCommission وحدهما من
             // الحقول المالية (عند التسليم markOrderDelivered)، فقائمته =
             // orderMoneyKeys() ناقص هذين. كانت تنقصها restaurantCompensation

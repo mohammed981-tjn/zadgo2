@@ -40,6 +40,36 @@ void main() {
     });
   });
 
+  group('وردية أمس الممتدة بعد منتصف الليل (مراجعة 2026-08-15)', () {
+    // الخميس (4) دوام 16:00→02:00 والجمعة (5) إجازة كاملة: فجر الجمعة
+    // 01:00 وردية الخميس ما زالت قائمة — كان جدول «اليوم الجديد» وحده
+    // يحكم فيغلق المطعم قبل موعده بساعتين.
+    final hours = {
+      DateTime.thursday: const DaySchedule(open: '16:00', close: '02:00'),
+      DateTime.friday: const DaySchedule(closed: true),
+    };
+    test('فجر الجمعة 01:00 = وردية الخميس مفتوحة', () {
+      expect(Restaurant.scheduleOpenAt(hours, DateTime.friday, _m(1, 0)),
+          isTrue);
+    });
+    test('فجر الجمعة 03:00 = انتهت الوردية والجمعة إجازة', () {
+      expect(Restaurant.scheduleOpenAt(hours, DateTime.friday, _m(3, 0)),
+          isFalse);
+    });
+    test('ظهر الجمعة = إجازة فعلاً', () {
+      expect(Restaurant.scheduleOpenAt(hours, DateTime.friday, _m(12, 0)),
+          isFalse);
+    });
+    test('الأحد (7) يمتد لفجر الاثنين (1) — لفّة نهاية الأسبوع', () {
+      final h = {
+        DateTime.sunday: const DaySchedule(open: '16:00', close: '01:00'),
+        DateTime.monday: const DaySchedule(closed: true),
+      };
+      expect(Restaurant.scheduleOpenAt(h, DateTime.monday, _m(0, 30)),
+          isTrue);
+    });
+  });
+
   group('isOpenNow — التوافق الخلفي', () {
     test('مطعم بلا جدول: المفتاح اليدوي وحده يحكم', () {
       const open = Restaurant(

@@ -163,14 +163,22 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   final Set<int> _fPriceLevels = {};
 
   /// إعدادات المنصّة (أجرة التوصيل) لعرض «التوصيل من X» بدقّة — من اللوحة
-  /// لا رقماً مبرمَجاً. الافتراضي مطابق للقيم القديمة حتى يُحمَّل الفعلي.
+  /// لا رقماً مبرمَجاً. `_settingsLoaded` يميّز «حُمّلت فعلاً» عن الافتراضي:
+  /// قراءة `incentives` تشترط تسجيل الدخول، فالزائر كان يرى رقماً افتراضياً
+  /// قد يخالف اللوحة ثم يفاجأ عند الدفع — الصدق: لا رقم حتى يُعرف الحقيقي.
   IncentiveSettings _settings = const IncentiveSettings();
+  bool _settingsLoaded = false;
 
   @override
   void initState() {
     super.initState();
     context.read<FirebaseService>().getIncentiveSettings().then((v) {
-      if (mounted) setState(() => _settings = v);
+      if (mounted) {
+        setState(() {
+          _settings = v;
+          _settingsLoaded = true;
+        });
+      }
     }).catchError((_) {});
   }
 
@@ -611,8 +619,9 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                 restaurant: filtered[i],
                 isFavorite: favorites.contains(filtered[i].id),
                 canFavorite: userSnap.data != null,
-                deliveryFromFee:
-                    _settings.deliveryBaseFee + _settings.deliveryAppCut);
+                deliveryFromFee: _settingsLoaded
+                    ? _settings.deliveryBaseFee + _settings.deliveryAppCut
+                    : null);
             if (i >= 8) return card;
             return card
                 .animate(delay: (55 * i).ms)
@@ -632,13 +641,15 @@ class _RestaurantCard extends StatelessWidget {
   final bool isFavorite;
   final bool canFavorite;
   /// أدنى أجرة توصيل (الأساس + رسم المنصّة) من إعدادات اللوحة — تُمرَّر من
-  /// الحالة لأن البطاقة StatelessWidget لا تصل إلى `_settings`.
-  final double deliveryFromFee;
+  /// الحالة لأن البطاقة StatelessWidget لا تصل إلى `_settings`. null =
+  /// لم تُحمَّل بعد (زائر بلا صلاحية قراءة أو شبكة) فتُخفى الشريحة بدل
+  /// عرض رقم افتراضي قد يخالف اللوحة.
+  final double? deliveryFromFee;
   const _RestaurantCard(
       {required this.restaurant,
       this.isFavorite = false,
       this.canFavorite = false,
-      this.deliveryFromFee = 12});
+      this.deliveryFromFee});
 
   @override
   Widget build(BuildContext context) {
@@ -718,13 +729,15 @@ class _RestaurantCard extends StatelessWidget {
                       label: '${r.rating.toStringAsFixed(1)} (${r.ratingCount})',
                       color: AppColors.warning),
                 _MetaChip(icon: Icons.timer_outlined, label: '${r.estimatedTimeMin} د', color: AppColors.textGray),
-                _MetaChip(icon: Icons.delivery_dining_outlined,
-                    // «توصيل مجاني» كانت كذبة مكلفة: حقل المطعم القديم صفر
-                    // بينما التسعير الموحّد يحصّل فعلاً — فيصدم العميل في
-                    // الدفع ويفقد الثقة. الصدق أرخص، والرقم شامل الرسم الثابت
-                    // (قاعدة المالك: التوصيل المعروض = الأجرة + العمولة).
-                    label: 'التوصيل من ${deliveryFromFee.toStringAsFixed(0)} ر.س',
-                    color: AppColors.textGray),
+                if (deliveryFromFee != null)
+                  _MetaChip(icon: Icons.delivery_dining_outlined,
+                      // «توصيل مجاني» كانت كذبة مكلفة: حقل المطعم القديم صفر
+                      // بينما التسعير الموحّد يحصّل فعلاً — فيصدم العميل في
+                      // الدفع ويفقد الثقة. الصدق أرخص، والرقم شامل الرسم الثابت
+                      // (قاعدة المالك: التوصيل المعروض = الأجرة + العمولة).
+                      label:
+                          'التوصيل من ${deliveryFromFee!.toStringAsFixed(0)} ر.س',
+                      color: AppColors.textGray),
                 if (isPopular)
                   const _MetaChip(icon: Icons.local_fire_department_rounded, label: 'الأكثر طلباً', color: AppColors.primary),
               ]),

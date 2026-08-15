@@ -402,15 +402,24 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 OutlinedButton.icon(
                   onPressed: () async {
                     final now = DateTime.now();
+                    // إعفاء منتهٍ لا يصلح initialDate (أقدم من firstDate
+                    // فينهار المنتقي) — يُستبدل بالاقتراح الافتراضي.
+                    final initial =
+                        (_commissionFreeUntil?.isAfter(now) ?? false)
+                            ? _commissionFreeUntil!
+                            : now.add(const Duration(days: 90));
                     final picked = await showDatePicker(
                       context: context,
-                      initialDate: _commissionFreeUntil ??
-                          now.add(const Duration(days: 90)),
+                      initialDate: initial,
                       firstDate: now,
                       lastDate: now.add(const Duration(days: 730)),
                     );
                     if (picked != null) {
-                      setState(() => _commissionFreeUntil = picked);
+                      // نهاية اليوم لا منتصف ليله: «مجاني حتى ٩/١» تعني
+                      // عند الجميع أن ٩/١ نفسه مجاني — منتصف الليل كان
+                      // يجبي عمولة يوم الوعد الأخير كاملاً.
+                      setState(() => _commissionFreeUntil = DateTime(
+                          picked.year, picked.month, picked.day, 23, 59, 59));
                     }
                   },
                   icon: Icon(

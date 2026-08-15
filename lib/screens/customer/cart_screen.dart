@@ -340,6 +340,40 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       return;
     }
 
+    // جلبٌ طازج لحظة التأكيد لا نسخة لحظة الفتح (مراجعة 2026-08-15): نسبة
+    // العمولة وحالة الفتح وأجرة اللوحة قد تتغيّر بينما شاشة الدفع مفتوحة،
+    // والقواعد تتحقق من **الطازج** — فختمٌ من نسخة مخبّأة يُرفض بعد شحن
+    // البطاقة. الفشل هنا يوقف مبكراً قبل أي دفع.
+    Restaurant? freshRestaurant;
+    try {
+      freshRestaurant =
+          await context.read<FirebaseService>().getRestaurantOnce(
+              context.read<CartProvider>().restaurantId!);
+      if (!mounted) return;
+      final freshSettings =
+          await context.read<FirebaseService>().getIncentiveSettings();
+      if (!mounted) return;
+      setState(() {
+        _restaurant = freshRestaurant;
+        _settings = freshSettings;
+      });
+    } catch (_) {
+      if (mounted) {
+        showError(context, 'تعذّر تحديث بيانات المطعم — تحقق من الاتصال وحاول');
+      }
+      return;
+    }
+    // مطعم أُغلق والعميل ما زال في السلة: يُرفض قبل بوابة الدفع لا بعدها.
+    // الطلب المجدول معفى — جدولته لموعدٍ قادم لا للحظة الإغلاق هذه.
+    if (freshRestaurant != null &&
+        !freshRestaurant.isOpenNow &&
+        _scheduledFor == null) {
+      showError(context,
+          '${freshRestaurant.displayName} ${freshRestaurant.openStatusLabel} — '
+          'جرّب الطلب المجدول أو عُد في وقت العمل');
+      return;
+    }
+
     // إعادة تحقق الكوبون لحظة الدفع لا لحظة اللصق فقط: بين الاثنتين قد
     // يعدّل العميل سلته تحت الحد الأدنى، أو توقف الإدارة الكود، أو ينتهي،
     // أو يستنفده الآخرون. النسخة المخبّأة في الشاشة لا تعرف شيئاً من ذلك.
@@ -425,10 +459,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     const uuid = Uuid();
     final orderId = uuid.v4();
 
-    final restaurant = _restaurant ?? await service.getRestaurantOnce(cart.restaurantId!);
+    // النسخة الطازجة المجلوبة أول الدالة — لا نسخة لحظة فتح الشاشة.
+    final restaurant = freshRestaurant;
 
-    // تسعير موحّد: التوصيل حسب المسافة (أجرة السائق)، ورسم ثابت للتطبيق (3 ر.س)
-    // كحصّة التطبيق من التوصيل، وعمولة 15% على قيمة الوجبات.
+    // تسعير موحّد: التوصيل حسب المسافة (أجرة السائق)، ورسم المنصّة وأجرة
+    // الكيلومترات من إعدادات اللوحة، والعمولة بالنسبة الفعّالة للمطعم.
     double? distanceKm;
     if (restaurant?.lat != null && restaurant?.lng != null) {
       distanceKm = haversineDistanceKm(restaurant!.lat!, restaurant.lng!, _lat!, _lng!);
@@ -467,7 +502,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       driverShare: driverDeliveryFee,
       appShare: _settings.deliveryAppCut,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
-      platformCommission: Pricing.appCommission(cart.itemsTotal),
+      // بالنسبة الفعّالة لا 15% الثابتة: مطعم معفى («مجاني حتى») كان يُختم
+      // طلبه بعمولة 15% هنا بينما commissionPercent صفر — تناقض تدقيق داخل
+      // المستند نفسه (التسليم يعيد كتابتها لاحقاً فلا أثر مالياً، لكن
+      // الصدق من الإنشاء أوجب).
+      platformCommission: cart.itemsTotal *
+          ((restaurant?.effectiveCommissionPercent ?? 15) / 100),
       deliveryLat: _lat,
       deliveryLng: _lng,
       restaurantLat: restaurant?.lat,
