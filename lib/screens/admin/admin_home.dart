@@ -416,6 +416,73 @@ class _StatsTabState extends State<_StatsTab> {
             ]),
           ),
 
+        // ردود محافظ الإلغاء الذاتي المعلّقة (مراجعة 2026-08-15): القواعد
+        // تمنع العميل من ردّ رصيده بنفسه — بحق — فيُختم طلبه الملغى بعلمٍ
+        // يظهر هنا ليصرفه المدير بضغطة. البطاقة تختفي حين لا معلّق.
+        StreamBuilder<List<Order>>(
+          stream:
+              context.read<FirebaseService>().streamWalletRefundsPending(),
+          builder: (ctx, snap) {
+            final pending = snap.data ?? const <Order>[];
+            if (pending.isEmpty) return const SizedBox.shrink();
+            return Container(
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.warning.withOpacity(0.4)),
+              ),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.account_balance_wallet_outlined,
+                          color: AppColors.warning, size: 18),
+                      const SizedBox(width: 6),
+                      Text('ردود محفظة معلّقة (${pending.length})',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning)),
+                    ]),
+                    const SizedBox(height: 4),
+                    const Text(
+                        'عملاء ألغوا طلبات دفعوها من محافظهم — الردّ بضغطتك '
+                        'أنت (العميل لا يستطيع ردّ رصيده بنفسه).',
+                        style: TextStyle(
+                            fontSize: 11.5, color: AppColors.textGray)),
+                    const SizedBox(height: 6),
+                    for (final o in pending.take(5))
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                              '#${o.orderNumber} — ${o.customerName}: '
+                              '${o.walletUsed.toStringAsFixed(0)} ر.س',
+                              style: const TextStyle(fontSize: 12.5)),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            await context
+                                .read<FirebaseService>()
+                                .settlePendingWalletRefund(o);
+                            if (ctx.mounted) {
+                              showSuccess(ctx,
+                                  'رُدّ الرصيد لمحفظة ${o.customerName}');
+                            }
+                          },
+                          child: const Text('ردّ الرصيد',
+                              style: TextStyle(fontSize: 12.5)),
+                        ),
+                      ]),
+                    if (pending.length > 5)
+                      Text('و${pending.length - 5} أخرى…',
+                          style: const TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray)),
+                  ]),
+            );
+          },
+        ),
+
         GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
           _stat('الطلبات', '${orders.length}', Icons.receipt_long_outlined, fc.primary),

@@ -368,7 +368,15 @@ class _LiveTrackingCard extends StatelessWidget {
     if (ok != true || !context.mounted) return;
     try {
       await service.cancelOrderByCustomer(order.id);
-      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+      // صدق الرسالة: لو دُفع من المحفظة فالردّ يصرفه المدير (القواعد تمنع
+      // زيادة العميل رصيدَه بنفسه) — يُقال ذلك صراحةً لا يُترك مفاجأة.
+      if (context.mounted) {
+        showSuccess(
+            context,
+            order.walletUsed > 0
+                ? 'تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً'
+                : 'تم إلغاء الطلب');
+      }
     } catch (_) {
       if (context.mounted) {
         showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
@@ -881,7 +889,15 @@ class _OrderCard extends StatelessWidget {
     if (ok != true || !context.mounted) return;
     try {
       await service.cancelOrderByCustomer(order.id);
-      if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+      // صدق الرسالة: لو دُفع من المحفظة فالردّ يصرفه المدير (القواعد تمنع
+      // زيادة العميل رصيدَه بنفسه) — يُقال ذلك صراحةً لا يُترك مفاجأة.
+      if (context.mounted) {
+        showSuccess(
+            context,
+            order.walletUsed > 0
+                ? 'تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً'
+                : 'تم إلغاء الطلب');
+      }
     } catch (_) {
       if (context.mounted) {
         showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');

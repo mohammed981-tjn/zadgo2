@@ -1668,86 +1668,79 @@ class FirebaseService {
   Future<void> markOrderPickedUp(String orderId) => markPickedUpBySelf(orderId);
 
   Future<void> markOrderDelivered(String orderId, String driverId) async {
-    final orderDoc = await _orders.doc(orderId).get();
-    if (!orderDoc.exists || orderDoc.data() == null) {
-      throw Exception('الطلب غير موجود');
-    }
-    final order = models.Order.fromMap(orderDoc.data()!, orderDoc.id);
-    // حصانة التكرار: طلبٌ سُلّم فعلاً يخرج بلا أثر. بدون هذا كان
-    // `_isValidStatusTransition` يمرّر delivered→delivered (from==to)، فتُقيَّد
-    // أجرة السائق وإكراميته **مرّتين** ويتضاعف عدّاد توصيلاته مع ضغطتين
-    // سريعتين على «تأكيد التوصيل» (بطاقة السائق أو إنهاء المدير) قبل تحدُّث
-    // الحالة. الفحص هنا لا في `_isValidStatusTransition` كي لا نغيّر سلوك
-    // بقية المستدعين المعتمدين على تمرير from==to.
-    if (order.status == models.OrderStatus.delivered) return;
-    if (!_isValidStatusTransition(order.status, models.OrderStatus.delivered)) {
-      throw Exception(
-          'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
-    }
-    final commission = order.calculatedCommission;
-    final driverPayout = order.driverShare;
-    final paymentMethod = order.paymentMethod;
-    final orderNumber = order.orderNumber;
-    // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
-    //
-    // • نقدي: قيمة الطلب قُيّدت عُهدةً لحظة الاستلام من المطعم
-    //   (markPickedUpBySelf)، فلا قيد إضافياً هنا — القيد المزدوج كان
-    //   سيُحمّل السائق الطلب مرّتين. الاستثناء: طلب استُلم بنسخة قديمة
-    //   لا تعرف قيد العُهدة (custodyDebited=false)، فيُقيَّد هنا كالسابق
-    //   حتى لا يضيع القيد كلياً أثناء الانتقال بين النسختين.
-    // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
-    final isCash = paymentMethod == models.PaymentMethod.cash;
-    // الإكرامية (ح3): إلكترونياً قبضتها المنصّة مع المبلغ فتُقيَّد للكابتن
-    // هنا مع أجرته — كاملةً بلا اقتطاع. نقدياً هي بيده أصلاً مع التحصيل
-    // فلا قيد لها (كأجرته النقدية تماماً).
-    final delta = isCash
-        // المسار القديم (استلام بنسخة لا تعرف العُهدة): نفس معادلة العُهدة
-        // بخصم المدفوع من المحفظة — لا -(itemsTotal+appShare) الخام.
-        ? (order.custodyDebited ? 0.0 : -order.custodyAmount)
-        : driverPayout + order.driverTip;
-
-    final driverDoc = await _drivers.doc(driverId).get();
-    final currentBalance = driverDoc.exists && driverDoc.data() != null
-        ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
-        : 0.0;
-
+    // كل شيء في **معاملة ذرّية واحدة** (مراجعة 2026-08-15): كان الفحص
+    // قراءةً منفصلة ثم batch، فضغطتان متزامنتان من جهازين (بطاقة السائق +
+    // إنهاء المدير) تقرآن الحالة قبل ثبوت أولاهما فتمرّان معاً — أجرة
+    // وإكرامية مرّتين وعدّاد توصيلات +2. الآن القراءة والفحص والقيود في
+    // معاملة واحدة: الثانية تقرأ delivered داخل معاملتها فتخرج بلا أثر.
     final txRef = _driverTransactions.doc();
-    final batch = _db.batch();
-    batch.update(_orders.doc(orderId), {
-      'status': models.OrderStatus.delivered.name,
-      'isPaid': true,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'statusChangedAt': FieldValue.serverTimestamp(),
-      'platformCommission': commission,
+    await _db.runTransaction((tx) async {
+      final orderSnap = await tx.get(_orders.doc(orderId));
+      if (!orderSnap.exists || orderSnap.data() == null) {
+        throw Exception('الطلب غير موجود');
+      }
+      final order = models.Order.fromMap(orderSnap.data()!, orderSnap.id);
+      // حصانة التكرار: طلبٌ سُلّم فعلاً يخرج بلا أثر. الفحص هنا لا في
+      // `_isValidStatusTransition` (التي تمرّر from==to) كي لا نغيّر سلوك
+      // بقية المستدعين.
+      if (order.status == models.OrderStatus.delivered) return;
+      if (!_isValidStatusTransition(
+          order.status, models.OrderStatus.delivered)) {
+        throw Exception(
+            'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
+      }
+      // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
+      //
+      // • نقدي: قيمة الطلب قُيّدت عُهدةً لحظة الاستلام من المطعم
+      //   (markPickedUpBySelf)، فلا قيد إضافياً هنا — القيد المزدوج كان
+      //   سيُحمّل السائق الطلب مرّتين. الاستثناء: طلب استُلم بنسخة قديمة
+      //   لا تعرف قيد العُهدة (custodyDebited=false)، فيُقيَّد هنا كالسابق.
+      // • إلكتروني: التطبيق هو من قبض المبلغ، فتُقيَّد أجرة السائق لصالحه.
+      //   والإكرامية (ح3) معها كاملةً بلا اقتطاع — نقديّها بيده أصلاً.
+      final isCash = order.paymentMethod == models.PaymentMethod.cash;
+      final delta = isCash
+          ? (order.custodyDebited ? 0.0 : -order.custodyAmount)
+          : order.driverShare + order.driverTip;
+
+      final driverSnap = await tx.get(_drivers.doc(driverId));
+      final currentBalance = driverSnap.exists && driverSnap.data() != null
+          ? models.Driver.fromMap(driverSnap.data()!, driverSnap.id).balance
+          : 0.0;
+
+      tx.update(_orders.doc(orderId), {
+        'status': models.OrderStatus.delivered.name,
+        'isPaid': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'statusChangedAt': FieldValue.serverTimestamp(),
+        'platformCommission': order.calculatedCommission,
+      });
+      tx.update(_drivers.doc(driverId), {
+        'totalDeliveries': FieldValue.increment(1),
+        if (delta != 0) 'balance': FieldValue.increment(delta),
+        'isAvailable': true,
+      });
+      // الحركة في نفس المعاملة، فلا يتغيّر رصيد دون سجلّ يفسّره. وحين لا
+      // تغيير (نقدي قُيّدت عُهدته عند الاستلام) لا حركة صفرية تلوّث السجلّ.
+      if (delta != 0) {
+        tx.set(
+          txRef,
+          models.DriverTransaction(
+            id: txRef.id,
+            driverId: driverId,
+            type: isCash
+                ? models.DriverTransactionType.deliveryCash
+                : models.DriverTransactionType.deliveryOnline,
+            amount: delta,
+            balanceAfter: currentBalance + delta,
+            orderId: orderId,
+            orderNumber: order.orderNumber,
+            performedBy: _auth.currentUser?.uid ?? driverId,
+            createdAt: DateTime.now(),
+          ).toMap(),
+        );
+      }
     });
-    batch.update(_drivers.doc(driverId), {
-      'totalDeliveries': FieldValue.increment(1),
-      if (delta != 0) 'balance': FieldValue.increment(delta),
-      'isAvailable': true,
-    });
-    // الحركة تُكتب في نفس الدفعة، فلا يتغيّر رصيد دون سجلّ يفسّره.
-    // وحين لا تغيير على الرصيد (نقدي قُيّدت عُهدته عند الاستلام) لا تُكتب
-    // حركة صفرية تُلوّث السجلّ.
-    if (delta != 0) {
-      batch.set(
-        txRef,
-        models.DriverTransaction(
-          id: txRef.id,
-          driverId: driverId,
-          type: isCash
-              ? models.DriverTransactionType.deliveryCash
-              : models.DriverTransactionType.deliveryOnline,
-          amount: delta,
-          balanceAfter: currentBalance + delta,
-          orderId: orderId,
-          orderNumber: orderNumber,
-          performedBy: _auth.currentUser?.uid ?? driverId,
-          createdAt: DateTime.now(),
-        ).toMap(),
-      );
-    }
-    await batch.commit();
-    // التسليم يغيّر الحالة داخل الدفعة لا عبر updateOrderStatus، فيُبلَّغ
+    // التسليم يغيّر الحالة داخل المعاملة لا عبر updateOrderStatus، فيُبلَّغ
     // الخادم هنا صراحةً ليصل العميلَ إشعارُ «تم التوصيل».
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
@@ -1930,6 +1923,12 @@ class FirebaseService {
       throw Exception('كود الخصم غير صحيح');
     }
     final coupon = models.Coupon.fromMap(doc.data()!, doc.id);
+    // كوبون نسبة بلا سقف: القواعد (بعد تحصين 2026-08-15) ترفضه لحظة إنشاء
+    // الطلب — فلو مرّ من هنا لفشل الطلب **بعد** شحن البطاقة. يُرفض مبكراً
+    // برسالة تدلّ المدير على العلاج بدل فشلٍ غامض عند الدفع.
+    if (coupon.type == models.CouponType.percentage && coupon.maxDiscount <= 0) {
+      throw Exception('هذا الكود يحتاج ضبط «سقف الخصم» من لوحة الإدارة');
+    }
     if (!coupon.isActive) throw Exception('هذا الكود موقوف');
     if (coupon.isExpired) throw Exception('انتهت صلاحية هذا الكود');
     if (coupon.isExhausted) throw Exception('استُنفد هذا الكود');
@@ -2172,17 +2171,33 @@ class FirebaseService {
   /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
   Future<void> cancelOrder(String orderId) async {
     final order = await _getOrderOrThrow(orderId);
-    // حصانة التكرار (idempotency): طلبٌ أُلغي أو رُدّ ماله فعلاً يجب ألا
-    // يُعالَج ثانيةً. بدون هذا الحارس كان `updateOrderStatus` يمرّر
-    // cancelled→cancelled (لأن `_isValidStatusTransition` تعيد true حين
-    // from==to)، فيُعاد استرداد المحفظة وعكس العُهدة مرّتين مع كل ضغطة
-    // «إلغاء» متكرّرة أو ضغطتين متزامنتين من جهازين. لا نحجب noDriverFound
-    // فإلغاؤه مسار مشروع لم يُسترَدّ ماله بعد.
-    if (order.status == models.OrderStatus.cancelled ||
-        order.status == models.OrderStatus.refunded) {
-      return;
-    }
-    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
+    // حصانة التكرار **بمعاملة ذرّية** لا فحصاً منفصلاً (مراجعة 2026-08-15):
+    // الفحص المنفصل يمنع التكرار المتعاقب فقط — ضغطتان متزامنتان من
+    // جهازين تقرآن الحالة قبل ثبوت أولاهما فتمرّان معاً ويتكرر الاسترداد
+    // وعكس العُهدة. هنا القراءة والقفل (كتابة cancelled) في معاملة واحدة:
+    // واحدٌ فقط يفوز بالقفل ويجري الآثار المالية، والثاني يقرأ cancelled
+    // داخل معاملته فيخرج بصمت. لا نحجب noDriverFound — إلغاؤه مشروع.
+    final won = await _db.runTransaction<bool>((tx) async {
+      final snap = await tx.get(_orders.doc(orderId));
+      final data = snap.data();
+      if (!snap.exists || data == null) return false;
+      final status = models.OrderStatus.values.firstWhere(
+        (s) => s.name == (data['status'] as String? ?? ''),
+        orElse: () => models.OrderStatus.created,
+      );
+      if (status == models.OrderStatus.cancelled ||
+          status == models.OrderStatus.refunded) {
+        return false;
+      }
+      tx.update(_orders.doc(orderId), {
+        'status': models.OrderStatus.cancelled.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'statusChangedAt': FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (!won) return;
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
     await _refundWalletOnCancel(order);
     // إن كان السائق قد استلم الطلب فعُهدته مقيّدة عليه — تُردّ له، فالطلب
     // الملغى لن يحصّل قيمته من أحد.
@@ -2263,10 +2278,64 @@ class FirebaseService {
     if (!order.canCustomerCancel) {
       throw Exception('لا يمكن إلغاء الطلب بعد بدء التحضير، تواصل مع الإدارة');
     }
-    await updateOrderStatus(orderId, models.OrderStatus.cancelled);
-    await _refundWalletOnCancel(order);
+    // القلب معاملةً (نفس حصانة الإلغاء الإداري)، **وبلا استرداد من جهاز
+    // العميل** (مراجعة 2026-08-15): القواعد — بحق — تمنع العميل من زيادة
+    // رصيده، فكان `_refundWalletOnCancel` يُرفض بصمت: الطلب يُلغى فعلاً
+    // ورصيده يضيع بلا أثر، والرسالة تكذب «تعذّر الإلغاء». الآن يُختم
+    // `walletRefundPending` على الطلب فيظهر لدى المدير ليصرفه بضغطة —
+    // الاسترداد الآلي الحق يحتاج خادماً (المسار د).
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(_orders.doc(orderId));
+      final data = snap.data();
+      if (!snap.exists || data == null) throw Exception('الطلب غير موجود');
+      final status = models.OrderStatus.values.firstWhere(
+        (s) => s.name == (data['status'] as String? ?? ''),
+        orElse: () => models.OrderStatus.created,
+      );
+      if (status == models.OrderStatus.cancelled ||
+          status == models.OrderStatus.refunded) {
+        return; // أُلغي من مسار آخر — لا تكرار للآثار.
+      }
+      tx.update(_orders.doc(orderId), {
+        'status': models.OrderStatus.cancelled.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'statusChangedAt': FieldValue.serverTimestamp(),
+        if (order.walletUsed > 0) 'walletRefundPending': true,
+      });
+    });
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
     await _releaseOrderDriver(order);
     await _releaseCouponOnCancel(order);
+  }
+
+  /// طلبات الإلغاء الذاتي التي تنتظر ردّ رصيد المحفظة — يصرفها المدير.
+  Stream<List<models.Order>> streamWalletRefundsPending() => _orders
+      .where('walletRefundPending', isEqualTo: true)
+      .snapshots()
+      .map((s) =>
+          s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// صرف استرداد المحفظة المعلّق — بصلاحية المدير (الزيادة محظورة على
+  /// العميل). يمسح العلم أولاً ثم يضيف الرصيد، فتكرار الضغط لا يصرف مرتين.
+  Future<void> settlePendingWalletRefund(models.Order order) async {
+    final cleared = await _db.runTransaction<bool>((tx) async {
+      final snap = await tx.get(_orders.doc(order.id));
+      if (snap.data()?['walletRefundPending'] != true) return false;
+      tx.update(_orders.doc(order.id), {'walletRefundPending': false});
+      return true;
+    });
+    if (!cleared) return;
+    await addWalletCredit(
+      order.customerId,
+      order.walletUsed,
+      type: models.WalletTransactionType.orderReversal,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      note: 'ردّ رصيد إلغاء ذاتي',
+    );
+    logAdminAction('wallet.refund',
+        'ردّ ${order.walletUsed.toStringAsFixed(2)} ر.س لمحفظة عميل الطلب #${order.orderNumber}');
   }
 
   Future<models.Order> _getOrderOrThrow(String orderId) async {
@@ -2516,20 +2585,26 @@ class FirebaseService {
     String? review,
     String? restaurantId,
   }) async {
-    // حصانة التكرار: طلبٌ مُقيَّم فعلاً لا يُقيَّم ثانيةً. `updateDriverRating`
-    // و`updateRestaurantRating` يزيدان `ratingCount` ويعيدان حساب المتوسط في
-    // كل نداء، فتقييمٌ متكرّر (إعادة إرسال شبكي أو فتح الشاشة من جهازين)
-    // كان يضخّم عدد التقييمات ويحرّف متوسط السائق والمطعم.
-    final existing = await _orders.doc(orderId).get();
-    if (existing.data()?['isRated'] == true) return;
-    await _orders.doc(orderId).update({
-      'customerRating': orderRating,
-      'driverRating': driverRating,
-      'isRated': true,
-      // كان المفتاح 'review' بينما النموذج يقرأ 'customerReview' — فكل نص
-      // تقييم كتبه عميل كان يُحفظ في حقل لا يقرؤه أحد ويضيع من كل الشاشات.
-      if (review != null) 'customerReview': review,
+    // حصانة التكرار **بمعاملة ذرّية** (مراجعة 2026-08-15): الفحص المنفصل
+    // يمنع التكرار المتعاقب فقط، وطلبان متزامنان (إعادة إرسال شبكي أو
+    // جهازان) كانا يمرّان معاً فيضخّمان `ratingCount` ويحرّفان المتوسط.
+    // القراءة وختم `isRated` في معاملة واحدة: واحدٌ فقط يفوز ويُحدّث
+    // المتوسطات.
+    final won = await _db.runTransaction<bool>((tx) async {
+      final snap = await tx.get(_orders.doc(orderId));
+      if (!snap.exists) return false;
+      if (snap.data()?['isRated'] == true) return false;
+      tx.update(_orders.doc(orderId), {
+        'customerRating': orderRating,
+        'driverRating': driverRating,
+        'isRated': true,
+        // كان المفتاح 'review' بينما النموذج يقرأ 'customerReview' — فكل نص
+        // تقييم كتبه عميل كان يُحفظ في حقل لا يقرؤه أحد ويضيع من الشاشات.
+        if (review != null) 'customerReview': review,
+      });
+      return true;
     });
+    if (!won) return;
     await updateDriverRating(driverId, driverRating);
     if (restaurantId != null) {
       await updateRestaurantRating(restaurantId, orderRating);

@@ -289,6 +289,16 @@ class _CouponFormState extends State<_CouponForm> {
       showError(context, 'النسبة لا تتجاوز 100%');
       return;
     }
+    // سقف الخصم صار **إلزامياً** لكوبون النسبة (تحصين 2026-08-15): القواعد
+    // ترفض خصم نسبةٍ بلا سقف لحظة إنشاء الطلب — فكوبون يُحفظ بلا سقف يعمل
+    // في الواجهة ثم يفشل عند الدفع. يُمنع من المنبع برسالة تشرح السبب.
+    if (_type == CouponType.percentage &&
+        (double.tryParse(_maxDiscount.text.trim()) ?? 0) <= 0) {
+      showError(context,
+          'كوبون النسبة يحتاج «سقف الخصم» — بلا سقف يمكن أن يبتلع خصمُ طلبٍ '
+          'كبير دخلَ يومٍ كامل، والنظام يرفضه عند الدفع');
+      return;
+    }
     setState(() => _saving = true);
     // الكود معرّف المستند والحفظ بالدمج، فكود جديد باسم كودٍ قائم كان
     // يندمج فيه صامتاً: يستبدل قيمته ويرث عدّاد استخداماته — بلا أي تنبيه.
@@ -385,7 +395,7 @@ class _CouponFormState extends State<_CouponForm> {
                 controller: _maxDiscount,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                    labelText: 'سقف الخصم (ر.س) — اختياري',
+                    labelText: 'سقف الخصم (ر.س) — إلزامي لكوبون النسبة',
                     hintText: 'يمنع خصماً ضخماً على طلب كبير'),
               ),
             TextField(
