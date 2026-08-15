@@ -127,7 +127,9 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
 
           // «نقدي» يستحق شريط التحصيل فقط إن بقي على العميل ما يُحصَّل —
           // محفظته قد تكون غطّت المبلغ كله فيُعامل كالمدفوع إلكترونياً.
-          final collectAmount = o.payableTotal - o.walletUsed;
+          // التحصيل النقدي يشمل الإكرامية (ح3) — هي للكابتن نفسه لكنها
+          // تُحصَّل مع المبلغ، وبيانها منفصل كي يعرف أن الزيادة حقّه.
+          final collectAmount = o.payableTotal - o.walletUsed + o.driverTip;
           final isCash =
               o.paymentMethod == PaymentMethod.cash && collectAmount > 0;
           final prePickup = o.status == OrderStatus.readyForPickup ||
@@ -178,7 +180,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                     child: Column(children: [
                       const Text('رقم الطلب',
                           style: TextStyle(
-                              fontSize: 12, color: AppColors.textGray)),
+                              fontSize: 12.5, color: AppColors.textGray)),
                       Text('#${o.orderNumber}',
                           style: TextStyle(
                               fontSize: 44,
@@ -187,7 +189,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                               color: fc.primaryDark)),
                       Text(o.restaurantName,
                           style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w600)),
+                              fontSize: 14.5, fontWeight: FontWeight.w600)),
                       // وقت الطلب وعمره (بلاغ المالك ٢٠٢٦-٠٨-١١): المذكرة
                       // تُعرض على موظف المطعم، وأول ما يُسأل عنه «متى دخل
                       // الطلب؟» — وكانت بلا أي زمن، فيبقى الجواب تخميناً
@@ -232,7 +234,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                           children: [
                             Text(
                                 isCash
-                                    ? 'نقدي — حصّل من العميل ${formatCurrency(collectAmount)}'
+                                    ? 'نقدي — حصّل من العميل ${formatCurrency(collectAmount)}${o.driverTip > 0 ? " (منها إكراميتك ${formatCurrency(o.driverTip)} 🎁)" : ""}'
                                     : 'مدفوع — لا تحصيل من أحد',
                                 style: TextStyle(
                                     fontWeight: FontWeight.w800,
@@ -260,11 +262,11 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                           Row(children: [
                             const Text('الأصناف',
                                 style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 15)),
+                                    fontWeight: FontWeight.bold, fontSize: 14.5)),
                             const Spacer(),
                             Text('${o.items.fold<int>(0, (s, i) => s + i.quantity)} قطعة',
                                 style: const TextStyle(
-                                    fontSize: 12, color: AppColors.textGray)),
+                                    fontSize: 12.5, color: AppColors.textGray)),
                           ]),
                           const Divider(),
                           ...o.items.map((i) => Padding(
@@ -281,7 +283,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                     child: Text('${i.quantity}×',
                                         style: TextStyle(
                                             fontWeight: FontWeight.w800,
-                                            fontSize: 15,
+                                            fontSize: 14.5,
                                             color: fc.primaryDark)),
                                   ),
                                   const SizedBox(width: 10),
@@ -292,7 +294,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                         children: [
                                           Text(i.name,
                                               style: const TextStyle(
-                                                  fontSize: 15.5,
+                                                  fontSize: 14.5,
                                                   fontWeight: FontWeight.w600)),
                                           // الخيارات (كبير • جبن...) جزء من
                                           // المطابقة مع الشنطة لا زينة.

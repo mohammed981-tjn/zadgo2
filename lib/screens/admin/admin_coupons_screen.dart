@@ -77,11 +77,11 @@ Future<void> _showPerformanceSheet(BuildContext context, Coupon c) async {
             Row(children: [
               Text('أداء ${c.code}',
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16)),
+                      fontWeight: FontWeight.bold, fontSize: 17)),
               const Spacer(),
               Text('آخر ${snap.data!.length} طلب',
                   style: const TextStyle(
-                      fontSize: 11, color: AppColors.textGray)),
+                      fontSize: 11.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 12),
             PriceRow(label: 'طلبات مكتملة بالكود', value: '${delivered.length}'),
@@ -100,7 +100,7 @@ Future<void> _showPerformanceSheet(BuildContext context, Coupon c) async {
               cost > 0
                   ? 'كل ريال خصم جلب ${(revenue / cost).toStringAsFixed(1)} ريال مبيعات'
                   : 'لا خصومات مكتملة بعد',
-              style: const TextStyle(fontSize: 12, color: AppColors.textGray),
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
             ),
           ]);
         },
@@ -213,7 +213,7 @@ class _CouponCard extends StatelessWidget {
   }
 
   Widget _meta(String label, String value) => Text('$label: $value',
-      style: const TextStyle(fontSize: 12, color: AppColors.textGray));
+      style: const TextStyle(fontSize: 12.5, color: AppColors.textGray));
 }
 
 void _showCouponForm(BuildContext context, Coupon? existing) {
@@ -289,6 +289,16 @@ class _CouponFormState extends State<_CouponForm> {
       showError(context, 'النسبة لا تتجاوز 100%');
       return;
     }
+    // سقف الخصم صار **إلزامياً** لكوبون النسبة (تحصين 2026-08-15): القواعد
+    // ترفض خصم نسبةٍ بلا سقف لحظة إنشاء الطلب — فكوبون يُحفظ بلا سقف يعمل
+    // في الواجهة ثم يفشل عند الدفع. يُمنع من المنبع برسالة تشرح السبب.
+    if (_type == CouponType.percentage &&
+        (double.tryParse(_maxDiscount.text.trim()) ?? 0) <= 0) {
+      showError(context,
+          'كوبون النسبة يحتاج «سقف الخصم» — بلا سقف يمكن أن يبتلع خصمُ طلبٍ '
+          'كبير دخلَ يومٍ كامل، والنظام يرفضه عند الدفع');
+      return;
+    }
     setState(() => _saving = true);
     // الكود معرّف المستند والحفظ بالدمج، فكود جديد باسم كودٍ قائم كان
     // يندمج فيه صامتاً: يستبدل قيمته ويرث عدّاد استخداماته — بلا أي تنبيه.
@@ -347,7 +357,7 @@ class _CouponFormState extends State<_CouponForm> {
           children: [
             Text(widget.existing == null ? 'كود خصم جديد' : 'تعديل الكود',
                 style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             TextField(
               controller: _code,
@@ -385,7 +395,7 @@ class _CouponFormState extends State<_CouponForm> {
                 controller: _maxDiscount,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                    labelText: 'سقف الخصم (ر.س) — اختياري',
+                    labelText: 'سقف الخصم (ر.س) — إلزامي لكوبون النسبة',
                     hintText: 'يمنع خصماً ضخماً على طلب كبير'),
               ),
             TextField(
@@ -474,7 +484,7 @@ class _CouponFormState extends State<_CouponForm> {
               child: const Text(
                 'الخصم تتحمّله المنصّة من حصّتها — مستحق المطعم وأجرة السائق '
                 'لا تتأثران.',
-                style: TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 12.5),
               ),
             ),
             const SizedBox(height: 14),

@@ -160,7 +160,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             ]),
           ),
           const SizedBox(height: 20),
-          const Text('نوع الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const Text('نوع الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -183,7 +183,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             }).toList(),
           ),
           const SizedBox(height: 20),
-          const Text('الشكوى ضد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const Text('الشكوى ضد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 8),
           ...options.map((opt) {
             final label = opt.$1;
@@ -203,7 +203,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             );
           }),
           const SizedBox(height: 12),
-          const Text('تفاصيل الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          const Text('تفاصيل الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 8),
           TextField(
             controller: _descriptionCtrl,

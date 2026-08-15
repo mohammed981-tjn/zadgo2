@@ -1,0 +1,61 @@
+# نشر قواعد وفهارس Firestore تلقائياً — يغني المالك عن فتح كونسول فيربيز.
+#
+# بأمر المالك (2026-08-15) اعتماداً يخالف بند أ٥ («القواعد يَنشرها المالك
+# يدوياً»): صار النشر آلياً كلما تغيّر ملف القواعد أو الفهارس على main —
+# فالمساعد يتحكّم في فيربيز عبر الكود، والمالك لا يفتح الكونسول. يبقى على
+# خطة Spark المجانية (نشر القواعد لا يحتاج Blaze).
+#
+# المصادقة عبر google-github-actions/auth الرسمي (يهيّئ ADC بثبات) بدل
+# كتابة الملف يدوياً وGOOGLE_APPLICATION_CREDENTIALS — الطريقة الأخيرة
+# فشلت بـ«Failed to authenticate» (2026-08-15).
+#
+# الإعداد مرة واحدة: Firebase Console → Project settings → Service accounts
+# → Generate new private key → انسخ محتوى JSON، وأضِفه سرّاً في GitHub
+# (Settings → Secrets and variables → Actions) باسم FIREBASE_SERVICE_ACCOUNT.
+# ⚠️ لا تلصق الملف في أي محادثة — سرٌّ يمنح صلاحية النشر.
+name: Deploy Firestore Rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: فحص وجود السرّ
+        id: check
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT غير مضبوط — تخطّي النشر."
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: مصادقة Google
+        if: steps.check.outputs.present == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: إعداد Node
+        if: steps.check.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: تثبيت firebase-tools
+        if: steps.check.outputs.present == 'true'
+        run: npm install -g firebase-tools
+      - name: نشر القواعد والفهارس
+        if: steps.check.outputs.present == 'true'
+        run: |
+          firebase deploy \
+            --only firestore:rules,firestore:indexes \
+            --project restaurant-app-ed699 \
+            --non-interactive

@@ -429,6 +429,11 @@ class AppUser {
   final double walletBalance;
   final List<SavedAddress> savedAddresses;
 
+  /// مطاعم العميل المفضلة (ح2) — معرّفات فقط في مستنده هو: قلبٌ يضغطه
+  /// فيظهر مطعمه تحت شريحة «المفضلة». مصفوفة لا مجموعة منفصلة: بضع
+  /// عشرات معرّفاً في أسوأ حال، وقاعدة المستخدم القائمة تحميها.
+  final List<String> favoriteRestaurantIds;
+
   /// كود التسجيل الذي مُنح به هذا الدور — يُكتب لحظة الإنشاء ليتحقّق منه
   /// حارس القواعد. بدونه كان أي مستخدم يُنشئ مستنده بدور `admin` فيصير
   /// مديراً عاماً على كل شيء (القاعدة كانت تفحص الرصيد ولا تفحص الدور).
@@ -449,6 +454,7 @@ class AppUser {
     this.nationalId,
     this.walletBalance = 0.0,
     this.savedAddresses = const [],
+    this.favoriteRestaurantIds = const [],
     this.registrationCode = '',
   });
 
@@ -468,6 +474,9 @@ class AppUser {
         savedAddresses: ((map['savedAddresses'] as List?) ?? [])
             .map((e) => SavedAddress.fromMap((e as Map).cast<String, dynamic>()))
             .toList(),
+        favoriteRestaurantIds: ((map['favoriteRestaurantIds'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
         registrationCode: map['registrationCode'] as String? ?? '',
       );
 
@@ -484,6 +493,7 @@ class AppUser {
         'isActive': isActive,
         'walletBalance': walletBalance,
         'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
+        'favoriteRestaurantIds': favoriteRestaurantIds,
         'registrationCode': registrationCode,
       };
 
@@ -497,6 +507,7 @@ class AppUser {
     String? nationalId,
     double? walletBalance,
     List<SavedAddress>? savedAddresses,
+    List<String>? favoriteRestaurantIds,
   }) =>
       AppUser(
         uid: uid,
@@ -512,7 +523,72 @@ class AppUser {
         nationalId: nationalId ?? this.nationalId,
         walletBalance: walletBalance ?? this.walletBalance,
         savedAddresses: savedAddresses ?? this.savedAddresses,
+        favoriteRestaurantIds:
+            favoriteRestaurantIds ?? this.favoriteRestaurantIds,
       );
+}
+
+/// قائمة المطابخ المعتمدة (ح8 — تصنيف كيتا): تُعرض للعميل في ورقة
+/// «المطابخ» وللمدير في نموذج المطعم اختياراً متعدداً. قائمة واحدة
+/// للطرفين كي لا يصنّف المديرُ بمسمى لا يراه العميل.
+const kCuisines = [
+  'سعودي', 'مشاوي', 'مندي وحنيذ', 'برجر', 'دجاج مقلي', 'شاورما',
+  'ساندويتشات', 'بيتزا', 'إيطالي ومكرونة', 'لبناني', 'سوري', 'مصري',
+  'هندي', 'فطائر ومعجنات', 'مخبوزات', 'فلافل', 'سلطات وصحي',
+  'حلويات', 'عصائر', 'قهوة وشاي',
+];
+
+/// جدول عمل يومٍ واحد للمطعم (ساعات العمل المجدولة — أبرز فجوة قبل
+/// الإطلاق: كان `isOpen` مفتاحاً يدوياً فقط، فيبقى المطعم «مفتوحاً» ليلاً
+/// ما لم يُطفئه أحد، فيطلب العميل من مطعمٍ نائم). الوقت "HH:mm" بنظام ٢٤
+/// ساعة. `closed=true` يعني اليوم مغلق كلياً. ويدعم ما بعد منتصف الليل:
+/// إغلاقٌ أبكر من الفتح (16:00→02:00) يعني الامتداد لليوم التالي.
+class DaySchedule {
+  final bool closed;
+  final String open;
+  final String close;
+
+  const DaySchedule({
+    this.closed = false,
+    this.open = '09:00',
+    this.close = '23:00',
+  });
+
+  factory DaySchedule.fromMap(Map<String, dynamic> map) => DaySchedule(
+        closed: map['closed'] as bool? ?? false,
+        open: map['open'] as String? ?? '09:00',
+        close: map['close'] as String? ?? '23:00',
+      );
+
+  Map<String, dynamic> toMap() =>
+      {'closed': closed, 'open': open, 'close': close};
+
+  DaySchedule copyWith({bool? closed, String? open, String? close}) =>
+      DaySchedule(
+        closed: closed ?? this.closed,
+        open: open ?? this.open,
+        close: close ?? this.close,
+      );
+
+  static int _toMinutes(String hhmm) {
+    final parts = hhmm.split(':');
+    if (parts.length != 2) return 0;
+    final h = (int.tryParse(parts[0]) ?? 0).clamp(0, 23);
+    final m = (int.tryParse(parts[1]) ?? 0).clamp(0, 59);
+    return h * 60 + m;
+  }
+
+  /// هل هذا اليوم مفتوح عند [nowMinutes] (دقائق منذ منتصف الليل)؟
+  bool isOpenAt(int nowMinutes) {
+    if (closed) return false;
+    final o = _toMinutes(open);
+    final c = _toMinutes(close);
+    if (o == c) return true; // فتح=إغلاق ⇒ ٢٤ ساعة
+    if (o < c) return nowMinutes >= o && nowMinutes < c;
+    // يمتد بعد منتصف الليل (16:00→02:00): مفتوحٌ من الفتح لآخر اليوم، ومن
+    // بدايته حتى الإغلاق.
+    return nowMinutes >= o || nowMinutes < c;
+  }
 }
 
 class Restaurant {
@@ -541,6 +617,35 @@ class Restaurant {
   final double? lng;
   final String? imageUrl;
 
+  /// مطابخ هذا المطعم من القائمة المعتمدة [kCuisines] — يضبطها المدير
+  /// في نموذج المطعم. فارغة في المطاعم القديمة فتظهر تحت «الكل» وحدها
+  /// (مع سقوطٍ على مطابقة النص القديمة كي لا تختفي فجأة من فلاتر كانت
+  /// تجدها بالاسم).
+  final List<String> cuisines;
+
+  /// مستوى الأسعار (ح9 — تصفية كيتا): ١ = $ اقتصادي، ٢ = $$ متوسط،
+  /// ٣ = $$$ مرتفع، ٠ = لم يصنَّف بعد (لا يظهر في فلتر السعر ولا
+  /// يُستبعد منه). يضبطه المدير من نموذج المطعم بثلاث شرائح.
+  final int priceLevel;
+
+  /// نسبة عمولة المنصّة على وجبات هذا المطعم (العمولة المرنة — من خطة
+  /// الإطلاق): كانت 15% مبرمجة في الكود، فاستحال عرضُ «صفر عمولة ٩٠
+  /// يوماً» الذي تقوم عليه حملة التوقيع، وخالفت روح بند ج١. يضبطها
+  /// المدير من نموذج المطعم، وتُختم على كل طلب لحظة إنشائه فلا يتغير
+  /// تاريخ الدفاتر حين تتغير النسبة لاحقاً.
+  final double commissionPercent;
+
+  /// تاريخ انتهاء الإعفاء من العمولة (حملة «٣ شهور مجاناً»): ما دام في
+  /// المستقبل تكون العمولة الفعّالة صفراً مهما كانت [commissionPercent]،
+  /// ثم تعود النسبة المتفَّق عليها **تلقائياً** بلا تدخل المدير. null =
+  /// لا إعفاء (النسبة تسري فوراً). يضبطه المدير مرة واحدة يوم التوقيع.
+  final DateTime? commissionFreeUntil;
+
+  /// ساعات العمل المجدولة لكل يوم أسبوع (مفتاح 1=الاثنين .. 7=الأحد،
+  /// موافقٌ لـ DateTime.weekday). فارغة في المطاعم القديمة فيحكمها المفتاح
+  /// اليدوي [isOpen] وحده (توافق خلفي: لا نغلق مطعماً فجأة بلا جدول).
+  final Map<int, DaySchedule> openingHours;
+
   const Restaurant({
     required this.id,
     required this.name,
@@ -562,9 +667,83 @@ class Restaurant {
     this.lat,
     this.lng,
     this.imageUrl,
+    this.commissionPercent = 15,
+    this.cuisines = const [],
+    this.priceLevel = 0,
+    this.openingHours = const {},
+    this.commissionFreeUntil,
   });
 
   double get deliveryFee => driverShareFee + appShareFee;
+
+  /// النسبة الفعّالة الآن: صفرٌ ما دام [commissionFreeUntil] في المستقبل
+  /// (فترة الإعفاء)، ثم النسبة المتفَّق عليها. هذه هي التي تُختم على الطلب
+  /// لحظة إنشائه، فينتهي الإعفاء تلقائياً في موعده بلا لمسِ المدير شيئاً.
+  double get effectiveCommissionPercent {
+    final until = commissionFreeUntil;
+    if (until != null && DateTime.now().isBefore(until)) return 0;
+    return commissionPercent;
+  }
+
+  /// هل المطعم مفتوح **الآن فعلاً**؟ يجمع المفتاح اليدوي (سيّدٌ: إطفاؤه
+  /// يغلق فوراً مهما قال الجدول — «مشغول اليوم») مع ساعات العمل المجدولة.
+  /// بلا جدول (مطاعم قديمة) يحكم المفتاح اليدوي وحده. يومٌ غير مضبوط في
+  /// جدولٍ موجود = مغلق ذلك اليوم.
+  ///
+  /// فترة ما بعد منتصف الليل تُنسب **لوردية أمس** (مراجعة 2026-08-15):
+  /// دوام الخميس 16:00→02:00 والجمعة إجازة — الجمعة 01:00 وردية الخميس
+  /// ما زالت قائمة، فيُفحص جدول أمس أيضاً؛ قبلها كان جدول «اليوم الجديد»
+  /// وحده يحكم فيُغلق المطعم قبل موعده بساعتين.
+  bool get isOpenNow {
+    if (!isOpen) return false;
+    if (openingHours.isEmpty) return true;
+    final now = DateTime.now();
+    return scheduleOpenAt(openingHours, now.weekday, now.hour * 60 + now.minute);
+  }
+
+  /// منطق الجدول الخالص — الزمن يُمرَّر لا يُقرأ، فيُختبر حتمياً.
+  static bool scheduleOpenAt(
+      Map<int, DaySchedule> hours, int weekday, int minutes) {
+    final today = hours[weekday];
+    if (today != null && today.isOpenAt(minutes)) return true;
+    // وردية أمس الممتدة: جدول أمس بنطاق عابر لمنتصف الليل (إغلاق أبكر من
+    // فتح) ولم يبلغ إغلاقه بعد.
+    final yesterday = hours[weekday == 1 ? 7 : weekday - 1];
+    if (yesterday != null && !yesterday.closed) {
+      final o = DaySchedule._toMinutes(yesterday.open);
+      final c = DaySchedule._toMinutes(yesterday.close);
+      if (c < o && minutes < c) return true;
+    }
+    return false;
+  }
+
+  /// نصّ حالة العمل للعميل: «مفتوح» أو «مغلق» أو «مغلق — يفتح 16:00» حين
+  /// يكون اليوم له موعد فتحٍ قادم. رسالةٌ تطمئن المنتظِر بدل «مغلق» جافّة.
+  String get openStatusLabel {
+    if (isOpenNow) return 'مفتوح';
+    if (!isOpen || openingHours.isEmpty) return 'مغلق';
+    final now = DateTime.now();
+    final today = openingHours[now.weekday];
+    if (today == null || today.closed) return 'مغلق اليوم';
+    // «يفتح 09:00» فقط ما دام الموعد أمامنا — بعد إغلاق اليوم كان يَعِد
+    // بموعدٍ مضى (23:30 يقول «يفتح 09:00») فيبدو التطبيق مرتبكاً.
+    final minutes = now.hour * 60 + now.minute;
+    return minutes < DaySchedule._toMinutes(today.open)
+        ? 'مغلق — يفتح ${today.open}'
+        : 'مغلق';
+  }
+
+  static Map<int, DaySchedule> _parseHours(dynamic raw) {
+    if (raw is! Map) return const {};
+    final out = <int, DaySchedule>{};
+    raw.forEach((k, v) {
+      final day = int.tryParse(k.toString());
+      if (day != null && day >= 1 && day <= 7 && v is Map) {
+        out[day] = DaySchedule.fromMap(v.cast<String, dynamic>());
+      }
+    });
+    return out;
+  }
 
   /// الاسم المعروض للعميل — يضمّ اسم الفرع إن وُجد، فيميّز فرعين لنفس
   /// العلامة التجارية بوضوح: «فطير ستيشن — العزيزية».
@@ -587,6 +766,12 @@ class Restaurant {
             (map['deliveryFee'] as num?)?.toDouble() ??
             5.0,
         appShareFee: (map['appShareFee'] as num?)?.toDouble() ?? 0.0,
+        commissionPercent:
+            (map['commissionPercent'] as num?)?.toDouble() ?? 15,
+        cuisines: ((map['cuisines'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        priceLevel: (map['priceLevel'] as num?)?.toInt() ?? 0,
         perKmFee: (map['perKmFee'] as num?)?.toDouble() ?? 0.0,
         freeKm: (map['freeKm'] as num?)?.toDouble() ?? 3.0,
         minOrder: (map['minOrder'] as num?)?.toDouble() ?? 20.0,
@@ -599,6 +784,9 @@ class Restaurant {
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
         imageUrl: map['imageUrl'] as String?,
+        openingHours: _parseHours(map['openingHours']),
+        commissionFreeUntil:
+            (map['commissionFreeUntil'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -622,6 +810,14 @@ class Restaurant {
         'lat': lat,
         'lng': lng,
         'imageUrl': imageUrl,
+        'commissionPercent': commissionPercent,
+        'cuisines': cuisines,
+        'priceLevel': priceLevel,
+        'openingHours':
+            openingHours.map((k, v) => MapEntry(k.toString(), v.toMap())),
+        'commissionFreeUntil': commissionFreeUntil == null
+            ? null
+            : Timestamp.fromDate(commissionFreeUntil!),
       };
 }
 
@@ -1015,6 +1211,32 @@ class ChallengeTier {
 /// المبالغ الافتراضية محسوبة على اقتصاد ZadGo: كل توصيلة تُدخل للمنصّة
 /// رسمها الثابت (3 ر.س)، فشرط 30 توصيلة يعني 90 ر.س دخلاً قبل صرف 80 ر.س
 /// مكافآت — أي أن الإحالة مربحة من أول سائق.
+/// طلب عميلٍ إضافةَ مطعم غير موجود (ح5 — خطة الإطلاق). معرّف المستند
+/// هو الاسم مطبَّعاً (فرغات موحّدة) فتتجمع طلبات نفس المطعم في عدّاد
+/// واحد بلا استعلام تجميع.
+class RestaurantRequest {
+  final String id;
+  final String name;
+  final int count;
+  final DateTime lastRequestedAt;
+
+  const RestaurantRequest({
+    required this.id,
+    required this.name,
+    required this.count,
+    required this.lastRequestedAt,
+  });
+
+  factory RestaurantRequest.fromMap(Map<String, dynamic> map, String id) =>
+      RestaurantRequest(
+        id: id,
+        name: map['name'] as String? ?? id,
+        count: (map['count'] as num?)?.toInt() ?? 0,
+        lastRequestedAt:
+            (map['lastRequestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+}
+
 class IncentiveSettings {
   // ————— برنامج الإحالة —————
   final bool referralEnabled;
@@ -1054,6 +1276,39 @@ class IncentiveSettings {
   /// المعيار العالمي). صفر يعني «لا تعويض».
   final double restaurantCancelCompensationPercent;
 
+  // ————— أجرة التوصيل (موحّدة للجميع، من اللوحة لا من الكود) —————
+  //
+  // كانت في class Pricing أرقاماً مبرمَجة صلباً (٩/٧/١/٣/٢٥) — نقلها المالك
+  // إلى اللوحة (2026-08-15). موحّدة لكل السائقين بقرار المالك: أجورٌ مختلفة
+  // لعملٍ متطابق ظلمٌ ونزاع؛ وتمييز سائقٍ مميّز يكون بمكافأة من الحوافز لا
+  // بأجرة أساس مختلفة. مكانها هنا (لا في config) لأن **تطبيق العميل** يقرؤها
+  // ليحسب أجرة الطلب، ومستند incentives وحده يقرؤه أي مسجَّل.
+  //
+  /// أجرة توصيل أول [deliveryBaseKm] كيلومتراً (ثابتة).
+  final double deliveryBaseFee;
+  final double deliveryBaseKm;
+
+  /// أجرة كل كيلومتر إضافي فوق المدى الأساسي.
+  final double deliveryPerKmFee;
+
+  /// رسم التوصيل الثابت للمنصّة (حصّتها من كل طلب، يتحمّله العميل).
+  final double deliveryAppCut;
+
+  /// أقصى مسافة توصيل مقبولة — بلا هذا الحدّ تُحتسب أجرةٌ خيالية على طلبٍ
+  /// لا يُنفَّذ (موقعٌ في مدينة أخرى).
+  final double maxDeliveryDistanceKm;
+
+  /// أجرة التوصيل حسب المسافة: أساسٌ لأول [deliveryBaseKm]، ثم لكل كم زائد
+  /// (بكسورٍ مجبورةٍ للأعلى: 9.8كم → 10). موحّدة لكل السائقين.
+  double deliveryFeeFor(double distanceKm) {
+    final extra = distanceKm - deliveryBaseKm;
+    final extraKm = extra <= 0 ? 0 : extra.ceil();
+    return deliveryBaseFee + extraKm * deliveryPerKmFee;
+  }
+
+  /// هل الموقع خارج نطاق التوصيل؟
+  bool isOutOfRange(double distanceKm) => distanceKm > maxDeliveryDistanceKm;
+
   // ————— تحدي نهاية الأسبوع —————
   final bool challengeEnabled;
 
@@ -1091,6 +1346,11 @@ class IncentiveSettings {
     this.maxOrdersPerDriver = 3,
     this.stackRadiusKm = 2.0,
     this.restaurantCancelCompensationPercent = 100,
+    this.deliveryBaseFee = 9.0,
+    this.deliveryBaseKm = 7.0,
+    this.deliveryPerKmFee = 1.0,
+    this.deliveryAppCut = 3.0,
+    this.maxDeliveryDistanceKm = 25.0,
     this.challengeEnabled = true,
     this.challengeWeekdays = const [DateTime.thursday, DateTime.friday],
     this.tiers = const [
@@ -1098,8 +1358,13 @@ class IncentiveSettings {
       ChallengeTier(deliveries: 20, bonus: 50),
     ],
     this.autoPay = false,
+    this.tipOptions = const [2, 5, 10],
     this.joinUrl = 'https://zadgo.co/join',
   });
+
+  /// خيارات الإكرامية المعروضة للعميل (ح3) — بالريال، من لوحة المدير
+  /// لا من الكود (ج١): تُرفع في المواسم وتُخفض بلا إصدار.
+  final List<double> tipOptions;
 
   factory IncentiveSettings.fromMap(Map<String, dynamic> map) {
     const d = IncentiveSettings();
@@ -1124,6 +1389,16 @@ class IncentiveSettings {
       restaurantCancelCompensationPercent:
           (map['restaurantCancelCompensationPercent'] as num?)?.toDouble() ??
               d.restaurantCancelCompensationPercent,
+      deliveryBaseFee:
+          (map['deliveryBaseFee'] as num?)?.toDouble() ?? d.deliveryBaseFee,
+      deliveryBaseKm:
+          (map['deliveryBaseKm'] as num?)?.toDouble() ?? d.deliveryBaseKm,
+      deliveryPerKmFee:
+          (map['deliveryPerKmFee'] as num?)?.toDouble() ?? d.deliveryPerKmFee,
+      deliveryAppCut:
+          (map['deliveryAppCut'] as num?)?.toDouble() ?? d.deliveryAppCut,
+      maxDeliveryDistanceKm: (map['maxDeliveryDistanceKm'] as num?)?.toDouble() ??
+          d.maxDeliveryDistanceKm,
       challengeEnabled: map['challengeEnabled'] as bool? ?? d.challengeEnabled,
       challengeWeekdays: rawDays is List && rawDays.isNotEmpty
           ? rawDays.map((e) => (e as num).toInt()).toList()
@@ -1137,6 +1412,13 @@ class IncentiveSettings {
             ..sort((a, b) => a.deliveries.compareTo(b.deliveries)))
           : d.tiers,
       autoPay: map['autoPay'] as bool? ?? d.autoPay,
+      tipOptions: (map['tipOptions'] is List &&
+              (map['tipOptions'] as List).isNotEmpty)
+          ? (map['tipOptions'] as List)
+              .map((e) => (e as num).toDouble())
+              .where((v) => v > 0)
+              .toList()
+          : d.tipOptions,
       joinUrl: (map['joinUrl'] as String?)?.trim().isNotEmpty == true
           ? (map['joinUrl'] as String).trim()
           : d.joinUrl,
@@ -1154,10 +1436,16 @@ class IncentiveSettings {
         'stackRadiusKm': stackRadiusKm,
         'restaurantCancelCompensationPercent':
             restaurantCancelCompensationPercent,
+        'deliveryBaseFee': deliveryBaseFee,
+        'deliveryBaseKm': deliveryBaseKm,
+        'deliveryPerKmFee': deliveryPerKmFee,
+        'deliveryAppCut': deliveryAppCut,
+        'maxDeliveryDistanceKm': maxDeliveryDistanceKm,
         'challengeEnabled': challengeEnabled,
         'challengeWeekdays': challengeWeekdays,
         'tiers': tiers.map((t) => t.toMap()).toList(),
         'autoPay': autoPay,
+        'tipOptions': tipOptions,
         'joinUrl': joinUrl,
       };
 
@@ -1171,10 +1459,16 @@ class IncentiveSettings {
     int? maxOrdersPerDriver,
     double? stackRadiusKm,
     double? restaurantCancelCompensationPercent,
+    double? deliveryBaseFee,
+    double? deliveryBaseKm,
+    double? deliveryPerKmFee,
+    double? deliveryAppCut,
+    double? maxDeliveryDistanceKm,
     bool? challengeEnabled,
     List<int>? challengeWeekdays,
     List<ChallengeTier>? tiers,
     bool? autoPay,
+    List<double>? tipOptions,
     String? joinUrl,
   }) =>
       IncentiveSettings(
@@ -1189,10 +1483,17 @@ class IncentiveSettings {
         restaurantCancelCompensationPercent:
             restaurantCancelCompensationPercent ??
                 this.restaurantCancelCompensationPercent,
+        deliveryBaseFee: deliveryBaseFee ?? this.deliveryBaseFee,
+        deliveryBaseKm: deliveryBaseKm ?? this.deliveryBaseKm,
+        deliveryPerKmFee: deliveryPerKmFee ?? this.deliveryPerKmFee,
+        deliveryAppCut: deliveryAppCut ?? this.deliveryAppCut,
+        maxDeliveryDistanceKm:
+            maxDeliveryDistanceKm ?? this.maxDeliveryDistanceKm,
         challengeEnabled: challengeEnabled ?? this.challengeEnabled,
         challengeWeekdays: challengeWeekdays ?? this.challengeWeekdays,
         tiers: tiers ?? this.tiers,
         autoPay: autoPay ?? this.autoPay,
+        tipOptions: tipOptions ?? this.tipOptions,
         joinUrl: joinUrl ?? this.joinUrl,
       );
 
@@ -1835,6 +2136,32 @@ class Order {
   /// يطرح منه، وكلاهما مختوم على مستند الطلب فيقرؤه الدفتران مباشرة.
   final double restaurantChargeback;
 
+  /// موعد التوصيل المطلوب (ح4) — فارغ يعني «في أقرب وقت» (السلوك القائم
+  /// حرفياً). طلبٌ مجدول يمرّ بنفس الدورة تماماً إلا أن الإسناد التلقائي
+  /// يمتنع عنه ما دام موعده بعيداً — وإلا استُدعي كابتنٌ ظهراً لطلبِ
+  /// الثامنة مساءً فوقف ينتظر أو هجر العرض.
+  final DateTime? scheduledFor;
+
+  /// إكرامية الكابتن (ح3) — يختارها العميل عند الدفع وتصل الكابتن
+  /// **كاملة بلا اقتطاع**: ليست جزءاً من grandTotal ولا payableTotal
+  /// عمداً، فلا تدخل العمولة ولا العُهدة ولا حساب الاسترداد — ممرٌّ
+  /// محايد من جيب العميل ليد الكابتن والمنصّة مجرد ناقل.
+  final double driverTip;
+
+  /// نسبة العمولة المختومة لحظة إنشاء الطلب من مستند المطعم (العمولة
+  /// المرنة): فارغة في الطلبات القديمة فتُقرأ 15 — تاريخ الدفاتر لا
+  /// يتحرك حين يغيّر المدير نسبة مطعمٍ لاحقاً.
+  final double? commissionPercent;
+
+  bool get isScheduled => scheduledFor != null;
+
+  /// هل ما يزال مبكراً على تحريك هذا الطلب المجدول؟ نافذة ٤٥ دقيقة قبل
+  /// الموعد: تكفي تحضيراً وتوصيلاً داخل المدينة، وتفتح باب الإسناد قبل
+  /// الموعد لا عنده — فالكابتن يحتاج وقت وصولٍ للمطعم.
+  bool get scheduledStillEarly =>
+      scheduledFor != null &&
+      scheduledFor!.difference(DateTime.now()).inMinutes > 45;
+
   /// لحظة تأكيد **المطعم** تسليمَ الطلب للكابتن — الوجه الثاني للاستلام
   /// (طلب المالك ٢٠٢٦-٠٨-١١): ضغطة الكابتن وحدها إقرارُ طرفٍ واحد، فإن
   /// أنكر المطعم التسليم أو ادّعى تأخّر الكابتن لم يكن في السجل ما يفصل.
@@ -1888,6 +2215,9 @@ class Order {
     this.restaurantHandoverAt,
     this.restaurantCompensation = 0,
     this.restaurantChargeback = 0,
+    this.scheduledFor,
+    this.driverTip = 0,
+    this.commissionPercent,
     this.couponCode,
     this.discountAmount = 0,
   });
@@ -1917,7 +2247,8 @@ class Order {
   /// دفعٌ من رصيده لا تخفيض للقيمة).
   double get payableTotal => grandTotal - discountAmount;
 
-  double get calculatedCommission => itemsTotal * 0.15;
+  double get calculatedCommission =>
+      itemsTotal * ((commissionPercent ?? 15) / 100);
 
   /// عمولة الوجبات **للتقارير**: تُحسب دائماً بالقاعدة المعتمدة (15% من
   /// قيمة الوجبات) وتتجاهل المخزَّن كلياً. كانت تفضّل المخزَّن إن كان
@@ -1930,8 +2261,15 @@ class Order {
   /// رسم التوصيل الثابت **للتقارير**: المخزَّن إن وُجد، وإلا القيمة المعتمدة
   /// حالياً — لنفس سبب [effectiveCommission] (طلبات قديمة بـ appShare = 0
   /// كانت تُظهر «عمولة التوصيل: 0.00»).
+  ///
+  /// السقوط على 3 يقتصر على **القديم قبل 2026-08-15** (مراجعة اليوم نفسه):
+  /// بعدها صار الرسم يُضبط من اللوحة وقد يكون **صفراً مقصوداً** (عرض
+  /// «توصيل بلا رسوم») — سقوطٌ أعمى كان سيُظهر في التقارير رسماً لم
+  /// يُحصَّل ويضخّم دخل المنصّة.
   double get effectiveAppShare =>
-      appShare > 0 ? appShare : Pricing.fixedDeliveryCommission;
+      appShare > 0 || createdAt.isAfter(DateTime(2026, 8, 15))
+          ? appShare
+          : Pricing.fixedDeliveryCommission;
 
   /// صافي مستحقّات المطعم = قيمة الوجبات بعد خصم عمولة التطبيق (15%). قيمة
   /// الطلب للعميل تساوي قيمته للمطعم؛ العمولة تُخصم من المطعم في التقارير.
@@ -2024,6 +2362,10 @@ class Order {
             (map['restaurantCompensation'] as num?)?.toDouble() ?? 0,
         restaurantChargeback:
             (map['restaurantChargeback'] as num?)?.toDouble() ?? 0,
+        scheduledFor: (map['scheduledFor'] as Timestamp?)?.toDate(),
+        driverTip: (map['driverTip'] as num?)?.toDouble() ?? 0,
+        commissionPercent:
+            (map['commissionPercent'] as num?)?.toDouble(),
         couponCode: map['couponCode'] as String?,
         discountAmount: (map['discountAmount'] as num?)?.toDouble() ?? 0,
       );
@@ -2071,6 +2413,11 @@ class Order {
           'restaurantHandoverAt': Timestamp.fromDate(restaurantHandoverAt!),
         'restaurantCompensation': restaurantCompensation,
         'restaurantChargeback': restaurantChargeback,
+        if (scheduledFor != null)
+          'scheduledFor': Timestamp.fromDate(scheduledFor!),
+        'driverTip': driverTip,
+        if (commissionPercent != null)
+          'commissionPercent': commissionPercent,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
       };
@@ -2133,6 +2480,9 @@ class Order {
         restaurantHandoverAt: restaurantHandoverAt,
         restaurantCompensation: restaurantCompensation,
         restaurantChargeback: restaurantChargeback,
+        scheduledFor: scheduledFor,
+        driverTip: driverTip,
+        commissionPercent: commissionPercent,
         couponCode: couponCode,
         discountAmount: discountAmount,
       );

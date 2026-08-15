@@ -9,6 +9,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # تعريب حوارات النظام (منتقيا التاريخ والوقت) — بلاغ المالك 2026-08-15.
+  flutter_localizations:
+    sdk: flutter
 
   firebase_core: 3.8.0
   firebase_auth: 5.3.3

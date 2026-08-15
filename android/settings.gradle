@@ -21,7 +21,11 @@ pluginManagement {
 
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    id "com.android.application" version "8.3.2" apply false
+    // ترقية 8.3.2 ← 8.6.1 (2026-08-13): القيد الذي أسقط بناء أمس — إصدارات
+    // CameraX الحديثة (1.5+) تشترط AGP 8.6، واضطُررنا لتثبيت mobile_scanner
+    // على ترقيعة أقدم بسببه. الترقية تفكّ القيد قبل أن يعود اضطراراً.
+    // Gradle wrapper عندنا 8.9 سلفاً (الشرط 8.7+) وJDK 17 — لا تغيير فيهما.
+    id "com.android.application" version "8.6.1" apply false
     id "org.jetbrains.kotlin.android" version "1.9.10" apply false
     id "com.google.gms.google-services" version "4.4.0" apply false
     // تفعيل Crashlytics على أندرويد يحتاج إضافة Gradle بجانب حزمة Dart:

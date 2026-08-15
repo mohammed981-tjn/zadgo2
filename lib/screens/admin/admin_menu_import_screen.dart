@@ -194,12 +194,12 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
           ),
           const SizedBox(height: 16),
           const Text('الصق محتوى ملف المنيو (JSON)',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 6),
           const Text(
             'كل تصنيف يحتوي name وقائمة items، وكل صنف فيه name و price '
             '(واختيارياً kcal و description و imageUrl).',
-            style: TextStyle(fontSize: 12, color: AppColors.textGray),
+            style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
           ),
           const SizedBox(height: 10),
           TextField(
@@ -221,7 +221,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
                 ? null
                 : (v) => setState(() => _replaceExisting = v),
             title: const Text('استبدال المنيو الحالي',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
             subtitle: Text(
               _replaceExisting
                   ? 'سيُحذف المنيو القائم كاملاً ثم يُستورد الجديد مكانه'
@@ -284,7 +284,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
                 title: Text(c.name),
                 trailing: Text('$count صنف',
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.textGray)),
+                        fontSize: 12.5, color: AppColors.textGray)),
               );
             }),
             const SizedBox(height: 16),

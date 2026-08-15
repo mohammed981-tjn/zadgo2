@@ -9,9 +9,32 @@ import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
 import 'cart_screen.dart';
 
-class RestaurantDetailScreen extends StatelessWidget {
+/// هل عُرض تلقين «الدفع مرة واحدة» في هذه الجلسة؟ على مستوى الملف لا
+/// الشاشة: فتح مطعم ثانٍ لا يعيد الدرس المحفوظ.
+bool _addHintShown = false;
+
+class RestaurantDetailScreen extends StatefulWidget {
   final Restaurant restaurant;
   const RestaurantDetailScreen({super.key, required this.restaurant});
+
+  @override
+  State<RestaurantDetailScreen> createState() =>
+      _RestaurantDetailScreenState();
+}
+
+class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
+  Restaurant get restaurant => widget.restaurant;
+
+  /// نصّ بحث المنيو (ح1) — فلترة محلية صرفة على الأصناف المحمَّلة أصلاً:
+  /// لا استعلام جديد ولا قاعدة، فالمنيو كله بين يدينا لحظتها.
+  final _menuSearchCtrl = TextEditingController();
+  String _menuQuery = '';
+
+  @override
+  void dispose() {
+    _menuSearchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +87,27 @@ class RestaurantDetailScreen extends StatelessWidget {
               ]),
             ),
           ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: TextField(
+            controller: _menuSearchCtrl,
+            onChanged: (v) => setState(() => _menuQuery = v),
+            decoration: InputDecoration(
+              hintText: 'ابحث في المنيو…',
+              prefixIcon: const Icon(Icons.search, size: 20),
+              isDense: true,
+              suffixIcon: _menuQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () => setState(() {
+                        _menuSearchCtrl.clear();
+                        _menuQuery = '';
+                      }),
+                    ),
+            ),
+          ),
         ),
         Expanded(
           child: StreamBuilder<List<MenuCategory>>(
@@ -125,7 +169,18 @@ class RestaurantDetailScreen extends StatelessWidget {
                   }
                   final items = itemSnap.data!;
 
-                  final orderableItems = items.where((i) => i.canOrder).toList();
+                  var orderableItems =
+                      items.where((i) => i.canOrder).toList();
+                  // بحث المنيو (ح1): يصفّي بالاسم والوصف معاً — من يكتب
+                  // «دجاج» يريد كل ما فيه دجاج ولو لم يبدأ الاسم به.
+                  final q = _menuQuery.trim();
+                  if (q.isNotEmpty) {
+                    orderableItems = orderableItems
+                        .where((i) =>
+                            i.name.contains(q) ||
+                            i.description.contains(q))
+                        .toList();
+                  }
                   final catIds = cats.map((c) => c.id).toSet();
 
                   final unmatchedItems = orderableItems
@@ -137,11 +192,14 @@ class RestaurantDetailScreen extends StatelessWidget {
                       .toList();
 
                   if (visibleCats.isEmpty && unmatchedItems.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Text('لا توجد أصناف متاحة حالياً',
-                            style: TextStyle(fontSize: 17)),
+                        padding: const EdgeInsets.all(32),
+                        child: Text(
+                            q.isEmpty
+                                ? 'لا توجد أصناف متاحة حالياً'
+                                : 'لا نتائج لـ«$q» في هذا المنيو',
+                            style: const TextStyle(fontSize: 17)),
                       ),
                     );
                   }
@@ -205,9 +263,15 @@ class RestaurantDetailScreen extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.dark,
+                      foregroundColor: Colors.white),
                   onPressed: () => Navigator.push(context,
                       MaterialPageRoute(builder: (_) => const CartScreen())),
-                  child: Text('عرض السلة (${cart.itemCount})'),
+                  // الإجمالي في الشريط (نمط كيتا): يعرف كم جمّع قبل فتح
+                  // السلة — طمأنة تدفع للإضافة لا للتوقف.
+                  child: Text(
+                      'السلة (${cart.itemCount}) — ${formatCurrency(cart.itemsTotal)}'),
                 ),
               ),
             )
@@ -382,19 +446,25 @@ class _AddOrCounter extends StatelessWidget {
               restaurant.driverShareFee,
               restaurant.appShareFee,
             );
+        // تلقين التدفق **مرة واحدة في الجلسة** (ملاحظة المالك بالصور
+        // 2026-08-14: الرسالة مع كل إضافة صارت هي المزعجة — عشرة أصناف
+        // تعني عشر رسائل تغطي المنيو). أول إضافة تكفي درساً، وشريط
+        // «السلة» الدائم بالأسفل يقول الباقي.
+        if (context.mounted && !_addHintShown) {
+          _addHintShown = true;
+          showSuccess(context,
+              'أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «السلة» بالأسفل');
+        }
       }
     }
 
-    // بلاغ المالك ٢٠٢٦-٠٨-١٢ («الألوان متطابقة… أعطها لوناً أغمق»):
-    //
-    //   • زرّ «أضف» كان ذهبياً بحرفٍ **أبيض** — ونسبة تباينهما ٢٫٢:١،
-    //     دون الحدّ المقروء (٤٫٥:١). والأخضر الداكن على الذهبي يعطي
-    //     ٤٫٩:١ — وهو نفسه `onPrimary` الذي قرّره الثيم لهذه الهوية،
-    //     فالبياض كان مخالفةً محلية لقاعدة عامة صحيحة.
-    //   • وعدّاد الكمية بعد الإضافة كان ذهبياً بشفافية **٨٪** على بطاقة
-    //     بيضاء — أي كريميٌّ يكاد لا يُرى، فلا يعرف العميل أن الصنف
-    //     دخل سلّته أصلاً. صار ذهبياً مصمتاً: تأكيدٌ بصري لا يُخطأ.
-    const onGold = AppColors.dark;
+    // ملاحظة المالك 2026-08-14 (بالصور): الصفحة غرقت ذهبياً — السعر
+    // ذهبي وخلفية الصورة ذهبية وزر الإضافة ذهبي، ففقد الفعلُ تميزه.
+    // القاعدة: **الفعل أخضر داكن والمعلومة ذهبية** — أضف والعدّاد بلون
+    // الهوية الداكن (تباين الأبيض عليه ٩:١+)، والسعر يبقى ذهبياً
+    // فيتمايزان من نظرة. (تحل محل معايرة 2026-08-12 الذهبية.)
+    const actionBg = AppColors.dark;
+    const onAction = Colors.white;
 
     if (qty == 0) {
       return SizedBox(
@@ -402,8 +472,8 @@ class _AddOrCounter extends StatelessWidget {
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            backgroundColor: AppColors.primary,
-            foregroundColor: onGold,
+            backgroundColor: actionBg,
+            foregroundColor: onAction,
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
@@ -417,7 +487,7 @@ class _AddOrCounter extends StatelessWidget {
       height: 32,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: AppColors.primary,
+        color: actionBg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -425,7 +495,7 @@ class _AddOrCounter extends StatelessWidget {
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           iconSize: 18,
-          icon: const Icon(Icons.remove, color: onGold),
+          icon: const Icon(Icons.remove, color: onAction),
           onPressed: () => context.read<CartProvider>().remove(item.id),
         ),
         SizedBox(
@@ -435,13 +505,13 @@ class _AddOrCounter extends StatelessWidget {
               style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14.5,
-                  color: onGold)),
+                  color: onAction)),
         ),
         IconButton(
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           iconSize: 18,
-          icon: const Icon(Icons.add, color: onGold),
+          icon: const Icon(Icons.add, color: onAction),
           onPressed: addToCart,
         ),
       ]),

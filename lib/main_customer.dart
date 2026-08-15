@@ -4,6 +4,7 @@
 // "تسجيل الموظفين برمز" إطلاقاً)، فلا تُشحن شيفرة الأدوار الأخرى في حزمة
 // هذا التطبيق أصلاً (فصل على مستوى الحزمة، لا مجرد إخفاء في الواجهة).
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
@@ -94,6 +95,13 @@ class CustomerApp extends StatelessWidget {
         navigatorObservers: [ClearMessagesOnPush()],
         title: 'ZadGo عميل',
         debugShowCheckedModeBanner: false,
+        // تعريب حوارات النظام (منتقيا التاريخ والوقت): كانت تظهر إنجليزية
+        // («Select date» وأسبوع يبدأ الأحد الأمريكي) داخل تطبيق عربي
+        // بالكامل — بلاغ المالك بالصور 2026-08-15. القفل على العربية
+        // يجعلها عربية RTL بأيام وشهور عربية.
+        locale: const Locale('ar'),
+        supportedLocales: const [Locale('ar')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: AppTheme.build(palette: FlavorPalette.customer),
         builder: (context, child) => Directionality(
           textDirection: TextDirection.rtl,

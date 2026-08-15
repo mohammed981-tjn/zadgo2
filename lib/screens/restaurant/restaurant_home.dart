@@ -155,7 +155,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                 Expanded(
                   child: Text(
                     count == 1 ? 'طلب جديد وصل الآن' : '$count طلبات جديدة وصلت الآن',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.5),
                   ),
                 ),
                 const Icon(Icons.chevron_left_rounded, color: Colors.white),
@@ -309,7 +309,7 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
           labelColor: context.flavorColors.primary,
           unselectedLabelColor: AppColors.textGray,
           indicatorColor: context.flavorColors.primary,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
           tabs: const [
             Tab(text: 'نشطة'),
             Tab(text: 'منتهية'),
@@ -507,9 +507,16 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           await widget.service.tryAutoAssignOnAcceptance(widget.order);
       // إخفاق الإسناد لحظة القبول لم يعد صامتاً أيضاً (كان الصمت هنا يخفي
       // العطل حتى لحظة الجهوزية، فيظن المطعم أن كابتناً في الطريق).
+      // والطلب المجدول البعيد ليس إخفاقاً أصلاً — الإسناد ممتنع عمداً
+      // حتى نافذة موعده، فرسالته طمأنة لا خطأ.
       if (!assigned && context.mounted) {
-        showError(context,
-            'قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة');
+        if (widget.order.scheduledStillEarly) {
+          showSuccess(context,
+              'قُبل الطلب المجدول — يُسنَد كابتن قرب موعده (${formatDateTime(widget.order.scheduledFor!)})');
+        } else {
+          showError(context,
+              'قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة');
+        }
       }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
@@ -568,6 +575,13 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     setState(() => _actionLoading = true);
     try {
       await widget.service.updateOrderStatus(widget.order.id, to);
+      // طلبٌ بلا كابتن يبدأ تحضيره: أعد محاولة الإسناد — المسار الطبيعي
+      // للمجدول (بوابة القلب كانت تمنعه والآن حانت نافذته أو قاربت)،
+      // وشبكة أمان لأي طلب فاته الإسناد لحظة القبول.
+      if (to == OrderStatus.preparing &&
+          (widget.order.driverId ?? '').isEmpty) {
+        await widget.service.retryAutoAssignIfNeeded(widget.order);
+      }
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
     } finally {
@@ -679,24 +693,46 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         ]),
         const SizedBox(height: 10),
         Row(children: [
-          Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const Spacer(),
           Text(formatCurrency(order.itemsTotal),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 15)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14.5)),
         ]),
+        // موعد الطلب المجدول (ح4) — بارزاً بلون تحذيري: أخطر خطأ تشغيلي
+        // هنا أن يُحضَّر طلب الثامنة ظهراً فيبرد قبل موعده.
+        if (order.isScheduled) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.schedule_rounded,
+                  size: 15, color: AppColors.warning),
+              const SizedBox(width: 6),
+              Text('مجدول: ${formatDateTime(order.scheduledFor!)} — لا تحضّره مبكراً',
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.warning)),
+            ]),
+          ),
+        ],
         const SizedBox(height: 4),
         Row(children: [
           const Icon(Icons.person_outline, size: 15, color: AppColors.textGray),
           const SizedBox(width: 6),
           Expanded(
             child: Text(order.customerName,
-                style: const TextStyle(fontSize: 13, color: AppColors.textGray)),
+                style: const TextStyle(fontSize: 13.5, color: AppColors.textGray)),
           ),
           const SizedBox(width: 8),
           Icon(Icons.timer_outlined, size: 14, color: AppColors.textGray.withOpacity(0.8)),
           const SizedBox(width: 3),
           Text(_waitingLabel(),
-              style: TextStyle(fontSize: 12, color: AppColors.textGray.withOpacity(0.8))),
+              style: TextStyle(fontSize: 12.5, color: AppColors.textGray.withOpacity(0.8))),
           if (order.customerPhone.trim().isNotEmpty)
             IconButton(
               tooltip: 'الاتصال بالعميل',
@@ -719,7 +755,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                   ),
                   child: Text('${item.quantity}',
                       style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.primary)),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -730,7 +766,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(item.extras!,
-                            style: TextStyle(fontSize: 12, color: AppColors.textGray.withOpacity(0.9))),
+                            style: TextStyle(fontSize: 12.5, color: AppColors.textGray.withOpacity(0.9))),
                       ),
                   ]),
                 ),
@@ -934,7 +970,7 @@ class _LockedHandoverHint extends StatelessWidget {
             child: Text(
               'زرّ «سلّمتُ الطلب» يفتح فور تسجيل الكابتن وصوله للمطعم — '
               'فالإقرار لا يسبق الواقعة.',
-              style: TextStyle(fontSize: 12, color: AppColors.textGray),
+              style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
             ),
           ),
         ]),
@@ -964,7 +1000,7 @@ class _HandoverStamp extends StatelessWidget {
         const SizedBox(width: 8),
         Text('سلّمتَ الطلب للسائق — $clock',
             style: const TextStyle(
-                fontSize: 13,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w700,
                 color: AppColors.success)),
       ]),

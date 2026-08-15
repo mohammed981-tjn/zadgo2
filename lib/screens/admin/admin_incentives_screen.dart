@@ -238,7 +238,7 @@ class _SettingsCard extends StatelessWidget {
             const Icon(Icons.tune_rounded, color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
             const Text('إعدادات الحوافز',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
             const Spacer(),
             TextButton.icon(
               onPressed: () => showModalBottomSheet(
@@ -273,7 +273,7 @@ class _SettingsCard extends StatelessWidget {
               padding: EdgeInsets.only(top: 4),
               child: Text(
                   'يعمل ما دامت هذه الشاشة مفتوحة — الأتمتة على الخادم مع ترقية Blaze',
-                  style: TextStyle(fontSize: 11, color: AppColors.textGray)),
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
             ),
         ]),
       ),
@@ -286,10 +286,10 @@ class _SettingsCard extends StatelessWidget {
           Expanded(
               child: Text(label,
                   style: const TextStyle(
-                      fontSize: 13, color: AppColors.textGray))),
+                      fontSize: 13.5, color: AppColors.textGray))),
           Text(value,
               style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w700,
                   color: highlight ? AppColors.error : AppColors.textDark)),
         ]),
@@ -307,7 +307,8 @@ class _SettingsForm extends StatefulWidget {
 class _SettingsFormState extends State<_SettingsForm> {
   late bool _referralOn, _challengeOn;
   late final TextEditingController _referrer, _referee, _deliveries,
-      _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct;
+      _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions,
+      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist;
   late bool _autoPay;
   late List<int> _days;
   late List<({TextEditingController d, TextEditingController b})> _tiers;
@@ -329,6 +330,16 @@ class _SettingsFormState extends State<_SettingsForm> {
     _stackKm = TextEditingController(text: s.stackRadiusKm.toStringAsFixed(1));
     _compPct = TextEditingController(
         text: s.restaurantCancelCompensationPercent.toStringAsFixed(0));
+    _tipOptions = TextEditingController(
+        text: s.tipOptions.map((v) => v.toStringAsFixed(0)).join('، '));
+    _delivBase = TextEditingController(text: s.deliveryBaseFee.toStringAsFixed(0));
+    _delivKm = TextEditingController(text: s.deliveryBaseKm.toStringAsFixed(0));
+    _delivPerKm =
+        TextEditingController(text: s.deliveryPerKmFee.toStringAsFixed(1));
+    _delivAppCut =
+        TextEditingController(text: s.deliveryAppCut.toStringAsFixed(0));
+    _maxDist =
+        TextEditingController(text: s.maxDeliveryDistanceKm.toStringAsFixed(0));
     _autoPay = s.autoPay;
     _days = [...s.challengeWeekdays];
     _tiers = s.tiers
@@ -343,7 +354,8 @@ class _SettingsFormState extends State<_SettingsForm> {
   void dispose() {
     for (final c in [
       _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
-      _maxLoad, _stackKm, _compPct,
+      _maxLoad, _stackKm, _compPct, _tipOptions,
+      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist,
     ]) {
       c.dispose();
     }
@@ -396,6 +408,19 @@ class _SettingsFormState extends State<_SettingsForm> {
               restaurantCancelCompensationPercent:
                   (double.tryParse(_compPct.text.trim()) ?? 100)
                       .clamp(0.0, 100.0),
+              tipOptions: _parseTips(_tipOptions.text),
+              // أجرة التوصيل — بحرّاس مدى تمنع رقماً يشلّ التسعير بغلطة
+              // إدخال (أساس/كم/زائد ≥ صفر، والمسافة القصوى ≥ ١ كم).
+              deliveryBaseFee:
+                  (double.tryParse(_delivBase.text.trim()) ?? 9).clamp(0.0, 500.0),
+              deliveryBaseKm:
+                  (double.tryParse(_delivKm.text.trim()) ?? 7).clamp(0.0, 100.0),
+              deliveryPerKmFee: (double.tryParse(_delivPerKm.text.trim()) ?? 1)
+                  .clamp(0.0, 100.0),
+              deliveryAppCut: (double.tryParse(_delivAppCut.text.trim()) ?? 3)
+                  .clamp(0.0, 500.0),
+              maxDeliveryDistanceKm: (double.tryParse(_maxDist.text.trim()) ?? 25)
+                  .clamp(1.0, 500.0),
             ),
           );
       if (mounted) {
@@ -430,7 +455,7 @@ class _SettingsFormState extends State<_SettingsForm> {
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Text('إعدادات الحوافز',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
 
           SwitchListTile(
@@ -438,7 +463,7 @@ class _SettingsFormState extends State<_SettingsForm> {
             value: _referralOn,
             onChanged: (v) => setState(() => _referralOn = v),
             title: const Text('برنامج الإحالة',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           Row(children: [
             Expanded(child: _num(_referrer, 'مكافأة الداعي (ر.س)')),
@@ -473,7 +498,7 @@ class _SettingsFormState extends State<_SettingsForm> {
           const Align(
             alignment: AlignmentDirectional.centerStart,
             child: Text('الطلبات المتزامنة للكابتن',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
           Row(children: [
@@ -493,10 +518,31 @@ class _SettingsFormState extends State<_SettingsForm> {
           const Align(
             alignment: AlignmentDirectional.centerStart,
             child: Text('تعويض المطعم عند الإلغاء',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
           _num(_compPct, 'نسبة التعويض بعد بدء التحضير (٪)'),
+          const SizedBox(height: 16),
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('إكرامية الكابتن',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _tipOptions,
+            decoration: const InputDecoration(
+              labelText: 'خيارات الإكرامية (ريال، مفصولة بفواصل)',
+              hintText: '2، 5، 10',
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'تظهر للعميل في السلة وتصل الكابتن كاملة بلا اقتطاع — '
+                'نقديّها بيده مع التحصيل، وإلكترونيّها يُقيَّد له مع أجرته.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+          ),
           const Padding(
             padding: EdgeInsets.only(top: 6),
             child: Text(
@@ -507,12 +553,41 @@ class _SettingsFormState extends State<_SettingsForm> {
           ),
 
           const Divider(height: 26),
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('أجرة التوصيل (موحّدة لكل السائقين)',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: _num(_delivBase, 'أجرة الأساس (ر.س)')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_delivKm, 'كم مشمولة بالأساس')),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _num(_delivPerKm, 'لكل كم إضافي (ر.س)')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_delivAppCut, 'رسم المنصّة الثابت')),
+          ]),
+          const SizedBox(height: 10),
+          _num(_maxDist, 'أقصى مسافة توصيل (كم)'),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'مثال: ٩ ر.س لأول ٧ كم + ١ لكل كم إضافي، ورسم منصّة ثابت ٣. '
+                'تُطبَّق على كل السائقين بالتساوي — لتمييز سائقٍ مميّز استخدم '
+                'الحوافز لا أجرة أساس مختلفة. تسري على الطلبات الجديدة فقط.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+          ),
+
+          const Divider(height: 26),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _challengeOn,
             onChanged: (v) => setState(() => _challengeOn = v),
             title: const Text('تحدي نهاية الأسبوع',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           Align(
             alignment: AlignmentDirectional.centerStart,
@@ -526,7 +601,7 @@ class _SettingsFormState extends State<_SettingsForm> {
             children: names.entries.map((e) {
               final on = _days.contains(e.key);
               return FilterChip(
-                label: Text(e.value, style: const TextStyle(fontSize: 12)),
+                label: Text(e.value, style: const TextStyle(fontSize: 12.5)),
                 selected: on,
                 onSelected: (v) => setState(() {
                   if (v) {
@@ -538,7 +613,7 @@ class _SettingsFormState extends State<_SettingsForm> {
                 }),
                 labelStyle: TextStyle(
                     color: on ? Colors.white : AppColors.textDark,
-                    fontSize: 12),
+                    fontSize: 12.5),
                 selectedColor: AppColors.primary,
                 checkmarkColor: Colors.white,
               );
@@ -586,7 +661,7 @@ class _SettingsFormState extends State<_SettingsForm> {
             value: _autoPay,
             onChanged: (v) => setState(() => _autoPay = v),
             title: const Text('الصرف التلقائي',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
             subtitle: const Text(
                 'تُصرف المكافأة فور تحقّق الشرط بلا ضغطة — ما دامت شاشة '
                 'الحوافز مفتوحة (الأتمتة على الخادم تنتظر ترقية Blaze)',
@@ -605,6 +680,19 @@ class _SettingsFormState extends State<_SettingsForm> {
         ]),
       ),
     );
+  }
+
+  /// خيارات الإكرامية من نص «٢، ٥، ١٠»: الصفر والسالب يُهملان، ثلاثة
+  /// تكفي شاشة السلة، وقائمة فارغة تعيد الافتراضي فلا يُعطَّل الخيار
+  /// كله بغلطة إدخال.
+  static List<double> _parseTips(String raw) {
+    final vals = raw
+        .split(RegExp(r'[،,]'))
+        .map((e) => double.tryParse(e.trim()) ?? 0)
+        .where((v) => v > 0)
+        .take(3)
+        .toList();
+    return vals.isEmpty ? const [2, 5, 10] : vals;
   }
 
   Widget _num(TextEditingController c, String label) => TextField(
@@ -648,7 +736,7 @@ class _ReferralsSection extends StatelessWidget {
             Expanded(
               child: Text('الإحالات (${eligible.length} مستحقّة)',
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15)),
+                      fontWeight: FontWeight.bold, fontSize: 14.5)),
             ),
             // الصرف الجماعي: مستحقّون كثر يعني ضغطات كثيرة، وكلٌّ منها
             // نافذة تأكيد. زرٌّ واحد بتأكيد واحد يذكر العدد والمبلغ.
@@ -709,7 +797,7 @@ class _ReferralsSection extends StatelessWidget {
           Expanded(
             child: Text('${r.referrer.name}  ←  ${r.referee.name}',
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700)),
+                    fontSize: 13.5, fontWeight: FontWeight.w700)),
           ),
           if (r.expired)
             const StatusChip(label: 'انقضت المهلة', color: AppColors.textGray)
@@ -744,7 +832,7 @@ class _ReferralsSection extends StatelessWidget {
               label: Text(
                   'صرف ${formatCurrency(settings.referrerBonus)} للداعي '
                   'و${formatCurrency(settings.refereeBonus)} للمدعوّ',
-                  style: const TextStyle(fontSize: 12)),
+                  style: const TextStyle(fontSize: 12.5)),
               onPressed: () async {
                 final ok = await showConfirmDialog(context,
                     title: 'صرف مكافأة الإحالة',
@@ -812,7 +900,7 @@ class _ChallengeSection extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(14),
           child: Text('تحدي نهاية الأسبوع موقوف',
-              style: TextStyle(fontSize: 13, color: AppColors.textGray)),
+              style: TextStyle(fontSize: 13.5, color: AppColors.textGray)),
         ),
       );
     }
@@ -852,7 +940,7 @@ class _ChallengeSection extends StatelessWidget {
             const SizedBox(width: 8),
             const Expanded(
               child: Text('تحدي نهاية الأسبوع',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
             ),
             if (unpaid.length > 1)
               TextButton(
@@ -891,7 +979,7 @@ class _ChallengeSection extends StatelessWidget {
               'النافذة الجارية: ${start.day}/${start.month} — '
               '${end.day}/${end.month}',
               style:
-                  const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                  const TextStyle(fontSize: 12.5, color: AppColors.textGray)),
           if (achieved.isEmpty) ...[
             const SizedBox(height: 10),
             const Text('لم يبلغ أحد أدنى مستوى بعد',
@@ -908,7 +996,7 @@ class _ChallengeSection extends StatelessWidget {
                       children: [
                         Text(e.driver.name,
                             style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w700)),
+                                fontSize: 13.5, fontWeight: FontWeight.w700)),
                         Text('${e.count} توصيلة • بلغ مستوى '
                             '${e.tier.deliveries}',
                             style: const TextStyle(
@@ -979,7 +1067,7 @@ class DriverReferralCodeChip extends StatelessWidget {
           ),
           child: Text('كود الإحالة: ${driver.referralCode}',
               style: const TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700,
+                  fontSize: 11.5, fontWeight: FontWeight.w700,
                   color: AppColors.primary)),
         ),
       );
@@ -1037,7 +1125,7 @@ class _MinVersionCardState extends State<_MinVersionCard> {
                     const Expanded(
                       child: Text('أدنى إصدار مسموح',
                           style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15)),
+                              fontWeight: FontWeight.bold, fontSize: 14.5)),
                     ),
                     Text('نسخة هذا الجهاز $kAppVersion',
                         style: const TextStyle(
@@ -1049,7 +1137,7 @@ class _MinVersionCardState extends State<_MinVersionCard> {
                           ? 'النسخ الأقدم من ${snap.data} محجوبة الآن'
                           : 'لا حجب — كل النسخ تعمل',
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 12.5,
                           color: active
                               ? AppColors.warning
                               : AppColors.textGray)),

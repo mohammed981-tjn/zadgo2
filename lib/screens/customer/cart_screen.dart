@@ -135,6 +135,16 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addrCtrl = TextEditingController();
   PaymentMethod _payment = PaymentMethod.cash;
+
+  /// موعد التوصيل المجدول (ح4) — فارغ = «في أقرب وقت» (السلوك القائم).
+  DateTime? _scheduledFor;
+
+  /// إكرامية الكابتن (ح3) — صفر افتراضاً، وخياراتها من إعدادات المدير.
+  double _tip = 0;
+  List<double> _tipOptions = const [2, 5, 10];
+  // إعدادات المنصّة (أجرة التوصيل + الإكرامية) من اللوحة — الافتراضي مطابق
+  // للقيم القديمة، فلا يتغيّر السلوك حتى يعدّلها المدير.
+  IncentiveSettings _settings = const IncentiveSettings();
   bool _loading = false;
   /// هل يطبّق العميل رصيد محفظته على هذا الطلب؟
   bool _useWallet = true;
@@ -149,6 +159,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    // خيارات الإكرامية من لوحة المدير (ج١) — فشل الجلب يبقي الافتراضي.
+    context.read<FirebaseService>().getIncentiveSettings().then((v) {
+      if (mounted) setState(() {
+        _settings = v;
+        _tipOptions = v.tipOptions;
+      });
+    }).catchError((_) {});
     _loadRestaurant();
   }
 
@@ -190,7 +207,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   /// أجرة التوصيل حسب المسافة المحسوبة؛ وإن تعذّر حساب المسافة (لا موقع للمطعم
   /// مثلاً) نكتفي بأجرة الأساس (أول 7 كم) بدل ترك التوصيل مجهولاً.
   double get _deliveryFee =>
-      Pricing.deliveryFee(_distanceKm ?? 0);
+      _settings.deliveryFeeFor(_distanceKm ?? 0);
 
   /// الكوبون المطبَّق (بعد تحقّق ناجح) وقيمة خصمه.
   Coupon? _coupon;
@@ -207,7 +224,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double _orderTotal() {
     final itemsTotal = context.read<CartProvider>().itemsTotal;
     final total =
-        itemsTotal + _deliveryFee + Pricing.fixedDeliveryCommission - _discount;
+        itemsTotal + _deliveryFee + _settings.deliveryAppCut - _discount;
     return total < 0 ? 0 : total;
   }
 
@@ -258,8 +275,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return balance >= total ? total : balance;
   }
 
-  /// ما يتبقّى على العميل دفعه بعد خصم الرصيد.
-  double _amountDue() => _orderTotal() - _walletApplied();
+  /// ما يتبقّى على العميل دفعه بعد خصم الرصيد — والإكرامية فوقه دائماً:
+  /// لا تُدفع من المحفظة عمداً (رصيد المحفظة التزام داخلي على المنصّة،
+  /// والإكرامية مالٌ يمر للكابتن مباشرة — نقداً بيده أو ببطاقة تُقيَّد له).
+  double _amountDue() => _orderTotal() - _walletApplied() + _tip;
 
   // ← دالة تحويل الإحداثيات إلى عنوان
   Future<String> _getAddressFromLatLng(double lat, double lng) async {
@@ -314,10 +333,44 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // منع الطلب خارج نطاق الخدمة: بدونه يُحتسب توصيل بمئات الريالات على طلب
     // لا يستطيع أي سائق تنفيذه.
     final distance = _distanceKm;
-    if (distance != null && Pricing.isOutOfRange(distance)) {
+    if (distance != null && _settings.isOutOfRange(distance)) {
       showError(context,
           'الموقع خارج نطاق التوصيل (${distance.toStringAsFixed(0)} كم). '
-          'الحد الأقصى ${Pricing.maxDeliveryDistanceKm.toStringAsFixed(0)} كم');
+          'الحد الأقصى ${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم');
+      return;
+    }
+
+    // جلبٌ طازج لحظة التأكيد لا نسخة لحظة الفتح (مراجعة 2026-08-15): نسبة
+    // العمولة وحالة الفتح وأجرة اللوحة قد تتغيّر بينما شاشة الدفع مفتوحة،
+    // والقواعد تتحقق من **الطازج** — فختمٌ من نسخة مخبّأة يُرفض بعد شحن
+    // البطاقة. الفشل هنا يوقف مبكراً قبل أي دفع.
+    Restaurant? freshRestaurant;
+    try {
+      freshRestaurant =
+          await context.read<FirebaseService>().getRestaurantOnce(
+              context.read<CartProvider>().restaurantId!);
+      if (!mounted) return;
+      final freshSettings =
+          await context.read<FirebaseService>().getIncentiveSettings();
+      if (!mounted) return;
+      setState(() {
+        _restaurant = freshRestaurant;
+        _settings = freshSettings;
+      });
+    } catch (_) {
+      if (mounted) {
+        showError(context, 'تعذّر تحديث بيانات المطعم — تحقق من الاتصال وحاول');
+      }
+      return;
+    }
+    // مطعم أُغلق والعميل ما زال في السلة: يُرفض قبل بوابة الدفع لا بعدها.
+    // الطلب المجدول معفى — جدولته لموعدٍ قادم لا للحظة الإغلاق هذه.
+    if (freshRestaurant != null &&
+        !freshRestaurant.isOpenNow &&
+        _scheduledFor == null) {
+      showError(context,
+          '${freshRestaurant.displayName} ${freshRestaurant.openStatusLabel} — '
+          'جرّب الطلب المجدول أو عُد في وقت العمل');
       return;
     }
 
@@ -406,34 +459,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     const uuid = Uuid();
     final orderId = uuid.v4();
 
-    final restaurant = _restaurant ?? await service.getRestaurantOnce(cart.restaurantId!);
+    // النسخة الطازجة المجلوبة أول الدالة — لا نسخة لحظة فتح الشاشة.
+    final restaurant = freshRestaurant;
 
-    // تسعير موحّد: التوصيل حسب المسافة (أجرة السائق)، ورسم ثابت للتطبيق (3 ر.س)
-    // كحصّة التطبيق من التوصيل، وعمولة 15% على قيمة الوجبات.
+    // تسعير موحّد: التوصيل حسب المسافة (أجرة السائق)، ورسم المنصّة وأجرة
+    // الكيلومترات من إعدادات اللوحة، والعمولة بالنسبة الفعّالة للمطعم.
     double? distanceKm;
     if (restaurant?.lat != null && restaurant?.lng != null) {
       distanceKm = haversineDistanceKm(restaurant!.lat!, restaurant.lng!, _lat!, _lng!);
     }
-    final driverDeliveryFee = Pricing.deliveryFee(distanceKm ?? 0);
-
-    // خصم الرصيد قبل إنشاء الطلب: لو فشل الخصم (رصيد غير كافٍ لتغيّره من جهاز
-    // آخر) لا يُنشأ طلب يفترض خصماً لم يحدث.
-    if (walletApplied > 0) {
-      try {
-        await service.spendFromWallet(
-          userId: user.uid,
-          amount: walletApplied,
-          orderId: orderId,
-          orderNumber: orderId.substring(0, 6).toUpperCase(),
-        );
-      } catch (_) {
-        if (mounted) {
-          setState(() => _loading = false);
-          showError(context, 'تعذّر خصم رصيد المحفظة، حدّث الصفحة وحاول مجدداً');
-        }
-        return;
-      }
-    }
+    final driverDeliveryFee = _settings.deliveryFeeFor(distanceKm ?? 0);
 
     final order = Order(
       id: orderId,
@@ -455,12 +490,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // وتُحفظ محسوبةً فتبقى الفاتورة صحيحة لو عُدّل الكوبون أو حُذف.
       couponCode: _coupon?.code,
       discountAmount: _discount,
+      scheduledFor: _scheduledFor,
+      driverTip: _tip,
+      // ختم نسبة عمولة المطعم لحظة الإنشاء (العمولة المرنة) — والقواعد
+      // تتحقق أنها نسبة مستند المطعم نفسها لا رقماً يختلقه عميل معدَّل.
+      // النسبة الفعّالة لا الاسمية: صفرٌ في فترة الإعفاء «مجاني حتى تاريخ»،
+      // ثم المتفَّق عليها — تُختم على الطلب فينتهي الإعفاء تلقائياً في موعده.
+      commissionPercent: restaurant?.effectiveCommissionPercent,
       createdAt: DateTime.now(),
       statusChangedAt: DateTime.now(),
       driverShare: driverDeliveryFee,
-      appShare: Pricing.fixedDeliveryCommission,
+      appShare: _settings.deliveryAppCut,
       orderNumber: orderId.substring(0, 6).toUpperCase(),
-      platformCommission: Pricing.appCommission(cart.itemsTotal),
+      // بالنسبة الفعّالة لا 15% الثابتة: مطعم معفى («مجاني حتى») كان يُختم
+      // طلبه بعمولة 15% هنا بينما commissionPercent صفر — تناقض تدقيق داخل
+      // المستند نفسه (التسليم يعيد كتابتها لاحقاً فلا أثر مالياً، لكن
+      // الصدق من الإنشاء أوجب).
+      platformCommission: cart.itemsTotal *
+          ((restaurant?.effectiveCommissionPercent ?? 15) / 100),
       deliveryLat: _lat,
       deliveryLng: _lng,
       restaurantLat: restaurant?.lat,
@@ -468,7 +515,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     try {
-      await service.placeOrder(order);
+      // خصم المحفظة وإنشاء الطلب معاً في معاملة ذرّية: لا يُخصم رصيدٌ إلا مع
+      // ثبوت الطلب، فإن فشل الإنشاء رجع الرصيد تلقائياً (لا يقدر العميل ردّه
+      // بنفسه — القواعد تمنع زيادة الرصيد). بلا محفظة يمرّ عبر placeOrder.
+      await service.placeOrderWithWallet(order, walletApplied);
       cart.clear();
 
       if (!mounted) return;
@@ -482,7 +532,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       showSuccess(context, 'تم إرسال طلبك بنجاح!');
     } catch (e) {
       setState(() => _loading = false);
-      if (mounted) showError(context, 'فشل إرسال الطلب');
+      if (!mounted) return;
+      // فشل إنشاء الطلب: المحفظة رجعت ذرّياً. لكن إن كانت البطاقة قد شُحنت
+      // فعلاً (paymentId موجود) فالمبلغ محجوز عند البوابة بلا طلب — لا نُخفي
+      // ذلك برسالة عامة، بل نعطي العميل رقمه ليستردّه عبر الدعم (الاسترداد
+      // الآلي يحتاج خادماً — مؤجَّل لـBlaze).
+      if (paymentId != null) {
+        await showConfirmDialog(
+          context,
+          title: 'تعذّر إنشاء الطلب بعد الدفع',
+          content: 'خُصم مبلغ بطاقتك (رقم العملية: $paymentId) لكن تعذّر إنشاء '
+              'الطلب. احتفظ بالرقم وتواصل مع الدعم — سيُستردّ مبلغك كاملاً.',
+          confirmLabel: 'حسناً',
+        );
+      } else {
+        showError(context, 'فشل إرسال الطلب، حاول مجدداً');
+      }
     }
   }
 
@@ -492,14 +557,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final itemsTotal = cart.itemsTotal;
     final locationSet = _lat != null && _lng != null;
     final delivery = _deliveryFee;
-    const fixedFee = Pricing.fixedDeliveryCommission;
+    final fixedFee = _settings.deliveryAppCut;
     // العميل يدفع الوجبات + التوصيل + الرسم الثابت، ناقصاً ما يُخصم من رصيد
     // محفظته (عمولة 15% تُخصم من المطعم ولا تظهر للعميل).
     final walletBalance = _walletBalance;
     final discount = _discount;
     final walletApplied = _walletApplied();
     final amountDue = _amountDue();
-    final outOfRange = _distanceKm != null && Pricing.isOutOfRange(_distanceKm!);
+    final outOfRange = _distanceKm != null && _settings.isOutOfRange(_distanceKm!);
 
     return Scaffold(
       appBar: AppBar(title: const Text('إتمام الطلب')),
@@ -557,6 +622,82 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               prefixIcon: PhosphorIcon(PhosphorIcons.mapPin(), size: 20),
             ),
           ),
+          const SizedBox(height: 10),
+          // وقت التوصيل (ح4): «في أقرب وقت» افتراضاً، أو موعدٌ يختاره —
+          // بين ساعةٍ من الآن ويومين، فلا جدولة على مواعيد مضت ولا
+          // التزامات بعيدة تُنسى.
+          Row(children: [
+            const Icon(Icons.schedule_rounded,
+                size: 18, color: AppColors.textGray),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _scheduledFor == null
+                    ? 'التوصيل: في أقرب وقت'
+                    : 'مجدول: ${formatDateTime(_scheduledFor!)}',
+                style: const TextStyle(fontSize: 13.5),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                final now = DateTime.now();
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: now,
+                  firstDate: now,
+                  lastDate: now.add(const Duration(days: 2)),
+                );
+                if (date == null || !context.mounted) return;
+                final time = await showTimePicker(
+                  context: context,
+                  initialTime:
+                      TimeOfDay.fromDateTime(now.add(const Duration(hours: 2))),
+                );
+                if (time == null) return;
+                final picked = DateTime(date.year, date.month, date.day,
+                    time.hour, time.minute);
+                if (picked.isBefore(now.add(const Duration(hours: 1)))) {
+                  if (context.mounted) {
+                    showError(context,
+                        'أقرب موعد جدولة بعد ساعة من الآن — لما هو أعجل اختر «في أقرب وقت»');
+                  }
+                  return;
+                }
+                setState(() => _scheduledFor = picked);
+              },
+              child: Text(_scheduledFor == null ? 'جدولة' : 'تغيير'),
+            ),
+            if (_scheduledFor != null)
+              IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                tooltip: 'إلغاء الجدولة',
+                onPressed: () => setState(() => _scheduledFor = null),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          // إكرامية الكابتن (ح3): تصله كاملة بلا اقتطاع — والصياغة تقولها
+          // صراحة لأنها سبب المنح أصلاً.
+          Row(children: [
+            const Text('🛵', style: TextStyle(fontSize: 17)),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text('إكرامية للكابتن؟ تصله كاملة',
+                  style: TextStyle(fontSize: 13.5)),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Wrap(spacing: 8, children: [
+            ChoiceChip(
+              label: const Text('بلا'),
+              selected: _tip == 0,
+              onSelected: (_) => setState(() => _tip = 0),
+            ),
+            ..._tipOptions.map((v) => ChoiceChip(
+                  label: Text('${v.toStringAsFixed(0)} ر.س'),
+                  selected: _tip == v,
+                  onSelected: (_) => setState(() => _tip = v),
+                )),
+          ]),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _pickLocation,
@@ -585,7 +726,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 Expanded(
                   child: Text(
                     'الموقع يبعد ${_distanceKm!.toStringAsFixed(0)} كم عن المطعم — '
-                    'خارج نطاق التوصيل (${Pricing.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
+                    'خارج نطاق التوصيل (${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
                     'اختر موقعاً أقرب.',
                     style: const TextStyle(color: AppColors.error, fontSize: 12.5),
                   ),

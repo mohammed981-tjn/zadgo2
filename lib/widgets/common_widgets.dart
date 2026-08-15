@@ -72,7 +72,7 @@ class ZadGradientButton extends StatelessWidget {
                             Text(
                               label,
                               style: TextStyle(
-                                fontSize: 16.5,
+                                fontSize: 17,
                                 fontWeight: FontWeight.w800,
                                 color: fc.onPrimary,
                                 letterSpacing: 0.3,
@@ -127,13 +127,13 @@ class AppError extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             message ?? 'حدث خطأ أثناء تحميل البيانات',
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           const Text(
             'تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى',
-            style: TextStyle(fontSize: 13, color: AppColors.textGray),
+            style: TextStyle(fontSize: 13.5, color: AppColors.textGray),
             textAlign: TextAlign.center,
           ),
           // رمز الخطأ المختصر يبقى ظاهراً حتى في نسخة الإصدار: سطر صغير مثل
@@ -179,7 +179,7 @@ class AppError extends StatelessWidget {
                   const Text(
                     'تفاصيل تقنية (مؤقتة للتشخيص):',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.bold,
                       color: AppColors.error,
                     ),
@@ -190,7 +190,7 @@ class AppError extends StatelessWidget {
                     error.toString(),
                     textDirection: TextDirection.ltr,
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 11.5,
                       color: AppColors.textDark,
                       height: 1.4,
                     ),
@@ -380,11 +380,11 @@ class AppEmpty extends StatelessWidget {
             begin: const Offset(0.82, 0.82), end: const Offset(1, 1),
             duration: 320.ms, curve: Curves.easeOutBack).fadeIn(duration: 220.ms),
         const SizedBox(height: 18),
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
         if (subtitle != null) ...[
           const SizedBox(height: 8),
           Text(subtitle!, textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: AppColors.textGray, height: 1.6)),
+              style: const TextStyle(fontSize: 13.5, color: AppColors.textGray, height: 1.6)),
         ],
         if (action != null) ...[const SizedBox(height: 16), action!],
       ]),
@@ -402,7 +402,7 @@ class StatusBadge extends StatelessWidget {
     decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       if (icon != null) ...[Icon(icon, color: color, size: 13), const SizedBox(width: 4)],
-      Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+      Text(label, style: TextStyle(color: color, fontSize: 12.5, fontWeight: FontWeight.w600)),
     ]),
   );
 }
@@ -415,7 +415,7 @@ class InfoRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 3),
     child: Row(children: [
       Icon(icon, size: 15, color: AppColors.textGray), const SizedBox(width: 8),
-      Expanded(child: Text(text, style: TextStyle(fontSize: 13,
+      Expanded(child: Text(text, style: TextStyle(fontSize: 13.5,
           color: bold ? AppColors.textDark : AppColors.textGray,
           fontWeight: bold ? FontWeight.bold : FontWeight.normal))),
     ]));
@@ -449,7 +449,7 @@ class SectionHeader extends StatelessWidget {
     child: Row(children: [
       Container(width: 4, height: 20, color: AppColors.primary),
       const SizedBox(width: 10),
-      Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
     ]));
 }
 
@@ -485,7 +485,7 @@ class BroadcastBanner extends StatelessWidget {
       const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text(body, style: const TextStyle(fontSize: 13)),
+        Text(body, style: const TextStyle(fontSize: 13.5)),
       ])),
     ]),
   );
@@ -580,7 +580,7 @@ class OrderTrackingTimeline extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           _steps[active].label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.primary),
         ),
       ]),
     );

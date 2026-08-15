@@ -96,7 +96,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 ),
               ),
               const SizedBox(height: 12),
-              const Text('استرداد جزئي (نسبة من قيمة الطلب)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const Text('استرداد جزئي (نسبة من قيمة الطلب)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [0, 10, 20, 50, 100].map((pct) {
                 final selected = refundPercentage == pct.toDouble();
@@ -111,7 +111,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     'سيُضاف ${(refundPercentage! >= 100 ? order.payableTotal : order.itemsTotal * (refundPercentage! / 100)).toStringAsFixed(2)} ر.س لمحفظة العميل',
-                    style: const TextStyle(fontSize: 12, color: AppColors.success, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.success, fontWeight: FontWeight.bold),
                   ),
                 ),
               if (refundPercentage != null)
@@ -120,12 +120,12 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   onChanged: (v) =>
                       setDialogState(() => chargeRestaurant = v ?? false),
                   title: const Text('الخصم على المطعم لصالح العميل',
-                      style: TextStyle(fontSize: 13)),
+                      style: TextStyle(fontSize: 13.5)),
                   subtitle: const Text(
                       'لشكاوى الجودة (رديء/بارد/ناقص): يُطرح الاسترداد من '
                       'مستحقّات المطعم بدل أن تتحمّله المنصّة — بسقف صافي '
                       'المطعم من هذا الطلب',
-                      style: TextStyle(fontSize: 11)),
+                      style: TextStyle(fontSize: 11.5)),
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
@@ -134,21 +134,21 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 CheckboxListTile(
                   value: warnParty,
                   onChanged: (v) => setDialogState(() => warnParty = v ?? false),
-                  title: const Text('تسجيل إنذار للسائق', style: TextStyle(fontSize: 13)),
-                  subtitle: const Text('3 إنذارات = تعليق تلقائي للسائق', style: TextStyle(fontSize: 11)),
+                  title: const Text('تسجيل إنذار للسائق', style: TextStyle(fontSize: 13.5)),
+                  subtitle: const Text('3 إنذارات = تعليق تلقائي للسائق', style: TextStyle(fontSize: 11.5)),
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
                 const Divider(height: 24),
               ],
-              const Text('نقل الطلب لسائق آخر (اختياري)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const Text('نقل الطلب لسائق آخر (اختياري)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
               const SizedBox(height: 6),
               AppStreamBuilder<List<Driver>>(
                 stream: service.streamDrivers,
                 builder: (ctx, drivers) {
                   final others = drivers.where((d) => d.id != order.driverId).toList();
                   if (others.isEmpty) {
-                    return const Text('لا يوجد سائقون آخرون', style: TextStyle(fontSize: 12, color: AppColors.textGray));
+                    return const Text('لا يوجد سائقون آخرون', style: TextStyle(fontSize: 12.5, color: AppColors.textGray));
                   }
                   return DropdownButtonFormField<Driver>(
                     value: reassignTo,
@@ -303,7 +303,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                             'قُدّمت: ${formatDateTime(c.createdAt)}\n'
                             '${overdue ? "⚠️ تجاوزت مهلة الرد (٢٤ ساعة)" : "مهلة الرد تنتهي: ${formatDateTime(c.expectedResponseBy)}"}',
                             style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 12.5,
                                 height: 1.6,
                                 color: overdue ? AppColors.error : AppColors.textGray,
                                 fontWeight: overdue ? FontWeight.bold : FontWeight.normal),
@@ -315,7 +315,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                         if (c.status == ComplaintStatus.open)
                           TextButton.icon(
                             icon: const Icon(Icons.play_circle_outline_rounded, size: 17),
-                            label: const Text('بدء المعالجة', style: TextStyle(fontSize: 12)),
+                            label: const Text('بدء المعالجة', style: TextStyle(fontSize: 12.5)),
                             onPressed: () async {
                               try {
                                 await service.updateComplaintStatus(
@@ -383,7 +383,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   _ProofTimeline(orderId: c.orderId),
                   const SizedBox(height: 12),
                 ],
-                const Text('محادثة مع مقدّم الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text('محادثة مع مقدّم الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
                 const SizedBox(height: 8),
                 StreamBuilder<List<ChatMessage>>(
                   stream: service.streamComplaintChat(c.id),
@@ -392,7 +392,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                     if (messages.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Text('لا توجد رسائل بعد', style: TextStyle(color: AppColors.textGray, fontSize: 12)),
+                        child: Text('لا توجد رسائل بعد', style: TextStyle(color: AppColors.textGray, fontSize: 12.5)),
                       );
                     }
                     return Column(
@@ -409,7 +409,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(m.senderName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text(m.senderName, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
                               Text(m.text, style: const TextStyle(fontSize: 13.5)),
                             ]),
                           ),
@@ -476,13 +476,13 @@ class _PartyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(children: [
-        Text('$label: ', style: const TextStyle(fontSize: 13, color: AppColors.textGray)),
-        Expanded(child: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))),
+        Text('$label: ', style: const TextStyle(fontSize: 13.5, color: AppColors.textGray)),
+        Expanded(child: Text(name, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold))),
         if (role != null)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-            child: Text(role!.label, style: const TextStyle(fontSize: 10, color: AppColors.primary)),
+            child: Text(role!.label, style: const TextStyle(fontSize: 10.5, color: AppColors.primary)),
           ),
       ]);
 }
@@ -510,7 +510,7 @@ class _ProofTimeline extends StatelessWidget {
             final proof = snap.data;
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('سجلّ الإثبات',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
               const SizedBox(height: 10),
               if (proof == null)
                 const Text(
@@ -551,7 +551,7 @@ class _ProofTimeline extends StatelessWidget {
                 if (proof.pickupPhoto == null && proof.deliveryPhoto == null)
                   const Text('لا صور محفوظة بعد',
                       style:
-                          TextStyle(fontSize: 12, color: AppColors.textGray)),
+                          TextStyle(fontSize: 12.5, color: AppColors.textGray)),
               ],
             ]);
           },
@@ -572,7 +572,7 @@ class _ProofPhoto extends StatelessWidget {
         children: [
           Text(label,
               style:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           GestureDetector(
             // تكبير الصورة للفحص — تفاصيل «هل الشنطة مغلقة؟ كم صنفاً؟»

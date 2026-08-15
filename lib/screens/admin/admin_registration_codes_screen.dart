@@ -82,7 +82,7 @@ class _CodeCard extends StatelessWidget {
                   style: TextStyle(
                       fontWeight: FontWeight.w900,
                       letterSpacing: 2,
-                      fontSize: 15,
+                      fontSize: 14.5,
                       color: statusColor)),
             ),
             const SizedBox(width: 8),
@@ -114,7 +114,7 @@ class _CodeCard extends StatelessWidget {
                     if (context.mounted) showSuccess(context, 'نُسخ الكود');
                   },
                   icon: const Icon(Icons.copy_outlined, size: 15),
-                  label: const Text('نسخ', style: TextStyle(fontSize: 12)),
+                  label: const Text('نسخ', style: TextStyle(fontSize: 12.5)),
                 ),
               TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: AppColors.error),
@@ -131,7 +131,7 @@ class _CodeCard extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.delete_outline, size: 15),
-                label: const Text('إلغاء', style: TextStyle(fontSize: 12)),
+                label: const Text('إلغاء', style: TextStyle(fontSize: 12.5)),
               ),
             ]),
           ],

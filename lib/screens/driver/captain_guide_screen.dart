@@ -88,7 +88,7 @@ class CaptainGuideScreen extends StatelessWidget {
                 'خمسة دروس قصيرة تغطي رحلتك كاملة — من أول عرض إلى سحب أرباحك',
                 style: TextStyle(
                     color: Colors.white,
-                    fontSize: 13,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                     height: 1.6),
               ),
@@ -125,7 +125,7 @@ class CaptainGuideScreen extends StatelessWidget {
                             Expanded(
                               child: Text(point,
                                   style: const TextStyle(
-                                      fontSize: 13, height: 1.7)),
+                                      fontSize: 13.5, height: 1.7)),
                             ),
                           ]),
                     ),
