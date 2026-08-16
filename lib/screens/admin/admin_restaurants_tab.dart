@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:latlong2/latlong.dart';
+import '../../providers/ai_assist.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
@@ -844,6 +845,7 @@ class _ItemFormState extends State<_ItemForm> {
   late final TextEditingController _name, _desc, _price, _emoji, _stock, _kcal;
   bool _loading = false;
   bool _trackStock = false;
+  bool _descAiLoading = false;
   late String? _categoryId;
   String? _imageUrl;
 
@@ -1061,6 +1063,54 @@ class _ItemFormState extends State<_ItemForm> {
                 _f(_emoji, 'رمز الصنف', isReq: false),
                 _f(_name, 'اسم الصنف'),
                 _f(_desc, 'الوصف'),
+                // «وصف الأصناف بضغطة» (2026-08-16): يملأ الخانة اقتراحاً
+                // من اسم الصنف وتصنيفه — والمدير يعدّل ويحفظ بنفسه.
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    icon: _descAiLoading
+                        ? const SizedBox(
+                            width: 13,
+                            height: 13,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.auto_awesome, size: 15),
+                    label: const Text('اقترح وصفاً',
+                        style: TextStyle(fontSize: 12)),
+                    onPressed: _descAiLoading
+                        ? null
+                        : () async {
+                            final n = _name.text.trim();
+                            if (n.isEmpty) {
+                              showError(context, 'اكتب اسم الصنف أولاً');
+                              return;
+                            }
+                            setState(() => _descAiLoading = true);
+                            try {
+                              String? cat;
+                              for (final c in widget.categories) {
+                                if (c.id == _categoryId) cat = c.name;
+                              }
+                              final s =
+                                  await AiAssist.suggestDishDescription(
+                                dishName: n,
+                                category: cat,
+                              );
+                              _desc.text = s;
+                            } catch (e) {
+                              if (mounted) {
+                                showError(
+                                    context,
+                                    e.toString().replaceFirst(
+                                        'Exception: ', ''));
+                              }
+                            }
+                            if (mounted) {
+                              setState(() => _descAiLoading = false);
+                            }
+                          },
+                  ),
+                ),
                 _f(_price, 'السعر', type: TextInputType.number, validator: validatePrice),
                 _f(_kcal, 'السعرات الحرارية (اختياري)',
                     type: TextInputType.number, isReq: false),
