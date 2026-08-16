@@ -105,8 +105,12 @@ async function runQuery(token: string, body: unknown): Promise<any[]> {
 }
 
 Deno.serve(async (req) => {
+  // الزناد يقبل المفتاح من الترويسة أو من رابط المتصفح (?key=) — المالك
+  // يشغّل الفحص من جواله بلا أدوات، وcron لاحقاً بالترويسة.
   const guard = Deno.env.get("ARM_TRIGGER_KEY");
-  if (guard && req.headers.get("x-arm-key") !== guard) {
+  const given = req.headers.get("x-arm-key") ??
+    new URL(req.url).searchParams.get("key");
+  if (guard && given !== guard) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
