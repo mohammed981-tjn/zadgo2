@@ -2567,6 +2567,14 @@ class Complaint {
   final DateTime createdAt;
   final String? adminNote;
 
+  /// متى ضغط المدير «تأكيد الحل» — أساس الإغلاق التلقائي بعد صمت
+  /// مقدّم الشكوى (دورة حياة الشكوى، 2026-08-16).
+  final DateTime? resolvedAt;
+
+  /// أعادها صاحبها بعد الحل («لا، لم تُحل») — علامة للمدير أن حكمه
+  /// بالحل لم يقنع صاحب الشكوى، فتُعامل بأولوية لا كشكوى عادية.
+  final bool reopenedBySubmitter;
+
   /// نص القرار الذي يكتبه المدير عند حلّ الشكوى. كان يُكتب في المستند ولا
   /// يقرؤه النموذج، فلا يراه مقدّم الشكوى أبداً — مع أنه جواب شكواه.
   final String? resolution;
@@ -2596,6 +2604,16 @@ class Complaint {
   bool get isAwaitingAction =>
       status == ComplaintStatus.open || status == ComplaintStatus.inProgress;
 
+  /// مهلة صمت مقدّم الشكوى بعد الحل: إن لم يؤكد «حُلّت/لم تُحل» خلالها
+  /// تُغلق تلقائياً — لا نعلّق الدفتر على من لا يجيب.
+  static const Duration autoCloseAfter = Duration(days: 3);
+
+  /// حان إغلاقها التلقائي؟ (محلولة + مضت المهلة بلا جواب من صاحبها)
+  bool get autoCloseDue =>
+      status == ComplaintStatus.resolved &&
+      resolvedAt != null &&
+      DateTime.now().isAfter(resolvedAt!.add(autoCloseAfter));
+
   /// تذكرة عامة: فُتحت بلا ارتباط بطلب (مالية/تحديث بيانات/استفسار...) —
   /// تُعرض وتُحل بلا حقول الطلب (لا استرداد نسبة، لا خط إثبات).
   bool get isGeneralTicket => orderId.trim().isEmpty;
@@ -2613,6 +2631,8 @@ class Complaint {
     this.status = ComplaintStatus.open,
     required this.createdAt,
     this.adminNote,
+    this.resolvedAt,
+    this.reopenedBySubmitter = false,
     this.resolution,
     String? submittedByUid,
     String? submittedByName,
@@ -2639,6 +2659,8 @@ class Complaint {
       status: _complaintStatusFromString(map['status'] as String?),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       adminNote: map['adminNote'] as String?,
+      resolvedAt: (map['resolvedAt'] as Timestamp?)?.toDate(),
+      reopenedBySubmitter: map['reopenedBySubmitter'] as bool? ?? false,
       resolution: map['resolution'] as String?,
       submittedByUid: (map['submittedByUid'] as String?) ?? customerId,
       submittedByName: (map['submittedByName'] as String?) ?? customerName,
@@ -2664,6 +2686,8 @@ class Complaint {
         'status': status.name,
         'createdAt': Timestamp.fromDate(createdAt),
         'adminNote': adminNote,
+        if (resolvedAt != null) 'resolvedAt': Timestamp.fromDate(resolvedAt!),
+        if (reopenedBySubmitter) 'reopenedBySubmitter': true,
         if (resolution != null) 'resolution': resolution,
         'submittedByUid': submittedByUid,
         'submittedByName': submittedByName,

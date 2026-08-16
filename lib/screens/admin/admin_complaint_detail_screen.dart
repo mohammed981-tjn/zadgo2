@@ -29,6 +29,19 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
   bool _resolving = false;
 
   @override
+  void initState() {
+    super.initState();
+    // التدرج التلقائي (دورة حياة الشكوى — ملاحظة المالك 2026-08-16):
+    // فتحُ المدير للشكوى هو بدء معالجتها فعلاً، فتنتقل «قيد المعالجة»
+    // وحدها ويراها صاحبها كذلك — بدل زرّ يدوي كان يُنسى فتبقى «مفتوحة»
+    // وهي تُعالج. صامت وبلا انتظار: فشله لا يعطّل الشاشة.
+    if (widget.complaint.status == ComplaintStatus.open) {
+      context.read<FirebaseService>().updateComplaintStatus(
+          widget.complaint.id, ComplaintStatus.inProgress);
+    }
+  }
+
+  @override
   void dispose() {
     _chatCtrl.dispose();
     super.dispose();
@@ -365,6 +378,33 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   const Spacer(),
                   Chip(label: Text(c.type.label)),
                 ]),
+                // ارتدّت من صاحبها: حكم «محلولة» لم يقنعه — أولوية فوق
+                // الشكاوى العادية، والمدير يجب أن يعرف أنها جولة ثانية.
+                if (c.reopenedBySubmitter)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(children: [
+                      Icon(Icons.replay_circle_filled_rounded,
+                          size: 18, color: AppColors.error),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'أعادها صاحبها بعد الحل — يرى أنها لم تُحل. '
+                          'راجع ردّك السابق قبل حلّها ثانية.',
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              color: AppColors.error,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ]),
+                  ),
                 const SizedBox(height: 8),
                 // تاريخ التقديم ومهلة الرد (نفذ ٢): كان المدير يقرّر أولوية
                 // الشكاوى بلا أن يرى أيّها أوشك على خرق وعد «نردّ خلال ٢٤
@@ -391,29 +431,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                                 fontWeight: overdue ? FontWeight.bold : FontWeight.normal),
                           ),
                         ),
-                        // «قيد المعالجة» (نفذ ٢): الحالة كانت معرَّفة ولا
-                        // تُستخدم أبداً — فيظل الشاكي يرى «مفتوحة» ولو كان
-                        // المدير يعمل عليها فعلاً. ضغطة تطمئنه أن شكواه بيد أحد.
-                        if (c.status == ComplaintStatus.open)
-                          TextButton.icon(
-                            icon: const Icon(Icons.play_circle_outline_rounded, size: 17),
-                            label: const Text('بدء المعالجة', style: TextStyle(fontSize: 12.5)),
-                            onPressed: () async {
-                              try {
-                                await service.updateComplaintStatus(
-                                    c.id, ComplaintStatus.inProgress);
-                                if (context.mounted) {
-                                  showSuccess(context,
-                                      'صارت «قيد المعالجة» — يراها مقدّمها كذلك');
-                                  Navigator.pop(context);
-                                }
-                              } catch (_) {
-                                if (context.mounted) {
-                                  showError(context, 'تعذّر تغيير الحالة');
-                                }
-                              }
-                            },
-                          ),
+                        // (زر «بدء المعالجة» اليدوي أُزيل — التحول صار
+                        // تلقائياً بفتح المدير للشكوى، انظر initState.)
                       ]),
                     ),
                   );
@@ -519,6 +538,42 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 ]),
               ),
             ),
+            // إعادة الفتح: للمحلولة/المغلقة — يملكها المدير دائماً (قد
+            // يتصل صاحبها هاتفياً بعد الإغلاق التلقائي مثلاً).
+            if (c.status == ComplaintStatus.resolved ||
+                c.status == ComplaintStatus.closed)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.replay_rounded, size: 18),
+                    label: const Text('إعادة فتح الشكوى'),
+                    onPressed: _resolving
+                        ? null
+                        : () async {
+                            setState(() => _resolving = true);
+                            try {
+                              await service.updateComplaintStatus(
+                                  c.id, ComplaintStatus.inProgress);
+                              if (context.mounted) {
+                                showSuccess(context,
+                                    'أُعيد فتحها — صارت «قيد المعالجة»');
+                                Navigator.pop(context);
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                showError(context, 'تعذّرت إعادة الفتح');
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() => _resolving = false);
+                              }
+                            }
+                          },
+                  ),
+                ),
+              ),
             if (c.status != ComplaintStatus.resolved && c.status != ComplaintStatus.closed)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
