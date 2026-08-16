@@ -35,6 +35,19 @@ class AppCheckService {
     }
   }
 
+  /// يجرّب استبدال رمز التصحيح بتوكن حقيقي من جوجل ويعيد النتيجة نصاً —
+  /// للتشخيص الميداني: «نجح» يعني أن الحماية سليمة والعطل في مكان آخر،
+  /// وأي فشل يعود بنص خطأ جوجل الحرفي (هو ما يسمّي العلّة بالضبط).
+  static Future<String> exchangeStatus() async {
+    try {
+      final t = await FirebaseAppCheck.instance.getToken(true);
+      if (t == null || t.isEmpty) return 'فشل: لا توكن (بلا استثناء)';
+      return 'نجح ✓ — توكن صالح (${t.substring(0, 12)}…)';
+    } catch (e) {
+      return 'فشل: $e';
+    }
+  }
+
   /// يقرأ رمز التصحيح المولَّد على هذا الجهاز ليُسجّله المالك في
   /// الكونسول (App Check ← Apps ← Admin ← Manage debug tokens).
   ///
