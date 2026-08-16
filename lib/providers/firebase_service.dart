@@ -2661,12 +2661,52 @@ class FirebaseService {
   }) =>
       _complaints.doc(complaintId).update({
         'status': status.name,
+        // ختم الحل أساس الإغلاق التلقائي؛ وإعادة الفتح تمسح علامة
+        // «أعادها صاحبها» كي لا تلتصق بالشكوى بعد معالجتها من جديد.
+        if (status == models.ComplaintStatus.resolved)
+          'resolvedAt': FieldValue.serverTimestamp(),
+        if (status == models.ComplaintStatus.inProgress)
+          'reopenedBySubmitter': FieldValue.delete(),
         if (adminNote != null) 'adminNote': adminNote,
         if (resolution != null) 'resolution': resolution,
       }).then((_) {
         logAdminAction('complaint.status', 'تغيير حالة شكوى إلى ${status.label}',
             extra: {'complaintId': complaintId});
       });
+
+  /// جواب مقدّم الشكوى على «هل حُلّت شكواك؟» (دورة حياة الشكوى):
+  /// نعم ← تُغلق برضاه (الإغلاق الصادق الوحيد)؛ لا ← تعود «قيد
+  /// المعالجة» موسومة بأنها ارتدت — القواعد تسمح له بهذين التحولين
+  /// تحديداً من حالة «محلولة» فقط.
+  Future<void> confirmComplaintResolution(
+    String complaintId, {
+    required bool solved,
+  }) =>
+      _complaints.doc(complaintId).update(solved
+          ? {'status': models.ComplaintStatus.closed.name}
+          : {
+              'status': models.ComplaintStatus.inProgress.name,
+              'reopenedBySubmitter': true,
+            });
+
+  /// كنس المحلولات الصامتة: كل «محلولة» مضت مهلة تأكيدها (٣ أيام) بلا
+  /// جواب من صاحبها تُغلق تلقائياً. يُستدعى عند فتح شاشة شكاوى الإدارة —
+  /// كسل مقصود: لا خادم عندنا يجدول، فتُنفَّذ الصيانة حيث تُقرأ البيانات.
+  Future<int> closeStaleResolvedComplaints() async {
+    final snap = await _complaints
+        .where('status', isEqualTo: models.ComplaintStatus.resolved.name)
+        .get();
+    var closed = 0;
+    for (final d in snap.docs) {
+      final c = models.Complaint.fromMap(d.data(), d.id);
+      if (c.autoCloseDue) {
+        await d.reference
+            .update({'status': models.ComplaintStatus.closed.name});
+        closed++;
+      }
+    }
+    return closed;
+  }
 
   static const int _driverWarningThreshold = 3;
 
@@ -2787,6 +2827,10 @@ class FirebaseService {
     ].join(' — ');
     await _complaints.doc(complaint.id).update({
       'status': models.ComplaintStatus.resolved.name,
+      // دورة حياة الشكوى: الحل لا يُغلق — يفتح مهلة تأكيد صاحبها
+      // (resolvedAt أساسها)، ومسح علامة الارتداد إن كانت من جولة سابقة.
+      'resolvedAt': FieldValue.serverTimestamp(),
+      'reopenedBySubmitter': FieldValue.delete(),
       'resolution': reply.isEmpty ? 'تم الحل بلا إجراء إضافي' : reply,
       'adminNote': adminNote ??
           (actionsSummary.isEmpty ? 'تم الحل بلا إجراء إضافي' : actionsSummary),

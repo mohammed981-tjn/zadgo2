@@ -20,6 +20,15 @@ class AdminComplaintsScreen extends StatefulWidget {
 class _AdminComplaintsScreenState extends State<AdminComplaintsScreen> {
   ComplaintStatus? _filter;
 
+  @override
+  void initState() {
+    super.initState();
+    // الصيانة الكسولة (دورة حياة الشكوى): كل «محلولة» صمت صاحبها ٣ أيام
+    // تُغلق تلقائياً عند فتح هذه الشاشة — لا خادم يجدول عندنا، فالكنس
+    // يجري حيث تُقرأ البيانات. صامت: فشله لا يعطل العرض.
+    context.read<FirebaseService>().closeStaleResolvedComplaints();
+  }
+
   /// ترتيب أولوية العرض الافتراضي: مفتوحة (الأكثر إلحاحاً) أولاً، ثم قيد
   /// المعالجة، ثم المحلولة/المغلقة أخيراً — بصرف النظر عن تاريخ التقديم،
   /// حتى لا تُدفن شكوى عاجلة قديمة خلف شكاوى محلولة حديثة.
@@ -150,6 +159,12 @@ class _ComplaintCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               StatusBadge(label: c.status.label, color: c.status.color, icon: Icons.circle),
+              // ارتدّت من صاحبها — تلفت النظر من القائمة قبل فتحها.
+              if (c.reopenedBySubmitter) ...[
+                const SizedBox(width: 6),
+                const Icon(Icons.replay_circle_filled_rounded,
+                    size: 16, color: AppColors.error),
+              ],
               const SizedBox(width: 8),
               Expanded(
                 child: Text(c.type.label,

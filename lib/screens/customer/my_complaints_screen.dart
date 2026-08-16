@@ -15,6 +15,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
+import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
 import 'submit_ticket_screen.dart';
@@ -254,6 +255,30 @@ class ComplaintDetailScreen extends StatefulWidget {
 class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
   final _chatCtrl = TextEditingController();
   bool _sending = false;
+  bool _confirming = false;
+
+  /// جواب «هل حُلّت شكواك؟» — نعم تُغلقها برضاه، لا تُعيدها للإدارة
+  /// موسومةً بالارتداد (دورة حياة الشكوى، 2026-08-16).
+  Future<void> _confirmResolution(Complaint c, bool solved) async {
+    if (_confirming) return;
+    setState(() => _confirming = true);
+    try {
+      await context
+          .read<FirebaseService>()
+          .confirmComplaintResolution(c.id, solved: solved);
+      if (mounted) {
+        showSuccess(
+            context,
+            solved
+                ? 'شكراً لك — أُغلقت الشكوى'
+                : 'أعدناها للإدارة — ستُراجع بأولوية');
+      }
+    } catch (_) {
+      if (mounted) showError(context, 'تعذّر تسجيل جوابك، حاول مرة أخرى');
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -377,6 +402,62 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                               ].join('\n'),
                               style: const TextStyle(fontSize: 13.5),
                             ),
+                          ]),
+                    ),
+                  ),
+                ],
+
+                // «هل حُلّت شكواك؟» — الكلمة الأخيرة لصاحب الشكوى لا
+                // للمدير: نعم تُغلقها برضاه، لا تُعيدها بأولوية. وبعد
+                // ٣ أيام صمت تُغلق تلقائياً (يُصارَح بذلك هنا).
+                if (!widget.readOnly &&
+                    c.status == ComplaintStatus.resolved) ...[
+                  const SizedBox(height: 12),
+                  Card(
+                    color: AppColors.primary.withOpacity(0.06),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('هل حُلّت شكواك؟',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14.5)),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'جوابك يحسم الملف: «نعم» تُغلقها، و«لا» تُعيدها '
+                              'للإدارة بأولوية. وإن لم تُجب خلال ٣ أيام '
+                              'تُغلق تلقائياً.',
+                              style: TextStyle(
+                                  fontSize: 12.5, color: AppColors.textGray),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.success),
+                                  icon: const Icon(Icons.check_rounded,
+                                      size: 18),
+                                  label: const Text('نعم، حُلّت'),
+                                  onPressed: _confirming
+                                      ? null
+                                      : () => _confirmResolution(c, true),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.close_rounded,
+                                      size: 18),
+                                  label: const Text('لا، لم تُحل'),
+                                  onPressed: _confirming
+                                      ? null
+                                      : () => _confirmResolution(c, false),
+                                ),
+                              ),
+                            ]),
                           ]),
                     ),
                   ),
