@@ -21,12 +21,19 @@ import '../models/models.dart';
 class AiAssist {
   AiAssist._();
 
-  // gemini-2.0-flash: الطراز السريع الرخيص — مهمة الصياغة لا تحتاج أعمق
-  // منه، والأسرع أنسب لزرّ يُضغط أثناء معالجة شكوى.
-  static GenerativeModel? _model;
+  // درسُ 2026-08-16: أول اختبار ميداني فشل لأن `gemini-2.0-flash` كان
+  // طرازاً **ميتاً** (أطفأته جوجل نهائياً في 2026-06-01) — جوجل تقاعد
+  // أجيال Gemini كل بضعة أشهر. الدفاع طبقتان: الطراز المستقر الحالي
+  // أولاً، فإن فشل نداؤه جرّبنا الاسم المستعار `gemini-flash-latest`
+  // الذي تحوّله جوجل تلقائياً لأحدث إصدار — فيبقى الزر حياً حتى لو
+  // تقاعد المستقر قبل أن نحدّث التطبيق.
+  static const _primaryModel = 'gemini-3.7-flash';
+  static const _fallbackModel = 'gemini-flash-latest';
 
-  static GenerativeModel get _instance => _model ??= FirebaseAI.googleAI()
-      .generativeModel(model: 'gemini-2.0-flash');
+  static final Map<String, GenerativeModel> _models = {};
+
+  static GenerativeModel _modelFor(String name) => _models[name] ??=
+      FirebaseAI.googleAI().generativeModel(model: name);
 
   /// يقترح ردّاً عربياً مهذّباً على شكوى — للمدير أن يعدّله ثم يرسله.
   ///
@@ -51,18 +58,21 @@ ${resolutionDraft != null && resolutionDraft.trim().isNotEmpty ? 'الإجراء
 
 أعد الردّ وحده بلا أي شرح أو عناوين.''';
 
-    try {
-      final res = await _instance.generateContent([Content.text(prompt)]);
-      final text = res.text?.trim();
-      if (text == null || text.isEmpty) {
-        throw Exception('لم يصل اقتراح — حاول مجدداً');
+    for (final model in const [_primaryModel, _fallbackModel]) {
+      try {
+        final res =
+            await _modelFor(model).generateContent([Content.text(prompt)]);
+        final text = res.text?.trim();
+        if (text == null || text.isEmpty) {
+          throw Exception('لم يصل اقتراح — حاول مجدداً');
+        }
+        return text;
+      } catch (e) {
+        debugPrint('AiAssist ($model) error: $e');
       }
-      return text;
-    } catch (e) {
-      debugPrint('AiAssist error: $e');
-      throw Exception(
-          'تعذّر توليد الاقتراح — تأكد من الاتصال، ومن تفعيل Gemini في '
-          'كونسول فيربيز (Firebase AI Logic ← Get started) لأول مرة');
     }
+    throw Exception(
+        'تعذّر توليد الاقتراح — تأكد من الاتصال، ومن تفعيل Gemini في '
+        'كونسول فيربيز (Firebase AI Logic ← Get started) لأول مرة');
   }
 }
