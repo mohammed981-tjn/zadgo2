@@ -14,6 +14,7 @@
 // المدير ثم يرسله بنفسه. الذكاء يقترح والإنسان يقرّر — خاصة في شكوى
 // فيها مال وسمعة.
 import 'package:firebase_ai/firebase_ai.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/models.dart';
@@ -32,8 +33,12 @@ class AiAssist {
 
   static final Map<String, GenerativeModel> _models = {};
 
+  // تمرير appCheck **إلزامي لا اختياري** عندنا (درس 2026-08-16): بدونه
+  // لا ترسل الحزمة توكن الحماية أصلاً — فيرفض خادم AI Logic الطلب
+  // «App Check token is invalid» مهما فعّلنا الحماية وسجّلنا الرموز.
   static GenerativeModel _modelFor(String name) => _models[name] ??=
-      FirebaseAI.googleAI().generativeModel(model: name);
+      FirebaseAI.googleAI(appCheck: FirebaseAppCheck.instance)
+          .generativeModel(model: name);
 
   /// يقترح ردّاً عربياً مهذّباً على شكوى — للمدير أن يعدّله ثم يرسله.
   ///
