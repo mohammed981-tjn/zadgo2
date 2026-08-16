@@ -17,7 +17,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../models/models.dart';
+import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
@@ -48,6 +51,7 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
   bool _keyChecked = false;
   bool _saving = false;
   bool _generating = false;
+  bool _sending = false;
   String _platform = 'instagram';
   String? _error;
   List<Map<String, dynamic>> _variants = const [];
@@ -159,6 +163,51 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
     }
   }
 
+  /// إرسال الصيغة **بثاً جماعياً لعملاء التطبيق** — سؤال المالك
+  /// 2026-08-16: «أين يظهر الإعلان للعميل؟». كانت الشاشة تولّد نصاً
+  /// ينتهي في الحافظة، والقناة المملوكة لنا (البث) على بعد شاشتين —
+  /// فوُصلت هنا: من الفكرة إلى شاشة العميل بضغطتين، بلا إنستغرام ولا
+  /// نسخ ولصق. (البنر يتطلب صورة إلزاماً فليس قناة نصّ.)
+  Future<void> _sendAsBroadcast(Map<String, dynamic> v) async {
+    final title = (v['headline'] ?? '').toString().trim();
+    final body = [
+      if ((v['body'] ?? '').toString().trim().isNotEmpty) v['body'],
+      if ((v['cta'] ?? '').toString().trim().isNotEmpty) v['cta'],
+    ].join('\n');
+    if (title.isEmpty || body.isEmpty) {
+      showError(context, 'الصيغة ناقصة — جرّب صيغة أخرى');
+      return;
+    }
+
+    // تأكيد صريح: البث يصل **كل** العملاء دفعة واحدة ولا يُسترجع.
+    final ok = await showConfirmDialog(
+      context,
+      title: 'إرسال لكل العملاء؟',
+      content: 'سيصل هذا الإعلان إلى كل عملاء زاد قو داخل التطبيق:\n\n'
+          '«$title»\n$body\n\nالإرسال فوري ولا يمكن التراجع عنه.',
+      confirmLabel: 'أرسل الآن',
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _sending = true);
+    try {
+      final auth = context.read<app_auth.AuthProvider>();
+      await context.read<FirebaseService>().sendBroadcast(BroadcastMessage(
+            id: const Uuid().v4(),
+            audience: BroadcastAudience.customers,
+            title: title,
+            body: body,
+            sentBy: auth.user?.name ?? auth.user?.uid ?? 'admin',
+            createdAt: DateTime.now(),
+          ));
+      if (mounted) showSuccess(context, 'أُرسل الإعلان لكل العملاء ✓');
+    } catch (_) {
+      if (mounted) showError(context, 'تعذّر الإرسال، حاول مرة أخرى');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   /// نص الصيغة كاملاً للنسخ — جاهز للصق في المنصة مباشرة.
   String _variantText(Map<String, dynamic> v) {
     final hashtags = (v['hashtags'] as List? ?? const []).join(' ');
@@ -218,8 +267,10 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
           ),
         ] else ...[
           const Text(
-            'اكتب ما تريد الإعلان عنه (منتج، عرض، مناسبة) واختر المنصة — '
-            'تصلك ثلاث صيغ مرتّبة، تنسخ ما يعجبك وتنشره.',
+            'اكتب ما تريد الإعلان عنه (منتج، عرض، مناسبة) واختر أسلوب '
+            'المنصة — تصلك ثلاث صيغ: **«أرسله للعملاء»** يصل إعلاناً '
+            'لكل عملاء زاد قو داخل التطبيق فوراً، و«انسخ النص» للنشر '
+            'في حساباتك الخارجية.',
             style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
           ),
           const SizedBox(height: 12),
@@ -305,15 +356,6 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                                     fontSize: 12,
                                     color: AppColors.textGray)),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.copy_rounded, size: 18),
-                            tooltip: 'انسخ الإعلان كاملاً',
-                            onPressed: () {
-                              Clipboard.setData(
-                                  ClipboardData(text: _variantText(v)));
-                              showSuccess(context, 'نُسخ — الصقه في المنصة');
-                            },
-                          ),
                         ]),
                         const SizedBox(height: 4),
                         Text('${v['headline'] ?? ''}',
@@ -337,6 +379,38 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                               style: const TextStyle(
                                   fontSize: 12, color: AppColors.textGray)),
                         ],
+                        const Divider(height: 20),
+                        // زرّان صريحان بدل أيقونة نسخ صغيرة لم يلحظها
+                        // المالك أصلاً: ميزة لا تُرى كأنها لم تُبنَ.
+                        Row(children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.success),
+                              icon: const Icon(Icons.campaign_outlined,
+                                  size: 17),
+                              label: const Text('أرسله للعملاء',
+                                  style: TextStyle(fontSize: 12.5)),
+                              onPressed: _sending
+                                  ? null
+                                  : () => _sendAsBroadcast(v),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.copy_rounded, size: 17),
+                              label: const Text('انسخ النص',
+                                  style: TextStyle(fontSize: 12.5)),
+                              onPressed: () {
+                                Clipboard.setData(
+                                    ClipboardData(text: _variantText(v)));
+                                showSuccess(context,
+                                    'نُسخ — الصقه في أي منصة تريدها');
+                              },
+                            ),
+                          ),
+                        ]),
                       ]),
                 ),
               )),
