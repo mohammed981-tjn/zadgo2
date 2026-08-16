@@ -14,6 +14,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'app_flavor.dart';
 import 'crash_reporting.dart';
+import 'providers/app_check_service.dart';
 import 'navigator_key.dart';
 import 'widgets/connectivity_banner.dart';
 import 'widgets/min_version_gate.dart';
@@ -55,6 +56,11 @@ void main() async {
   // تسجيل الانهيارات يُوصَّل **قبل** أي شيفرة أخرى بعد تهيئة Firebase:
   // ما ينهار في أثناء الإقلاع نفسه هو أعصى ما يُشخَّص بلا تقرير.
   await initCrashReporting(flavor: 'admin');
+
+  // App Check شرط تشغيل الذكاء (فرضه على AI Logic لا يُعطَّل) — مزوّد
+  // التصحيح لأن التوزيع مباشر لا عبر المتجر؛ التفصيل في app_check_service.
+  // في تطبيق الإدارة وحده: الذكاء هنا فقط، ورموز التصحيح تُدار يدوياً.
+  await AppCheckService.activateDebug();
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
