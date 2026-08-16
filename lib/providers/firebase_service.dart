@@ -22,6 +22,8 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _orders => _db.collection('orders');
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
+  CollectionReference<Map<String, dynamic>> get _adminSecrets =>
+      _db.collection('admin_secrets');
   CollectionReference<Map<String, dynamic>> get _messages => _db.collection('chat_messages');
   CollectionReference<Map<String, dynamic>> get _complaintMessages =>
       _db.collection('complaint_messages');
@@ -2836,6 +2838,23 @@ class FirebaseService {
           (actionsSummary.isEmpty ? 'تم الحل بلا إجراء إضافي' : actionsSummary),
     });
   }
+
+  /// مفتاح شريك إعلانات zol (دفعة الإعلانات 2026-08-16): يُلصق مرة من
+  /// اللوحة ويُخزَّن في admin_secrets (للمدير حصراً في القواعد) — لا
+  /// يُدفن في كود التطبيق أبداً لأنه يُستخرج من أي APK.
+  Future<String?> getZolPartnerKey() async {
+    final doc = await _adminSecrets.doc('zol_partner').get();
+    final key = (doc.data()?['key'] as String?)?.trim();
+    return (key == null || key.isEmpty) ? null : key;
+  }
+
+  Future<void> saveZolPartnerKey(String key) => _adminSecrets
+          .doc('zol_partner')
+          .set({'key': key.trim(), 'updatedAt': FieldValue.serverTimestamp()})
+          .then((_) {
+        // يُسجَّل الفعل لا السر — المفتاح نفسه لا يدخل سجلّ التدقيق.
+        logAdminAction('ads.key', 'تحديث مفتاح شريك الإعلانات (zol)');
+      });
 
   /// دردشة داخلية بين المدير ومقدّم الشكوى — نفس بنية ChatMessage تماماً
   /// المستخدَمة في order_chat_screen.dart، لكن مربوطة بمعرّف الشكوى

@@ -16,6 +16,7 @@ import 'admin_complaints_screen.dart';
 import 'admin_reports_tab.dart';
 import 'admin_orders_archive_screen.dart';
 import 'admin_driver_ledger_screen.dart';
+import 'admin_ads_screen.dart';
 import 'admin_banners_screen.dart';
 import 'admin_payout_requests_screen.dart';
 import 'admin_coupons_screen.dart';
@@ -137,6 +138,20 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'المستخدمون', child: AdminUsersTab())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('الإعلانات ✨'),
+              subtitle: const Text('توليد نصوص إعلانية جاهزة للنشر',
+                  style: TextStyle(fontSize: 11.5)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const _DrawerScreen(
+                            title: 'الإعلانات', child: AdminAdsScreen())));
               },
             ),
             ListTile(
