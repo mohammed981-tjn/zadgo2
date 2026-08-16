@@ -58,6 +58,10 @@ ${resolutionDraft != null && resolutionDraft.trim().isNotEmpty ? 'الإجراء
 
 أعد الردّ وحده بلا أي شرح أو عناوين.''';
 
+    // نحتفظ بنص آخر خطأ ونعرضه للمدير: أول اختبار ميداني (2026-08-16)
+    // علّمنا أن رسالة لطيفة بلا تفاصيل تعمي التشخيص — المدير هو قناتنا
+    // الوحيدة لقراءة الخطأ (لا سجلات جهاز عن بعد).
+    Object? lastError;
     for (final model in const [_primaryModel, _fallbackModel]) {
       try {
         final res =
@@ -69,10 +73,16 @@ ${resolutionDraft != null && resolutionDraft.trim().isNotEmpty ? 'الإجراء
         return text;
       } catch (e) {
         debugPrint('AiAssist ($model) error: $e');
+        lastError = e;
       }
     }
+    final detail = lastError
+        .toString()
+        .replaceFirst('Exception: ', '')
+        .replaceAll('\n', ' ');
     throw Exception(
-        'تعذّر توليد الاقتراح — تأكد من الاتصال، ومن تفعيل Gemini في '
-        'كونسول فيربيز (Firebase AI Logic ← Get started) لأول مرة');
+        'تعذّر توليد الاقتراح — تأكد من الاتصال ومن تفعيل Gemini في '
+        'كونسول فيربيز.\nالتفاصيل التقنية: '
+        '${detail.length > 220 ? detail.substring(0, 220) : detail}');
   }
 }

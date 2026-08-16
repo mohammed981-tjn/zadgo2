@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
+import '../../providers/app_check_service.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
@@ -34,6 +35,8 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
   String? _report;
   bool _running = false;
   String? _error;
+  String? _appCheckToken;
+  bool _appCheckLoading = false;
 
   Future<void> _run() async {
     if (_running) return;
@@ -213,6 +216,68 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                   }
                 },
               ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // رمز حماية الذكاء: فرض App Check على AI Logic لا يُعطَّل، وكل
+        // جهاز إداري يولّد رمز تصحيح يجب تسجيله في الكونسول مرة واحدة —
+        // وإلا ظهر «App Check token is invalid» عند زر «اقترح رداً».
+        // مكانه هنا لأن انكشافه كان عبر التشخيص، وعلاجه بيد من يقرؤه.
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('رمز حماية الذكاء (App Check)',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              const SizedBox(height: 4),
+              const Text(
+                'إن ظهر خطأ «App Check token is invalid» عند «اقترح رداً»: '
+                'أظهر الرمز، انسخه، وسجّله مرة واحدة في كونسول فيربيز: '
+                'App Check ← Apps ← Admin ← ⋮ Manage debug tokens ← Add.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+              ),
+              const SizedBox(height: 8),
+              if (_appCheckToken == null)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.shield_outlined),
+                  label: Text(_appCheckLoading
+                      ? 'جارٍ التوليد…'
+                      : 'أظهر رمز هذا الجهاز'),
+                  onPressed: _appCheckLoading
+                      ? null
+                      : () async {
+                          setState(() => _appCheckLoading = true);
+                          final t = await AppCheckService.readDebugToken();
+                          if (!mounted) return;
+                          setState(() {
+                            _appCheckLoading = false;
+                            _appCheckToken = t;
+                          });
+                          if (t == null) {
+                            showError(context,
+                                'لم يُعثر على الرمز — أعد فتح التطبيق ثم حاول');
+                          }
+                        },
+                )
+              else
+                Row(children: [
+                  Expanded(
+                    child: SelectableText(_appCheckToken!,
+                        style: const TextStyle(
+                            fontSize: 12.5, fontFamily: 'monospace')),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    tooltip: 'انسخ',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: _appCheckToken!));
+                      showSuccess(context, 'نُسخ — الصقه في الكونسول');
+                    },
+                  ),
+                ]),
             ]),
           ),
         ),
