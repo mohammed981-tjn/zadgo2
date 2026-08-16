@@ -13,6 +13,8 @@
 // مبدأ صارم: **الاقتراح لا يُرسل وحده أبداً** — يملأ حقل الردّ ليعدّله
 // المدير ثم يرسله بنفسه. الذكاء يقترح والإنسان يقرّر — خاصة في شكوى
 // فيها مال وسمعة.
+import 'dart:typed_data';
+
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
@@ -63,17 +65,51 @@ ${resolutionDraft != null && resolutionDraft.trim().isNotEmpty ? 'الإجراء
 
 أعد الردّ وحده بلا أي شرح أو عناوين.''';
 
-    // نحتفظ بنص آخر خطأ ونعرضه للمدير: أول اختبار ميداني (2026-08-16)
-    // علّمنا أن رسالة لطيفة بلا تفاصيل تعمي التشخيص — المدير هو قناتنا
-    // الوحيدة لقراءة الخطأ (لا سجلات جهاز عن بعد).
+    return _generate([Content.text(prompt)]);
+  }
+
+  /// يقرأ صورة منيو ورقي ويعيدها JSON بصيغة شاشة الاستيراد حرفياً —
+  /// (دفعة «المنيو من صورة»، 2026-08-16): الناتج يُسكب في خانة اللصق
+  /// فيمرّ من نفس خط التحليل والمعاينة والتأكيد البشري — الذكاء يقرأ
+  /// والمدير يعتمد، كمبدئنا في كل ميزة.
+  static Future<String> menuJsonFromImage(
+    Uint8List imageBytes, {
+    String mimeType = 'image/jpeg',
+  }) async {
+    const prompt = '''
+هذه صورة قائمة طعام (منيو) لمطعم. استخرج محتواها كاملاً بصيغة JSON
+بهذا الشكل حرفياً ولا شيء غيره:
+{"categories":[{"name":"اسم التصنيف","items":[{"name":"اسم الصنف","price":25,"description":"وصف قصير إن وُجد"}]}]}
+
+قواعد صارمة:
+- السعر رقم فقط بلا عملة. إن ظهر سعران لحجمين فاجعلهما صنفين
+  («شاورما - وسط» و«شاورما - كبير»).
+- إن لم تظهر تصنيفات في الصورة فاجمع الأصناف تحت تصنيف واحد باسم مناسب.
+- لا تخترع أصنافاً ولا أسعاراً غير ظاهرة، وما تعذّرت قراءته أهمله.
+- أعد JSON فقط: لا شرح، لا مقدمات، لا علامات تنسيق.''';
+
+    final raw = await _generate([
+      Content.multi([TextPart(prompt), InlineDataPart(mimeType, imageBytes)]),
+    ]);
+    // النماذج تغلّف JSON أحياناً بأسوار ماركداون رغم التعليمات — تُنزع.
+    return raw
+        .replaceFirst(RegExp(r'^```(json)?\s*'), '')
+        .replaceFirst(RegExp(r'\s*```$'), '')
+        .trim();
+  }
+
+  /// حلقة التوليد المشتركة: الطراز المستقر ثم البديل التلقائي، ورسالة
+  /// فشل تعرض التفاصيل التقنية — أول اختبار ميداني (2026-08-16) علّمنا
+  /// أن رسالة لطيفة بلا تفاصيل تعمي التشخيص، والمدير قناتنا الوحيدة
+  /// لقراءة الخطأ (لا سجلات جهاز عن بعد).
+  static Future<String> _generate(List<Content> content) async {
     Object? lastError;
     for (final model in const [_primaryModel, _fallbackModel]) {
       try {
-        final res =
-            await _modelFor(model).generateContent([Content.text(prompt)]);
+        final res = await _modelFor(model).generateContent(content);
         final text = res.text?.trim();
         if (text == null || text.isEmpty) {
-          throw Exception('لم يصل اقتراح — حاول مجدداً');
+          throw Exception('لم يصل ردّ — حاول مجدداً');
         }
         return text;
       } catch (e) {
@@ -86,7 +122,7 @@ ${resolutionDraft != null && resolutionDraft.trim().isNotEmpty ? 'الإجراء
         .replaceFirst('Exception: ', '')
         .replaceAll('\n', ' ');
     throw Exception(
-        'تعذّر توليد الاقتراح — تأكد من الاتصال ومن تفعيل Gemini في '
+        'تعذّر التوليد — تأكد من الاتصال ومن تفعيل Gemini في '
         'كونسول فيربيز.\nالتفاصيل التقنية: '
         '${detail.length > 220 ? detail.substring(0, 220) : detail}');
   }

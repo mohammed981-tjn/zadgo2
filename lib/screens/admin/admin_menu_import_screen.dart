@@ -8,9 +8,11 @@
 // عشرات المستندات، فرؤية ما سيُكتب قبل تنفيذه تمنع أخطاء يصعب تداركها.
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
+import '../../providers/ai_assist.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
@@ -34,6 +36,64 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
   final _jsonCtrl = TextEditingController();
   bool _importing = false;
   bool _replaceExisting = false;
+  bool _aiReading = false;
+
+  /// «المنيو من صورة» (2026-08-16): تصوير المنيو الورقي ← Gemini رؤية ←
+  /// JSON يُسكب في خانة اللصق ويمرّ من نفس خط التحليل والمعاينة
+  /// والتأكيد — إعادة استخدام كاملة لخط الاستيراد القائم، والمدير يرى
+  /// ويعتمد قبل كتابة أي مستند (الذكاء يقترح والإنسان يقرر).
+  Future<void> _fromImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('التقط صورة المنيو الآن'),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('اختر من المعرض'),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+        ]),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 1600,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _aiReading = true;
+      _error = null;
+      _categories = null;
+      _items = null;
+    });
+    try {
+      final bytes = await picked.readAsBytes();
+      final json = await AiAssist.menuJsonFromImage(bytes);
+      if (!mounted) return;
+      _jsonCtrl.text = json;
+      _parse();
+      if (_error == null && mounted) {
+        showSuccess(context,
+            'قُرئ المنيو من الصورة — راجع المعاينة قبل الاستيراد');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() =>
+            _error = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _aiReading = false);
+    }
+  }
 
   /// نتيجة التحليل: تصنيفات وأصناف جاهزة للكتابة، أو رسالة خطأ مفهومة.
   List<MenuCategory>? _categories;
@@ -193,6 +253,31 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
             ]),
           ),
           const SizedBox(height: 16),
+          // مسار الصورة أولاً — هو الأسرع لمطعم جديد: تصوير المنيو الورقي
+          // يغني عن إدخال عشرات الأصناف يدوياً أو تجهيز JSON خارجياً.
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              icon: _aiReading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.photo_camera_outlined),
+              label: Text(_aiReading
+                  ? 'جارٍ قراءة الصورة…'
+                  : 'المنيو من صورة ✨'),
+              onPressed: (_importing || _aiReading) ? null : _fromImage,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Center(
+            child: Text('— أو —',
+                style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+          ),
+          const SizedBox(height: 6),
           const Text('الصق محتوى ملف المنيو (JSON)',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 6),
