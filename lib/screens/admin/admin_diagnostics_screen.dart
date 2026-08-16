@@ -37,6 +37,7 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
   String? _error;
   String? _appCheckToken;
   bool _appCheckLoading = false;
+  String? _exchangeResult;
 
   Future<void> _run() async {
     if (_running) return;
@@ -262,7 +263,7 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                           }
                         },
                 )
-              else
+              else ...[
                 Row(children: [
                   Expanded(
                     child: SelectableText(_appCheckToken!,
@@ -278,6 +279,31 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                     },
                   ),
                 ]),
+                const SizedBox(height: 6),
+                // فحص التبادل: بعد تسجيل الرمز في الكونسول، «نجح» هنا =
+                // الحماية سليمة؛ وأي فشل يعرض نص خطأ جوجل الحرفي —
+                // أُضيف حين سُجّل الرمز صحيحاً وبقي الرفض (2026-08-16).
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.sync_lock_outlined, size: 17),
+                  label: Text(_exchangeResult == null
+                      ? 'افحص التبادل مع جوجل'
+                      : 'أعد فحص التبادل'),
+                  onPressed: () async {
+                    final r = await AppCheckService.exchangeStatus();
+                    if (mounted) setState(() => _exchangeResult = r);
+                  },
+                ),
+                if (_exchangeResult != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: SelectableText(_exchangeResult!,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: _exchangeResult!.startsWith('نجح')
+                                ? AppColors.success
+                                : AppColors.error)),
+                  ),
+              ],
             ]),
           ),
         ),
