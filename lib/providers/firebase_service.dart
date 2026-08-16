@@ -2839,6 +2839,15 @@ class FirebaseService {
     });
   }
 
+  /// تقرير الذراع الخادمية (دفعة الذراع ١ — 2026-08-16): تكتبه دالة
+  /// Supabase Edge بحساب الخدمة، والعملاء ممنوعون من كتابته بالقواعد —
+  /// فما يظهر هنا موثوق أنه من الخادم لا من جهاز.
+  Stream<Map<String, dynamic>?> streamServerReport(String reportId) => _db
+      .collection('server_reports')
+      .doc(reportId)
+      .snapshots()
+      .map((d) => d.data());
+
   /// مفتاح شريك إعلانات zol (دفعة الإعلانات 2026-08-16): يُلصق مرة من
   /// اللوحة ويُخزَّن في admin_secrets (للمدير حصراً في القواعد) — لا
   /// يُدفن في كود التطبيق أبداً لأنه يُستخرج من أي APK.

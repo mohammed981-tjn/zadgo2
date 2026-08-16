@@ -309,6 +309,68 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
         ),
         const SizedBox(height: 14),
 
+        // تقرير الذراع الخادمية (فحص الأسعار): يكتبه الخادم وحده —
+        // العملاء ممنوعون بالقواعد، فما يُعرض هنا لا يلفّقه جهاز.
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: StreamBuilder<Map<String, dynamic>?>(
+              stream: service.streamServerReport('price_audit'),
+              builder: (ctx, snap) {
+                final r = snap.data;
+                return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('فحص الأسعار الخادمي (الذراع ١)',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 13.5)),
+                      const SizedBox(height: 6),
+                      if (r == null)
+                        const Text(
+                          'لم يصل تقرير بعد — الذراع الخادمية قيد التفعيل '
+                          '(انظر server/supabase-arm).',
+                          style: TextStyle(
+                              fontSize: 12.5, color: AppColors.textGray),
+                        )
+                      else ...[
+                        Text(
+                          'آخر فحص: يوم ${r['day'] ?? '؟'} — فُحص '
+                          '${r['ordersChecked'] ?? '؟'} طلباً',
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                        const SizedBox(height: 6),
+                        if ((r['findingsCount'] ?? 0) == 0)
+                          const Text('✅ كل الطلبات مطابقة — لا مخالفات',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.bold))
+                        else ...[
+                          Text('⚠️ ${r['findingsCount']} مخالفة:',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.error,
+                                  fontWeight: FontWeight.bold)),
+                          ...((r['findings'] as List? ?? const [])
+                              .whereType<Map>()
+                              .take(10)
+                              .map((f) => Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                        '• طلب #${f['orderNumber']}: '
+                                        '${f['detail']}',
+                                        style:
+                                            const TextStyle(fontSize: 12)),
+                                  ))),
+                        ],
+                      ],
+                    ]);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+
         if (_error != null)
           Card(
             color: AppColors.errorLight,
