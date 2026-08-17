@@ -225,12 +225,31 @@ service cloud.firestore {
       // الأسعار أو الاسم أو حالة الفتح من تطبيق العميل.
       // مدير المطعم يعدّل كل شيء عدا نسبة عمولته (العمولة المرنة): هي
       // شرط تعاقدي يضبطه المدير العام وحده — وإلا صفّر مطعمٌ عمولته بيده.
+      // قيد «تقييم واحد» (غنيمة من قواعد taxi-taiba، 2026-08-16): العدّاد
+      // يزيد ١ بالضبط، والمجموع (المتوسط×العدد) يتحرك ضمن نجمة 0-5 واحدة
+      // — قبلها كان عميلٌ يكتب rating=5,‏ ratingCount=10000 بضربة واحدة
+      // فيزيّف سمعة مطعم أو ينسفها. الهامش نسبي (0.06×مجموع العدّادين) لأن التطبيق يخزّن المتوسط مقرَّباً
+      // لخانة عشرية — هامش ثابت كان سيرفض تقييمات شرعية مع نمو العدّاد.
       allow update: if isAdmin() ||
           (isRestaurantManagerOf(restaurantId) &&
               !changedKeys().hasAny(['commissionPercent'])) ||
           (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']) &&
               request.resource.data.get('rating', 0) >= 0 &&
-              request.resource.data.get('rating', 0) <= 5);
+              request.resource.data.get('rating', 0) <= 5 &&
+              request.resource.data.get('ratingCount', 0) ==
+                  resource.data.get('ratingCount', 0) + 1 &&
+              (request.resource.data.get('rating', 0) *
+                      request.resource.data.get('ratingCount', 0)) -
+                  (resource.data.get('rating', 0) *
+                      resource.data.get('ratingCount', 0)) >=
+                  0 - 0.06 * (request.resource.data.get('ratingCount', 0) +
+                      resource.data.get('ratingCount', 0)) &&
+              (request.resource.data.get('rating', 0) *
+                      request.resource.data.get('ratingCount', 0)) -
+                  (resource.data.get('rating', 0) *
+                      resource.data.get('ratingCount', 0)) <=
+                  5 + 0.06 * (request.resource.data.get('ratingCount', 0) +
+                      resource.data.get('ratingCount', 0)));
 
       match /categories/{categoryId} {
         allow read: if true;
@@ -396,9 +415,25 @@ service cloud.firestore {
             // حصرناه بالأدوار الثلاثة الفعلية فأُغلق باب المجهول دون كسر الإسناد.
             ((isDriver() || isAdmin() || hasRole('restaurantManager')) &&
                 changedKeys().hasOnly(['isAvailable'])) ||
+            // قيد «تقييم واحد» — نفس غنيمة قاعدة المطاعم أعلاه (توثيقها
+            // هناك): عدّاد +١ بالضبط ومجموعٌ ضمن نجمة واحدة.
             (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']) &&
                 request.resource.data.get('rating', 0) >= 0 &&
-                request.resource.data.get('rating', 0) <= 5)
+                request.resource.data.get('rating', 0) <= 5 &&
+                request.resource.data.get('ratingCount', 0) ==
+                    resource.data.get('ratingCount', 0) + 1 &&
+                (request.resource.data.get('rating', 0) *
+                        request.resource.data.get('ratingCount', 0)) -
+                    (resource.data.get('rating', 0) *
+                        resource.data.get('ratingCount', 0)) >=
+                    0 - 0.06 * (request.resource.data.get('ratingCount', 0) +
+                        resource.data.get('ratingCount', 0)) &&
+                (request.resource.data.get('rating', 0) *
+                        request.resource.data.get('ratingCount', 0)) -
+                    (resource.data.get('rating', 0) *
+                        resource.data.get('ratingCount', 0)) <=
+                    5 + 0.06 * (request.resource.data.get('ratingCount', 0) +
+                        resource.data.get('ratingCount', 0)))
           );
       allow delete: if isAdmin();
     }
