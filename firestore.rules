@@ -40,8 +40,23 @@ service cloud.firestore {
           userData().role == role;
     }
 
+    /// صفة المدير بمسارين — الادّعاء الموقّع أولاً، ثم حقل الدور القديم.
+    ///
+    /// `auth.token.admin` توقّعه Firebase داخل رمز الهوية ولا يزوّره عميل
+    /// مهما عدّل الحزمة، ويُمنح من ورشة «Admin claim» بمفتاح الخادم لا من
+    /// أي شاشة. وفحصه مجاني — بخلاف hasRole التي تدفع قراءة get() في كل
+    /// تقييم قاعدة إدارية. القراءة بـget(key, default) لا بالوصول المباشر:
+    /// المفتاح الغائب في token خطأُ تقييم يرفض الطلب كله لا false.
+    ///
+    /// مسار الدور باقٍ مؤقتاً كي لا يُقفَل المدير القائم قبل منحه الادّعاء
+    /// — يُحذف بدفعة لاحقة بعد أن يؤكد المالك أن list في الورشة يظهر حسابه
+    /// وأن اللوحة تعمل. (غنيمة فحص taxi-taiba الثاني، 2026-08-18)
+    function hasAdminClaim() {
+      return isSignedIn() && request.auth.token.get('admin', false) == true;
+    }
+
     function isAdmin() {
-      return hasRole('admin');
+      return hasAdminClaim() || hasRole('admin');
     }
 
     function isDriver() {

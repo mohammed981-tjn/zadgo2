@@ -1,0 +1,74 @@
+# صفة المدير تُمنح من هنا — لا من شاشة ولا من الكونسول.
+#
+# السبب: المنح يحتاج مفتاح خادم، ومفتاح خادم في تطبيقٍ يُستخرج في ثوانٍ
+# (درس تكسي طيبة). هنا السرّ `FIREBASE_SERVICE_ACCOUNT` — نفسه الذي ينشر
+# القواعد — يقرأه المشغِّل وحده لحظة التنفيذ.
+#
+# الاستخدام: Actions ← Admin claim ← Run workflow ← اختر الفعل والبريد.
+# grant لا يُبطل الجلسات (الادّعاء يصل خلال ساعة أو بخروج ودخول)؛
+# revoke يُبطلها فوراً — صلاحية تُسحب لا تعيش في رمز قديم.
+name: Admin claim
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "grant = منح · revoke = سحب · list = عرض"
+        type: choice
+        required: true
+        default: list
+        options: [list, grant, revoke]
+      email:
+        description: "بريد الحساب (مطلوب لـ grant و revoke)"
+        required: false
+        default: ""
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # يفشل مبكراً برسالة مفهومة بدل السقوط داخل firebase-admin برسالة
+      # مصادقة لا تدلّ على السبب.
+      - name: فحص وجود السرّ
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SA" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT غير مضبوط."
+            exit 1
+          fi
+
+      # نفس مسار مصادقة deploy-firestore.yml حرفياً: الكتابة اليدوية لملف
+      # GOOGLE_APPLICATION_CREDENTIALS فشلت في هذا المستودع من قبل
+      # بـ«Failed to authenticate» (2026-08-15)، وauth@v2 هو ما ثبت عمله.
+      - name: مصادقة Google
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: إعداد Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ‏firebase-admin حزمة CI فقط — لا تدخل pubspec ولا الحزمة المشحونة،
+      # فلا تخضع لبند أ٦ (تثبيت حزم التطبيق). تُثبَّت على إصدار رئيسي.
+      - name: تثبيت Admin SDK
+        run: npm install firebase-admin@13 --no-save
+
+      - name: ${{ inputs.action }}
+        run: |
+          node tools/set-admin-claim.js \
+            "${{ inputs.action }}" "${{ inputs.email }}" | tee "$RUNNER_TEMP/out.txt"
+
+          {
+            echo '### صفة المدير'
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/out.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
