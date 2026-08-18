@@ -651,14 +651,29 @@ service cloud.firestore {
     // وإقامة، ولا يجوز سردها لأحد سواه.
     // ---------------------------------------------------------------------
     match /driver_applications/{applicationId} {
-      allow get, list: if isAdmin();
+      // المتقدّم يقرأ طلبه هو (شاشة «بانتظار الاعتماد» داخل تطبيق الكابتن
+      // تبثّه لحظياً) — get لا list: سرد المجموعة بكل هوياتها للمدير وحده.
+      allow get: if isAdmin() ||
+          (isSignedIn() && resource.data.get('uid', '') == currentUid());
+      allow list: if isAdmin();
       allow create: if isSignedIn() &&
           request.resource.data.get('uid', '') == currentUid() &&
           request.resource.data.status == 'pending' &&
           request.resource.data.get('issuedCode', '') == '' &&
           request.resource.data.name is string &&
           request.resource.data.name.size() > 2;
-      allow update, delete: if isAdmin();
+      // المتقدّم يعدّل طلبه ما دام معلّقاً (ربط معرّفات المستندات بعد
+      // رفعها)، ويعيد فتح المرفوض «معلّقاً» (إعادة تقديم بعد معالجة سبب
+      // الرفض — نفس المستند فلا تتراكم نسخ أمام المدير). لا يبلغ حالةً
+      // سوى pending، ولا يمنح نفسه كوداً، ولا يمسّ طلب غيره.
+      allow update: if isAdmin() ||
+          (isSignedIn() &&
+              resource.data.get('uid', '') == currentUid() &&
+              request.resource.data.get('uid', '') == currentUid() &&
+              resource.data.get('status', '') in ['pending', 'rejected'] &&
+              request.resource.data.status == 'pending' &&
+              request.resource.data.get('issuedCode', '') == '');
+      allow delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
@@ -685,6 +700,46 @@ service cloud.firestore {
           request.resource.data.get('image', null) is bytes &&
           request.resource.data.image.size() < 400000 &&
           ownsPendingApplication(request.resource.data.get('applicationId', ''));
+      allow get, list: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // restaurant_applications — طلبات انضمام المطاعم من داخل تطبيق المطعم:
+    // صاحب المطعم ينشئ حساباً ويملأ بياناته ويرفع مستنداته (سجل تجاري أو
+    // وثيقة عمل حر، هوية المالك...) ثم ينتظر اعتماد المدير الذي يربطه
+    // بمطعمٍ ويمنحه دوره — نفس عقد طلبات الكباتن أعلاه حرفاً بحرف.
+    // ---------------------------------------------------------------------
+    match /restaurant_applications/{applicationId} {
+      allow get: if isAdmin() ||
+          (isSignedIn() && resource.data.get('uid', '') == currentUid());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() &&
+          request.resource.data.get('uid', '') == currentUid() &&
+          request.resource.data.status == 'pending' &&
+          request.resource.data.restaurantName is string &&
+          request.resource.data.restaurantName.size() > 2;
+      allow update: if isAdmin() ||
+          (isSignedIn() &&
+              resource.data.get('uid', '') == currentUid() &&
+              request.resource.data.get('uid', '') == currentUid() &&
+              resource.data.get('status', '') in ['pending', 'rejected'] &&
+              request.resource.data.status == 'pending');
+      allow delete: if isAdmin();
+    }
+
+    function ownsPendingRestaurantApplication(appId) {
+      let path = /databases/$(database)/documents/restaurant_applications/$(appId);
+      return appId != '' && exists(path) &&
+          get(path).data.get('uid', '') == currentUid() &&
+          get(path).data.get('status', '') == 'pending';
+    }
+
+    match /restaurant_application_docs/{docId} {
+      allow create: if isSignedIn() &&
+          request.resource.data.get('image', null) is bytes &&
+          request.resource.data.image.size() < 400000 &&
+          ownsPendingRestaurantApplication(request.resource.data.get('applicationId', ''));
       allow get, list: if isAdmin();
       allow update, delete: if false;
     }

@@ -20,6 +20,7 @@ import 'screens/splash_screen.dart';
 import 'screens/driver/driver_home.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_with_code_screen.dart';
+import 'screens/auth/application_gate_screen.dart';
 import 'utils/theme.dart';
 
 @pragma('vm:entry-point')
@@ -67,6 +68,9 @@ void main() async {
   AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => const LoginScreen();
   AppFlavorConfig.buildRegisterScreen = null;
   AppFlavorConfig.buildRegisterWithCodeScreen = () => const RegisterWithCodeScreen();
+  // مسار الانضمام الذاتي: حساب ← نموذج ومستندات ← انتظار حيّ ← اعتماد
+  // المدير يفتح التطبيق وحده. الكود القديم يبقى للحالات اليدوية.
+  AppFlavorConfig.buildApplicantGate = () => const ApplicationGateScreen();
 
   runApp(const DriverApp());
 }

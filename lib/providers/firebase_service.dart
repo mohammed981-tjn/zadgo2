@@ -2464,12 +2464,239 @@ class FirebaseService {
   /// في الطلب معرّفُ مستندٍ هنا (نمط الويب: الصور Blob في Firestore لأن
   /// zadgo.co على GitHub Pages بلا خادم رفع؛ وعند Blaze تصير روابط
   /// Storage والتطبيق يفرّق بـstartsWith('http') بلا تغيير بنية).
-  Future<Uint8List?> fetchApplicationDocImage(String docId) async {
-    final doc =
-        await _db.collection('driver_application_docs').doc(docId).get();
+  Future<Uint8List?> fetchApplicationDocImage(String docId,
+      {String collection = 'driver_application_docs'}) async {
+    final doc = await _db.collection(collection).doc(docId).get();
     final img = doc.data()?['image'];
     return img is Blob ? img.bytes : null;
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // التسجيل داخل التطبيق — كابتن ومطعم (نمط أوبر: حساب ← نموذج ومستندات
+  // ← انتظار حيّ ← اعتماد المدير فيُفتح التطبيق وحده، بلا كود)
+  // ═══════════════════════════════════════════════════════════════════
+
+  CollectionReference<Map<String, dynamic>> get _restaurantApplications =>
+      _db.collection('restaurant_applications');
+
+  /// طلب المتقدّم نفسه — معرّف المستند هو uid حسابه (طلبات التطبيق فقط؛
+  /// طلبات الويب معرّفها عشوائي فلا تلتقطها هذه، وهذا مقصود).
+  Stream<models.DriverApplication?> streamOwnDriverApplication(String uid) =>
+      _driverApplications.doc(uid).snapshots().map((d) =>
+          d.exists && d.data() != null
+              ? models.DriverApplication.fromMap(d.data()!, d.id)
+              : null);
+
+  Stream<models.RestaurantApplication?> streamOwnRestaurantApplication(
+          String uid) =>
+      _restaurantApplications.doc(uid).snapshots().map((d) =>
+          d.exists && d.data() != null
+              ? models.RestaurantApplication.fromMap(d.data()!, d.id)
+              : null);
+
+  /// دور حساب المتقدّم لحظياً — شاشة الانتظار تبثّه لتنقلب وحدها لحظة
+  /// أن يمنحه الاعتمادُ دورَه (تغيير الدور هو «مفتاح الفتح» لا حالة الطلب).
+  Stream<models.UserRole?> streamOwnRole(String uid) =>
+      _users.doc(uid).snapshots().map((d) {
+        final raw = d.data()?['role'] as String?;
+        if (raw == null) return null;
+        return models.UserRole.values
+            .where((r) => r.name == raw)
+            .firstOrNull;
+      });
+
+  /// يرفع صور المستندات كمستندات Blob ويعيد {مفتاح المستند: معرّفه}.
+  /// الطلب يجب أن يكون قائماً «معلّقاً» قبل الرفع — القاعدة تربط كل صورة
+  /// بطلبٍ يملكه المتصل (ownsPendingApplication) فتُرفض قبله.
+  Future<Map<String, String>> _uploadApplicationDocs({
+    required String collection,
+    required String applicationId,
+    required Map<String, Uint8List> images,
+  }) async {
+    final ids = <String, String>{};
+    for (final e in images.entries) {
+      final ref = _db.collection(collection).doc();
+      await ref.set({
+        'applicationId': applicationId,
+        'label': e.key,
+        'image': Blob(e.value),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      ids[e.key] = ref.id;
+    }
+    return ids;
+  }
+
+  /// تقديم (أو إعادة تقديم) طلب انضمام كابتن من داخل التطبيق. معرّف
+  /// المستند = uid، فإعادة التقديم بعد الرفض تفتح المستند نفسه «معلّقاً»
+  /// بدل أن تكدّس نسخاً أمام المدير. الطلب يُكتب أولاً بلا مستندات ثم
+  /// تُرفع الصور ويُربط بها — الترتيب شرط القاعدة لا تفضيلاً.
+  Future<void> submitDriverApplication({
+    required String uid,
+    required String name,
+    required String phone,
+    required String email,
+    required String nationalId,
+    required String vehicleType,
+    required String vehiclePlate,
+    String referredByCode = '',
+    required Map<String, Uint8List> docImages,
+    required List<Uint8List> vehiclePhotos,
+  }) async {
+    final ref = _driverApplications.doc(uid);
+    await ref.set({
+      'uid': uid,
+      'source': 'app',
+      'name': name.trim(),
+      'phone': phone.trim(),
+      'email': email.trim(),
+      'nationalId': nationalId.trim(),
+      'vehicleType': vehicleType.trim(),
+      'vehiclePlate': vehiclePlate.trim(),
+      'referredByCode': referredByCode.trim().toUpperCase(),
+      'documents': <String, String>{},
+      'vehiclePhotos': <String>[],
+      'status': models.DriverApplicationStatus.pending.name,
+      'issuedCode': '',
+      'reviewNote': '',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    final docIds = await _uploadApplicationDocs(
+      collection: 'driver_application_docs',
+      applicationId: uid,
+      images: docImages,
+    );
+    final photoIds = <String>[];
+    for (var i = 0; i < vehiclePhotos.length; i++) {
+      final ids = await _uploadApplicationDocs(
+        collection: 'driver_application_docs',
+        applicationId: uid,
+        images: {'vehicle_$i': vehiclePhotos[i]},
+      );
+      photoIds.add(ids.values.first);
+    }
+    await ref.update({'documents': docIds, 'vehiclePhotos': photoIds});
+  }
+
+  Future<void> submitRestaurantApplication({
+    required String uid,
+    required String restaurantName,
+    required String ownerName,
+    required String phone,
+    required String email,
+    required String district,
+    required String description,
+    required Map<String, Uint8List> docImages,
+  }) async {
+    final ref = _restaurantApplications.doc(uid);
+    await ref.set({
+      'uid': uid,
+      'restaurantName': restaurantName.trim(),
+      'ownerName': ownerName.trim(),
+      'phone': phone.trim(),
+      'email': email.trim(),
+      'district': district.trim(),
+      'description': description.trim(),
+      'documents': <String, String>{},
+      'status': models.DriverApplicationStatus.pending.name,
+      'reviewNote': '',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    final docIds = await _uploadApplicationDocs(
+      collection: 'restaurant_application_docs',
+      applicationId: uid,
+      images: docImages,
+    );
+    await ref.update({'documents': docIds});
+  }
+
+  /// اعتماد مباشر لطلب كابتن قُدّم من التطبيق: منح الدور هو الفتح نفسه —
+  /// شاشة الانتظار عنده تبثّ دوره فتنقلب لحظة هذا التحديث. مستند السائق
+  /// يُنشئه جهازُه هو بعد الفتح (قاعدة الإنشاء تفرض أرصدة صفرية ولا تسمح
+  /// لغير صاحب المعرّف — حتى المدير — بإنشائه).
+  Future<void> approveDriverApplicationDirect(
+      models.DriverApplication application) async {
+    await _users.doc(application.uid).update({
+      'role': models.UserRole.driver.name,
+      if (application.nationalId.trim().isNotEmpty)
+        'nationalId': application.nationalId.trim(),
+      if (application.phone.trim().isNotEmpty)
+        'phone': application.phone.trim(),
+    });
+    await _driverApplications.doc(application.id).update({
+      'status': models.DriverApplicationStatus.approved.name,
+      'reviewedAt': FieldValue.serverTimestamp(),
+    });
+    logAdminAction('application.approve',
+        'اعتماد مباشر لكابتن ${application.name} — تطبيقه يُفتح فوراً',
+        extra: {'applicationId': application.id});
+  }
+
+  /// مستند السائق بعد الاعتماد — يستدعيه جهاز الكابتن نفسه لحظة الفتح.
+  /// موجود مسبقاً؟ لا شيء يُمسّ (إعادة فتح التطبيق لا تصفّر شيئاً).
+  Future<void> ensureDriverDocFromApplication(
+      models.DriverApplication app) async {
+    final existing = await _drivers.doc(app.uid).get();
+    if (existing.exists) return;
+    await addDriver(models.Driver(
+      id: app.uid,
+      name: app.name,
+      phone: app.phone,
+      vehicleType: app.vehicleType.isEmpty ? 'دراجة نارية' : app.vehicleType,
+      vehiclePlate: app.vehiclePlate,
+      referredByCode: app.referredByCode,
+    ));
+  }
+
+  Stream<List<models.RestaurantApplication>> streamRestaurantApplications() =>
+      _restaurantApplications.snapshots().map((s) {
+        final list = s.docs
+            .map((d) => models.RestaurantApplication.fromMap(d.data(), d.id))
+            .toList();
+        list.sort((a, b) {
+          final ap = a.status == models.DriverApplicationStatus.pending;
+          final bp = b.status == models.DriverApplicationStatus.pending;
+          if (ap != bp) return ap ? -1 : 1;
+          return b.createdAt.compareTo(a.createdAt);
+        });
+        return list;
+      });
+
+  /// اعتماد طلب مطعم: يربط الحساب بمطعمٍ يختاره المدير (يُنشأ من شاشة
+  /// المطاعم أولاً إن لم يوجد) ويمنحه دور «مدير مطعم». الربط قبل الدور
+  /// في التحديث نفسه — دورٌ بلا restaurantId حسابٌ معلّق في الفراغ.
+  Future<void> approveRestaurantApplication({
+    required models.RestaurantApplication application,
+    required String restaurantId,
+  }) async {
+    await _users.doc(application.uid).update({
+      'role': models.UserRole.restaurantManager.name,
+      'restaurantId': restaurantId,
+      if (application.phone.trim().isNotEmpty)
+        'phone': application.phone.trim(),
+    });
+    await _restaurantApplications.doc(application.id).update({
+      'status': models.DriverApplicationStatus.approved.name,
+      'reviewedAt': FieldValue.serverTimestamp(),
+    });
+    logAdminAction('application.approve',
+        'اعتماد مطعم ${application.restaurantName} وربطه بحساب مديره',
+        extra: {'applicationId': application.id, 'restaurantId': restaurantId});
+  }
+
+  Future<void> rejectRestaurantApplication({
+    required String applicationId,
+    required String note,
+  }) =>
+      _restaurantApplications.doc(applicationId).update({
+        'status': models.DriverApplicationStatus.rejected.name,
+        'reviewNote': note,
+        'reviewedAt': FieldValue.serverTimestamp(),
+      }).then((_) {
+        logAdminAction('application.reject', 'رفض طلب انضمام مطعم',
+            extra: {'applicationId': applicationId});
+      });
 
   // ═══════════════════════════════════════════════════════════════════
   // الحوافز: الإحالة وتحدي نهاية الأسبوع

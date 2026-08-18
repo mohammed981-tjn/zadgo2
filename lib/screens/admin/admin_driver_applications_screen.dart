@@ -88,6 +88,7 @@ class _AppCard extends StatelessWidget {
           [
             app.phone,
             '$docsCount مستند',
+            if (app.source == 'app') 'من التطبيق 📱',
             if (app.referredByCode.isNotEmpty) 'دعوة ${app.referredByCode}',
             if (app.missingRequired.isNotEmpty)
               'ناقص ${app.missingRequired.length}',
@@ -249,15 +250,22 @@ class _AppDetailScreen extends StatelessWidget {
 
         const SizedBox(height: 20),
         if (app.status == DriverApplicationStatus.pending) ...[
+          // طلب من داخل التطبيق: حسابه حقيقي وشاشة انتظاره تبثّ — الاعتماد
+          // يمنح الدور مباشرة فينفتح تطبيقه لحظتها، بلا كود ولا إعادة تسجيل.
+          // طلب الويب: حسابه مجهول يُرمى، فيبقى مسار الكود القديم.
           SizedBox(
             width: double.infinity,
             height: 50,
             child: ElevatedButton.icon(
               icon: const Icon(Icons.verified_outlined),
-              label: const Text('قبول وإصدار كود التسجيل'),
+              label: Text(app.source == 'app'
+                  ? 'اعتماد مباشر — يفتح تطبيقه فوراً'
+                  : 'قبول وإصدار كود التسجيل'),
               style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.success),
-              onPressed: () => _approve(context, service, missing),
+              onPressed: () => app.source == 'app'
+                  ? _approveDirect(context, service, missing)
+                  : _approve(context, service, missing),
             ),
           ),
           const SizedBox(height: 8),
@@ -365,6 +373,30 @@ class _AppDetailScreen extends StatelessWidget {
       Navigator.pop(context);
     } catch (_) {
       if (context.mounted) showError(context, 'تعذّر إصدار الكود');
+    }
+  }
+
+  Future<void> _approveDirect(BuildContext context, FirebaseService service,
+      List<String> missing) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'اعتماد مباشر',
+      content: '${missing.isNotEmpty ? '⚠️ ناقص: '
+              '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}\n\n' : ''}'
+          'يُمنح ${app.name} دور الكابتن فوراً وينفتح تطبيقه من شاشة '
+          'الانتظار — بلا كود.',
+      confirmLabel: 'اعتماد',
+      confirmColor: AppColors.success,
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await service.approveDriverApplicationDirect(app);
+      if (context.mounted) {
+        showSuccess(context, 'اعتُمد ${app.name} — تطبيقه انفتح الآن');
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (context.mounted) showError(context, 'تعذّر الاعتماد');
     }
   }
 

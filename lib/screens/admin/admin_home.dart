@@ -22,6 +22,7 @@ import 'admin_payout_requests_screen.dart';
 import 'admin_coupons_screen.dart';
 import 'admin_incentives_screen.dart';
 import 'admin_driver_applications_screen.dart';
+import 'admin_restaurant_applications_screen.dart';
 import '../auth/change_password_screen.dart';
 import 'admin_registration_codes_screen.dart';
 import 'admin_restaurant_requests_screen.dart';
@@ -215,6 +216,15 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات انضمام الكباتن', child: AdminDriverApplicationsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: const Text('طلبات انضمام المطاعم'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات انضمام المطاعم', child: AdminRestaurantApplicationsScreen())));
               },
             ),
             ListTile(
