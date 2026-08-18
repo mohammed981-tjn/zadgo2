@@ -22,7 +22,7 @@ class AdminRestaurantApplicationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return AppStreamBuilder<List<RestaurantApplication>>(
-      stream: service.streamRestaurantApplications(),
+      stream: service.streamRestaurantApplications,
       builder: (ctx, apps) {
         if (apps.isEmpty) {
           return const AppEmpty(
@@ -267,7 +267,7 @@ class _AppDetailScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 13)),
             const SizedBox(height: 10),
             StreamBuilder<List<Restaurant>>(
-              stream: service.streamRestaurants,
+              stream: service.streamRestaurants(),
               builder: (c, snap) => DropdownButtonFormField<String>(
                 value: restaurantId,
                 isExpanded: true,
