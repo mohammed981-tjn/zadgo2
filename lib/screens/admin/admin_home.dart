@@ -549,7 +549,44 @@ class _DriversTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    return AppStreamBuilder<List<Driver>>(stream: service.streamDrivers, builder: (ctx, list) {
+    return Column(children: [
+      // طلبات الانضمام المعلّقة تظهر هنا — حيث يعمل المدير يومياً — لا في
+      // شاشة درجٍ عليه تذكّرها (درس لقطات تكسي طيبة 2026-08-18: الاعتماد
+      // في متناول اليد). اللافتة تظهر فقط حين يوجد معلّق، وتفتح المراجعة.
+      StreamBuilder<List<DriverApplication>>(
+        stream: service.streamDriverApplications(),
+        builder: (c, snap) {
+          final pending = (snap.data ?? const <DriverApplication>[])
+              .where((a) => a.status == DriverApplicationStatus.pending)
+              .length;
+          if (pending == 0) return const SizedBox.shrink();
+          return Material(
+            color: AppColors.warning.withOpacity(0.12),
+            child: InkWell(
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const _DrawerScreen(
+                      title: 'طلبات انضمام الكباتن',
+                      child: AdminDriverApplicationsScreen()))),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                child: Row(children: [
+                  const Icon(Icons.pending_actions_rounded,
+                      color: AppColors.warning, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('$pending كابتن بانتظار اعتمادك',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13.5)),
+                  ),
+                  const Icon(Icons.chevron_left_rounded, size: 20),
+                ]),
+              ),
+            ),
+          );
+        },
+      ),
+      Expanded(child: AppStreamBuilder<List<Driver>>(stream: service.streamDrivers, builder: (ctx, list) {
       if (list.isEmpty) return const AppEmpty(emoji: '🛵', title: 'لا يوجد سائقون');
       return ListView.builder(padding: const EdgeInsets.all(12), itemCount: list.length, itemBuilder: (_, i) {
         final d = list[i];
@@ -573,6 +610,7 @@ class _DriversTab extends StatelessWidget {
           ]),
         ));
       });
-    });
+    })),
+    ]);
   }
 }
