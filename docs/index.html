@@ -104,12 +104,17 @@ header{position:sticky;top:0;z-index:50;background:rgba(4,21,15,.86);
 .btn.light{background:#fff;color:var(--g700);border:1px solid #EAE5D8}
 
 /* ───────── البطل ───────── */
+/* صورتان لا واحدة: الأصل **عرضية** (16:9) ووسطها خالٍ عمداً، فبطلٌ طويل
+ * على الجوّال يقتصّ الوسط الفارغ بـ`cover` — فتختفي الصورة تماماً ويظهر
+ * أخضر مسطّح (بلاغ المالك من جوّاله). النسخة العمودية قصّةٌ من يسار
+ * الأصل حيث الأطباق والشوك، فتُرى على الشاشة الضيّقة.
+ * والحجاب أخفّ في أعلاه: كان يبتلع ما بقي من الصورة. */
 .hero{position:relative;color:#fff;padding:56px 0 0;overflow:hidden;
   background-image:
-    radial-gradient(120% 80% at 78% -8%, rgba(23,96,74,.55) 0%, transparent 58%),
-    linear-gradient(180deg, rgba(4,21,15,.58) 0%, rgba(4,21,15,.86) 52%, var(--g900) 100%),
-    url('images/bg-table.jpg');
-  background-size:cover;background-position:50% 8%;background-repeat:no-repeat}
+    radial-gradient(120% 80% at 78% -8%, rgba(23,96,74,.45) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(4,21,15,.34) 0%, rgba(4,21,15,.80) 46%, var(--g900) 92%),
+    url('images/bg-table-portrait.jpg');
+  background-size:cover;background-position:50% 0;background-repeat:no-repeat}
 .hero::before{content:'';position:absolute;inset:0;opacity:.35;pointer-events:none;
   background-image:radial-gradient(rgba(212,160,23,.16) 1px, transparent 1px);
   background-size:26px 26px}
@@ -215,8 +220,61 @@ footer nav a{color:rgba(255,255,255,.75);font-size:.84rem;
   border:1px solid var(--line);border-radius:999px;padding:6px 13px}
 footer .cr{font-size:.8rem}
 
+
+/* ══════════════ لمساتُ الهوية ══════════════
+   ثلاثة موتيفات مشتقّة من العلامة نفسها لا مضافة إليها:
+
+   ١. **قصّة الفاتورة** — حافة مسنّنة كحافة الإيصال الممزّق عند انتقال
+      الأخضر إلى الكريمي. أنسب موتيف لعلامةٍ وعدُها الأول «فاتورة مفصّلة
+      بلا رسوم خفية»: الشكل يقول ما يقوله النص.
+   ٢. **خطوط السرعة** — الشعار نفسه ينتهي بخطوط اندفاع خلف «Go»؛ تتكرّر
+      شريطاً مائلاً يفصل الأقسام، فتصير حركةُ الشعار لغةً بصرية للصفحة.
+   ٣. **الذهب متدرّجاً لا مسطّحاً** على كلمات التمييز — يعطي المعدن عمقاً
+      كما في الشعار المطبوع.
+   ══════════════════════════════════════════ */
+.tear{display:block;width:100%;height:22px;margin-bottom:-1px}
+section.dark .tear path{fill:var(--g700)}
+
+.streak{height:14px;overflow:hidden;position:relative;background:var(--cream)}
+.streak::before{content:'';position:absolute;inset:0;opacity:.5;
+  background:repeating-linear-gradient(112deg,
+    var(--gold) 0 3px, transparent 3px 9px,
+    var(--gold-lt) 9px 11px, transparent 11px 26px)}
+
+/* الذهب المتدرّج — على الداكن وحده: على الكريمي يخفت التباين، فيبقى
+ * هناك الذهبُ الغامق المصمت. */
+.hero h1 span, section.dark h2 span{
+  background:linear-gradient(100deg,var(--gold-lt) 0%,var(--gold) 55%,#F3DE9A 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ظهورٌ بالتمرير — مدعوم في المتصفحات الحديثة، وما لا يدعمه يعرض
+ * المحتوى كاملاً بلا حركة (تدرّجٌ لطيف لا كسر). */
+@supports (animation-timeline: view()){
+  .reveal{animation:rise both;animation-timeline:view();
+    animation-range:entry 2% cover 26%}
+  @keyframes rise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+}
+
+/* لمسة الضغط: البطاقة ترتفع قليلاً ويتذهّب حدّها — على اللمس تُحسّ
+ * الاستجابة، وعلى الفأرة تُرى. */
+.step,.feat,.value,.gc{transition:transform .22s ease, border-color .22s ease,
+  box-shadow .22s ease}
+.step:hover,.feat:hover{transform:translateY(-3px);border-color:var(--gold);
+  box-shadow:0 10px 26px rgba(212,160,23,.16)}
+.value:hover,.gc:hover{border-color:rgba(212,160,23,.55)}
+
+/* أرقام الخطوات ذهبيةً شفافة بدل الرملي الباهت — ورقمٌ ضخم خلف النص
+ * يعطي القسم إيقاعاً بصرياً كما في صفحات المنصّات الكبرى. */
+.step .n{background:linear-gradient(160deg,var(--gold) 0%,rgba(212,160,23,.15) 85%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;opacity:.5}
+
 @media(min-width:760px){
-  .hero{padding-top:64px}
+  .hero{padding-top:64px;
+    background-image:
+      radial-gradient(120% 80% at 78% -8%, rgba(23,96,74,.45) 0%, transparent 58%),
+      linear-gradient(180deg, rgba(4,21,15,.40) 0%, rgba(4,21,15,.82) 55%, var(--g900) 100%),
+      url('images/bg-table.jpg');
+    background-position:50% 12%}
   .hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center}
   .glass{margin-top:0}
   .trust .wrap{grid-template-columns:repeat(2,1fr)}
@@ -267,13 +325,13 @@ footer .cr{font-size:.8rem}
     <!-- صور أجواء عامة لا صور مطعمٍ بعينه: صورة شريكٍ واحد على الرئيسية
          تجعله يبدو «المنصّة» لا شريكاً فيها، وتُحرج بقية الشركاء. -->
     <div class="glass">
-      <div class="gc"><div class="ic">🧾</div>
+      <div class="reveal gc"><div class="ic">🧾</div>
         <div><b data-i18n="chip1.t">سعرٌ واضح قبل أن تطلب</b>
           <span data-i18n="chip1.d">تعرف ما ستدفعه كاملاً — الوجبة والتوصيل — قبل أن تؤكّد</span></div></div>
-      <div class="gc"><div class="ic">📍</div>
+      <div class="reveal gc"><div class="ic">📍</div>
         <div><b data-i18n="f2.t">تتبع حيّ</b>
           <span data-i18n="f2.d">موقع مندوبك أولاً بأول حتى باب بيتك.</span></div></div>
-      <div class="gc"><div class="ic">⏱️</div>
+      <div class="reveal gc"><div class="ic">⏱️</div>
         <div><b data-i18n="chip3.t">تعرف متى يصل</b>
           <span data-i18n="chip3.d">وقتٌ متوقّع يتحدّث مع كل خطوة، لا وعدٌ ثابت</span></div></div>
     </div>
@@ -285,6 +343,7 @@ footer .cr{font-size:.8rem}
       <div class="t-item"><i>⭐</i><span data-i18n="f4.d">من عملاء طلبوا فعلاً — لا مجاملات.</span></div>
     </div>
   </div>
+<svg class="tear" viewBox="0 0 1200 22" preserveAspectRatio="none" aria-hidden="true"><path d="M0 22 L0 13 L0.0 13 L40.0 2 L80.0 13 L120.0 2 L160.0 13 L200.0 2 L240.0 13 L280.0 2 L320.0 13 L360.0 2 L400.0 13 L440.0 2 L480.0 13 L520.0 2 L560.0 13 L600.0 2 L640.0 13 L680.0 2 L720.0 13 L760.0 2 L800.0 13 L840.0 2 L880.0 13 L920.0 2 L960.0 13 L1000.0 2 L1040.0 13 L1080.0 2 L1120.0 13 L1160.0 2 L1200.0 13 L1200 22 Z" fill="var(--cream)"/></svg>
 </section>
 
 <!-- ═══════════ الخطوات ═══════════ -->
@@ -293,18 +352,20 @@ footer .cr{font-size:.8rem}
     <h2 data-i18n="why.h2">اطلب<br><span>بثلاث خطوات</span></h2>
     <p class="lead" data-i18n="steps.lead">لا حسابات ولا تعقيد — تتصفّح أولاً، ولا نطلب تسجيلك إلا عند الطلب.</p>
     <div class="steps">
-      <div class="step"><span class="n">١</span>
+      <div class="reveal step"><span class="n">١</span>
         <b data-i18n="s1.t">تصفّح واختر</b>
         <p data-i18n="s1.d">مطاعمك المفضلة بصور حقيقية وأسعار كاملة أمامك.</p></div>
-      <div class="step"><span class="n">٢</span>
+      <div class="reveal step"><span class="n">٢</span>
         <b data-i18n="s2.t">تابع طلبك حيّاً</b>
         <p data-i18n="s2.d">من قبول المطعم حتى انطلاق مندوبك — خطوة بخطوة على الخريطة.</p></div>
-      <div class="step"><span class="n">٣</span>
+      <div class="reveal step"><span class="n">٣</span>
         <b data-i18n="s3.t">استلم عند بابك</b>
         <p data-i18n="s3.d">وادفع كما يناسبك: بطاقة، كاش، أو محفظتك.</p></div>
     </div>
   </div>
 </section>
+
+<div class="streak" aria-hidden="true"></div>
 
 <!-- ═══════════ القيم ═══════════ -->
 <section class="dark amb" id="values">
@@ -312,9 +373,9 @@ footer .cr{font-size:.8rem}
     <h2 data-i18n="values.h2">العميل <span>أولاً!</span></h2>
     <p class="lead" data-i18n="values.lead">ثلاثة وعود نقيس أنفسنا بها — ومكتوبةٌ في نظامنا لا في إعلاننا.</p>
     <div class="values">
-      <div class="value"><i>💰</i><p data-i18n="v1"><b>الصدق في السعر:</b> السعر الذي تراه هو الذي تدفعه — لا رسوم خفية في نهاية الطلب.</p></div>
-      <div class="value"><i>📸</i><p data-i18n="v2"><b>الصدق في الصورة:</b> صور حقيقية للأطباق من مطابخ شركائنا — ما تراه هو ما يصلك.</p></div>
-      <div class="value"><i>⏱️</i><p data-i18n="v3"><b>الصدق في الوقت:</b> تتبع مباشر من المطبخ حتى بابك، وتعرف أولاً بأول أين طلبك.</p></div>
+      <div class="reveal value"><i>💰</i><p data-i18n="v1"><b>الصدق في السعر:</b> السعر الذي تراه هو الذي تدفعه — لا رسوم خفية في نهاية الطلب.</p></div>
+      <div class="reveal value"><i>📸</i><p data-i18n="v2"><b>الصدق في الصورة:</b> صور حقيقية للأطباق من مطابخ شركائنا — ما تراه هو ما يصلك.</p></div>
+      <div class="reveal value"><i>⏱️</i><p data-i18n="v3"><b>الصدق في الوقت:</b> تتبع مباشر من المطبخ حتى بابك، وتعرف أولاً بأول أين طلبك.</p></div>
     </div>
   </div>
 </section>
@@ -324,17 +385,17 @@ footer .cr{font-size:.8rem}
   <div class="wrap">
     <h2 data-i18n="feat.h2">كل ما تتوقعه من تطبيق عالمي<br><span>بلمسة سعودية</span></h2>
     <div class="feats">
-      <div class="feat"><div class="ic">💳</div><b data-i18n="f1.t">الدفع على راحتك</b>
+      <div class="reveal feat"><div class="ic">💳</div><b data-i18n="f1.t">الدفع على راحتك</b>
         <p data-i18n="f1.d">مدى وبطاقة، كاش عند الاستلام، أو محفظتك في التطبيق.</p></div>
-      <div class="feat"><div class="ic">📍</div><b data-i18n="f2.t">تتبع حيّ</b>
+      <div class="reveal feat"><div class="ic">📍</div><b data-i18n="f2.t">تتبع حيّ</b>
         <p data-i18n="f2.d">موقع مندوبك أولاً بأول حتى باب بيتك.</p></div>
-      <div class="feat"><div class="ic">🎟️</div><b data-i18n="f3.t">كوبونات وعروض</b>
+      <div class="reveal feat"><div class="ic">🎟️</div><b data-i18n="f3.t">كوبونات وعروض</b>
         <p data-i18n="f3.d">خصومات حقيقية بلا شروط مخفية.</p></div>
-      <div class="feat"><div class="ic">⭐</div><b data-i18n="f4.t">تقييمات موثوقة</b>
+      <div class="reveal feat"><div class="ic">⭐</div><b data-i18n="f4.t">تقييمات موثوقة</b>
         <p data-i18n="f4.d">من عملاء طلبوا فعلاً — لا مجاملات.</p></div>
-      <div class="feat"><div class="ic">🔥</div><b data-i18n="f5.t">السعرات أمامك</b>
+      <div class="reveal feat"><div class="ic">🔥</div><b data-i18n="f5.t">السعرات أمامك</b>
         <p data-i18n="f5.d">لكل صنف قبل أن تطلب.</p></div>
-      <div class="feat"><div class="ic">🧾</div><b data-i18n="f6.t">فاتورة مفصّلة</b>
+      <div class="reveal feat"><div class="ic">🧾</div><b data-i18n="f6.t">فاتورة مفصّلة</b>
         <p data-i18n="f6.d">كل ريال واضح: الوجبة والتوصيل بلا دمج.</p></div>
     </div>
   </div>
@@ -344,7 +405,7 @@ footer .cr{font-size:.8rem}
 <section class="dark" id="partners">
   <div class="wrap">
     <h2 data-i18n="partners.h2">لأصحاب المطاعم<br><span>كن شريكاً</span></h2>
-    <div class="pcard">
+    <div class="reveal pcard">
       <img src="images/bg-kitchen.jpg" alt="">
       <div class="in">
         <p data-i18n="partners.sub"><b>عملاء جدد يصلونك من اليوم الأول — بلا أي تكلفة تأسيس.</b> منيوك الرقمي بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها، وتقارير تُطلعك على كل ريال — ومستحقاتك بحساب مكشوف أمامك.</p>
