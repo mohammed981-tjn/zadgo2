@@ -857,6 +857,25 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
+  /// طلبات نطاق زمني **كاملةً** — بلا سقف الـ٥٠٠. البديل الصادق للشاشات
+  /// المالية: نافذة «أحدث ٥٠٠» تقصّ التقرير بصمت فتكذب عناوين «منذ
+  /// البداية»، بينما مدى التاريخ يحدّ الحجم بطبيعته (فترة قصيرة = طلبات
+  /// قليلة). مدى + ترتيب على الحقل نفسه فلا فهرس مركّباً جديداً.
+  Stream<List<models.Order>> streamOrdersSince(DateTime since) => _orders
+      .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(since))
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) =>
+          s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
+  /// العدد الحقيقي لكل الطلبات منذ إنشاء المنصة — استعلام تجميع خادمي
+  /// (لا تنزيل مستندات)، به تعرف شاشة «الكل» إن كانت نافذتها مقصوصة
+  /// فتصارح المدير بدل عنوانٍ يدّعي الكمال.
+  Future<int> countAllOrders() async {
+    final snap = await _orders.count().get();
+    return snap.count ?? 0;
+  }
+
   /// بحث مباشر عن طلب برقمه خارج نافذة الطلبات المحمّلة (٥٠٠ الأحدث) —
   /// شبكة أمان لسجلّ الإدارة: رقم الطلب هو أول ٦ خانات من معرّف المستند
   /// بأحرف كبيرة، فيكفي بحث مدى على المعرّف نفسه بلا حقل جديد ولا فهرس.
