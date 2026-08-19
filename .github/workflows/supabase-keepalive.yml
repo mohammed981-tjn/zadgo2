@@ -49,12 +49,22 @@ jobs:
             # REST وحده يكفي لتصفير عدّاد الخمول، وهو الغاية.
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
                    "$url/rest/v1/" -H "apikey: $key" -H "Authorization: Bearer $key")
-            if [ "$code" = "200" ] || [ "$code" = "404" ]; then
-              echo "✅ $name — نبضة ناجحة (HTTP $code)"
-              ok=$((ok+1))
-            else
-              echo "::warning::$name — ردّ غير متوقع (HTTP $code)"
-            fi
+            case "$code" in
+              200|404)
+                echo "✅ $name — نبضة ناجحة (HTTP $code)"
+                ok=$((ok+1)) ;;
+              401|403)
+                # الطلب **وصل المشروع وردّ** — وهذا وحده ما يصفّر عدّاد
+                # الخمول، وهو غاية النبضة. لكن رفض المصادقة يعني مفتاحاً
+                # خاطئاً أو ناقص النسخ، فيُرفع تحذيرٌ ظاهر لا يُبتلع.
+                echo "⚠️  $name — وصلت النبضة (HTTP $code) لكن المفتاح مرفوض"
+                echo "::warning::$name — راجع مفتاح anon: انسخه كاملاً بلا مسافات"
+                ok=$((ok+1)) ;;
+              000)
+                echo "::warning::$name — تعذّر الوصول (مهلة أو عنوان خاطئ)" ;;
+              *)
+                echo "::warning::$name — ردّ غير متوقع (HTTP $code)" ;;
+            esac
           }
 
           ping_project "zol-adcraft" "$ZOL_URL" "$ZOL_KEY"
