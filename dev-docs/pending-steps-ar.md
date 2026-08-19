@@ -67,6 +67,13 @@ Actions ← **Admin claim** ← grant + بريدك ← ثم list للتأكد. �
 واحدة. ثم قل «**احذف المسار القديم**» فأُغلق مسار حقل الدور نهائياً.
 
 ### ٨. أمن المفاتيح والحسابات
+- 🔴 **أسرار نبض Supabase** (الورشة فاشلة منذ يومها الأول): أضف في
+  Settings ← Secrets and variables ← Actions:
+  `ZOL_SUPABASE_URL` = `https://fbbrkwragezhztffbvxf.supabase.co`
+  و`ZOL_SUPABASE_ANON_KEY` (من لوحة zol ← Settings ← API ← anon
+  public). واختيارياً `ARM_SUPABASE_URL` =
+  `https://fygettwuhlmkjotqzwhs.supabase.co` + `ARM_SUPABASE_ANON_KEY`.
+  **بدونها يتوقف مشروع zol بعد ٧ أيام خمول فتنكسر شاشة الإعلانات.**
 - **استبدل مفتاح الذراع الضعيف** (`ARM_TRIGGER_KEY` ظهر في المحادثة):
   ولّد قيمة قوية ← حدّثها في أسرار Supabase ← **أخبرني** لأحدّث الجدولة.
 - بريد الاسترداد لـinfo@zadgo.co ← tu-icd@hotmail.com.
@@ -117,7 +124,9 @@ Actions ← **Admin claim** ← grant + بريدك ← ثم list للتأكد. �
 
 - تدقيق الأسعار الليلي: 23:50 بتوقيت السعودية ← بطاقة التشخيص.
 - نشر القواعد والفهارس آلياً عند وصولها main.
-- نبض Supabase الأسبوعي (يمنع تجميد المشروع المجاني).
+- ~~نبض Supabase~~ ⚠️ **كان فاشلاً منذ أول تشغيل** (اكتشاف المالك
+  2026-08-19): السرّان لم يُضافا قط. أُصلحت الورشة لتنبض المشروعين
+  وتشرح الناقص — **وتنتظر إضافة السرّين** (انظر البند ٨ أدناه).
 - بناء APK يدوي (Actions ← dart.yml ← flavor) — الأثر يبقى ٣ أيام.
 
 ---
