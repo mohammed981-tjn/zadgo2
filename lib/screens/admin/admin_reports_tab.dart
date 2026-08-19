@@ -36,13 +36,41 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
   /// نطاق زمني: null = منذ البداية.
   int? _periodDays;
 
+  /// العدد الحقيقي الكامل للطلبات — يُجلب مرة واحدة عند أول اكتشاف قصّ،
+  /// ليصارح عنوانُ «الكل» المديرَ بحجم ما لا يراه.
+  int? _trueTotal;
+  bool _countRequested = false;
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
 
+    // الفترات المحددة تُجلب من القاعدة بمدى تاريخ **كاملاً** لا من نافذة
+    // الـ٥٠٠ — كانت الفلترة تجري على النافذة المقصوصة فتكذب حتى «آخر ٧
+    // أيام» متى تجاوزت الطلباتُ النافذةَ. هامش يومٍ واحد قبل بداية الفترة
+    // لأن الفلترة النهائية أدناه بتاريخ اكتمال الطلب لا إنشائه، وطلبٌ
+    // أُنشئ قبيل منتصف الليل يكتمل بعده. «الكل» وحدها تبقى على النافذة
+    // (تنزيل التاريخ كله في شاشة حيّة غير وارد) لكن بعنوانٍ وتنبيهٍ صادقين.
+    final queryCutoff = _periodDays == null
+        ? null
+        : DateTime.now()
+            .subtract(Duration(days: _periodDays! + 1));
+
     return AppStreamBuilder<List<Order>>(
-      stream: service.streamAllOrders,
+      key: ValueKey(_periodDays),
+      stream: () => queryCutoff == null
+          ? service.streamAllOrders()
+          : service.streamOrdersSince(queryCutoff),
       builder: (ctx, orders) {
+        // اكتشاف القصّ: «الكل» معروضة والنافذة ممتلئة — نجلب العدد الحقيقي
+        // مرة واحدة (استعلام تجميع خادمي رخيص) ونعيد الرسم به.
+        final windowCapped = _periodDays == null && orders.length >= 500;
+        if (windowCapped && !_countRequested) {
+          _countRequested = true;
+          service.countAllOrders().then((n) {
+            if (mounted) setState(() => _trueTotal = n);
+          });
+        }
         // التقارير المالية تُبنى على الطلبات المكتملة فقط — الطلبات الجارية
         // أو الملغاة لم تتحقّق إيراداً بعد.
         final all =
@@ -145,12 +173,18 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
         final scopeLabel = _restaurantFilter.isEmpty
             ? 'كل المطاعم'
             : (restaurantNames[_restaurantFilter] ?? 'مطعم');
-        final periodLabel = _periodDays == null
-            ? 'منذ البداية'
-            : 'آخر $_periodDays يوم';
+        // «منذ البداية» تُكتب فقط حين تكون صادقة (النافذة استوعبت كل
+        // التاريخ) — وإلا سُمّيت النافذة باسمها، ويمرّ الاسم الصادق نفسه
+        // إلى ملفَّي PDF وExcel فلا يرث التصدير ادّعاءً كاذباً.
+        final periodLabel = _periodDays != null
+            ? 'آخر $_periodDays يوم'
+            : windowCapped
+                ? 'أحدث ٥٠٠ طلب${_trueTotal != null ? ' من أصل $_trueTotal' : ''}'
+                : 'منذ البداية';
 
         return Column(children: [
           filters,
+          if (windowCapped) WindowCapNotice(trueTotal: _trueTotal),
           Expanded(
             child: ListView(
           padding: const EdgeInsets.all(16),

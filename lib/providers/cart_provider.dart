@@ -30,9 +30,12 @@ class CartProvider extends ChangeNotifier {
   double get itemsTotal => _items.fold(0.0, (s, i) => s + i.subtotal);
   double get grandTotal => itemsTotal + deliveryFee;
   int get itemCount => _items.fold(0, (s, i) => s + i.quantity);
-  double get vat => itemsTotal * 0.15;
-  double get grandTotalWithVat => grandTotal + vat;
-  double get platformCommission => itemsTotal * 0.15;
+  // حُذفت من هنا ثلاث حواسم ميتة (vat / grandTotalWithVat /
+  // platformCommission): لم تستدعِها شاشة قط، واثنتان منها كانتا تجمعان
+  // الضريبة **فوق** الإجمالي بينما المعادلة المعتمدة في التطبيق كله أن
+  // الأسعار شاملتها وتُستخرج منها (Pricing.vatIncludedIn) — إبقاؤها كان
+  // فخّاً لأول من يستعملها فيضاعف الاحتساب؛ والثالثة عمولة 15% مبرمَجة
+  // تتجاهل نسبة المطعم الفعّالة التي تُختم على الطلب في cart_screen.
 
   /// إجمالي كمية صنفٍ عبر كل تشكيلاته — عدّاد بطاقة الصنف في القائمة.
   int quantityOf(String itemId) => _items

@@ -123,4 +123,20 @@ void main() {
     expect(d.referralCode, 'AB3XY9');
     expect(d.referralCode, d.referralCode);
   });
+
+  group('نقطة التعادل اليومية', () {
+    test('الافتراضي صفر = البطاقة مخفية (لا رقم مبرمَج — ج١)', () {
+      expect(s.dailyOrdersTarget, 0);
+    });
+
+    test('تذهب وتعود عبر toMap/fromMap', () {
+      final restored = IncentiveSettings.fromMap(
+          const IncentiveSettings(dailyOrdersTarget: 64).toMap());
+      expect(restored.dailyOrdersTarget, 64);
+    });
+
+    test('مستند قديم بلا الحقل يعود للافتراضي لا يكسر القراءة', () {
+      expect(IncentiveSettings.fromMap(const {}).dailyOrdersTarget, 0);
+    });
+  });
 }
