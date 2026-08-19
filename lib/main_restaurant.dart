@@ -24,6 +24,7 @@ import 'screens/splash_screen.dart';
 import 'screens/restaurant/restaurant_home.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_with_code_screen.dart';
+import 'screens/auth/application_gate_screen.dart';
 import 'utils/theme.dart';
 
 @pragma('vm:entry-point')
@@ -71,6 +72,9 @@ void main() async {
   AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => const LoginScreen();
   AppFlavorConfig.buildRegisterScreen = null;
   AppFlavorConfig.buildRegisterWithCodeScreen = () => const RegisterWithCodeScreen();
+  // مسار «سجّل مطعمك»: حساب ← بيانات ومستندات ← انتظار حيّ ← اعتماد
+  // المدير يربطه بمطعمه ويفتح تطبيقه وحده.
+  AppFlavorConfig.buildApplicantGate = () => const ApplicationGateScreen();
 
   runApp(const RestaurantApp());
 }

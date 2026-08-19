@@ -55,6 +55,19 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// إعادة جلب ملف المستخدم من المصدر — تستدعيها بوابة المتقدّمين لحظة
+  /// اعتماد المدير: الدور تغيّر في المستند بينما النسخة المحفوظة هنا ما
+  /// زالت «عميلاً»، والملاحة للواجهة الصحيحة تقرأ من هذه النسخة.
+  Future<void> reloadUser() async {
+    final uid = _user?.uid;
+    if (uid == null) return;
+    final fetched = await _fetchUserWithRetry(uid);
+    if (fetched != null) {
+      _user = fetched;
+      notifyListeners();
+    }
+  }
+
   /// جلب ملف المستخدم بثلاث محاولات متباعدة: تعثّر شبكة عابر لحظة العودة
   /// من الخلفية كان يُفرِّغ _user فيُطرد صاحبُ جلسةٍ صالحة لشاشة الدخول —
   /// وإعادة إدخاله كلمة المرور على نفس الشبكة المتعثرة لن تنجح أصلاً.

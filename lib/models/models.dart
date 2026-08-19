@@ -2932,6 +2932,16 @@ class RegistrationCode {
 /// الاستضافة على zadgo.co تقبله اليوم — والتطبيق يعرض الصور بروابطها.
 class DriverApplication {
   final String id;
+
+  /// معرّف حساب المتقدّم. لطلبات الويب حسابٌ مجهول يُرمى بعد المراجعة؛
+  /// لطلبات التطبيق (source == 'app') هو حساب حقيقي يُمنح دور «سائق»
+  /// مباشرةً عند الاعتماد — بلا كود تسجيل ولا إعادة تسجيل.
+  final String uid;
+
+  /// مصدر الطلب: 'web' (صفحة /join — المسار القديم بالكود) أو 'app'
+  /// (نموذج التسجيل داخل تطبيق الكابتن — اعتماد مباشر).
+  final String source;
+
   final String name;
   final String phone;
   final String email;
@@ -2959,6 +2969,8 @@ class DriverApplication {
 
   const DriverApplication({
     required this.id,
+    this.uid = '',
+    this.source = 'web',
     required this.name,
     this.phone = '',
     this.email = '',
@@ -3001,6 +3013,8 @@ class DriverApplication {
     final rawPhotos = map['vehiclePhotos'];
     return DriverApplication(
       id: id,
+      uid: map['uid'] as String? ?? '',
+      source: map['source'] as String? ?? 'web',
       name: map['name'] as String? ?? '',
       phone: map['phone'] as String? ?? '',
       email: map['email'] as String? ?? '',
@@ -3054,6 +3068,95 @@ DriverApplicationStatus _applicationStatusFromString(String? raw) =>
       DriverApplicationStatus.pending,
       'DriverApplicationStatus',
     );
+
+/// طلب انضمام مطعم — من داخل تطبيق المطعم (نظير [DriverApplication]
+/// للكباتن، وبنفس دورة الحياة والحالات؛ أُعيد استخدام عدادها عمداً).
+///
+/// معرّف المستند = uid صاحب الطلب دائماً (المصدر الوحيد هنا هو التطبيق —
+/// لا صفحة ويب للمطاعم)، فيقرأ طلبَه مباشرةً بلا استعلام سرد محظور عليه.
+class RestaurantApplication {
+  final String id;
+  final String uid;
+  final String restaurantName;
+  final String ownerName;
+  final String phone;
+  final String email;
+
+  /// الحي/العنوان المختصر — يكفي المدير لتقدير منطقة التغطية قبل الاتصال.
+  final String district;
+
+  /// وصف قصير للنشاط (نوع المطبخ، أسرة منتجة...) يعين المدير على القرار.
+  final String description;
+
+  /// المستندات: المفتاح من [docLabels] والقيمة معرّف Blob في
+  /// `restaurant_application_docs` (أو رابط http بعد Blaze — نفس عقد
+  /// مستندات الكباتن).
+  final Map<String, String> documents;
+
+  final DriverApplicationStatus status;
+  final DateTime createdAt;
+  final DateTime? reviewedAt;
+  final String reviewNote;
+
+  const RestaurantApplication({
+    required this.id,
+    this.uid = '',
+    required this.restaurantName,
+    this.ownerName = '',
+    this.phone = '',
+    this.email = '',
+    this.district = '',
+    this.description = '',
+    this.documents = const {},
+    this.status = DriverApplicationStatus.pending,
+    required this.createdAt,
+    this.reviewedAt,
+    this.reviewNote = '',
+  });
+
+  /// المستندات بأسمائها المعروضة — بحث 2026-08-18: هنقرستيشن تشترط سجلاً
+  /// تجارياً **أو وثيقة عمل حر** (تقبل الأسر المنتجة)، فالحقل الأول يقبل
+  /// أيّهما. الشهادة الضريبية لمن هو مسجَّل في ضريبة القيمة المضافة فقط،
+  /// والآيبان يلزم قبل أول تسوية لا قبل القبول — فكلاهما اختياري.
+  static const docLabels = <String, String>{
+    'commercialReg': 'السجل التجاري / وثيقة العمل الحر',
+    'ownerId': 'هوية المالك',
+    'municipalLicense': 'رخصة البلدية',
+    'vatCert': 'شهادة ضريبة القيمة المضافة',
+    'bankProof': 'شهادة الآيبان البنكي',
+  };
+
+  static const requiredDocs = ['commercialReg', 'ownerId'];
+
+  List<String> get missingRequired => requiredDocs
+      .where((k) => (documents[k] ?? '').trim().isEmpty)
+      .toList();
+
+  factory RestaurantApplication.fromMap(Map<String, dynamic> map, String id) {
+    final rawDocs = map['documents'];
+    return RestaurantApplication(
+      id: id,
+      uid: map['uid'] as String? ?? '',
+      restaurantName: map['restaurantName'] as String? ?? '',
+      ownerName: map['ownerName'] as String? ?? '',
+      phone: map['phone'] as String? ?? '',
+      email: map['email'] as String? ?? '',
+      district: map['district'] as String? ?? '',
+      description: map['description'] as String? ?? '',
+      documents: rawDocs is Map
+          ? {
+              for (final e in rawDocs.entries)
+                if (e.value is String && (e.value as String).trim().isNotEmpty)
+                  e.key.toString(): (e.value as String).trim(),
+            }
+          : const {},
+      status: _applicationStatusFromString(map['status'] as String?),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      reviewedAt: (map['reviewedAt'] as Timestamp?)?.toDate(),
+      reviewNote: map['reviewNote'] as String? ?? '',
+    );
+  }
+}
 /// بنر ترويجي أعلى شاشة مطاعم العميل — عروض، مطاعم جديدة، إعلانات موسمية.
 ///
 /// الصورة رابط خارجي (المكان الطبيعي: zadgo.co/images — استبدال الملف

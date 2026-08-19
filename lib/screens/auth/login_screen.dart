@@ -8,6 +8,8 @@ import '../../utils/theme.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/common_widgets.dart';
 import '../../app_flavor.dart';
+import 'applicant_register_screen.dart';
+import 'application_gate_screen.dart';
 
 /// شاشة تسجيل الدخول الموحّدة الكود، المتمايزة الهوية: كل نكهة (عميل/سائق/
 /// مطعم/مدير) تظهر بخلفيتها الداكنة الخاصة، وأيقونتها، وعنوانها، وزر دخول
@@ -53,6 +55,17 @@ class _LoginScreenState extends State<LoginScreen> {
       TextInput.finishAutofillContext();
       final restrict = AppFlavorConfig.restrictToRole;
       if (restrict != null && auth.user!.role != restrict) {
+        // حساب «عميل» في نكهة مقيّدة متقدّمٌ في الطريق لا دخيل: إلى بوابة
+        // التقديم/الانتظار (يكمل نموذجه أو يتابع حالة طلبه) بدل الطرد.
+        if (AppFlavorConfig.buildApplicantGate != null &&
+            auth.user!.role == UserRole.customer) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const ApplicationGateScreen()),
+            (_) => false,
+          );
+          return;
+        }
         await auth.logout();
         if (!mounted) return;
         showError(context, AppFlavorConfig.restrictedMessage);
@@ -274,6 +287,31 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     color: fc.primaryLight,
                                     fontWeight: FontWeight.w600,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          // مسار الانضمام الذاتي (نكهتا الكابتن والمطعم):
+                          // حساب جديد ← نموذج ومستندات ← انتظار الاعتماد —
+                          // المسار الرئيسي، وزر الكود يبقى أسفل منه للحالات
+                          // اليدوية (كود من المدير مباشرة).
+                          if (AppFlavorConfig.buildApplicantGate != null)
+                            Center(
+                              child: TextButton(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const ApplicantRegisterScreen()),
+                                ),
+                                child: Text(
+                                  AppFlavorConfig.flavor == AppFlavor.driver
+                                      ? 'كابتن جديد؟ انضم من هنا ✨'
+                                      : 'صاحب مطعم؟ سجّل مطعمك من هنا ✨',
+                                  style: TextStyle(
+                                    color: fc.primaryLight,
+                                    fontWeight: FontWeight.w700,
                                     fontSize: 13.5,
                                   ),
                                 ),
