@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-i18n-page="join">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,6 +18,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>انضم كابتناً — زادقو ZadGo</title>
+<script src="/lang.js" defer></script>
 <style>
   :root { --g700:#1A2E5E; --g900:#0B1935; --gold:#FFD65A; --ink:#E7EEFA; --muted:#9DAEC9;
     --line:rgba(255,255,255,.14); --ok:#27ae60; --red:#e74c3c; }
@@ -33,6 +34,10 @@
     background-size:26px 26px, auto, auto;
     background-attachment:fixed; }
   .wrap { max-width:640px; margin:0 auto; }
+  /* المبدّل يرث عرض حقول النموذج (`select{width:100%}` أعلاه) فيمتدّ
+     شريطاً كاملاً — يُقصر على قدره. */
+  .langslot { display:flex; justify-content:flex-end; margin-bottom:6px; }
+  .langslot #langSel { width:auto; min-width:0; }
   header { text-align:center; margin-bottom:26px; }
   header img.logo { height:52px; }
   /* صورةُ تسليم المفتاح: اللحظة التي يصفها العنوان — «انضم كابتناً» تعني
@@ -104,18 +109,19 @@
 <div class="wrap">
   <header>
     <img class="logo" src="/images/zadgo-logo.png" alt="ZadGo زادقو">
-    <div class="pill">✦ نراجع طلبك خلال ٢٤ ساعة</div>
+    <div class="langslot" data-langslot></div>
+    <div class="pill" data-i18n="j.pill">✦ نراجع طلبك خلال ٢٤ ساعة</div>
     <img class="shot" src="/images/p-captain.jpg" alt="تسليم مفتاح لكابتن جديد" loading="lazy">
-    <h1>انضم إلينا <span>كابتناً</span></h1>
-    <p class="lede">عبّئ بياناتك وارفع مستنداتك، وسنراجع طلبك ونتواصل معك.
+    <h1 data-i18n="j.h1">انضم إلينا <span>كابتناً</span></h1>
+    <p class="lede" data-i18n="j.lede">عبّئ بياناتك وارفع مستنداتك، وسنراجع طلبك ونتواصل معك.
       <br>الرفع يتم من جوالك مباشرة — لا حاجة لحاسوب.</p>
     <div class="perks">
-      <div class="perk"><i>💵</i><div><b>أرباح واضحة</b>
-        <span>نصيبك من كل توصيلة معروف قبل قبولها — ومحفظة ترصد كل ريال</span></div></div>
-      <div class="perk"><i>🕐</i><div><b>حرية الوقت</b>
-        <span>اتصل متى شئت، واستلم الطلبات القريبة منك</span></div></div>
-      <div class="perk"><i>⚖️</i><div><b>إنصاف التقييم</b>
-        <span>نظام شفاف يحمي المجتهد</span></div></div>
+      <div class="perk"><i>💵</i><div><b data-i18n="j.p1t">أرباح واضحة</b>
+        <span data-i18n="j.p1d">نصيبك من كل توصيلة معروف قبل قبولها — ومحفظة ترصد كل ريال</span></div></div>
+      <div class="perk"><i>🕐</i><div><b data-i18n="j.p2t">حرية الوقت</b>
+        <span data-i18n="j.p2d">اتصل متى شئت، واستلم الطلبات القريبة منك</span></div></div>
+      <div class="perk"><i>⚖️</i><div><b data-i18n="j.p3t">إنصاف التقييم</b>
+        <span data-i18n="j.p3d">نظام شفاف يحمي المجتهد</span></div></div>
     </div>
   </header>
 
@@ -124,51 +130,51 @@
 
   <form id="form" novalidate>
     <div class="card">
-      <h2>بياناتك</h2>
-      <p class="hint">اكتبها كما في الهوية أو الإقامة تماماً.</p>
-      <div class="field"><label class="req" for="f_name">الاسم الكامل</label>
-        <input type="text" id="f_name" autocomplete="name"><div class="err">اكتب اسمك الثلاثي</div></div>
+      <h2 data-i18n="j.sec1">بياناتك</h2>
+      <p class="hint" data-i18n="j.hint1">اكتبها كما في الهوية أو الإقامة تماماً.</p>
+      <div class="field"><label class="req" for="f_name" data-i18n="j.name">الاسم الكامل</label>
+        <input type="text" id="f_name" autocomplete="name"><div class="err" data-i18n="j.e.name">اكتب اسمك الثلاثي</div></div>
       <div class="grid2">
-        <div class="field"><label class="req" for="f_phone">رقم الجوال</label>
+        <div class="field"><label class="req" for="f_phone" data-i18n="j.phone">رقم الجوال</label>
           <input type="tel" id="f_phone" inputmode="numeric" placeholder="05xxxxxxxx" autocomplete="tel">
-          <div class="err">رقم سعودي يبدأ بـ05 ويتكون من ١٠ أرقام</div></div>
-        <div class="field"><label class="req" for="f_nid">رقم الهوية / الإقامة</label>
+          <div class="err" data-i18n="j.e.phone">رقم سعودي يبدأ بـ05 ويتكون من ١٠ أرقام</div></div>
+        <div class="field"><label class="req" for="f_nid" data-i18n="j.nid">رقم الهوية / الإقامة</label>
           <input type="tel" id="f_nid" inputmode="numeric" placeholder="1xxxxxxxxx">
-          <div class="err">١٠ أرقام</div></div>
+          <div class="err" data-i18n="j.e.nid">١٠ أرقام</div></div>
       </div>
-      <div class="field"><label class="req" for="f_email">البريد الإلكتروني</label>
+      <div class="field"><label class="req" for="f_email" data-i18n="j.email">البريد الإلكتروني</label>
         <input type="email" id="f_email" inputmode="email" autocomplete="email" placeholder="name@example.com">
-        <div class="err">بريد صحيح — يصير اسم دخولك للتطبيق لاحقاً</div></div>
+        <div class="err" data-i18n="j.e.email">بريد صحيح — يصير اسم دخولك للتطبيق لاحقاً</div></div>
       <div class="grid2">
-        <div class="field"><label class="req" for="f_vtype">نوع المركبة</label>
+        <div class="field"><label class="req" for="f_vtype" data-i18n="j.vtype">نوع المركبة</label>
           <select id="f_vtype">
-            <option value="">اختر…</option>
-            <option value="دراجة نارية">دراجة نارية</option>
-            <option value="سيارة">سيارة</option>
-          </select><div class="err">اختر نوع مركبتك</div></div>
-        <div class="field"><label class="req" for="f_plate">رقم اللوحة</label>
-          <input type="text" id="f_plate" placeholder="أ ب ج ١٢٣٤"><div class="err">اكتب رقم اللوحة</div></div>
+            <option value="" data-i18n="j.choose">اختر…</option>
+            <option value="دراجة نارية" data-i18n="j.moto">دراجة نارية</option>
+            <option value="سيارة" data-i18n="j.car">سيارة</option>
+          </select><div class="err" data-i18n="j.e.vtype">اختر نوع مركبتك</div></div>
+        <div class="field"><label class="req" for="f_plate" data-i18n="j.plate">رقم اللوحة</label>
+          <input type="text" id="f_plate" placeholder="أ ب ج ١٢٣٤"><div class="err" data-i18n="j.e.plate">اكتب رقم اللوحة</div></div>
       </div>
-      <div class="field"><label for="f_ref">كود من دعاك (اختياري)</label>
+      <div class="field"><label for="f_ref" data-i18n="j.ref">كود من دعاك (اختياري)</label>
         <input type="text" id="f_ref" style="text-transform:uppercase" maxlength="12" placeholder="A1B2C3"></div>
     </div>
 
     <div class="card">
-      <h2>المستندات</h2>
-      <p class="hint">صوّرها بجوالك في ضوء واضح، وتأكد أن الأرقام والتواريخ مقروءة.
+      <h2 data-i18n="j.sec2">المستندات</h2>
+      <p class="hint" data-i18n="j.hint2">صوّرها بجوالك في ضوء واضح، وتأكد أن الأرقام والتواريخ مقروءة.
         الصور تُصغَّر تلقائياً قبل الرفع فلا تستهلك باقتك.</p>
       <div id="docs"></div>
     </div>
 
     <div class="card">
-      <h2>صور المركبة</h2>
-      <p class="hint">أربع جهات: أمام، خلف، يمين، يسار — واللوحة ظاهرة في صورة الأمام أو الخلف.</p>
+      <h2 data-i18n="j.sec3">صور المركبة</h2>
+      <p class="hint" data-i18n="j.hint3">أربع جهات: أمام، خلف، يمين، يسار — واللوحة ظاهرة في صورة الأمام أو الخلف.</p>
       <div id="photos"></div>
     </div>
 
-    <button class="btn" id="submit" type="submit">إرسال الطلب</button>
+    <button class="btn" id="submit" type="submit" data-i18n="j.submit">إرسال الطلب</button>
     <div class="prog hidden" id="prog"><i></i></div>
-    <p class="note" id="status">
+    <p class="note" id="status" data-i18n="j.note">
       بإرسالك الطلب توافق على <a href="/terms.html" style="color:var(--gold)">الشروط والأحكام</a>
       و<a href="/privacy-policy.html" style="color:var(--gold)">سياسة الخصوصية</a>.
       مستنداتك لا يطّلع عليها إلا الإدارة.
@@ -177,10 +183,10 @@
 
   <div id="done" class="hidden">
     <div class="big">✅</div>
-    <h2>وصلنا طلبك</h2>
+    <h2 data-i18n="j.doneh">وصلنا طلبك</h2>
     <p class="lede" id="doneMsg"></p>
-    <p class="note">احتفظ برقم جوالك متاحاً — سنتواصل معك عليه.
-      <br><a href="/" style="color:var(--gold)">العودة للصفحة الرئيسية</a></p>
+    <p class="note"><span data-i18n="j.donenote">احتفظ برقم جوالك متاحاً — سنتواصل معك عليه.</span>
+      <br><a href="/" style="color:var(--gold)" data-i18n="j.back">العودة للصفحة الرئيسية</a></p>
   </div>
 </div>
 
@@ -201,17 +207,20 @@ const $ = (id) => document.getElementById(id);
 
 /* المستندات المطلوبة. المفاتيح تطابق ما يقرؤه التطبيق في `documents`
  * حرفاً بحرف — أي اختلاف يجعل الصورة مرفوعةً ولا تُعرض للمدير. */
+/* عناوين المستندات مفاتيحُ ترجمةٍ لا نصوصاً: يبنيها السكربت، فلو بقيت
+ * عربيةً هنا لظلّت عربيةً مهما بدّل المتقدّم لغته — وهو أكثر من يحتاج
+ * لغته، إذ يُطلب منه رفعُ هويةٍ ورخصةٍ وتأمين. */
 const DOCS = [
-  ['id',            'الهوية الوطنية أو الإقامة', 'صورة واضحة للوجه الأمامي', true],
-  ['idBack',        'ظهر الهوية أو الإقامة',     'الوجه الخلفي',             false],
-  ['license',       'رخصة القيادة',              'سارية المفعول',            true],
-  ['registration',  'الاستمارة (رخصة السير)',    'سارية المفعول',            true],
-  ['insurance',     'وثيقة التأمين',             'سارية المفعول',            true],
-  ['freelanceDoc',  'وثيقة العمل الحر',          'للسعوديين — بمسمى «مندوب توصيل طلبات»', false],
-  ['criminalRecord','شهادة خلو من السوابق',      'إن توفرت',                 false],
-  ['drivingAuth',   'تفويض قيادة',               'إن كانت المركبة ليست باسمك', false],
+  ['id',            'j.d.id',      'j.d.idsub',      true],
+  ['idBack',        'j.d.idBack',  'j.d.idBacksub',  false],
+  ['license',       'j.d.license', 'j.d.licensesub', true],
+  ['registration',  'j.d.reg',     'j.d.regsub',     true],
+  ['insurance',     'j.d.ins',     'j.d.inssub',     true],
+  ['freelanceDoc',  'j.d.free',    'j.d.freesub',    false],
+  ['criminalRecord','j.d.crim',    'j.d.crimsub',    false],
+  ['drivingAuth',   'j.d.auth',    'j.d.authsub',    false],
 ];
-const PHOTOS = ['من الأمام', 'من الخلف', 'الجهة اليمنى', 'الجهة اليسرى'];
+const PHOTOS = ['j.ph.front', 'j.ph.back', 'j.ph.right', 'j.ph.left'];
 
 /* الصور مضغوطة في المتصفح: صورة جوال خام تتجاوز 5 ميغابايت، وسقف القاعدة
  * 400 كيلوبايت للمستند الواحد. العرض 1600px يكفي لقراءة رقم إقامة، ونخفض
@@ -243,16 +252,20 @@ function compress(file) {
 
 const picked = {};   // key -> { blob, dataUrl }
 
-function row(key, title, sub, required) {
+/* `data-i18n` على العناوين المولَّدة لا نصٌّ ثابت: محرّك اللغة يمشي على
+ * الصفحة عند كل تبديل، فتُترجَم هذه الصفوف معه بلا إعادة بنائها — وإعادة
+ * البناء كانت ستمسح الصور التي اختارها المتقدّم للتوّ. */
+const T = (k) => (window.ZadLang && window.ZadLang.t(k)) || k;
+function row(key, tKey, subKey, required) {
   return `<div class="doc" data-row="${key}">
     <img class="thumb hidden" alt="">
-    <span class="nm">${title}${required ? ' <b style="color:var(--gold)">*</b>' : ''}<small>${sub}</small></span>
+    <span class="nm"><span data-i18n="${tKey}">${T(tKey)}</span>${required ? ' <b style="color:var(--gold)">*</b>' : ''}<small${subKey ? ` data-i18n="${subKey}"` : ''}>${subKey ? T(subKey) : ''}</small></span>
     <span class="st">—</span>
-    <label class="pick"><span>اختر صورة</span><input type="file" accept="image/*" data-pick="${key}"></label>
+    <label class="pick"><span data-i18n="j.pick">${T('j.pick')}</span><input type="file" accept="image/*" data-pick="${key}"></label>
   </div>`;
 }
 $('docs').innerHTML = DOCS.map(([k, t, s2, r]) => row(k, t, s2, r)).join('');
-$('photos').innerHTML = PHOTOS.map((t, i) => row('veh' + i, 'صورة المركبة ' + t, '', true)).join('');
+$('photos').innerHTML = PHOTOS.map((t, i) => row('veh' + i, t, '', true)).join('');
 
 document.querySelectorAll('[data-pick]').forEach((inp) => {
   inp.addEventListener('change', async () => {
@@ -348,8 +361,8 @@ $('form').addEventListener('submit', async (e) => {
   }
   if (bad) { bad.focus(); bad.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
 
-  const missing = [...DOCS.filter(([k, , , r]) => r && !picked[k]).map(([, t]) => t),
-    ...PHOTOS.map((t, i) => ['veh' + i, t]).filter(([k]) => !picked[k]).map(([, t]) => 'صورة المركبة ' + t)];
+  const missing = [...DOCS.filter(([k, , , r]) => r && !picked[k]).map(([, t]) => T(t)),
+    ...PHOTOS.map((t, i) => ['veh' + i, t]).filter(([k]) => !picked[k]).map(([, t]) => T(t))];
   if (missing.length && !confirm(
     'ينقص:\n• ' + missing.join('\n• ') +
     '\n\nيمكنك الإرسال الآن وإرسال الناقص لاحقاً عبر واتساب، لكن المراجعة تتأخر.\nإرسال على أي حال؟')) return;

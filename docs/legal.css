@@ -134,3 +134,12 @@ li { margin: 6px 0; }
   h1 { font-size: 1.42rem; }
   main { padding: 20px 16px 32px; }
 }
+
+/* مبدّل اللغة في الصفحات القانونية — والنصّ نفسه يبقى عربياً (النسخة
+   المعتمدة)، فالمبدّل هنا يترجم الترويسة والروابط ويعرض تنبيهاً بلغة
+   الزائر يدلّه على الدعم. */
+.langslot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.langnote { background: rgba(255,193,7,.10); border: 1px solid rgba(255,193,7,.35);
+  color: #0A1A33; border-radius: 12px; padding: 11px 14px; font-size: .9rem;
+  font-weight: 600; margin: 0 0 18px; }
+.langnote a { color: #1A2E5E; }

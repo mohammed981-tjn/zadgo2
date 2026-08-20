@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-i18n-page="e404">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0B1935">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; connect-src 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; connect-src 'none'; form-action 'none'">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="/lang.js" defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@700;800&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap" rel="stylesheet">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
@@ -30,9 +31,10 @@
   <div class="box">
     <img src="/images/zadgo-logo.png" alt="ZadGo زادقو">
     <div class="code">404</div>
-    <h1>هذه الصفحة غير موجودة</h1>
-    <p>ربما تغيّر الرابط أو كُتب بخطأ إملائي.<br>كل ما تبحث عنه تجده من الصفحة الرئيسية.</p>
-    <a class="home" href="/">العودة للرئيسية</a>
+    <div class="langslot" data-langslot style="display:flex;justify-content:center;margin-bottom:14px"></div>
+    <h1 data-i18n="e.h1">هذه الصفحة غير موجودة</h1>
+    <p data-i18n="e.p">ربما تغيّر الرابط أو كُتب بخطأ إملائي.<br>كل ما تبحث عنه تجده من الصفحة الرئيسية.</p>
+    <a class="home" href="/" data-i18n="e.back">العودة للرئيسية</a>
   </div>
 </body>
 </html>

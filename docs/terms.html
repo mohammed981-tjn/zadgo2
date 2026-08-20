@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-i18n-page="legal">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>الشروط والأحكام — زادقو ZadGo</title>
   <meta name="description" content="الشروط والأحكام التي تنظّم استخدام تطبيق ZadGo لطلب الطعام وتوصيله.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
   <meta property="og:title" content="الشروط والأحكام — زادقو ZadGo">
   <meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
   <meta name="twitter:card" content="summary_large_image">
@@ -15,17 +15,20 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="legal.css">
+  <script src="/lang.js" defer></script>
   <link rel="canonical" href="https://zadgo.co/terms.html">
 </head>
 <body>
   <header class="site-header">
     <div class="header-inner">
       <img src="images/zadgo-logo.png" alt="زادقو ZadGo">
+      <div class="langslot" data-langslot></div>
     </div>
   </header>
 
   <main>
     <a class="back-link" href="index.html">← العودة للصفحة الرئيسية</a>
+    <div class="langnote" data-i18n="g.notice">هذه الصفحة بالعربية، وهي النسخة المعتمدة. لأي استفسار <a href="/contact.html">تواصل معنا</a>.</div>
     <h1>الشروط والأحكام</h1>
     <p class="updated">آخر تحديث: 9 أغسطس 2026</p>
 
@@ -90,7 +93,7 @@
     <p>
       تحتفظ إدارة ZadGo بالحق في تعليق أو إنهاء أي حساب يخالف هذه الشروط. ويمكن
       للمستخدم طلب حذف حسابه في أي وقت عبر صفحة
-      <a href="delete-account.html">حذف الحساب</a>.
+      <a href="delete-account.html" data-i18n="nav.delete">حذف الحساب</a>.
     </p>
 
     <h2>التعديلات على الشروط</h2>
@@ -102,11 +105,11 @@
 
   <footer class="site-footer">
     <nav>
-      <a href="index.html">الرئيسية</a>
-      <a href="privacy-policy.html">سياسة الخصوصية</a>
-      <a href="terms.html">الشروط والأحكام</a>
-      <a href="delete-account.html">حذف الحساب</a>
-      <a href="contact.html">التواصل والدعم</a>
+      <a href="index.html" data-i18n="nav.home">الرئيسية</a>
+      <a href="privacy-policy.html" data-i18n="nav.privacy">سياسة الخصوصية</a>
+      <a href="terms.html" data-i18n="nav.terms">الشروط والأحكام</a>
+      <a href="delete-account.html" data-i18n="nav.delete">حذف الحساب</a>
+      <a href="contact.html" data-i18n="nav.contact">التواصل والدعم</a>
     </nav>
     <div>© 2026 زادقو ZadGo — zadgo.co · جميع الحقوق محفوظة</div>
   </footer>
