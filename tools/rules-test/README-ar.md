@@ -13,6 +13,8 @@ npm i                     # مرة واحدة: @firebase/rules-unit-testing + fi
 cp ../../firestore.rules .
 npx firebase-tools emulators:exec --only firestore --project demo-zadgo \
     "node suggestions.test.mjs"
+npx firebase-tools emulators:exec --only firestore --project demo-zadgo \
+    "node rating.test.mjs"
 ```
 
 يحتاج **Java** (يشغّل المحاكي) وإنترنتاً في أول مرة (ينزّل ملف المحاكي).
@@ -25,6 +27,13 @@ npx firebase-tools emulators:exec --only firestore --project demo-zadgo \
 غير المسجَّل كتابةً وقراءة · تعديل الزائر وحذفه · المدير قراءةً وسرداً
 وتغييرَ حالةٍ وحذفاً · **منع المدير من تحريف نصّ الزائر** · الدعم يقرأ
 ولا يعدّل ولا يحذف.
+
+## ما يغطّيه `rating.test.mjs` — ٩ حالات (§٠)
+
+تقييم المطعم والسائق: تقييمٌ سليم بعلامة + عدّاد · **رفض المسار المباشر**
+(زيادة العدّاد بلا علامة — جوهر الثغرة) · رفض التكرار (العلامة موجودة) ·
+رفض علامةٍ لطلبٍ لا يملكه العميل · رفض علامةٍ لطلبٍ لم يُسلَّم · رفض قفزة
+العدّاد رغم العلامة.
 
 ## إن أضفت مجموعةً جديدة
 

@@ -808,17 +808,10 @@ class FirebaseService {
   // موثّقة. لم تكن مستدعاة من أي شاشة، فإزالتها لا تكسر شيئاً وتمنع استخدامها
   // بالخطأ فتفسد الرصيد الجديد.
 
-  Future<void> updateDriverRating(String driverId, double newRating) async {
-    final doc = await _drivers.doc(driverId).get();
-    if (!doc.exists || doc.data() == null) return;
-    final driver = models.Driver.fromMap(doc.data()!, doc.id);
-    final newCount = driver.ratingCount + 1;
-    final newAvg = ((driver.rating * driver.ratingCount) + newRating) / newCount;
-    await _drivers.doc(driverId).update({
-      'rating': double.parse(newAvg.toStringAsFixed(1)),
-      'ratingCount': newCount,
-    });
-  }
+  // أُزيلت updateDriverRating/updateRestaurantRating المنفصلتان: كانتا
+  // تكتبان العدّاد مباشرةً بلا ربطٍ بطلب، وهو ما فتح ثغرة §٠. الحساب
+  // انتقل داخل [rateOrder] في دفعةٍ ذرّية تُنشئ علامة الطلب وتزيد العدّاد
+  // معاً — والقواعد ترفض أي زيادةٍ بلا علامة، فلا يعمل المسار المباشر أصلاً.
 
   Future<String> placeOrder(models.Order order) async {
     await _orders.doc(order.id).set({
@@ -3149,26 +3142,24 @@ class FirebaseService {
     );
   }
 
-  /// يحدّث متوسط تقييم المطعم تراكمياً بنفس أسلوب تقييم السائق. كان تقييم
-  /// المطاعم لا يُحدَّث إطلاقاً، فتبقى كلها على القيمة الافتراضية 5.0 مهما
-  /// بلغ عدد الطلبات — وهو ما يُفقد التقييمات معناها أمام العميل.
-  Future<void> updateRestaurantRating(String restaurantId, double newRating) async {
-    if (restaurantId.isEmpty) return;
-    final doc = await _restaurants.doc(restaurantId).get();
-    if (!doc.exists || doc.data() == null) return;
-    final restaurant = models.Restaurant.fromMap(doc.data()!, doc.id);
-    final newCount = restaurant.ratingCount + 1;
-    // المطاعم بلا تقييمات سابقة تبدأ من التقييم الأول نفسه، لا من متوسط مع
-    // القيمة الافتراضية 5.0 التي لم يمنحها أحد.
-    final newAvg = restaurant.ratingCount <= 0
-        ? newRating
-        : ((restaurant.rating * restaurant.ratingCount) + newRating) / newCount;
-    await _restaurants.doc(restaurantId).update({
-      'rating': double.parse(newAvg.toStringAsFixed(1)),
-      'ratingCount': newCount,
-    });
-  }
+  // يحسب المتوسط التراكمي الجديد بعد إضافة تقييمٍ واحد. المطاعم/السائقون
+  // بلا تقييمٍ سابق يبدؤون من التقييم الأول نفسه لا من متوسطٍ مع الافتراضي 5.0.
+  double _nextAvg(double curAvg, int curCount, double newRating) =>
+      curCount <= 0
+          ? double.parse(newRating.toStringAsFixed(1))
+          : double.parse(
+              (((curAvg * curCount) + newRating) / (curCount + 1))
+                  .toStringAsFixed(1));
 
+  /// تقييم طلبٍ مسلَّم — إصلاح ثغرة §٠ (تكرار/تلفيق التقييم).
+  ///
+  /// الزيادة في عدّاد المطعم/السائق **مربوطةٌ بعلامة تقييمٍ للطلب** تُنشأ في
+  /// **الدفعة الذرّية نفسها**: `drivers|restaurants/{id}/ratings/{orderId}`.
+  /// القواعد ترفض زيادة العدّاد إلا إن أُنشئت العلامة في هذه الدفعة
+  /// (`existsAfter`) ولم تكن موجودة — والعلامة تُنشأ مرة واحدة فقط (create)
+  /// وتشترط طلباً مسلَّماً يملكه العميل. فالتكرار مستحيل (لا علامة مرتين)،
+  /// والتلفيق مستحيل (لا طلب حقيقي = لا علامة). الدفعة كلها تنجح أو تفشل معاً،
+  /// فطلبان متزامنان لا يزيدان العدّاد مرتين (الثاني يصطدم بعلامةٍ موجودة).
   Future<void> rateOrder({
     required String orderId,
     required String driverId,
@@ -3177,29 +3168,65 @@ class FirebaseService {
     String? review,
     String? restaurantId,
   }) async {
-    // حصانة التكرار **بمعاملة ذرّية** (مراجعة 2026-08-15): الفحص المنفصل
-    // يمنع التكرار المتعاقب فقط، وطلبان متزامنان (إعادة إرسال شبكي أو
-    // جهازان) كانا يمرّان معاً فيضخّمان `ratingCount` ويحرّفان المتوسط.
-    // القراءة وختم `isRated` في معاملة واحدة: واحدٌ فقط يفوز ويُحدّث
-    // المتوسطات.
-    final won = await _db.runTransaction<bool>((tx) async {
-      final snap = await tx.get(_orders.doc(orderId));
-      if (!snap.exists) return false;
-      if (snap.data()?['isRated'] == true) return false;
-      tx.update(_orders.doc(orderId), {
-        'customerRating': orderRating,
-        'driverRating': driverRating,
-        'isRated': true,
-        // كان المفتاح 'review' بينما النموذج يقرأ 'customerReview' — فكل نص
-        // تقييم كتبه عميل كان يُحفظ في حقل لا يقرؤه أحد ويضيع من الشاشات.
-        if (review != null) 'customerReview': review,
-      });
-      return true;
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    // فحصٌ مسبق لتجربةٍ ألطف (لا يُعرض الحوار ثانيةً)، والحارس الحقيقي
+    // هو العلامة في القاعدة: لو سبق التقييم فشلت الدفعة ذرّياً على أي حال.
+    final orderSnap = await _orders.doc(orderId).get();
+    if (!orderSnap.exists || orderSnap.data()?['isRated'] == true) return;
+
+    // قراءة العدّادين الحاليين لحساب المتوسط الجديد (خارج الدفعة).
+    final hasDriver = driverId.isNotEmpty;
+    final hasRest = restaurantId != null && restaurantId.isNotEmpty;
+    final driverSnap =
+        hasDriver ? await _drivers.doc(driverId).get() : null;
+    final restSnap =
+        hasRest ? await _restaurants.doc(restaurantId).get() : null;
+
+    final batch = _db.batch();
+    batch.update(_orders.doc(orderId), {
+      'customerRating': orderRating,
+      'driverRating': driverRating,
+      'isRated': true,
+      if (review != null) 'customerReview': review,
     });
-    if (!won) return;
-    await updateDriverRating(driverId, driverRating);
-    if (restaurantId != null) {
-      await updateRestaurantRating(restaurantId, orderRating);
+
+    if (driverSnap != null && driverSnap.exists && driverSnap.data() != null) {
+      final d = models.Driver.fromMap(driverSnap.data()!, driverSnap.id);
+      batch.set(_drivers.doc(driverId).collection('ratings').doc(orderId), {
+        'stars': driverRating,
+        'customerId': uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      batch.update(_drivers.doc(driverId), {
+        'rating': _nextAvg(d.rating, d.ratingCount, driverRating),
+        'ratingCount': d.ratingCount + 1,
+        'ratingOrderId': orderId,
+      });
+    }
+
+    if (restSnap != null && restSnap.exists && restSnap.data() != null) {
+      final r = models.Restaurant.fromMap(restSnap.data()!, restSnap.id);
+      batch.set(
+          _restaurants.doc(restaurantId).collection('ratings').doc(orderId), {
+        'stars': orderRating,
+        'customerId': uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      batch.update(_restaurants.doc(restaurantId), {
+        'rating': _nextAvg(r.rating, r.ratingCount, orderRating),
+        'ratingCount': r.ratingCount + 1,
+        'ratingOrderId': orderId,
+      });
+    }
+
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      // permission-denied المتوقّع الوحيد هنا: علامةٌ موجودة (سبق التقييم من
+      // جهازٍ آخر بين الفحص والدفع) — نجاحٌ خامل لا خطأ يُعرض للعميل.
+      if (e.code != 'permission-denied') rethrow;
     }
   }
 
