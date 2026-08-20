@@ -82,14 +82,19 @@ function docToObj(doc: any): Record<string, any> {
 
 Deno.serve(async (req) => {
   const guard = Deno.env.get("ARM_TRIGGER_KEY");
-  const given = req.headers.get("x-arm-key") ??
-    new URL(req.url).searchParams.get("key");
+  const url = new URL(req.url);
+  const given = req.headers.get("x-arm-key") ?? url.searchParams.get("key");
   if (guard && given !== guard) {
     return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
+
+  // **الأمان أولاً**: الوضع الافتراضي محاكاة (dry-run) — يقارن ولا يكتب
+  // رصيداً. الكتابة الفعلية تلزمها `?apply=1` صراحةً، فلا تُفسد دالةٌ
+  // منحرفةٌ أرصدةً حيّة قبل أن نرى فروقها. الخطوة ٢ في README تعتمد هذا.
+  const apply = url.searchParams.get("apply") === "1";
 
   try {
     const token = await accessToken();
@@ -101,11 +106,11 @@ Deno.serve(async (req) => {
     let pageToken = "";
     let scanned = 0;
     do {
-      const url =
+      const qurl =
         `${FS_BASE}/driver_transactions?pageSize=300${
           pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""
         }`;
-      const res = await fetch(url, {
+      const res = await fetch(qurl, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -119,29 +124,40 @@ Deno.serve(async (req) => {
       pageToken = data.nextPageToken ?? "";
     } while (pageToken);
 
-    // كتابة الرصيد المُشتقّ لكل كابتن — **قناع على `balance` وحده** كي لا
-    // يُمسّ أي حقلٍ آخر في مستند الكابتن (اسم، تقييم، توفّر...). PATCH بلا
-    // قناع كان سيستبدل المستند كاملاً.
+    // لكل كابتن: اقرأ رصيده الحالي (الذي كتبه جهازه)، قارنه بالمُشتقّ.
+    // نكتب فقط في وضع apply، وبقناعٍ على `balance` وحده كي لا يُمسّ أي
+    // حقل آخر (PATCH بلا قناع كان يستبدل المستند كاملاً).
     let written = 0;
+    const diffs: { id: string; current: number; computed: number }[] = [];
     for (const [id, bal] of sums) {
       const rounded = Math.round(bal * 100) / 100;
-      const res = await fetch(
-        `${FS_BASE}/drivers/${id}?updateMask.fieldPaths=balance`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
+      const cur = await fetch(`${FS_BASE}/drivers/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const curDoc = cur.ok ? await cur.json() : {};
+      const currentBal = Number(fv(curDoc.fields?.balance) ?? 0);
+      if (Math.abs(currentBal - rounded) > 0.01) {
+        diffs.push({ id, current: currentBal, computed: rounded });
+      }
+      if (apply) {
+        const res = await fetch(
+          `${FS_BASE}/drivers/${id}?updateMask.fieldPaths=balance`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              fields: { balance: { doubleValue: rounded } },
+            }),
           },
-          body: JSON.stringify({
-            fields: { balance: { doubleValue: rounded } },
-          }),
-        },
-      );
-      if (res.ok) written++;
+        );
+        if (res.ok) written++;
+      }
     }
 
-    // تقرير للمدير في شاشة التشخيص (يقرؤه server_reports كنمط الذراع ١).
+    // تقرير للمدير في شاشة التشخيص (server_reports كنمط الذراع ١).
     await fetch(`${FS_BASE}/server_reports/driver_balance`, {
       method: "PATCH",
       headers: {
@@ -151,7 +167,10 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         fields: {
           runAt: { timestampValue: new Date().toISOString() },
+          mode: { stringValue: apply ? "apply" : "dryRun" },
           transactionsScanned: { integerValue: String(scanned) },
+          driversScanned: { integerValue: String(sums.size) },
+          mismatches: { integerValue: String(diffs.length) },
           driversUpdated: { integerValue: String(written) },
         },
       }),
@@ -160,8 +179,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: true,
+        mode: apply ? "apply" : "dryRun",
         transactionsScanned: scanned,
+        driversScanned: sums.size,
+        mismatches: diffs.length,
         driversUpdated: written,
+        // أول ٢٠ فرقاً للمراجعة قبل الكتابة الفعلية.
+        sampleDiffs: diffs.slice(0, 20),
       }),
       { headers: { "Content-Type": "application/json" } },
     );
