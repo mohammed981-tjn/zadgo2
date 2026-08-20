@@ -15,6 +15,10 @@ on:
           - restaurant
           - admin
           - all
+      publish:
+        description: 'انشر APK المطعم إصداراً عاماً (رابط تنزيل ثابت للموقع)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -215,3 +219,70 @@ jobs:
           path: build/symbols/${{ matrix.flavor }}
           if-no-files-found: warn
           retention-days: 3
+  # ═══════════ نشر APK المطعم إصداراً عاماً ═══════════
+  #
+  # **لماذا إصدار (release) لا ملفٌّ في المستودع؟** لأن APK يزن عشرات
+  # الميغابايتات، وكل نسخةٍ تُضاف إلى `docs/` تبقى في تاريخ git إلى الأبد
+  # ولو حُذفت لاحقاً. وأصول الإصدارات تُخزَّن خارج شجرة المستودع.
+  #
+  # **والرابط ثابتٌ عبر النسخ**: `releases/latest/download/<الاسم>` يحوّل
+  # دائماً إلى أحدث إصدار — فصفحة التحميل تُكتب مرّةً ولا تُعدَّل مع كل نسخة.
+  #
+  # **ولا يُنشر إلا موقَّعاً بمفتاح الإصدار.** النشر بمفتاح التصحيح كارثة
+  # صامتة: يُثبَّت اليوم، ثم تُرفض كل تحديثةٍ فوقه إلى الأبد لاختلاف
+  # التوقيع، ولا علاج إلا حذف التطبيق من كل جهاز. فالفحص هنا يوقف النشر
+  # لا ينبّه فقط.
+  #
+  # ويُشترط أن تكون نكهة المطعم ضمن ما بُني: لو طُلب النشر مع نكهةٍ أخرى
+  # وحدها لفشل تنزيل الأثر برسالةٍ غامضة («artifact not found»)، والتخطّي
+  # الصامت أوضح من فشلٍ لا يقول سببه.
+  publish:
+    if: inputs.publish && (inputs.flavor == 'restaurant' || inputs.flavor == 'all')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: تنزيل APK المطعم
+        uses: actions/download-artifact@v4
+        with:
+          name: zadgo-restaurant-app-release
+          path: apk
+
+      - name: التحقق من التوقيع قبل النشر
+        shell: bash
+        run: |
+          APK=$(find apk -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            echo "::error::لا يوجد APK للمطعم — أُلغي النشر."
+            exit 1
+          fi
+          BT=$(ls "$ANDROID_HOME/build-tools/" 2>/dev/null | sort -V | tail -1)
+          if [ -z "$BT" ]; then
+            echo "::error::apksigner غير متاح، ولا يُنشر ملفٌّ لم يُتحقّق من توقيعه."
+            exit 1
+          fi
+          CERT=$("$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs "$APK")
+          echo "$CERT"
+          if echo "$CERT" | grep -qi "CN=Android Debug"; then
+            echo "::error::موقَّع بمفتاح التصحيح — النشر يمنع كل تحديثةٍ لاحقة فوقه. أُلغي."
+            exit 1
+          fi
+          mkdir -p out
+          cp "$APK" out/zadgo-restaurant.apk
+          echo "SIZE_MB=$(( $(stat -c%s out/zadgo-restaurant.apk) / 1048576 ))" >> "$GITHUB_ENV"
+
+      - name: إنشاء الإصدار ورفع الملف
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="app-$(date -u +%Y.%m.%d-%H%M)"
+          gh release create "$TAG" out/zadgo-restaurant.apk \
+            --title "تطبيق المطعم — $TAG" \
+            --notes "تطبيق مطعم زادقو للأندرويد. صفحة التحميل: https://zadgo.co/app/" \
+            --latest
+          echo "### نُشر الإصدار $TAG (${SIZE_MB}م.ب)" >> "$GITHUB_STEP_SUMMARY"
+          echo "رابط التنزيل الثابت: https://github.com/${{ github.repository }}/releases/latest/download/zadgo-restaurant.apk" >> "$GITHUB_STEP_SUMMARY"

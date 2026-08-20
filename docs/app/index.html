@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-i18n-page="app">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>حمّل تطبيق المطعم — ZadGo</title>
+<meta name="description" content="حمّل تطبيق المطعم من زادقو: طلباتك تصل مطبخك لحظة وقوعها، ومستحقاتك بحساب مكشوف.">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self';
+  script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src https://fonts.gstatic.com; img-src 'self' data:;
+  base-uri 'self'; form-action 'none'; object-src 'none'; connect-src 'none'">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<meta property="og:title" content="حمّل تطبيق المطعم — زادقو ZadGo">
+<meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://zadgo.co/app/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="/lang.js" defer></script>
+<style>
+:root{ --n900:#0B1935; --n800:#13224A; --n700:#1A2E5E; --n600:#24407D;
+  --gold:#FFC107; --gold-lt:#FFD65A; --gold-dk:#E0A800;
+  --line:rgba(255,255,255,.13); --ink:#E7EEFA; --muted:#9DAEC9; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'IBM Plex Sans Arabic',Tahoma,sans-serif;line-height:1.9;
+  color:var(--ink);background:var(--n900);
+  background-image:radial-gradient(120% 70% at 50% -10%, rgba(36,64,125,.55) 0%, transparent 60%);
+  min-height:100dvh}
+h1,h2,h3,.btn{font-family:'Alexandria','IBM Plex Sans Arabic',Tahoma,sans-serif;letter-spacing:0}
+img{max-width:100%;display:block}
+a{color:var(--gold)}
+.wrap{max-width:660px;margin:0 auto;padding:20px 20px 60px}
+.langslot{display:flex;justify-content:flex-end;margin-bottom:10px}
+header{text-align:center;margin-bottom:26px}
+header .logo{height:38px;margin:0 auto 18px}
+h1{font-size:clamp(1.7rem,6.4vw,2.4rem);font-weight:800;line-height:1.45}
+h1 span{color:var(--gold)}
+.lede{color:var(--muted);margin-top:12px;font-size:1rem}
+
+.card{background:rgba(255,255,255,.05);border:1px solid var(--line);
+  border-radius:22px;padding:22px;margin-bottom:16px}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;
+  width:100%;border:0;cursor:pointer;border-radius:16px;padding:17px 20px;
+  font-size:1.05rem;font-weight:800;text-decoration:none;
+  background:linear-gradient(160deg,var(--gold-lt),var(--gold));color:var(--n900);
+  box-shadow:0 12px 30px rgba(255,193,7,.22);
+  transition:transform .4s cubic-bezier(.2,.8,.2,1)}
+.btn:hover{transform:translateY(-3px)}
+.btn.soon{background:rgba(255,255,255,.07);color:var(--muted);
+  border:1px solid var(--line);box-shadow:none;cursor:default}
+.btn.soon:hover{transform:none}
+.meta{color:var(--muted);font-size:.86rem;margin-top:12px;text-align:center}
+
+.steps{list-style:none;counter-reset:s;margin-top:8px}
+.steps li{counter-increment:s;position:relative;padding-inline-start:38px;
+  margin-bottom:13px;font-size:.95rem}
+.steps li::before{content:counter(s);position:absolute;inset-inline-start:0;top:2px;
+  width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(255,193,7,.16);border:1px solid rgba(255,193,7,.4);
+  color:var(--gold);font-weight:800;font-size:.82rem}
+h2{font-size:1.12rem;font-weight:800;margin-bottom:10px;color:#fff}
+.note{background:rgba(255,193,7,.09);border:1px solid rgba(255,193,7,.3);
+  border-radius:14px;padding:13px 15px;font-size:.9rem;margin-top:14px}
+footer{text-align:center;padding:24px 0 40px;color:var(--muted);font-size:.85rem}
+footer nav{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+footer nav a{color:var(--ink);border:1px solid var(--line);border-radius:999px;
+  padding:6px 13px;font-size:.82rem;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="langslot" data-langslot></div>
+  <header>
+    <img class="logo" src="/images/zadgo-logo.png" alt="ZadGo زادقو">
+    <h1 data-i18n="a.h1">حمّل تطبيق <span>المطعم</span></h1>
+    <p class="lede" data-i18n="a.lede">شاشة طلباتك: الطلب يصل مطبخك لحظة وقوعه، تقبله وتحضّره
+      وتسلّمه للكابتن — ومستحقاتك بحساب مكشوف أمامك سطراً سطراً.</p>
+  </header>
+
+  <div class="card">
+    <a class="btn" id="dl" href="#" data-i18n="a.dl">⬇️ تحميل للأندرويد</a>
+    <p class="meta" id="meta" data-i18n="a.size">ملف APK — لأي جوّال أندرويد</p>
+  </div>
+
+  <div class="card" id="howto">
+    <h2 data-i18n="a.how">كيف تثبّته؟</h2>
+    <ol class="steps">
+      <li data-i18n="a.s1">اضغط زرّ التحميل أعلاه، وانتظر انتهاء التنزيل.</li>
+      <li data-i18n="a.s2">افتح الملف من إشعار التنزيل أو من مجلّد «التنزيلات».</li>
+      <li data-i18n="a.s3">سيسألك جوّالك السماح بالتثبيت من هذا المصدر — اسمح له مرّةً واحدة.</li>
+      <li data-i18n="a.s4">أكمل التثبيت، ثم ادخل بحساب مطعمك الذي زوّدناك به.</li>
+    </ol>
+    <div class="note" data-i18n="a.warn"><b>ثلاثة أمور نصارحك بها:</b> التطبيق لا يُحدَّث نفسه تلقائياً بعد —
+      سنخبرك حين تصدر نسخة جديدة. وقد يعرض جوّالك تحذيراً لأن الملف من خارج المتجر، وهو تحذيرٌ عام
+      لا يخصّنا. ولا تُنزّله من أي مكانٍ غير هذه الصفحة.</div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="a.new">لم تنضمّ بعد؟</h2>
+    <p data-i18n="a.newd">التطبيق لا يفتح إلا بحساب مطعمٍ مقبول. سجّل مطعمك أولاً، ونرسل لك
+      بيانات دخولك.</p>
+    <p style="margin-top:12px"><a href="/partner/" data-i18n="a.newcta">ضمّ مطعمك الآن ←</a></p>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="a.ios">آيفون؟</h2>
+    <p data-i18n="a.iosd">نعمل على نسخة الآيفون. وحتى تصدر، أي جوّال أندرويد أو تابلت أندرويد
+      عندك — ولو قديماً — يصلح شاشةَ طلبات، وهذا ما يستعمله شركاؤنا اليوم.</p>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="a.other">أنت كابتن أو عميل؟</h2>
+    <p data-i18n="a.otherd">للكابتن تطبيقه، ويصلك مع بيانات دخولك بعد قبول طلب انضمامك —
+      <a href="/join/">ابدأ من هنا</a>. وللعميل لا تطبيق يُحمَّل: يطلب من متصفّح جوّاله مباشرة.</p>
+  </div>
+</div>
+
+<footer>
+  <nav>
+    <a href="/" data-i18n="nav.home">الرئيسية</a>
+    <a href="/contact.html" data-i18n="nav.contact">التواصل والدعم</a>
+    <a href="/privacy-policy.html" data-i18n="nav.privacy">سياسة الخصوصية</a>
+  </nav>
+  <div>© 2026 زادقو ZadGo — zadgo.co</div>
+</footer>
+
+<script>
+/* ══════════════ مفتاح التحميل ══════════════
+ * **هذا السطر وحده** هو ما يفصل «قريباً» عن زرِّ تحميلٍ يعمل. حين يصير
+ * للتطبيق ملفٌّ منشور (إصدار على GitHub أو ملف على نطاقنا) يوضع رابطه
+ * هنا، فيتبدّل الزرّ وحده وتتبدّل رسالته في اللغات الخمس.
+ *
+ * وتُرك فارغاً عمداً بدل رابطٍ مخمَّن: زرُّ تحميلٍ يقود إلى صفحة خطأ أسوأ
+ * من زرٍّ يقول «قريباً» — الأول يُفقد الثقة والثاني يحفظها.
+ */
+const APP_URL = '';
+
+(function () {
+  var a = document.getElementById('dl');
+  var meta = document.getElementById('meta');
+  var how = document.getElementById('howto');
+  function paint() {
+    if (APP_URL) {
+      a.href = APP_URL;
+      a.setAttribute('download', '');
+      a.classList.remove('soon');
+      a.setAttribute('data-i18n', 'a.dl');
+      meta.setAttribute('data-i18n', 'a.size');
+      how.style.display = '';
+    } else {
+      a.href = '/contact.html';
+      a.removeAttribute('download');
+      a.classList.add('soon');
+      a.setAttribute('data-i18n', 'a.soon');
+      meta.setAttribute('data-i18n', 'a.soond');
+      how.style.display = 'none';
+    }
+  }
+  paint();
+  // يُعاد الرسم مع كل تبديل لغة كي تُترجَم حالة الزرّ لا نصّه الأول فقط.
+  document.addEventListener('zadgo:lang', paint);
+})();
+</script>
+</body>
+</html>
