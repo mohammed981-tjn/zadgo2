@@ -16,30 +16,36 @@
 <link rel="icon" href="/images/zadgo-logo-gold.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <title>انضم كابتناً — زادقو ZadGo</title>
 <style>
-  :root { --g700:#0B1E3D; --g900:#050D1C; --gold:#FFD24A; --ink:#E7EEFA; --muted:#9DAEC9;
+  :root { --g700:#0B1E3D; --g900:#050D1C; --gold:#FFD65A; --ink:#E7EEFA; --muted:#9DAEC9;
     --line:rgba(255,255,255,.14); --ok:#27ae60; --red:#e74c3c; }
-  * { margin:0; padding:0; box-sizing:border-box; font-family:'Tajawal',Tahoma,sans-serif; }
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'IBM Plex Sans Arabic','Tajawal',Tahoma,sans-serif; }
   /* نقش ذهبي خفيف كنقش الرئيسية — بديلٌ مقصود عن صورة: ليس عندنا صورة
      تُصوّر كابتناً، وصورةُ مطعمٍ أو طاولةٍ في صفحة الكباتن تُشتّت لا تُعبّر. */
   body { background-color:var(--g900); color:var(--ink); min-height:100dvh;
     padding:26px 5vw 70px;
     background-image:
-      radial-gradient(rgba(255,185,3,.13) 1px, transparent 1px),
+      radial-gradient(rgba(255,193,7,.13) 1px, transparent 1px),
       radial-gradient(120% 70% at 80% -5%, rgba(19,44,86,.55) 0%, transparent 60%),
       linear-gradient(168deg,#132C56 0%,var(--g700) 46%,var(--g900) 100%);
     background-size:26px 26px, auto, auto;
     background-attachment:fixed; }
   .wrap { max-width:640px; margin:0 auto; }
   header { text-align:center; margin-bottom:26px; }
-  header img { height:52px; }
+  header img.logo { height:52px; }
+  /* صورةُ تسليم المفتاح: اللحظة التي يصفها العنوان — «انضم كابتناً» تعني
+     أن يُسلَّم إليك مفتاحٌ وتبدأ. الحلقة الذهبية تربطها بالهوية، والصورة
+     دائرية لأن الأصل دائريّ الاقتصاص فلا يصحّ حشوه في مستطيل. */
+  header .shot { width:min(210px,54vw); aspect-ratio:1; border-radius:50%;
+    object-fit:cover; margin:0 auto 4px; display:block;
+    border:3px solid rgba(255,193,7,.5); box-shadow:0 14px 38px rgba(5,13,28,.45); }
   h1 { font-size:clamp(1.6rem,6vw,2.3rem); font-weight:900; margin-top:16px; }
   h1 span { color:var(--gold); }
   .lede { color:var(--muted); line-height:2; margin-top:10px; }
-  .pill { display:inline-block; background:rgba(255,185,3,.14); color:var(--gold);
-    border:1px solid rgba(255,185,3,.4); border-radius:999px; padding:5px 14px;
+  .pill { display:inline-block; background:rgba(255,193,7,.14); color:var(--gold);
+    border:1px solid rgba(255,193,7,.4); border-radius:999px; padding:5px 14px;
     font-size:.79rem; font-weight:800; margin-top:14px; }
   /* ثلاث فوائد قبل النموذج: من يُطلب منه رفع هويةٍ وإقامة يستحق أن يعرف
      ما يناله قبل أن يبدأ — لا بعد أن يفرغ. */
@@ -85,7 +91,7 @@
   .note { color:var(--muted); font-size:.85rem; line-height:1.9; margin-top:12px; text-align:center; }
   .banner { border-radius:14px; padding:14px 16px; margin-bottom:18px; line-height:1.9; font-size:.92rem; }
   .banner.warn { background:rgba(231,76,60,.12); border:1px solid rgba(231,76,60,.5); }
-  .banner.info { background:rgba(255,185,3,.1); border:1px solid rgba(255,185,3,.45); color:var(--gold); }
+  .banner.info { background:rgba(255,193,7,.1); border:1px solid rgba(255,193,7,.45); color:var(--gold); }
   .hidden { display:none; }
   #done { text-align:center; padding:40px 10px; }
   #done .big { font-size:3rem; }
@@ -97,8 +103,9 @@
 <body>
 <div class="wrap">
   <header>
-    <img src="/images/zadgo-logo.png" alt="ZadGo زادقو">
+    <img class="logo" src="/images/zadgo-logo.png" alt="ZadGo زادقو">
     <div class="pill">✦ نراجع طلبك خلال ٢٤ ساعة</div>
+    <img class="shot" src="/images/p-captain.jpg" alt="تسليم مفتاح لكابتن جديد" loading="lazy">
     <h1>انضم إلينا <span>كابتناً</span></h1>
     <p class="lede">عبّئ بياناتك وارفع مستنداتك، وسنراجع طلبك ونتواصل معك.
       <br>الرفع يتم من جوالك مباشرة — لا حاجة لحاسوب.</p>

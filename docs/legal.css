@@ -1,17 +1,21 @@
 /* ZadGo — الصفحات النظامية (الخصوصية، الشروط، حذف الحساب، التواصل)
-   الهوية الرسمية: كحلي داكن + ذهبي #FFB903، خط Tajawal — مطابقة لصفحة الهبوط. */
+   الهوية الرسمية: كحلي داكن + ذهبي #FFC107 — مطابقة لصفحة الهبوط.
+   والخطّان كما فيها: Alexandria للعناوين وIBM Plex Sans Arabic للنصّ. */
 
 :root {
   --g700: #0B1E3D;
   --g900: #050D1C;
-  --gold: #FFB903;
+  --gold: #FFC107;
   --paper: #f2f5fb;
   --ink: #0A1A33;
   --muted: #5A6A85;
   --line: #dfe5f0;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', Tahoma, Arial, sans-serif; }
+* { margin: 0; padding: 0; box-sizing: border-box;
+    font-family: 'IBM Plex Sans Arabic', 'Tajawal', Tahoma, Arial, sans-serif; }
+h1, h2, h3 { font-family: 'Alexandria', 'IBM Plex Sans Arabic', Tahoma, sans-serif;
+    letter-spacing: 0; line-height: 1.55; }
 
 body {
   background: var(--paper);
