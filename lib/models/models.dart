@@ -1283,6 +1283,37 @@ class RestaurantRequest {
       );
 }
 
+/// اقتراح/نصيحة من زائر أو مستخدم (2026-08-20، بطلب المالك): قناة صوتٍ
+/// عامة يفتحها الزائر بلا تسجيل — النصّ إلزامي، والاسم والهاتف اختياريان
+/// (ليتواصل المدير إن أراد). تُقرأ في لوحة الإدارة فقط.
+class Suggestion {
+  final String id;
+  final String text;
+  final String? name;
+  final String? phone;
+  final DateTime createdAt;
+
+  const Suggestion({
+    required this.id,
+    required this.text,
+    this.name,
+    this.phone,
+    required this.createdAt,
+  });
+
+  factory Suggestion.fromMap(Map<String, dynamic> map, String id) => Suggestion(
+        id: id,
+        text: map['text'] as String? ?? '',
+        name: (map['name'] as String?)?.trim().isEmpty ?? true
+            ? null
+            : map['name'] as String?,
+        phone: (map['phone'] as String?)?.trim().isEmpty ?? true
+            ? null
+            : map['phone'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+}
+
 class IncentiveSettings {
   // ————— برنامج الإحالة —————
   final bool referralEnabled;
@@ -2722,6 +2753,11 @@ class Complaint {
   final String? againstUid;
   final UserRole? againstRole;
 
+  /// صورة مرفقة بالشكوى (base64 داخل المستند — نمط Blob، لا Storage حتى
+  /// Blaze): شكوى جودةٍ أو صنفٍ خاطئ بلا صورة نصفُ دليل. تُلتقط مضغوطة
+  /// (<٤٠٠ك، تحرسه القاعدة) وتظهر للمدير في تفاصيل الشكوى.
+  final String? imageBlob;
+
   /// مهلة الرد المعلنة لمقدّم الشكوى — تُعرض «نردّ خلال 24 ساعة» ويُحسب
   /// منها الموعد المتوقع. التزام خدمة لا قيد تقني.
   static const Duration responseSla = Duration(hours: 24);
@@ -2775,6 +2811,7 @@ class Complaint {
     UserRole? submittedByRole,
     this.againstUid,
     this.againstRole,
+    this.imageBlob,
   })  : submittedByUid = submittedByUid ?? customerId,
         submittedByName = submittedByName ?? customerName,
         submittedByRole = submittedByRole ?? UserRole.customer;
@@ -2807,6 +2844,7 @@ class Complaint {
       againstRole: map['againstRole'] != null
           ? _userRoleFromString(map['againstRole'] as String?)
           : null,
+      imageBlob: map['imageBlob'] as String?,
     );
   }
 
@@ -2830,6 +2868,7 @@ class Complaint {
         'submittedByRole': submittedByRole.name,
         if (againstUid != null) 'againstUid': againstUid,
         if (againstRole != null) 'againstRole': againstRole!.name,
+        if (imageBlob != null) 'imageBlob': imageBlob,
       };
 }
 

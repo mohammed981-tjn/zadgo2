@@ -14,6 +14,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
 import '../../utils/reorder.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/promo_banner_carousel.dart';
 import '../../widgets/app_skeletons.dart';
 import '../../widgets/common_widgets.dart';
@@ -22,6 +23,7 @@ import 'restaurant_detail_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
 import 'account_screen.dart';
+import 'suggestion_screen.dart';
 
 /// عتبة عدد الطلبات المُنجزة التي تُظهر شارة "الأكثر طلباً" على بطاقة
 /// المطعم — لا تتطلب حقلاً إضافياً في البيانات، تُحسب من [Restaurant.totalOrders].
@@ -46,6 +48,13 @@ class _CustomerHomeState extends State<CustomerHome> {
       appBar: AppBar(
         title: Text(isGuest ? 'مرحباً بك في ZadGo' : 'مرحباً ${auth.user?.name ?? ""}'),
         actions: [
+          // اقتراح/نصيحة — متاح للزائر أيضاً (قناة صوت عامة بلا تسجيل).
+          IconButton(
+            tooltip: 'اقتراح أو نصيحة',
+            icon: const Icon(Icons.lightbulb_outline),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SuggestionScreen())),
+          ),
           badges.Badge(showBadge: cart.itemCount > 0,
             badgeContent: Text('${cart.itemCount}', style: const TextStyle(color: Colors.white, fontSize: 10.5)),
             child: IconButton(icon: PhosphorIcon(PhosphorIcons.shoppingCartSimple()),
@@ -606,6 +615,8 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                         await context
                             .read<FirebaseService>()
                             .requestRestaurant(q);
+                        // نتذكّر ما طلبه هذا الجهاز محلياً لنبشّره حين ينضم.
+                        await rememberRequestedRestaurant(q);
                         if (ctx.mounted) {
                           showSuccess(ctx,
                               'وصلنا صوتك — سنعمل على إحضار «$q» ونخبرك حين يصل 🙌');
@@ -620,7 +631,11 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                 ),
             ]);
           }
-          return ListView.builder(padding: const EdgeInsets.all(16), itemCount: filtered.length, itemBuilder: (_, i) {
+          return Column(children: [
+            // بشير «مطعمك المطلوب وصل» فوق القائمة (لا أثناء البحث).
+            if (_query.isEmpty) _RequestedArrivedBanner(restaurants: list),
+            Expanded(
+          child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: filtered.length, itemBuilder: (_, i) {
             // دخول متعاقب لأول ثماني بطاقات فقط: التتابع بعدها لا يُرى
             // (خارج الشاشة)، وتأخيرُ عنصرٍ في أسفل قائمة طويلة بحساب
             // ترتيبه يجعله يظهر متأخراً بلا سبب مرئي عند القفز إليه.
@@ -636,7 +651,9 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                 .animate(delay: (55 * i).ms)
                 .fadeIn(duration: 260.ms, curve: Curves.easeOut)
                 .slideY(begin: 0.06, end: 0, duration: 300.ms, curve: Curves.easeOut);
-          });
+          }),
+            ),
+          ]);
             });
         }),
       ),
@@ -774,6 +791,113 @@ class _MetaChip extends StatelessWidget {
 /// خيارات فرز الرئيسة (ح8+ح9) — «الأعلى خصماً» محفوظة عمداً حتى تُبنى
 /// ميزة عروض المطاعم (قرار المالك 2026-08-14).
 enum _HomeSort { recommended, rating, nearest, deliveryTime }
+
+// ————————————————————————————————————————————————————————————————
+// «مطعمك المطلوب وصل» (بقيّة ح٥، 2026-08-20): «اطلب مطعمك» كان يحفظ
+// العدّاد فقط — فلا سبيل لإشعار من طلب يوم ينضم مطعمه، ووعدُنا له «سنخبرك
+// حين يصل» يبقى بلا وفاء. الإشعار الخادمي (push) ينتظر نشر ووركر
+// الإشعارات؛ وحتى ذلك، هذا اكتشافٌ **محلّي** يوفّي الوعد بلا خادم: الجهاز
+// يتذكّر ما طلبه صاحبه، ويكشف انضمام المطعم بمطابقة قائمة المطاعم عند فتح
+// الرئيسية، فيبشّره ببانرٍ لمرة واحدة. (حدُّه: جهازٌ واحد، ومتى فُتح
+// التطبيق — والـpush يكمّله لاحقاً.)
+const String _kRequestedKey = 'requested_restaurants';
+
+Future<void> rememberRequestedRestaurant(String name) async {
+  final norm = normalizeArabic(name);
+  if (norm.isEmpty) return;
+  final prefs = await SharedPreferences.getInstance();
+  final list = prefs.getStringList(_kRequestedKey) ?? [];
+  if (!list.contains(norm)) {
+    list.add(norm);
+    await prefs.setStringList(_kRequestedKey, list);
+  }
+}
+
+/// شريحة تُظهَر مرّةً حين يتوفّر مطعمٌ طلبه صاحب الجهاز — تأخذ قائمة
+/// المطاعم المعروضة أصلاً فلا تفتح تدفّقاً ثانياً.
+class _RequestedArrivedBanner extends StatefulWidget {
+  final List<Restaurant> restaurants;
+  const _RequestedArrivedBanner({required this.restaurants});
+
+  @override
+  State<_RequestedArrivedBanner> createState() =>
+      _RequestedArrivedBannerState();
+}
+
+class _RequestedArrivedBannerState extends State<_RequestedArrivedBanner> {
+  Restaurant? _match;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final prefs = await SharedPreferences.getInstance();
+    final wanted = prefs.getStringList(_kRequestedKey) ?? [];
+    if (wanted.isEmpty) return;
+    for (final r in widget.restaurants) {
+      final rn = normalizeArabic(r.name);
+      final hit = wanted.firstWhere(
+          (w) => rn.contains(w) || w.contains(rn),
+          orElse: () => '');
+      if (hit.isNotEmpty) {
+        // يُشطب فور اكتشافه فلا يتكرّر البشير كل فتحة.
+        wanted.remove(hit);
+        await prefs.setStringList(_kRequestedKey, wanted);
+        if (mounted) setState(() => _match = r);
+        return;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = _match;
+    if (r == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Material(
+        color: AppColors.primary.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            setState(() => _match = null);
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => RestaurantDetailScreen(restaurant: r)));
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(children: [
+              const Text('🎉', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('مطعمك المطلوب وصل!',
+                          style: TextStyle(
+                              fontSize: 13.5, fontWeight: FontWeight.w700)),
+                      Text('${r.name} — اطلب منه الآن',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textGray)),
+                    ]),
+              ),
+              const Icon(Icons.chevron_left_rounded,
+                  color: AppColors.primaryDark),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// شريحة «اطلب مجدداً» لآخر طلبٍ مكتمل — تُجلب مرة عند بناء الشاشة (لا
 /// تدفّقاً دائماً: الرئيسية لا تحتاج تحديثاً حياً لطلبٍ سابق). تختفي

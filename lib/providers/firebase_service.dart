@@ -184,6 +184,45 @@ class FirebaseService {
         logAdminAction('restaurantRequest.done', 'مطعم مطلوب أُضيف: $id');
       });
 
+  CollectionReference<Map<String, dynamic>> get _suggestions =>
+      _db.collection('suggestions');
+
+  /// اقتراح/نصيحة عامة (2026-08-20): يكتبها الزائر بلا تسجيل — النصّ
+  /// إلزامي والاسم والهاتف اختياريان. القاعدة تحرس الحقول والأحجام،
+  /// والقراءة للمدير حصراً. لا أعلام auth: بابٌ عام مقصود.
+  // صندوق التطبيق و«قل لنا» في الموقع يكتبان مجموعة `suggestions` نفسها،
+  // فتُوحَّد القاعدة (دمج 2026-08-20): نكتب `uid` و`status:'new'` كما تشترط
+  // القاعدة الموحّدة كي يمرّ الصندوقان منها إلى صندوق واردٍ واحدٍ للمدير.
+  // الحدّ الأدنى ٥ أحرف والاسم ≤٦٠ مطابقةً للقاعدة (كان ٣ و١٠٠).
+  Future<void> submitSuggestion(String text,
+      {String? name, String? phone}) async {
+    final t = text.trim();
+    if (t.length < 5) throw Exception('اكتب اقتراحك (٥ أحرف على الأقل)');
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('تعذّر الإرسال — أعد فتح التطبيق');
+    final n = (name ?? '').trim();
+    final p = (phone ?? '').trim();
+    await _suggestions.add({
+      'text': t.length > 2000 ? t.substring(0, 2000) : t,
+      if (n.isNotEmpty) 'name': n.length > 60 ? n.substring(0, 60) : n,
+      if (p.isNotEmpty) 'phone': p.length > 30 ? p.substring(0, 30) : p,
+      'uid': uid,
+      'status': 'new',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// أحدث ٢٠٠ اقتراح للمدير (ترتيب خادمي — createdAt وحده، لا فهرس مركّب).
+  Stream<List<models.Suggestion>> streamSuggestions() => _suggestions
+      .orderBy('createdAt', descending: true)
+      .limit(200)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.Suggestion.fromMap(d.data(), d.id))
+          .toList());
+
+  Future<void> deleteSuggestion(String id) => _suggestions.doc(id).delete();
+
   /// تبديل مطعم في مفضلة العميل (ح2) — arrayUnion/Remove ذرّيتان فلا
   /// يفسد سباقُ ضغطتين متتاليتين المصفوفةَ، والقاعدة القائمة تسمح بها
   /// (المستخدم يعدّل مستنده عدا الدور والتفعيل والرصيد صعوداً).
@@ -309,11 +348,17 @@ class FirebaseService {
   Stream<List<models.WalletTransaction>> streamWalletTransactions(String userId) =>
       _walletTransactions
           .where('userId', isEqualTo: userId)
+          // سقف ٢٠٠ حركة (نواقص لا-Blaze 2026-08-20): كان بلا حدّ فينزل
+          // كل التاريخ في كل فتح. الترتيب صار خادمياً (لا محلياً) ليأخذ
+          // الحدّ **الأحدث** فعلاً لا عيّنةً عشوائية — والفهرس المركّب
+          // (userId+createdAt) يُنشر آلياً عبر deploy-firestore. الرصيد
+          // حقلٌ مخزَّن لا يُحسب من المعروض، فالقصّ لا يكذب رقماً.
+          .orderBy('createdAt', descending: true)
+          .limit(200)
           .snapshots()
           .map((s) => s.docs
               .map((d) => models.WalletTransaction.fromMap(d.data(), d.id))
-              .toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+              .toList());
 
   Future<void> createManagedUser({
     required String name,
@@ -427,6 +472,18 @@ class FirebaseService {
       debugPrint('audit write failed: $action $e');
     }
   }
+
+  /// سجلّ التدقيق الإداري للعرض (نواقص لا-Blaze 2026-08-20): كان يُكتب
+  /// من الجوّال والويب (٣١+١٤ موضعاً) ولا شاشة تقرؤه — سجلٌّ لا يُرى لا
+  /// يردع. أحدث ٢٠٠ قيد بترتيب خادمي (createdAt وحده — لا فهرس مركّب).
+  /// يُعاد كـmap خام: القيود متغايرة الحقول (لكل فعلٍ extra مختلف) فلا
+  /// نموذج يسعها، والشاشة تقرأ ما تعرفه وتتجاهل الباقي.
+  Stream<List<Map<String, dynamic>>> streamAdminAudit() => _db
+      .collection('admin_audit')
+      .orderBy('createdAt', descending: true)
+      .limit(200)
+      .snapshots()
+      .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
 
   static const String _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -894,13 +951,27 @@ class FirebaseService {
         .toList();
   }
 
+  /// أسماء الحالات المعروضة في المتابعة الحية (النشطة + `noDriverFound`
+  /// الذي يُعرض للتدخّل اليدوي). مشتقّة من `isActive` نفسها فلا تتباعد
+  /// عنها لو أُضيفت حالة — عشرُ قيمٍ ضمن حدّ whereIn.
+  static final List<String> _activeStatusNames = models.OrderStatus.values
+      .where((s) =>
+          s.isActive || s == models.OrderStatus.noDriverFound)
+      .map((s) => s.name)
+      .toList();
+
+  /// الطلبات النشطة (نواقص لا-Blaze 2026-08-20): كان يُنزِّل أحدث ٣٠٠
+  /// طلبٍ **كاملةً** ثم يصفّي النشط محلياً — فمعظم المنقول مكتملٌ لا
+  /// يُعرض، وعند تجاوز الأرشيف ٣٠٠ نشطاً قد يسقط طلبٌ جارٍ من المتابعة.
+  /// الآن `whereIn` على الحالة يجلب النشط وحده (فهرس status+createdAt
+  /// يُنشر آلياً)، وسقفُ ٥٠٠ حدُّ أمانٍ بعيدٌ لا يُبلَغ عملياً.
   Stream<List<models.Order>> streamActiveOrders() => _orders
+      .where('status', whereIn: _activeStatusNames)
       .orderBy('createdAt', descending: true)
-      .limit(300)
+      .limit(500)
       .snapshots()
       .map((s) => s.docs
           .map((d) => models.Order.fromMap(d.data(), d.id))
-          .where((o) => o.status.isActive || o.status == models.OrderStatus.noDriverFound)
           .toList());
 
   Stream<List<models.Order>> streamRestaurantOrders(String restaurantId) => _orders
@@ -2453,11 +2524,14 @@ class FirebaseService {
   Stream<List<models.DriverTransaction>> streamDriverTransactions(String driverId) =>
       _driverTransactions
           .where('driverId', isEqualTo: driverId)
+          // سقف ٢٠٠ حركة بترتيب خادمي — كسابقتها (نواقص لا-Blaze
+          // 2026-08-20)؛ الفهرس (driverId+createdAt) يُنشر آلياً.
+          .orderBy('createdAt', descending: true)
+          .limit(200)
           .snapshots()
           .map((s) => s.docs
               .map((d) => models.DriverTransaction.fromMap(d.data(), d.id))
-              .toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+              .toList());
 
   /// إلغاء إداري — من لوحة التحكم، ومسموح في أي حالة نشطة.
   Future<void> cancelOrder(String orderId) async {
