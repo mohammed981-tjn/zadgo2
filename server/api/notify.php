@@ -61,10 +61,15 @@ if ($order === null) fail(404, 'الطلب غير موجود');
 // --- 3) المُبلِّغ طرف في الطلب؟ ---------------------------------------------
 $caller = firestore_get($projectId, "users/$callerUid", $saToken);
 $callerRole = $caller['role'] ?? '';
+// استثناء «تمرير العرض» (2026-08-20): جهاز الكابتن الرافض يمرّر العرض
+// للتالي ثم يُبلغ — ولحظتها لم يعد driverId له فكان يُرفض 403 دائماً
+// ولا يُشعَر البديل. حدث assigned يُقبل من أي حساب بدور كابتن: أثره
+// الوحيد إشعار المُسنَد الحقيقي في المستند بنص يبنيه الخادم.
 $isParty =
     ($order['customerId'] ?? '') === $callerUid ||
     ($order['driverId'] ?? '')   === $callerUid ||
     $callerRole === 'admin' ||
+    ($event === 'assigned' && $callerRole === 'driver') ||
     ($callerRole === 'restaurantManager' &&
         ($caller['restaurantId'] ?? '') === ($order['restaurantId'] ?? ''));
 if (!$isParty) fail(403, 'لست طرفاً في هذا الطلب');

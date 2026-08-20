@@ -4,5 +4,5 @@
          أبيض ساطع قبل أن يقلع Flutter ويرسم سبلاش زاد جو الداكن — قطعٌ
          بصري يُقرأ رخصاً. الكحلي هنا هو bgDarker لهوية العميل، وهو أغمق
          «ليل» مشترك تنسجم معه سبلاشات النكهات الأربع الداكنة كلها. -->
-    <color name="launch_background">#04120D</color>
+    <color name="launch_background">#050D1C</color>
 </resources>

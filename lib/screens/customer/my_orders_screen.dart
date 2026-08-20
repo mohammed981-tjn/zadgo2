@@ -335,6 +335,33 @@ class _LiveTrackingCard extends StatelessWidget {
           // زرٌّ عريض عمداً: خيار هروب لا دعوة ضغط.
           if (order.canCustomerCancel) ...[
             const SizedBox(height: 10),
+            // مصارحة التجاهل (الإنقاذ السلوكي 2026-08-20): طلبٌ ينتظر ردّ
+            // المطعم أكثر من خمس دقائق يستحق أن يعرف صاحبه أن التأخر من
+            // المطعم لا من التطبيق — وأن بيده مخرجاً مجانياً الآن، بدل
+            // انتظارٍ صامت يقتل الثقة من أول تجربة. (الإدارة تلغيه آلياً
+            // بعد ضعف المهلة إن بقي متجاهَلاً.)
+            if (order.status == OrderStatus.restaurantPending &&
+                DateTime.now()
+                        .difference(order.statusChangedAt ?? order.createdAt)
+                        .inMinutes >=
+                    5) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border:
+                      Border.all(color: AppColors.warning.withOpacity(0.4)),
+                ),
+                child: const Text(
+                  'المطعم لم يؤكد طلبك بعد — نتابع الأمر، ويمكنك الإلغاء '
+                  'مجاناً الآن إن لم ترغب بالانتظار.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textDark),
+                ),
+              ),
+            ],
             // بنمط زرَّي الخريطة والفاتورة نفسه (ملاحظة المالك 2026-08-14:
             // «الزر ليس مطابقاً») — عرض كامل وإطار، والأحمر هويةَ خطورةٍ
             // في اللون وحده لا في الشكل.

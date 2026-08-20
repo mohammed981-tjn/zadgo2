@@ -47,17 +47,27 @@ class _AdminHomeState extends State<AdminHome> {
 
   static const _tabTitles = ['الرئيسية', 'المتابعة الحية', 'الشكاوى', 'السائقون', 'المطاعم'];
 
+  /// عناوين لوحة الدعم المنكمشة — تبويبان لا خمسة.
+  static const _supportTabTitles = ['المتابعة الحية', 'الشكاوى'];
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
+    // لوحة الدعم لوحةُ الإدارة نفسها منكمشةً: تبويبا الشكاوى والمتابعة
+    // فقط، ودرجٌ فيه سجلّ الطلبات وحده. هذا **تجميلٌ للواجهة لا حماية**
+    // — الحماية في قواعد Firestore التي تحصر الدعم في القراءة والشكاوى؛
+    // فلو أظهرنا له شاشة مالية لعادت طلباتها كلها مرفوضة من القاعدة.
+    final isSupport = auth.user?.role == UserRole.support;
+    final titles = isSupport ? _supportTabTitles : _tabTitles;
+    if (_tab >= titles.length) _tab = 0;
     return Scaffold(
       appBar: AppBar(
-        title: Text('${_tabTitles[_tab]} — ${auth.user?.name ?? ""}'),
+        title: Text('${titles[_tab]} — ${auth.user?.name ?? ""}'),
         actions: [
           // مدخل السجلّ من «المتابعة الحية» نفسها: هناك يقف المدير حين
           // يختفي الطلب الملغى من أمامه، فيجد السجلّ في مكان بحثه لا في
           // الدرج وحده.
-          if (_tab == 1)
+          if (_tab == (isSupport ? 0 : 1))
             IconButton(
               tooltip: 'سجلّ الطلبات',
               icon: const Icon(Icons.history_rounded),
@@ -101,7 +111,8 @@ class _AdminHomeState extends State<AdminHome> {
                   const SizedBox(height: 8),
                   Text(auth.user?.name ?? '',
                       style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                  const Text('إدارة إضافية', style: TextStyle(color: Colors.white70, fontSize: 12.5)),
+                  Text(isSupport ? 'موظف دعم' : 'إدارة إضافية',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
                 ],
               ),
             ),
@@ -123,6 +134,9 @@ class _AdminHomeState extends State<AdminHome> {
                             child: AdminOrdersArchiveScreen())));
               },
             ),
+            // بقية الدرج إدارةٌ خالصة (مال وصلاحيات وبثّ) — تُطوى عن
+            // الدعم؛ ولو ظهرت له لرفضتها القواعد طلباً طلباً.
+            if (!isSupport) ...[
             ListTile(
               leading: const Icon(Icons.insights_outlined),
               title: const Text('التقارير المالية'),
@@ -260,26 +274,40 @@ class _AdminHomeState extends State<AdminHome> {
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'بث جماعي', child: BroadcastTab())));
               },
             ),
+            ],
           ],
         ),
       ),
-      body: IndexedStack(index: _tab, children: const [
-        _StatsTab(),
-        OrderTrackingTab(),
-        AdminComplaintsScreen(),
-        _DriversTab(),
-        AdminRestaurantsTab(),
-      ]),
+      body: IndexedStack(
+          index: _tab,
+          children: isSupport
+              ? const [OrderTrackingTab(), AdminComplaintsScreen()]
+              : const [
+                  _StatsTab(),
+                  OrderTrackingTab(),
+                  AdminComplaintsScreen(),
+                  _DriversTab(),
+                  AdminRestaurantsTab(),
+                ]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'الرئيسية'),
-          NavigationDestination(icon: Icon(Icons.gps_fixed_outlined), label: 'المتابعة الحية'),
-          NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
-          NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
-          NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
-        ],
+        destinations: isSupport
+            ? const [
+                NavigationDestination(
+                    icon: Icon(Icons.gps_fixed_outlined),
+                    label: 'المتابعة الحية'),
+                NavigationDestination(
+                    icon: Icon(Icons.report_problem_outlined),
+                    label: 'الشكاوى'),
+              ]
+            : const [
+                NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'الرئيسية'),
+                NavigationDestination(icon: Icon(Icons.gps_fixed_outlined), label: 'المتابعة الحية'),
+                NavigationDestination(icon: Icon(Icons.report_problem_outlined), label: 'الشكاوى'),
+                NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), label: 'السائقون'),
+                NavigationDestination(icon: Icon(Icons.restaurant_outlined), label: 'المطاعم'),
+              ],
       ),
     );
   }

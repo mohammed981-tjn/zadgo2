@@ -398,6 +398,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (!mounted) return;
     }
 
+    // بوابة درع النقد (2026-08-20) — مرآةُ القاعدة برسالة مفهومة بدل
+    // «رُفض الطلب» الغامضة، وحارسُ التزامن الذي لا تستطيعه القاعدة
+    // (القواعد لا تعدّ). كل المقابض من لوحة المدير وصفرها يعطّلها.
+    if (_payment == PaymentMethod.cash) {
+      final me = context.read<app_auth.AuthProvider>().user;
+      final s = _settings;
+      if (me?.cashBlocked == true) {
+        showError(context,
+            'الدفع النقدي موقوف لحسابك بعد تكرار رفض الاستلام — يمكنك الدفع بالمحفظة أو البطاقة، أو تواصل مع الدعم');
+        return;
+      }
+      if (s.firstCashOrderCap > 0 &&
+          me?.cashTrusted != true &&
+          _orderTotal() > s.firstCashOrderCap) {
+        showError(context,
+            'سقف أول طلب نقدي ${s.firstCashOrderCap.toStringAsFixed(0)} ر.س — قلّل السلة أو ادفع بالمحفظة/البطاقة، وبعد أول توصيلة يُرفع السقف');
+        return;
+      }
+      if (s.maxConcurrentCashOrders > 0 && me != null) {
+        try {
+          final mine = await context
+              .read<FirebaseService>()
+              .streamCustomerOrders(me.uid)
+              .first;
+          final activeCash = mine
+              .where((o) =>
+                  o.status.isActive &&
+                  o.paymentMethod == PaymentMethod.cash)
+              .length;
+          if (activeCash >= s.maxConcurrentCashOrders) {
+            if (mounted) {
+              showError(context,
+                  'لديك $activeCash طلبات نقدية جارية — أكمل استلامها قبل طلبٍ نقدي جديد');
+            }
+            return;
+          }
+        } catch (_) {
+          // تعذُّر العدّ لا يمنع الطلب — حارس تحسيني لا شرط.
+        }
+        if (!mounted) return;
+      }
+    }
+
     // الدفع بالبطاقة يسبق إنشاء الطلب: لا يُسجَّل طلب إلا بعد أن تؤكّد البوابة
     // شحن المبلغ فعلياً. العكس (إنشاء الطلب ثم محاولة الدفع) يُنتج طلبات
     // معلّقة بلا سداد يصعب تنظيفها لاحقاً.

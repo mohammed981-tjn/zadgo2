@@ -58,10 +58,14 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
       phone: _phoneCtrl.text,
       nationalId: _nationalIdCtrl.text,
       referredByCode: _referrerCtrl.text,
-      // النكهة المقيّدة بدور واحد (سائق/مطعم/أدمن) تقبل فقط أكواداً بنفس
-      // الدور؛ النكهة الكاملة (restrictToRole == null) تقبل أي دور كما كان
-      // الحال سابقاً.
-      expectedRole: AppFlavorConfig.restrictToRole,
+      // النكهة المقيّدة تقبل أكواد أدوارها المسموحة (نكهة الإدارة: مدير
+      // عام **وموظف دعم**)؛ والكاملة (restrictToRole == null) تقبل أي دور.
+      allowedRoles: AppFlavorConfig.restrictToRole == null
+          ? null
+          : {
+              AppFlavorConfig.restrictToRole!,
+              ...AppFlavorConfig.extraAllowedRoles,
+            },
     );
     if (!mounted) return;
     if (ok && auth.user != null) {

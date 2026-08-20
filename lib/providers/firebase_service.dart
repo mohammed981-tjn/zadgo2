@@ -497,7 +497,9 @@ class FirebaseService {
     required String password,
     required String phone,
     String? nationalId,
-    models.UserRole? expectedRole,
+    // مجموعة لا دوراً واحداً: نكهة الإدارة تقبل كودَي «مدير عام»
+    // و«موظف دعم» معاً — المساواة الصارمة كانت سترفض كود الدعم فيها.
+    Set<models.UserRole>? allowedRoles,
     String? referredByCode,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
@@ -513,7 +515,7 @@ class FirebaseService {
     if (initial.isExpired) {
       throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
     }
-    if (expectedRole != null && initial.role != expectedRole) {
+    if (allowedRoles != null && !allowedRoles.contains(initial.role)) {
       throw Exception('هذا الكود غير مخصص لهذا التطبيق');
     }
 
@@ -533,7 +535,7 @@ class FirebaseService {
         if (current.isExpired) {
           throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
         }
-        if (expectedRole != null && current.role != expectedRole) {
+        if (allowedRoles != null && !allowedRoles.contains(current.role)) {
           throw Exception('هذا الكود غير مخصص لهذا التطبيق');
         }
         // ختم الكود باسم صاحبه **داخل المعاملة** لا بعد إنشاء المستخدم:
@@ -994,11 +996,16 @@ class FirebaseService {
       'rejectionReason': reason.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
+      // رفض المطعم إنهاءٌ للطلب بلا خدمة فيُعاد ما خُصم من المحفظة —
+      // لكن **ليس من هذا الجهاز**: هذه الدالة تعمل على جهاز المطعم،
+      // والقواعد تمنعه — بحق — من زيادة رصيد عميل، فكان نداء الاسترداد
+      // المباشر هنا يُرفض ويضيع الرصيد بصمت (فحص السلوك 2026-08-20 —
+      // نفس داء الإلغاء الذاتي الذي عولج 2026-08-15 ولم يُنقل علاجه).
+      // الختم walletRefundPending يُظهره في بطاقة «ردود محفظة معلّقة»
+      // برئيسة الإدارة فيصرفه المدير بضغطة.
+      if (current.walletUsed > 0) 'walletRefundPending': true,
     });
 
-    // رفض المطعم إنهاءٌ للطلب بلا خدمة، فيُعاد للعميل ما خُصم من محفظته تماماً
-    // كالإلغاء — وإلا خسر رصيده بسبب رفضٍ لا ذنب له فيه.
-    await _refundWalletOnCancel(current);
     await _releaseOrderDriver(current);
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
@@ -1495,6 +1502,177 @@ class FirebaseService {
     return (await _freeStuckDrivers(online)).length;
   }
 
+  /// «تعذّر التسليم» — مخرج الكابتن على باب عميلٍ يرفض الاستلام أو لا
+  /// يردّ (درع النقد 2026-08-20). **علمٌ لا إغلاق**: الحالة لا تتغير،
+  /// فالإغلاق المالي (إلغاء بعكس العُهدة، أو إعادة محاولة) قرارُ مديرٍ
+  /// تُشعله البطاقة الحمراء في المتابعة الحية — ضغطةُ كابتنٍ لا تصفّي
+  /// طلباً نقدياً بضاعتُه وعُهدته بيده.
+  Future<void> markDeliveryFailed(models.Order order, String reason) async {
+    await _orders.doc(order.id).update({
+      'deliveryFailed': true,
+      'undeliveredReason': reason,
+      'undeliveredAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    NotifyRelay.orderEvent(order.id, OrderEvent.status);
+  }
+
+  /// رفع/فرض حظر النقدي يدوياً — من تبويب المستخدمين (المدير حين يقتنع
+  /// بعذر العميل يرفعه، والعدّاد يُصفَّر معه فلا يعود الحظر من أول كنسة).
+  Future<void> setCashBlocked(String uid, bool blocked) async {
+    await _users.doc(uid).update({
+      'cashBlocked': blocked,
+      if (!blocked) 'cashNoShowCount': 0,
+    });
+    logAdminAction('user.cashBlock',
+        blocked ? 'حظر الدفع النقدي عن عميل' : 'رفع حظر النقدي عن عميل',
+        extra: {'uid': uid});
+  }
+
+  /// كنس أعلام درع النقد — مع فتح المتابعة الحية (نمط «أقصى ما يمكن بلا
+  /// خادم»): (١) **الترقية**: عميلٌ في نافذة الطلبات الأخيرة سُلِّم له
+  /// طلبٌ وليس موثوقاً بعد → `cashTrusted` فيسقط عنه سقف أول طلب؛
+  /// (٢) **الحظر**: عميلٌ ظهر له «تعذّر تسليم» نقدي بسبب رفض/غياب →
+  /// يُعاد عدّ كامل تاريخه النقدي الفاشل بدقة (استعلام مباشر لا نافذة)،
+  /// وإن بلغ حدَّ المدير (`cashNoShowLimit`، صفر يعطّل) حُظر النقدي عنه.
+  Future<({int promoted, int blocked})> reconcileCashFlags() async {
+    var promoted = 0, blocked = 0;
+    try {
+      final settings = await getIncentiveSettings();
+      final snap = await _orders
+          .orderBy('createdAt', descending: true)
+          .limit(300)
+          .get();
+      final deliveredCustomers = <String>{};
+      final failedCashCustomers = <String>{};
+      for (final doc in snap.docs) {
+        final o = models.Order.fromMap(doc.data(), doc.id);
+        if (o.status == models.OrderStatus.delivered) {
+          deliveredCustomers.add(o.customerId);
+        }
+        if (o.deliveryFailed &&
+            o.paymentMethod == models.PaymentMethod.cash) {
+          failedCashCustomers.add(o.customerId);
+        }
+      }
+      for (final uid in deliveredCustomers) {
+        try {
+          final u = await _users.doc(uid).get();
+          if (u.data()?['cashTrusted'] == true) continue;
+          await _users.doc(uid).update({'cashTrusted': true});
+          promoted++;
+        } catch (_) {}
+      }
+      if (settings.cashNoShowLimit > 0) {
+        for (final uid in failedCashCustomers) {
+          try {
+            final u = await _users.doc(uid).get();
+            if (u.data()?['cashBlocked'] == true) continue;
+            final fails = await _orders
+                .where('customerId', isEqualTo: uid)
+                .where('deliveryFailed', isEqualTo: true)
+                .get();
+            final cashFails = fails.docs
+                .map((d) => models.Order.fromMap(d.data(), d.id))
+                .where((o) => o.paymentMethod == models.PaymentMethod.cash)
+                .length;
+            await _users.doc(uid).update({'cashNoShowCount': cashFails});
+            if (cashFails >= settings.cashNoShowLimit) {
+              await _users.doc(uid).update({'cashBlocked': true});
+              blocked++;
+              logAdminAction('user.cashBlock',
+                  'حظر النقدي تلقائياً: $cashFails رفض استلام (الحد ${settings.cashNoShowLimit})',
+                  extra: {'uid': uid});
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {
+      // الكنس تحسين لا شرط.
+    }
+    return (promoted: promoted, blocked: blocked);
+  }
+
+  /// كنس الطلبات العالقة — يعمل من لوحة المتابعة لحظة فتحها (نمط «أقصى
+  /// ما يمكن بلا خادم» نفسه الذي يعتمده صرف الحوافز والمصالحة).
+  /// عطلان كشفهما فحص السلوك 2026-08-20 وكلاهما كان بلا أي مخرج:
+  ///
+  /// **١) العرض الميت**: عرضُ الإسناد التلقائي مهلته ٤٥ ثانية تعدّ على
+  /// جهاز الكابتن وحده — فإن مات جهازه لحظتها بقي الطلب معلّقاً عليه
+  /// للأبد (driverAcknowledged=false) والكابتن محجوزاً «غير متاح».
+  /// هنا: كل عرضٍ مرّت عليه ٣ دقائق (المهلة + هامش أعطال سخيّ كي لا
+  /// نسابق عدّاداً حياً) يُحرَّر كابتنُه ويُعاد ترشيح الطلب فوراً من
+  /// هذا الجهاز. **قصداً لا يمسّ الإسناد اليدوي** (حالته driverAssigned
+  /// — قد يكون المدير أسند كابتناً غير متصل عمداً بعد مهاتفته).
+  ///
+  /// **٢) الطلب المتجاهَل**: طلبٌ لم يردّ عليه المطعم أطول من ضعف مهلة
+  /// التنبيه (restaurantResponseTimeoutMinutes×٢، وبحد أدنى ١٠ دقائق —
+  /// الضعف يترك للتنبيه الأصفر فرصة معالجة يدوية قبل البتر) يُلغى
+  /// بالمسار الإداري الكامل: استرداد المحفظة مباشرةً (هذا الجهاز مدير)،
+  /// تحرير الكوبون والكابتن، وإشعار العميل — بدل انتظارٍ بلا نهاية
+  /// يقتل ثقته من أول طلب.
+  Future<({int reclaimedOffers, int cancelledIgnored})>
+      reconcileStuckOrders() async {
+    var reclaimed = 0, cancelled = 0;
+    try {
+      final now = DateTime.now();
+      final cfg = await getDeliverySettings();
+      final alertMin =
+          (cfg['restaurantResponseTimeoutMinutes'] as num?)?.toInt() ?? 5;
+      final cancelAfter = Duration(
+          minutes: (alertMin * 2) < 10 ? 10 : (alertMin * 2));
+      final snap = await _orders
+          .orderBy('createdAt', descending: true)
+          .limit(300)
+          .get();
+      for (final doc in snap.docs) {
+        final o = models.Order.fromMap(doc.data(), doc.id);
+        final age =
+            now.difference(o.statusChangedAt ?? o.updatedAt ?? o.createdAt);
+        final offerAge = now.difference(o.updatedAt ?? o.createdAt);
+
+        if (o.status == models.OrderStatus.searchingDriver &&
+            o.needsDriverAcknowledgement &&
+            offerAge > const Duration(minutes: 3)) {
+          try {
+            final deadDriverId = o.driverId!;
+            await _orders.doc(o.id).update({
+              'driverId': null,
+              'driverName': null,
+              'driverPhone': null,
+              'driverAcknowledged': true,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            await _drivers
+                .doc(deadDriverId)
+                .update({'isAvailable': true});
+            reclaimed++;
+            logAdminAction('order.reclaimOffer',
+                'استرجاع عرض ميت للطلب #${o.orderNumber} وإعادة ترشيحه',
+                extra: {'orderId': o.id});
+            final fresh = await getOrderOnce(o.id);
+            if (fresh != null) await autoAssignNearestDriver(fresh);
+          } catch (_) {
+            // فشل استرجاع طلبٍ لا يوقف كنس البقية.
+          }
+        } else if (o.status == models.OrderStatus.restaurantPending &&
+            age > cancelAfter) {
+          try {
+            await cancelOrder(o.id);
+            cancelled++;
+            logAdminAction('order.autoCancelIgnored',
+                'إلغاء تلقائي لطلب #${o.orderNumber} تجاهله المطعم '
+                '${age.inMinutes} دقيقة',
+                extra: {'orderId': o.id});
+          } catch (_) {}
+        }
+      }
+    } catch (_) {
+      // الكنس تحسين لا شرط لعمل اللوحة.
+    }
+    return (reclaimedOffers: reclaimed, cancelledIgnored: cancelled);
+  }
+
   /// تحرير سائق طلبٍ انتهى قبل أوانه (إلغاء/رفض) — الوقاية التي تُغني عن
   /// المصالحة أعلاه: يُستدعى في كل مسار إنهاء لا يمرّ بالتسليم.
   Future<void> _releaseOrderDriver(models.Order order) async {
@@ -1884,6 +2062,51 @@ class FirebaseService {
       performedBy: _auth.currentUser?.uid ?? '',
       createdAt: DateTime.now(),
     ).toMap());
+  }
+
+  /// دفتر مطعمٍ كامل التاريخ — قراءة واحدة لكل طلباته وتسوياته معاً.
+  ///
+  /// **بلا سقف عمداً** (فحص السلوك 2026-08-20): كان «المتبقي» يُحسب من
+  /// صافي أحدث ٢٠٠ طلب مقابل مدفوعاتٍ كاملةِ التاريخ — طرفا معادلة من
+  /// عمرين مختلفين، فينحرف الدفتر فور تجاوز الـ٢٠٠ ويهدم ثقة التسوية.
+  /// حجم مطعم واحد محتملٌ في مرحلة الإطلاق (get لا تدفّق حي)؛ وحين يكبر
+  /// التاريخ فالحل رصيدٌ جارٍ مخزَّن يحدّثه الخادم (المسار د).
+  Future<
+      ({
+        double meals,
+        double commission,
+        double compensations,
+        double chargebacks,
+        double paid,
+        int deliveredCount,
+      })> restaurantLedgerBalance(String restaurantId) async {
+    final ordersSnap =
+        await _orders.where('restaurantId', isEqualTo: restaurantId).get();
+    double meals = 0, commission = 0, comp = 0, charge = 0;
+    var delivered = 0;
+    for (final d in ordersSnap.docs) {
+      final o = models.Order.fromMap(d.data(), d.id);
+      if (o.status == models.OrderStatus.delivered) {
+        meals += o.itemsTotal;
+        commission += o.effectiveCommission;
+        delivered++;
+      }
+      comp += o.restaurantCompensation;
+      charge += o.restaurantChargeback;
+    }
+    final setSnap = await _restaurantSettlements
+        .where('restaurantId', isEqualTo: restaurantId)
+        .get();
+    final paid = setSnap.docs.fold(
+        0.0, (s, d) => s + ((d.data()['amount'] as num?)?.toDouble() ?? 0));
+    return (
+      meals: meals,
+      commission: commission,
+      compensations: comp,
+      chargebacks: charge,
+      paid: paid,
+      deliveredCount: delivered,
+    );
   }
 
   /// تسويات مطعم واحد، الأحدث أولاً (ترتيب محلي — لا فهرس مركّب).

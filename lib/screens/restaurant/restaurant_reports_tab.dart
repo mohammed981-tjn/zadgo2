@@ -79,60 +79,75 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
 
             // دفتر المستحقّات: مبيعاتك − عمولة المنصّة − ما استلمته فعلاً.
             // شفافية كاملة تُغني عن المراجعة الهاتفية عند كل تسوية.
-            Builder(builder: (ctx) {
-              final commission =
-                  sold.fold(0.0, (s, o) => s + o.effectiveCommission);
-              // تعويضات الإلغاء بعد الطبخ تُضاف للمستحق بلا عمولة: المنصّة
-              // تتحمّلها كاملة لأن المطعم أدّى ما عليه ولا ذنب له في
-              // الإلغاء (المعيار العالمي)، وخصم عمولة عليها يعني تحميله
-              // جزءاً من خطأ غيره.
-              final compensations =
-                  orders.fold(0.0, (s, o) => s + o.restaurantCompensation);
-              // خصومات شكاوى الجودة المقبولة (سياسة المالك 2026-08-13):
-              // استردادها على حساب المطعم لا المنصّة — فمن أفسد الطلب
-              // يدفع ثمنه. تُطرح من المستحق كما تُضاف التعويضات إليه.
-              final chargebacks =
-                  orders.fold(0.0, (s, o) => s + o.restaurantChargeback);
-              final net =
-                  totalMealsValue - commission + compensations - chargebacks;
-              return AppStreamBuilder<List<RestaurantSettlement>>(
-                stream: () =>
-                    service.streamRestaurantSettlements(widget.restaurantId),
-                loading: const SizedBox.shrink(),
-                builder: (ctx, settlements) {
-                  final paid = settlements.fold(0.0, (s, x) => s + x.amount);
-                  final remaining = net - paid;
-                  return Card(
+            //
+            // **كامل التاريخ لا نافذة الشاشة** (الإنقاذ السلوكي 2026-08-20):
+            // كان الصافي يُحسب من أحدث ٢٠٠ طلبٍ فقط بينما «استلمته» تجمع
+            // كل التاريخ — طرفا معادلةٍ من عمرين، فينقلب «المتبقي لك»
+            // رقماً وهمياً فور تجاوز الـ٢٠٠ ويهدم ثقة التسوية كلها.
+            FutureBuilder<
+                ({
+                  double meals,
+                  double commission,
+                  double compensations,
+                  double chargebacks,
+                  double paid,
+                  int deliveredCount,
+                })>(
+              future: service.restaurantLedgerBalance(widget.restaurantId),
+              builder: (ctx, snap) {
+                final led = snap.data;
+                if (led == null) return const SizedBox.shrink();
+                final net = led.meals -
+                    led.commission +
+                    led.compensations -
+                    led.chargebacks;
+                final remaining = net - led.paid;
+                return AppStreamBuilder<List<RestaurantSettlement>>(
+                  stream: () =>
+                      service.streamRestaurantSettlements(widget.restaurantId),
+                  loading: const SizedBox.shrink(),
+                  builder: (ctx, settlements) {
+                    return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(14),
                       child: Column(children: [
-                        const Align(
+                        Align(
                           alignment: AlignmentDirectional.centerStart,
-                          child: Text('دفتر المستحقّات',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14.5)),
+                          child: Row(children: [
+                            const Text('دفتر المستحقّات',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14.5)),
+                            const Spacer(),
+                            Text(
+                                'كامل التاريخ — ${led.deliveredCount} طلب',
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textGray)),
+                          ]),
                         ),
                         const SizedBox(height: 6),
                         PriceRow(
                             label: 'مبيعات الوجبات',
-                            value: formatCurrency(totalMealsValue)),
+                            value: formatCurrency(led.meals)),
                         PriceRow(
                             label: 'عمولة المنصّة',
-                            value: '- ${formatCurrency(commission)}'),
-                        if (compensations > 0)
+                            value: '- ${formatCurrency(led.commission)}'),
+                        if (led.compensations > 0)
                           PriceRow(
                               label: 'تعويض طلبات أُلغيت بعد التحضير',
-                              value: '+ ${formatCurrency(compensations)}'),
-                        if (chargebacks > 0)
+                              value:
+                                  '+ ${formatCurrency(led.compensations)}'),
+                        if (led.chargebacks > 0)
                           PriceRow(
                               label: 'خصومات شكاوى جودة (لصالح العملاء)',
-                              value: '- ${formatCurrency(chargebacks)}'),
+                              value: '- ${formatCurrency(led.chargebacks)}'),
                         PriceRow(
                             label: 'صافي المستحق',
                             value: formatCurrency(net)),
                         PriceRow(
                             label: 'استلمته',
-                            value: '- ${formatCurrency(paid)}'),
+                            value: '- ${formatCurrency(led.paid)}'),
                         const Divider(),
                         PriceRow(
                             label: remaining >= 0
@@ -172,9 +187,10 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                       ]),
                     ),
                   );
-                },
-              );
-            }),
+                  },
+                );
+              },
+            ),
             const SizedBox(height: 16),
             Row(children: [
               Expanded(
