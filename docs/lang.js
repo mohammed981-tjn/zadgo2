@@ -27,19 +27,24 @@
   var COMMON = {
     ar: { 'nav.home': 'الرئيسية', 'nav.contact': 'التواصل والدعم',
           'nav.privacy': 'سياسة الخصوصية', 'nav.terms': 'الشروط والأحكام',
-          'nav.delete': 'حذف الحساب', 'foot.rights': 'جميع الحقوق محفوظة' },
+          'nav.delete': 'حذف الحساب', 'foot.rights': 'جميع الحقوق محفوظة',
+          'say.open': '💡 اقترح علينا' },
     en: { 'nav.home': 'Home', 'nav.contact': 'Contact & support',
           'nav.privacy': 'Privacy policy', 'nav.terms': 'Terms & conditions',
-          'nav.delete': 'Delete account', 'foot.rights': 'All rights reserved' },
+          'nav.delete': 'Delete account', 'foot.rights': 'All rights reserved',
+          'say.open': '💡 Send us a suggestion' },
     bn: { 'nav.home': 'হোম', 'nav.contact': 'যোগাযোগ ও সাপোর্ট',
           'nav.privacy': 'গোপনীয়তা নীতি', 'nav.terms': 'শর্তাবলী',
-          'nav.delete': 'অ্যাকাউন্ট মুছুন', 'foot.rights': 'সর্বস্বত্ব সংরক্ষিত' },
+          'nav.delete': 'অ্যাকাউন্ট মুছুন', 'foot.rights': 'সর্বস্বত্ব সংরক্ষিত',
+          'say.open': '💡 পরামর্শ দিন' },
     ur: { 'nav.home': 'ہوم', 'nav.contact': 'رابطہ اور مدد',
           'nav.privacy': 'رازداری کی پالیسی', 'nav.terms': 'شرائط و ضوابط',
-          'nav.delete': 'اکاؤنٹ حذف کریں', 'foot.rights': 'جملہ حقوق محفوظ ہیں' },
+          'nav.delete': 'اکاؤنٹ حذف کریں', 'foot.rights': 'جملہ حقوق محفوظ ہیں',
+          'say.open': '💡 تجویز بھیجیں' },
     id: { 'nav.home': 'Beranda', 'nav.contact': 'Kontak & dukungan',
           'nav.privacy': 'Kebijakan privasi', 'nav.terms': 'Syarat & ketentuan',
-          'nav.delete': 'Hapus akun', 'foot.rights': 'Hak cipta dilindungi' }
+          'nav.delete': 'Hapus akun', 'foot.rights': 'Hak cipta dilindungi',
+          'say.open': '💡 Kirim saran' }
   };
 
   var PAGES = {};
@@ -424,7 +429,9 @@
           'a.new': 'لم تنضمّ بعد؟', 'a.newd': 'التطبيق لا يفتح إلا بحساب مطعمٍ مقبول. سجّل مطعمك أولاً، ونرسل لك بيانات دخولك.',
           'a.newcta': 'ضمّ مطعمك الآن ←',
           'a.ios': 'آيفون؟', 'a.iosd': 'نعمل على نسخة الآيفون. وحتى تصدر، أي جوّال أندرويد أو تابلت أندرويد عندك — ولو قديماً — يصلح شاشةَ طلبات، وهذا ما يستعمله شركاؤنا اليوم.',
-          'a.other': 'أنت كابتن أو عميل؟', 'a.otherd': 'للكابتن تطبيقه، ويصلك مع بيانات دخولك بعد قبول طلب انضمامك — <a href="/join/">ابدأ من هنا</a>. وللعميل لا تطبيق يُحمَّل: يطلب من متصفّح جوّاله مباشرة.' },
+          'a.other': 'أنت كابتن أو عميل؟', 'a.otherd': 'للكابتن تطبيقه، ويصلك مع بيانات دخولك بعد قبول طلب انضمامك — <a href="/join/">ابدأ من هنا</a>. وللعميل لا تطبيق يُحمَّل: يطلب من متصفّح جوّاله مباشرة.',
+          'say.h2': 'عندك ملاحظة على التطبيق؟', 'say.d': 'قُلها لنا بصراحة — ما ينقصه، وما يزعجك فيه، وما تتمنّى أن نضيفه. نقرأ كل ما يصلنا، وبياناتك اختيارية كلها.',
+          'say.open': '💡 اكتب ملاحظتك ←' },
     en: { 'a.h1': 'Download the <span>restaurant</span> app',
           'a.lede': 'Your orders screen: every order reaches your kitchen the moment it is placed \u2014 you accept it, prepare it, hand it to the captain, and your earnings stay itemized line by line.',
           'a.dl': '⬇️ Download for Android', 'a.size': 'APK file \u2014 for any Android phone',
@@ -438,7 +445,9 @@
           'a.new': 'Not a partner yet?', 'a.newd': 'The app only opens with an approved restaurant account. List your restaurant first and we will send you your sign-in details.',
           'a.newcta': 'List your restaurant \u2192',
           'a.ios': 'On iPhone?', 'a.iosd': 'We are working on the iPhone version. Until it is out, any Android phone or tablet you already own \u2014 even an old one \u2014 works as an orders screen, and that is what our partners use today.',
-          'a.other': 'Are you a captain or a customer?', 'a.otherd': 'Captains have their own app; it reaches you with your sign-in details once your application is approved \u2014 <a href="/join/">start here</a>. Customers install nothing: they order straight from their phone browser.' },
+          'a.other': 'Are you a captain or a customer?', 'a.otherd': 'Captains have their own app; it reaches you with your sign-in details once your application is approved \u2014 <a href="/join/">start here</a>. Customers install nothing: they order straight from their phone browser.',
+          'say.h2': 'Have a note about the app?', 'say.d': 'Tell us plainly — what is missing, what annoys you, what you wish we would add. We read everything, and your details are entirely optional.',
+          'say.open': '💡 Write your note →' },
     bn: { 'a.h1': '<span>রেস্টুরেন্ট</span> অ্যাপ ডাউনলোড করুন',
           'a.lede': 'আপনার অর্ডার স্ক্রিন: অর্ডার হওয়া মাত্র রান্নাঘরে পৌঁছায় — আপনি গ্রহণ করেন, প্রস্তুত করেন, ক্যাপ্টেনকে দেন, আর আপনার প্রাপ্য লাইন ধরে স্পষ্ট থাকে।',
           'a.dl': '⬇️ অ্যান্ড্রয়েডের জন্য ডাউনলোড', 'a.size': 'APK ফাইল — যেকোনো অ্যান্ড্রয়েড ফোনে',
@@ -452,7 +461,9 @@
           'a.new': 'এখনো যুক্ত হননি?', 'a.newd': 'অনুমোদিত রেস্টুরেন্ট অ্যাকাউন্ট ছাড়া অ্যাপ খোলে না। আগে আপনার রেস্টুরেন্ট যুক্ত করুন, আমরা লগইন তথ্য পাঠিয়ে দেব।',
           'a.newcta': 'আপনার রেস্টুরেন্ট যুক্ত করুন →',
           'a.ios': 'আইফোনে?', 'a.iosd': 'আইফোন সংস্করণে কাজ চলছে। ততক্ষণ আপনার যেকোনো অ্যান্ড্রয়েড ফোন বা ট্যাবলেট — পুরোনো হলেও — অর্ডার স্ক্রিন হিসেবে চলে, আমাদের পার্টনাররা আজ সেটিই ব্যবহার করেন।',
-          'a.other': 'আপনি ক্যাপ্টেন না গ্রাহক?', 'a.otherd': 'ক্যাপ্টেনের নিজের অ্যাপ আছে; আবেদন অনুমোদিত হলে লগইন তথ্যসহ পৌঁছে যাবে — <a href="/join/">এখান থেকে শুরু করুন</a>। গ্রাহকের কিছু ইনস্টল করার দরকার নেই: ফোনের ব্রাউজার থেকেই অর্ডার করেন।' },
+          'a.other': 'আপনি ক্যাপ্টেন না গ্রাহক?', 'a.otherd': 'ক্যাপ্টেনের নিজের অ্যাপ আছে; আবেদন অনুমোদিত হলে লগইন তথ্যসহ পৌঁছে যাবে — <a href="/join/">এখান থেকে শুরু করুন</a>। গ্রাহকের কিছু ইনস্টল করার দরকার নেই: ফোনের ব্রাউজার থেকেই অর্ডার করেন।',
+          'say.h2': 'অ্যাপ নিয়ে কিছু বলার আছে?', 'say.d': 'খোলাখুলি বলুন — কী নেই, কী বিরক্ত করে, কী যোগ করতে চান। আমরা সব পড়ি, আর আপনার তথ্য পুরোপুরি ঐচ্ছিক।',
+          'say.open': '💡 আপনার মতামত লিখুন →' },
     ur: { 'a.h1': '<span>ریستوران</span> ایپ ڈاؤن لوڈ کریں',
           'a.lede': 'آپ کی آرڈر اسکرین: آرڈر ہوتے ہی آپ کے کچن پہنچتا ہے — آپ قبول کرتے ہیں، تیار کرتے ہیں، کیپٹن کے حوالے کرتے ہیں، اور آپ کی رقم سطر بہ سطر واضح رہتی ہے۔',
           'a.dl': '⬇️ اینڈرائیڈ کے لیے ڈاؤن لوڈ', 'a.size': 'APK فائل — کسی بھی اینڈرائیڈ فون کے لیے',
@@ -466,7 +477,9 @@
           'a.new': 'ابھی شامل نہیں ہوئے؟', 'a.newd': 'ایپ صرف منظور شدہ ریستوران اکاؤنٹ سے کھلتی ہے۔ پہلے اپنا ریستوران رجسٹر کریں، ہم آپ کو لاگ اِن تفصیلات بھیج دیں گے۔',
           'a.newcta': 'اپنا ریستوران شامل کریں ←',
           'a.ios': 'آئی فون پر؟', 'a.iosd': 'آئی فون نسخے پر کام جاری ہے۔ تب تک آپ کا کوئی بھی اینڈرائیڈ فون یا ٹیبلٹ — پرانا ہی سہی — آرڈر اسکرین کے طور پر چلتا ہے، اور آج ہمارے شراکت دار یہی استعمال کرتے ہیں۔',
-          'a.other': 'آپ کیپٹن ہیں یا گاہک؟', 'a.otherd': 'کیپٹن کی اپنی ایپ ہے؛ درخواست منظور ہوتے ہی لاگ اِن تفصیلات کے ساتھ آپ تک پہنچ جاتی ہے — <a href="/join/">یہاں سے شروع کریں</a>۔ گاہک کو کچھ انسٹال کرنے کی ضرورت نہیں: وہ اپنے فون کے براؤزر سے آرڈر کرتے ہیں۔' },
+          'a.other': 'آپ کیپٹن ہیں یا گاہک؟', 'a.otherd': 'کیپٹن کی اپنی ایپ ہے؛ درخواست منظور ہوتے ہی لاگ اِن تفصیلات کے ساتھ آپ تک پہنچ جاتی ہے — <a href="/join/">یہاں سے شروع کریں</a>۔ گاہک کو کچھ انسٹال کرنے کی ضرورت نہیں: وہ اپنے فون کے براؤزر سے آرڈر کرتے ہیں۔',
+          'say.h2': 'ایپ پر کوئی رائے ہے؟', 'say.d': 'صاف صاف بتائیں — کیا کمی ہے، کیا کھلتا ہے، اور کیا شامل کرنا چاہیں گے۔ ہم سب پڑھتے ہیں، اور آپ کی معلومات مکمل طور پر اختیاری ہیں۔',
+          'say.open': '💡 اپنی رائے لکھیں ←' },
     id: { 'a.h1': 'Unduh aplikasi <span>restoran</span>',
           'a.lede': 'Layar pesananmu: pesanan masuk ke dapur seketika \u2014 kamu terima, siapkan, serahkan ke kurir, dan pendapatanmu tetap dirinci baris per baris.',
           'a.dl': '⬇️ Unduh untuk Android', 'a.size': 'Berkas APK \u2014 untuk ponsel Android apa pun',
@@ -480,7 +493,9 @@
           'a.new': 'Belum jadi mitra?', 'a.newd': 'Aplikasi hanya terbuka dengan akun restoran yang disetujui. Daftarkan restoranmu dulu, lalu kami kirimkan data masukmu.',
           'a.newcta': 'Daftarkan restoranmu \u2192',
           'a.ios': 'Pakai iPhone?', 'a.iosd': 'Versi iPhone sedang kami kerjakan. Sementara itu, ponsel atau tablet Android apa pun yang kamu punya \u2014 bahkan yang lama \u2014 bisa jadi layar pesanan, dan itulah yang dipakai mitra kami hari ini.',
-          'a.other': 'Kamu kurir atau pelanggan?', 'a.otherd': 'Kurir punya aplikasi sendiri; dikirim beserta data masukmu setelah lamaranmu disetujui \u2014 <a href="/join/">mulai dari sini</a>. Pelanggan tidak memasang apa pun: mereka memesan langsung dari peramban ponsel.' }
+          'a.other': 'Kamu kurir atau pelanggan?', 'a.otherd': 'Kurir punya aplikasi sendiri; dikirim beserta data masukmu setelah lamaranmu disetujui \u2014 <a href="/join/">mulai dari sini</a>. Pelanggan tidak memasang apa pun: mereka memesan langsung dari peramban ponsel.',
+          'say.h2': 'Punya catatan soal aplikasinya?', 'say.d': 'Katakan terus terang — apa yang kurang, apa yang mengganggu, apa yang ingin kamu tambahkan. Kami baca semuanya, dan datamu sepenuhnya opsional.',
+          'say.open': '💡 Tulis catatanmu →' }
   };
 
   /* ── صفحة 404 ── */

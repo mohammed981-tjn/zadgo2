@@ -9,7 +9,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self';
   script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
   font-src https://fonts.gstatic.com; img-src 'self' data:;
-  base-uri 'self'; form-action 'none'; object-src 'none'; connect-src 'none'">
+  base-uri 'self'; form-action 'none'; object-src 'none'; connect-src https://firestore.googleapis.com https://identitytoolkit.googleapis.com">
 <link rel="icon" href="/images/zadgo-logo-gold.png">
 <meta property="og:title" content="حمّل تطبيق المطعم — زادقو ZadGo">
 <meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
@@ -19,6 +19,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="/lang.js" defer></script>
+<script src="/feedback.js" defer></script>
 <style>
 :root{ --n900:#0B1935; --n800:#13224A; --n700:#1A2E5E; --n600:#24407D;
   --gold:#FFC107; --gold-lt:#FFD65A; --gold-dk:#E0A800;
@@ -108,6 +109,13 @@ footer nav a{color:var(--ink);border:1px solid var(--line);border-radius:999px;
     <h2 data-i18n="a.ios">آيفون؟</h2>
     <p data-i18n="a.iosd">نعمل على نسخة الآيفون. وحتى تصدر، أي جوّال أندرويد أو تابلت أندرويد
       عندك — ولو قديماً — يصلح شاشةَ طلبات، وهذا ما يستعمله شركاؤنا اليوم.</p>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="say.h2">عندك ملاحظة على التطبيق؟</h2>
+    <p data-i18n="say.d">قُلها لنا بصراحة — ما ينقصه، وما يزعجك فيه، وما تتمنّى أن نضيفه.
+      نقرأ كل ما يصلنا، وبياناتك اختيارية كلها.</p>
+    <p style="margin-top:12px"><a href="#" data-feedback data-i18n="say.open">💡 اكتب ملاحظتك ←</a></p>
   </div>
 
   <div class="card">

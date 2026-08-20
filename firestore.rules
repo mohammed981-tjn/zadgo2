@@ -916,6 +916,53 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // suggestions — صندوق «قل لنا» في الموقع: نصيحة الزائر واقتراحه.
+    //
+    // **الكتابة فقط، ولا قراءة لأحدٍ غير الإدارة.** الملاحظة قد تحمل اسم
+    // كاتبها وجوّاله (اختياراً منه)، فقراءتها العامة تُحوّل صندوق نصيحةٍ
+    // إلى دفتر عناوين مكشوف. والدعم يقرأ ولا يكتب — الاقتراحات مادّة عمله.
+    //
+    // **والتحقق من النوع لا من الوجود وحده**: `get(k, '')` يُرجع القيمة كما
+    // هي إن وُجدت، فحقلٌ رقمي يمرّ من فحص «غير فارغ» ويسقط عند العرض. ولذلك
+    // يُشترط `is string` صراحةً — وهو نقص كشفه الفحص الأمني في قواعد أخرى.
+    //
+    // والحدود هنا حدود إزعاج لا حدود مال: طولٌ أقصى للنص وللاسم ووسيلة
+    // التواصل، و`uid` يطابق كاتبه فيُعرف مصدر أي إغراق ويُحذف جملةً.
+    // ولا حدّ على عدد المستندات لكل هوية — الهوية المجهولة تُنشأ بلا كلفة،
+    // والحدّ الحقيقي هو App Check (بند معلّق على المالك).
+    // ---------------------------------------------------------------------
+    match /suggestions/{suggestionId} {
+      allow get, list: if isAdmin() || isSupport();
+      allow create: if isSignedIn() &&
+          request.resource.data.get('text', '') is string &&
+          request.resource.data.get('text', '').size() >= 5 &&
+          request.resource.data.get('text', '').size() <= 2000 &&
+          request.resource.data.get('name', '') is string &&
+          request.resource.data.get('name', '').size() <= 60 &&
+          request.resource.data.get('contact', '') is string &&
+          request.resource.data.get('contact', '').size() <= 80 &&
+          request.resource.data.get('role', '') is string &&
+          request.resource.data.get('role', '').size() <= 20 &&
+          request.resource.data.get('page', '') is string &&
+          request.resource.data.get('page', '').size() <= 60 &&
+          request.resource.data.get('lang', '') is string &&
+          request.resource.data.get('lang', '').size() <= 5 &&
+          request.resource.data.get('uid', '') == currentUid() &&
+          request.resource.data.get('status', '') == 'new';
+      // التعديل للإدارة وحدها، ولا يمسّ نصّ الزائر: الحالة والملاحظة
+      // الداخلية تتغيّران، والنصّ الأصلي يبقى كما كُتب — دفترٌ يُحرَّر فيه
+      // كلام الناس لا يصلح شاهداً على شيء.
+      //
+      // و`resource != null` أولاً لأن كل كتابة تُقيَّم على قاعدتَي الإنشاء
+      // والتعديل معاً، وفي الإنشاء لا مستند سابق — فقراءة `resource.data`
+      // بلا حارس خطأُ تقييم (البند د٣).
+      allow update: if isAdmin() && resource != null &&
+          request.resource.data.get('text', '') == resource.data.get('text', '') &&
+          request.resource.data.get('uid', '') == resource.data.get('uid', '');
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // banners — البنرات الترويجية أعلى شاشة مطاعم العميل. القراءة عامة حتى
     // بدون تسجيل دخول (كالمطاعم — الزائر يتصفح قبل إنشاء حساب)، والكتابة
     // للمدير العام وحده.

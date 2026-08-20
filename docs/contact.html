@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>التواصل والدعم — زادقو ZadGo</title>
   <meta name="description" content="وسائل التواصل مع فريق دعم ZadGo للاستفسارات والمشكلات وطلبات حذف الحساب.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src https://firestore.googleapis.com https://identitytoolkit.googleapis.com">
   <meta property="og:title" content="التواصل والدعم — زادقو ZadGo">
   <meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
   <meta name="twitter:card" content="summary_large_image">
@@ -56,7 +56,7 @@
       <li data-i18n="c.l3">طلبات <a href="delete-account.html">حذف الحساب</a> والاطلاع على بياناتك.</li>
       <li data-i18n="c.l4">انضمام المطاعم إلى المنصة عبر <a href="partner/">صفحة ضمّ المطاعم</a>، أو تسجيل الكباتن عبر <a href="join/">صفحة الانضمام</a>.</li>
       <li data-i18n="c.l5">الشكاوى والملاحظات.</li>
-      <li>أدلة الاستخدام: <a href="guide/restaurant/">دليل المطعم</a> · <a href="guide/driver/">دليل الكابتن</a>.</li>
+      <li>أدلة الاستخدام: <a href="guide/restaurant/">دليل المطعم</a>. (ودليل الكابتن داخل <a href="/driver/">بوّابة الكابتن</a> بعد تسجيل الدخول.)</li>
       <li data-i18n="c.l6">الكباتن المسجّلون: متابعة الأرباح والدفتر وطلب السحب من <a href="driver/">بوّابة الكابتن</a>.</li>
     </ul>
 
@@ -81,5 +81,6 @@
     </nav>
     <div>© 2026 زادقو ZadGo — zadgo.co · جميع الحقوق محفوظة</div>
   </footer>
+<script src="/feedback.js" defer></script>
 </body>
 </html>

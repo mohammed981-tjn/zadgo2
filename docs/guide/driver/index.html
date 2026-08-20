@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" class="zgate-wait">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self' 'unsafe-inline' https://www.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>دليل الكابتن — ZadGo زاد جو</title>
@@ -58,10 +58,44 @@ main { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
 .cta a:hover { background: #B8860B; }
 .note { color: var(--muted); font-size: .85rem; text-align: center; margin-top: 24px; }
 .note a { color: var(--blue-dark); }
+
+/* بوّابة الكابتن: الصفحة تبدأ **محجوبة** ولا تُكشف إلا بعد التحقق.
+   الإخفاء بنمطٍ مضمَّن لا بجافاسكربت بعد الرسم: لو جاء الكشف متأخراً
+   لومض المحتوى للحظة أمام من لا يحقّ له — والومضة تكفي للقطة شاشة. */
+/* الإخفاء هو الأصل والكشف هو الاستثناء: `:not(.zgate-ok)` يعني أن أي
+   حالةٍ غير «تحقّق ونجح» تُبقي الدروس محجوبة — الانتظار والرفض والعطل
+   وأي صنفٍ لم يخطر ببالي. الصياغة العكسية (أخفِ أثناء الانتظار) تركت
+   الدروس ظاهرةً تحت شاشة الرفض، وهو ما كشفه الفحص. */
+html:not(.zgate-ok) body > *:not(.zgate) { display: none !important; }
+.zgate { display: none; min-height: 100dvh; place-items: center; padding: 24px;
+  background: linear-gradient(160deg, var(--bg-dark), var(--bg-darker)); }
+html:not(.zgate-ok) .zgate { display: grid; }
+
+.zgate-box { max-width: 440px; width: 100%; text-align: center; color: #fff;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+  border-radius: 22px; padding: 30px 24px; }
+.zgate-box img { height: 34px; margin: 0 auto 18px; display: block; }
+.zgate-box h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: 10px; }
+.zgate-box p { color: #A9BBD4; font-size: .95rem; margin-bottom: 18px; }
+.zgate-box a { display: inline-block; background: var(--gold); color: #10233d;
+  font-weight: 800; text-decoration: none; border-radius: 999px; padding: 12px 26px; }
+.zgate-box .sub { display: block; margin-top: 14px; color: #8DA0BC; font-size: .84rem;
+  background: none; padding: 0; }
 </style>
+  <meta name="robots" content="noindex, nofollow">
   <link rel="canonical" href="https://zadgo.co/guide/driver/">
 </head>
 <body>
+
+<div class="zgate">
+  <div class="zgate-box">
+    <img src="/images/zadgo-logo.png" alt="ZadGo">
+    <h2 id="zgTitle">جارٍ التحقق…</h2>
+    <p id="zgMsg">لحظة من فضلك.</p>
+    <a href="/driver/" id="zgCta" style="display:none">ادخل بوّابة الكابتن ←</a>
+    <span class="sub" id="zgSub"></span>
+  </div>
+</div>
 
 <div class="hero">
   <img src="/images/zadgo-logo.png" alt="ZadGo">
@@ -137,5 +171,70 @@ main { max-width: 760px; margin: 0 auto; padding: 20px 16px 60px; }
   </p>
 </main>
 
+
+<script type="module">
+/* ══════════ بوّابة «للكباتن المسجَّلين» ══════════
+ * بأمر المالك (2026-08-20): الدليل لا يظهر إلا لكابتن مسجَّل.
+ *
+ * **ولا تسجيل دخولٍ ثانٍ هنا.** الجلسة نفسها التي فُتحت في `/driver/`
+ * تُقرأ هنا لأن النطاق واحد — فمن دخل بوّابته وجد دليله مفتوحاً، ومن لم
+ * يدخل يُدلّ على البوّابة بدل أن يُطلب منه كلمة مرورٍ في مكانين.
+ *
+ * والفحص هو فحص البوّابة نفسه: وجود مستند في `drivers/{uid}`. حسابُ عميلٍ
+ * أو مدير مطعمٍ مسجَّل ليس كابتناً — والقواعد تمنعه من قراءة المستند أصلاً،
+ * فيسقط الفحص إلى «ليس حساب كابتن» بلا تسريب.
+ *
+ * **وحدُّ هذا الحجب يُقال صراحةً**: لا خادم لنا يفحص الهوية قبل إرسال
+ * الملف (GitHub Pages يخدم ملفات لا يشغّل شيئاً)، فالحجب في المتصفّح.
+ * يُخرج الدليل من البحث ومن كل رابطٍ عام ويوقف الزائر العادي — ومن يملك
+ * الرابط ويعطّل جافاسكربت يبلغ النصّ. الحجب الكامل يقتضي نقل الدروس إلى
+ * Firestore خلف القواعد (مسجَّل في الخطوات المعلّقة).
+ */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const app = initializeApp({
+  apiKey: 'AIzaSyBoAvj7C2vJyzERVnK26Oa-dJZ1mV0vO6g',
+  authDomain: 'restaurant-app-ed699.firebaseapp.com',
+  projectId: 'restaurant-app-ed699',
+  storageBucket: 'restaurant-app-ed699.firebasestorage.app',
+  messagingSenderId: '449731636742',
+  appId: '1:449731636742:web:53e08e0f7e29e29ee7e0e8',
+});
+const auth = getAuth(app);
+const db = getFirestore(app);
+const R = document.documentElement;
+const $ = (id) => document.getElementById(id);
+
+function deny(title, msg, cta) {
+  R.className = 'zgate-deny';
+  $('zgTitle').textContent = title;
+  $('zgMsg').textContent = msg;
+  $('zgCta').style.display = cta ? 'inline-block' : 'none';
+  $('zgSub').textContent = 'لست كابتناً بعد؟ قدّم طلب انضمامك من zadgo.co/join';
+}
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    return deny('هذا الدليل للكباتن المسجَّلين',
+      'ادخل بحساب الكابتن من البوّابة، ثم عد إلى هذه الصفحة — ستفتح وحدها.', true);
+  }
+  const snap = await getDoc(doc(db, 'drivers', user.uid)).catch(() => null);
+  if (!snap || !snap.exists()) {
+    return deny('هذا الحساب ليس حساب كابتن',
+      'الدليل مخصَّص للكباتن المعتمدين. إن كنت تنتظر قبول طلبك فراجع الإدارة.', true);
+  }
+  R.className = 'zgate-ok';
+});
+
+/* شبكةٌ منقطعة تترك الزائر أمام «جارٍ التحقق» إلى الأبد — والصمت يُقرأ
+ * عطلاً. بعد ثمانِ ثوانٍ يُقال السبب ويُدلّ على البوّابة. */
+setTimeout(() => {
+  if (R.className === 'zgate-wait') {
+    deny('تعذّر التحقق', 'لم نستطع الوصول إلى الخادم. تحقّق من إنترنتك وأعد تحميل الصفحة.', true);
+  }
+}, 8000);
+</script>
 </body>
 </html>

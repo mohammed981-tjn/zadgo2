@@ -347,6 +347,7 @@ const NAV_GROUPS = [
     ['broadcast', '📢', 'رسالة جماعية'],
     ['reports', '📈', 'التقارير'],
     ['archive', '🗄️', 'أرشيف الطلبات'],
+    ['suggestions', '💡', 'اقتراحات الزوّار'],
     ['audit', '🕵️', 'سجل التدقيق'],
   ]],
   ['', [
@@ -406,6 +407,7 @@ const AUDIT_ACTIONS = {
   'application.approve':['قبول طلب انضمام', 'users', '#1e8449'],
   'application.reject': ['رفض طلب انضمام', 'users', '#c0392b'],
   'application.delete': ['حذف طلب انضمام', 'users', '#7f8c8d'],
+  'suggestion.delete':  ['حذف اقتراح زائر', 'content', '#7f8c8d'],
 };
 const AUDIT_CATS = { orders: '🧾 الطلبات', money: '💰 المال', content: '🍽️ المحتوى',
   users: '👥 المستخدمون', settings: '⚙️ الإعدادات' };
@@ -559,7 +561,7 @@ window.closeModal = closeModal;
 /* ---------------- الحالة ---------------- */
 let unsubs = [];
 let S = { orders: [], restaurants: [], users: [], drivers: [], complaints: [], broadcasts: [],
-  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], regCodes: [], applications: [], settings: null, incentives: null };
+  coupons: [], couponUsages: [], payouts: [], banners: [], settlements: [], walletTxns: [], reassignments: [], regCodes: [], applications: [], suggestions: [], settings: null, incentives: null };
 let page = 'dashboard';
 let orderFilter = 'active', orderSearch = '';
 let userFilter = 'all', userSearch = '';
@@ -670,6 +672,10 @@ function startListeners() {
   bind(query(collection(db, 'banners'), limit(60)), 'banners');
   bind(query(collection(db, 'payout_requests'), orderBy('createdAt', 'desc'), limit(200)), 'payouts');
   bind(query(collection(db, 'coupons'), limit(200)), 'coupons');
+  // اقتراحات الزوّار: الترتيب محلياً لا بـorderBy — `createdAt` من ساعة
+  // الزائر (REST لا يكتب ختم الخادم)، فاستعلامٌ يشترط وجوده يسقط كلياً
+  // لو وصل مستندٌ بلا الحقل، والفرز في الذاكرة لا يسقط بشيء.
+  bind(query(collection(db, 'suggestions'), limit(300)), 'suggestions');
   bind(query(collection(db, 'coupon_usages'), limit(500)), 'couponUsages');
   unsubs.push(onSnapshot(doc(db, 'delivery_settings', 'config'),
     (d) => { S.settings = d.exists() ? d.data() : {}; if (page === 'settings') rerender(); },
@@ -695,6 +701,7 @@ function navCount(k) {
   if (k === 'applications') return S.applications.filter((a) => (a.status || 'pending') === 'pending').length;
   if (k === 'complaints') return S.complaints.filter((c) => c.status === 'open').length;
   if (k === 'payouts') return S.payouts.filter((p) => (p.status || 'pending') === 'pending').length;
+  if (k === 'suggestions') return S.suggestions.filter((x) => (x.status || 'new') === 'new').length;
   return 0;
 }
 /* الشريط الجانبي مجموعات معنونة. الشريط السفلي (الجوال) يبقى مسطّحاً بالترتيب
@@ -752,7 +759,8 @@ function rerender() {
   const R = { dashboard: renderDashboard, orders: renderOrdersPage, restaurants: renderRestaurantsPage,
     drivers: renderDriversPage, users: renderUsersPage, complaints: renderComplaintsPage,
     menu: renderMenuPage, codes: renderCodesPage, applications: renderApplicationsPage, wallets: renderWalletsPage, settlements: renderSettlementsPage, banners: renderBannersPage, payouts: renderPayoutsPage, coupons: renderCouponsPage, broadcast: renderBroadcastPage, import: renderImportPage,
-    reports: renderReportsPage, archive: renderArchivePage, audit: renderAuditPage, settings: renderSettingsPage };
+    reports: renderReportsPage, archive: renderArchivePage, audit: renderAuditPage,
+    suggestions: renderSuggestionsPage, settings: renderSettingsPage };
   (R[page] || renderDashboard)();
 }
 
@@ -4227,6 +4235,113 @@ async function loadAudit() {
   }
   auditLoading = false;
   if (page === 'audit') renderAuditPage();
+}
+
+/* ---------------- اقتراحات الزوّار ----------------
+ * صندوق «قل لنا» في الموقع يكتب هنا. والصفحة تُجيب عن سؤالٍ واحد: ما الذي
+ * قاله الناس ولم أقرأه بعد؟
+ *
+ * **ثلاث حالات لا اثنتان**: جديد → مقروء → مُنفَّذ. و«مقروء» ليست تزييناً:
+ * اقتراحٌ قرأتَه ولم تقرّر فيه شيئاً يختلف عن اقتراحٍ نفّذته، ودمجهما يجعل
+ * القائمة تكذب عليك بعد أسبوع.
+ *
+ * **ونصّ الزائر لا يُعدَّل من هنا** — القاعدة تمنعه أصلاً. الحالة والملاحظة
+ * الداخلية وحدهما تتغيّران.
+ */
+const SUG_ROLES = { customer: ['عميل', '#2980b9'], restaurant: ['مطعم', '#e67e22'],
+  driver: ['كابتن', '#16a085'], visitor: ['مهتمّ', '#8e44ad'], '': ['لم يُفصح', '#7f8c8d'] };
+const SUG_STATES = { new: ['🆕 جديد', '#c0392b'], read: ['👁️ مقروء', '#f39c12'],
+  done: ['✅ نُفِّذ', '#27ae60'] };
+let sugFilter = 'new', sugSearch = '';
+
+function sugList() {
+  let l = [...S.suggestions];
+  if (sugFilter !== 'all') l = l.filter((x) => (x.status || 'new') === sugFilter);
+  if (sugSearch) {
+    const q2 = sugSearch.toLowerCase();
+    l = l.filter((x) => [x.text, x.name, x.contact]
+      .some((v) => String(v || '').toLowerCase().includes(q2)));
+  }
+  return l.sort((a, b) => (toDate(b.createdAt) || 0) - (toDate(a.createdAt) || 0));
+}
+
+function renderSuggestionsPage() {
+  const counts = { all: S.suggestions.length };
+  Object.keys(SUG_STATES).forEach((k) => {
+    counts[k] = S.suggestions.filter((x) => (x.status || 'new') === k).length;
+  });
+  const chips = [['new', SUG_STATES.new[0]], ['read', SUG_STATES.read[0]],
+    ['done', SUG_STATES.done[0]], ['all', 'الكل']];
+
+  $('main').innerHTML = `
+    <div class="panel">
+      <p class="meta" style="margin-bottom:10px">ما يكتبه زوّار الموقع في صندوق «قل لنا».
+        بياناتهم <b>اختيارية</b> — أكثرهم لا يتركها، وهذا مقصود: الملاحظة الصادقة تأتي ممن
+        لا يريد أن يُعرَّف. ووقت الوصول من <b>ساعة جهاز الزائر</b> لا من الخادم.</p>
+      <div class="toolbar">${chips.map(([k, l]) =>
+        `<button class="chip ${sugFilter === k ? 'active' : ''}" data-sf="${k}">${l}${
+          counts[k] ? ` (${counts[k]})` : ''}</button>`).join('')}</div>
+      <input class="search" id="sugQ" placeholder="ابحث في النصّ أو الاسم أو وسيلة التواصل"
+        value="${esc(sugSearch)}" style="width:100%">
+    </div>
+    <div id="sugList"></div>`;
+
+  $('main').querySelectorAll('[data-sf]').forEach((b) => b.addEventListener('click', () => {
+    sugFilter = b.dataset.sf; renderSuggestionsPage();
+  }));
+  const q = $('main').querySelector('#sugQ');
+  q.addEventListener('input', () => { sugSearch = q.value.trim(); renderSugRows(); });
+  renderSugRows();
+}
+
+function renderSugRows() {
+  const box = document.getElementById('sugList');
+  if (!box) return;
+  box.innerHTML = sugList().map((x) => {
+    const [rl, rc] = SUG_ROLES[x.role || ''] || SUG_ROLES[''];
+    const st = x.status || 'new';
+    const [sl, sc] = SUG_STATES[st] || SUG_STATES.new;
+    // وسيلة التواصل تُعرض وصلةً قابلة للضغط: المدير يقرأ من جوّاله، ونسخُ
+    // رقمٍ باليد من شاشةٍ صغيرة هو ما يجعل الردّ لا يقع.
+    const c = String(x.contact || '').trim();
+    const link = !c ? '' : (c.includes('@')
+      ? `<a href="mailto:${esc(c)}">${esc(c)}</a>`
+      : `<a href="https://wa.me/${esc(c.replace(/[^0-9]/g, '').replace(/^0/, '966'))}"
+             target="_blank" rel="noopener">${esc(c)}</a>`);
+    return `<div class="card">
+      <div class="row1"><span class="title">${badge(rl, rc)} ${badge(sl, sc)}</span></div>
+      <div style="white-space:pre-wrap;margin:8px 0;line-height:1.9">${esc(x.text || '')}</div>
+      <div class="meta">
+        ${x.name ? `<b>${esc(x.name)}</b> — ` : ''}${link || '<i>بلا وسيلة تواصل</i>'}
+        <br>${esc(fmtTime(x.createdAt))} · من صفحة <code>${esc(x.page || '/')}</code>
+        · لغة ${esc(x.lang || 'ar')}
+      </div>
+      <div class="toolbar" style="margin-top:10px">
+        ${st !== 'read' ? `<button class="toggle-btn" data-sug="read" data-id="${esc(x.id)}">👁️ علّمه مقروءاً</button>` : ''}
+        ${st !== 'done' ? `<button class="toggle-btn" data-sug="done" data-id="${esc(x.id)}">✅ نُفِّذ</button>` : ''}
+        ${st !== 'new' ? `<button class="toggle-btn" data-sug="new" data-id="${esc(x.id)}">↩︎ أعده جديداً</button>` : ''}
+        <button class="toggle-btn" data-sugdel="${esc(x.id)}">🗑️ حذف</button>
+      </div>
+    </div>`;
+  }).join('') || '<div class="empty">لا اقتراحات في هذا التصنيف</div>';
+
+  box.querySelectorAll('[data-sug]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await updateDoc(doc(db, 'suggestions', b.dataset.id), { status: b.dataset.sug });
+    } catch (e) {
+      b.disabled = false;
+      alert('تعذّر التحديث: ' + (e.code || e.message));
+    }
+  }));
+  box.querySelectorAll('[data-sugdel]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('حذف هذا الاقتراح نهائياً؟ لا يمكن التراجع.')) return;
+    const it = S.suggestions.find((x) => x.id === b.dataset.sugdel) || {};
+    try {
+      await deleteDoc(doc(db, 'suggestions', b.dataset.sugdel));
+      audit('suggestion.delete', `حذف اقتراح زائر: ${String(it.text || '').slice(0, 40)}…`);
+    } catch (e) { alert('تعذّر الحذف: ' + (e.code || e.message)); }
+  }));
 }
 
 function renderAuditPage() {
