@@ -1217,7 +1217,11 @@ async function pushStatus(orderId, to) {
         const delta = cash ? (cur.custodyDebited ? 0 : -custodyAmount(cur))
                            : (Number(cur.driverShare) || 0);
         upd.isPaid = true;
-        upd.platformCommission = itemsTotal(cur) * PRICING.appCommissionRate;
+        // بنسبة الطلب المختومة لا بـ١٥٪ الثابتة: مطعمٌ معفى («مجاني حتى»)
+        // كان أثر التدقيق يقول عنه إن المنصّة أخذت عمولةً كاملة — رقمٌ
+        // يناقض `commissionPercent` في المستند نفسه. و`commission()` هي
+        // نسخة `calculatedCommission` التي يكتبها التطبيق هنا حرفاً بحرف.
+        upd.platformCommission = commission(cur);
         tx.update(oRef, upd);
         const dUpd = { totalDeliveries: (Number(dSnap.data()?.totalDeliveries) || 0) + 1,
           isAvailable: true };
@@ -1589,6 +1593,19 @@ async function releaseDriverOnCancel(order) {
 }
 
 /* ================= المطاعم ================= */
+/* شارة العمولة في بطاقة المطعم: الإعفاء قرارٌ مالي يُنسى — يوقّعه المالك
+ * لثلاثة أشهر ثم لا يذكره أحد حتى يسأل المحاسب لماذا لم يُجبَ من هذا
+ * المطعم شيء. إظهارها في القائمة يجعل المنسيَّ مرئياً. */
+function commissionBadge(r) {
+  const pct = Number(r.commissionPercent ?? 15);
+  const until = toDate(r.commissionFreeUntil);
+  if (until && until.getTime() > Date.now())
+    return badge(`بلا عمولة حتى ${until.toLocaleDateString('ar-SA-u-ca-gregory')}`, '#1e8449');
+  if (pct === 0) return badge('بلا عمولة (دائم)', '#8e44ad');
+  if (pct !== 15) return badge(`عمولة ${pct}٪`, '#ca6f1e');
+  return badge('عمولة 15٪', '#7f8c8d');
+}
+
 function renderRestaurantsPage() {
   const list = [...S.restaurants].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
   $('main').innerHTML = `
@@ -1611,6 +1628,7 @@ function renderRestaurantsPage() {
         — التحضير: ~${Number(r.estimatedTimeMin) || 0} د<br>
         ${ratingText(r)} — الطلبات المسلَّمة: ${deliveredCountFor(r.id)}
       </div>
+      <div style="margin-top:6px">${commissionBadge(r)}</div>
     </div>`).join('') || '<div class="empty">لا توجد مطاعم بعد</div>';
 
   $('main').querySelectorAll('[data-rtoggle]').forEach((b) => b.addEventListener('click', async () => {
@@ -1654,6 +1672,15 @@ function showNewRestaurant() {
         <input id="nr_time" type="number" min="1" step="1" value="30"></div>
     </div>
     <div class="field"><label>وصف قصير (اختياري)</label><input id="nr_desc" maxlength="140"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
+      <div class="field"><label>نسبة العمولة ٪</label>
+        <input id="nr_comm" type="number" min="0" max="100" step="any" value="15"></div>
+      <div class="field"><label>مجاني حتى (اختياري)</label>
+        <input id="nr_free" type="date"></div>
+    </div>
+    <p class="meta" style="margin-top:-4px">يوم التوقيع هو موعد ضبطهما: العمولة
+      المتفَّق عليها، وتاريخ انتهاء الإعفاء إن وعدتَه بفترة مجانية — تنتهي وحدها
+      في موعدها. وكلاهما يُعدَّل لاحقاً من زرّ «تعديل».</p>
     <button class="btn block" id="nr_save">إنشاء المطعم</button>
     <p class="meta" style="margin-top:8px">يُنشأ <b>مغلقاً</b> حتى تضيف قائمة طعامه — فلا يظهر للعملاء بلا أصناف.
       وبعد الإنشاء: أصدر كود «مدير مطعم» له من صفحة الأكواد، ثم استورد قائمة طعامه.</p>
@@ -1668,6 +1695,14 @@ function showNewRestaurant() {
     if (twin && !confirm(`يوجد مطعم بنفس الاسم والفرع «${restName(twin)}».\nإنشاء مطعم ثانٍ رغم ذلك؟`)) return;
     const minOrder = Math.max(0, Number(document.getElementById('nr_min').value) || 0);
     const estimatedTimeMin = Math.max(1, Math.round(Number(document.getElementById('nr_time').value) || 30));
+    const commissionPercent = Number(document.getElementById('nr_comm').value);
+    if (!(commissionPercent >= 0 && commissionPercent <= 100)) { alert('النسبة بين ٠ و١٠٠'); return; }
+    const rawFree = document.getElementById('nr_free').value;
+    let commissionFreeUntil = null;
+    if (rawFree) {                                 // نهاية اليوم لا منتصف ليله
+      const [fy, fm, fd] = rawFree.split('-').map(Number);
+      commissionFreeUntil = Timestamp.fromDate(new Date(fy, fm - 1, fd, 23, 59, 59));
+    }
     try {
       const ref = await addDoc(collection(db, 'restaurants'), {
         name, branchName,
@@ -1680,6 +1715,7 @@ function showNewRestaurant() {
         // تقييم افتراضي مع ratingCount = 0 — نفس ما ينتجه منشئ Restaurant في
         // التطبيق، والواجهتان تعرضان «جديد» ما دام العدّاد صفراً.
         rating: 5, ratingCount: 0, totalOrders: 0,
+        commissionPercent, commissionFreeUntil,
         // حقول تسعير لا تُقرأ (التسعير ثوابت في كود التطبيق) — تُكتب
         // بقيمها الافتراضية ليطابق المستند شكل مطاعم التطبيق.
         driverShareFee: 5, appShareFee: 0, perKmFee: 0, freeKm: 3, deliveryFee: 5,
@@ -1699,6 +1735,30 @@ function showRestEdit(id) {
   const F = (k, lbl, val, type = 'number') => `
     <div class="field"><label>${lbl}</label>
       <input id="rf_${k}" type="${type}" step="any" value="${esc(val ?? '')}"></div>`;
+  /* أرقام التوصيل تُقرأ من `delivery_settings/incentives` كما يقرؤها
+   * التطبيق — كانت معروضةً هنا من ثوابت الكود مع تحذيرٍ بأنها «ثابتة لا
+   * تُقرأ»، وقد نُقلت منذُ إلى إعدادٍ يضبطه المالك من شاشة الحوافز. فبقيت
+   * اللوحة تُطمئنه إلى رقمٍ لم يعد صحيحاً بعد أن يغيّره بيده. */
+  const inc = S.incentives || {};
+  const pn = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+  const PR = {
+    base: pn(inc.deliveryBaseFee, PRICING.baseDeliveryFee),
+    km: pn(inc.deliveryBaseKm, PRICING.baseDeliveryKm),
+    perKm: pn(inc.deliveryPerKmFee, PRICING.perExtraKmFee),
+    cut: pn(inc.deliveryAppCut, PRICING.fixedDeliveryCommission),
+    max: pn(inc.maxDeliveryDistanceKm, PRICING.maxDeliveryDistanceKm),
+  };
+  // `<input type="date">` لا يقبل إلا YYYY-MM-DD **بالتوقيت المحلي**:
+  // `toISOString` يحوّل إلى UTC فيُنقص يوماً في توقيتنا (+3) قبل الظهر.
+  const fu = toDate(r.commissionFreeUntil);
+  const pad = (n) => String(n).padStart(2, '0');
+  const freeUntilInput = fu ? `${fu.getFullYear()}-${pad(fu.getMonth() + 1)}-${pad(fu.getDate())}` : '';
+  const nowMs = Date.now();
+  const commissionNote = fu
+    ? (fu.getTime() > nowMs
+        ? `<b style="color:var(--ok)">الآن: بلا عمولة</b> حتى ${fu.toLocaleDateString('ar-SA-u-ca-gregory')} — ثم ${Number(r.commissionPercent ?? 15)}٪.`
+        : `انتهى الإعفاء في ${fu.toLocaleDateString('ar-SA-u-ca-gregory')} — <b>النسبة السارية الآن ${Number(r.commissionPercent ?? 15)}٪</b>. امسح التاريخ إن لم تعد بحاجته.`)
+    : `النسبة السارية الآن: <b>${Number(r.commissionPercent ?? 15)}٪</b> — بلا فترة إعفاء.`;
   openModal(`
     <h3>تعديل: ${esc(restName(r))} <button class="x-btn" onclick="closeModal()">✕</button></h3>
     ${F('name', 'اسم المطعم', r.name, 'text')}
@@ -1709,33 +1769,65 @@ function showRestEdit(id) {
       ${F('minOrder', 'الحد الأدنى للطلب (' + SAR + ')', r.minOrder)}
       ${F('estimatedTimeMin', 'زمن التحضير (دقيقة)', r.estimatedTimeMin)}
     </div>
+    <div class="panel" style="background:#fffdf5;border:1px solid #f0dca6;margin:12px 0 0">
+      <b>عمولة المنصّة من هذا المطعم</b>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px;margin-top:8px">
+        <div class="field"><label>النسبة ٪ (0 = بلا عمولة)</label>
+          <input id="rf_commissionPercent" type="number" min="0" max="100" step="any"
+                 value="${Number(r.commissionPercent ?? 15)}"></div>
+        <div class="field"><label>مجاني حتى (اختياري)</label>
+          <input id="rf_freeUntil" type="date" value="${freeUntilInput}"></div>
+      </div>
+      <div class="meta">${commissionNote}</div>
+      <p class="meta" style="margin-top:8px">
+        اضبط النسبة المتفَّق عليها، وحدّد «مجاني حتى» تاريخَ انتهاء الإعفاء —
+        تبقى العمولة صفراً حتى نهاية ذلك اليوم ثم تسري النسبة تلقائياً بلا
+        متابعة منك. <b>الدفاتر السابقة لا تتحرك</b>: كل طلب يحمل نسبته
+        المختومة يوم إنشائه، فالتغيير يسري على الطلبات القادمة وحدها.
+      </p>
+    </div>
     <div class="panel" style="background:#f7f9f8;margin:12px 0 0">
       <b>التسعير — موحّد لكل المطاعم (للعرض فقط)</b>
       <div class="meta" style="margin-top:6px">
-        أجرة التوصيل: <b>${PRICING.baseDeliveryFee} ${SAR}</b> لأول ${PRICING.baseDeliveryKm} كم
-        + <b>${PRICING.perExtraKmFee} ${SAR}</b> لكل كم إضافي<br>
-        رسم المنصة الثابت على العميل: <b>${PRICING.fixedDeliveryCommission} ${SAR}</b><br>
-        عمولة المنصة من المطعم: <b>${(PRICING.appCommissionRate * 100).toFixed(0)}%</b> من قيمة الوجبات<br>
-        أقصى مسافة توصيل: <b>${PRICING.maxDeliveryDistanceKm} كم</b>
+        أجرة التوصيل: <b>${PR.base} ${SAR}</b> لأول ${PR.km} كم
+        + <b>${PR.perKm} ${SAR}</b> لكل كم إضافي<br>
+        رسم المنصة الثابت على العميل: <b>${PR.cut} ${SAR}</b><br>
+        أقصى مسافة توصيل: <b>${PR.max} كم</b>
       </div>
-      <p class="meta" style="margin-top:8px;color:var(--orange)">
-        ⚠️ هذه القيم ثابتة في كود التطبيق ولا تُقرأ من مستند المطعم. كانت اللوحة
-        تعرضها هنا حقولاً قابلة للتعديل، فتوهم المدير أنه ضبط تسعير هذا المطعم
-        بينما لا أثر لما يُدخله على أي طلب. تغييرها يتطلب تحديث التطبيق.
+      <p class="meta" style="margin-top:8px">
+        ${S.incentives ? 'هذه الأرقام تُقرأ الآن من إعداد «الحوافز» وتُعدَّل من هناك — لا من هنا، لأنها موحّدة لكل المطاعم.'
+          : '⚠️ تعذّر بلوغ إعداد «الحوافز» — المعروض هو الاحتياطي الذي يعمل به التطبيق عند الفشل نفسه.'}
       </p>
     </div>
     <button class="btn block" id="saveRest">حفظ التعديلات</button>`);
   document.getElementById('saveRest').addEventListener('click', async () => {
     const v = (k) => document.getElementById('rf_' + k).value;
     const num = (k) => Number(v(k)) || 0;
+    const pct = num('commissionPercent');
+    if (pct < 0 || pct > 100) { alert('النسبة بين ٠ و١٠٠'); return; }
+    /* نهاية اليوم لا منتصف ليله: «مجاني حتى ٩/١» تعني عند الجميع أن ٩/١
+     * نفسه مجاني — منتصف الليل كان يجبي عمولة يوم الوعد الأخير كاملاً.
+     * (نسخة قرار التطبيق نفسه في `admin_restaurants_tab.dart`.) */
+    const rawDate = v('freeUntil');
+    let freeUntil = null;
+    if (rawDate) {
+      const [y, m, d] = rawDate.split('-').map(Number);
+      freeUntil = Timestamp.fromDate(new Date(y, m - 1, d, 23, 59, 59));
+    }
     if (!confirm('حفظ التعديلات على «' + r.name + '»؟')) return;
     try {
       await updateDoc(doc(db, 'restaurants', id), {
         name: v('name').trim() || r.name, branchName: v('branchName').trim(),
         phone: v('phone').trim(), address: v('address').trim(),
         minOrder: num('minOrder'), estimatedTimeMin: Math.round(num('estimatedTimeMin')),
+        commissionPercent: pct,
+        // `null` لا حذفٌ للحقل: التطبيق يقرؤه `Timestamp?` ويعامل الغياب
+        // والعدم سواءً، وكتابة null تُلغي إعفاءً سابقاً صراحةً.
+        commissionFreeUntil: freeUntil,
       });
-      audit('restaurant.edit', `عدّل بيانات مطعم «${restName(r)}»`, { target: 'restaurants/' + id });
+      audit('restaurant.edit',
+        `عدّل بيانات مطعم «${restName(r)}» (عمولة ${pct}%${rawDate ? ' — مجاني حتى ' + rawDate : ''})`,
+        { target: 'restaurants/' + id });
       toast('تم حفظ التعديلات'); closeModal();
     } catch (err) { alert('تعذر الحفظ: ' + (err.code || err.message)); }
   });

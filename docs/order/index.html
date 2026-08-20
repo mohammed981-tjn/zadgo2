@@ -459,10 +459,18 @@ const db = getFirestore(app);
 const $ = (id) => document.getElementById(id);
 
 /* ============================================================
-   التسعير — منقول حرفياً من lib/utils/helpers.dart (class Pricing).
-   أي اختلاف رقمٍ واحد هنا يعني فاتورتين مختلفتين لطلب واحد: ما يراه
-   العميل على الويب وما يقرؤه المطعم والسائق من Firestore. ولذلك تُنسخ
-   الثوابت كما هي ولا تُقرَّب ولا تُبسَّط.
+   التسعير — **يُقرأ من `delivery_settings/incentives`** كما يقرؤه التطبيق،
+   والثوابت أدناه احتياطٌ لا مصدر.
+
+   كانت هذه الثوابت منقولةً من `Pricing` في `lib/utils/helpers.dart` ومصدراً
+   وحيداً، ثم نقل مساعد التطبيق أجرة التوصيل إلى إعدادٍ يضبطه المدير من
+   لوحته (`IncentiveSettings`) — فصار كل تعديلٍ يجريه المالك على الأجرة
+   يُنتج **فاتورتين لطلبٍ واحد**: ما يدفعه من طلب من التطبيق وما يدفعه من
+   طلب من الويب. وهذا بالضبط ما حذّر منه التعليق القديم، فوقع فيه لأن نسخة
+   الرقم لا تعلم بتغيّر أصله.
+
+   والقيم الاحتياطية هي **افتراضات `IncentiveSettings` نفسها**: حين يتعذّر
+   بلوغ الإعداد يعمل التطبيق بها أيضاً، فيتطابق الجانبان حتى في الفشل.
    ============================================================ */
 const PRICING = {
   appCommissionRate: 0.15,
@@ -472,16 +480,45 @@ const PRICING = {
   fixedDeliveryCommission: 3.0,
   maxDeliveryDistanceKm: 25.0,
 };
+/* الإعداد الحيّ (يُملأ بعد الدخول — القواعد تسمح بقراءته لأي مسجَّل).
+ * الزائر يتصفّح بالاحتياطي، ويُعاد الرسم فور وصول الإعداد. */
+const SETTINGS = { ...PRICING, loaded: false };
+async function loadPricing() {
+  try {
+    const s = (await getDoc(doc(db, 'delivery_settings', 'incentives'))).data() || {};
+    const n = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+    SETTINGS.baseDeliveryFee = n(s.deliveryBaseFee, PRICING.baseDeliveryFee);
+    SETTINGS.baseDeliveryKm = n(s.deliveryBaseKm, PRICING.baseDeliveryKm);
+    SETTINGS.perExtraKmFee = n(s.deliveryPerKmFee, PRICING.perExtraKmFee);
+    SETTINGS.fixedDeliveryCommission = n(s.deliveryAppCut, PRICING.fixedDeliveryCommission);
+    SETTINGS.maxDeliveryDistanceKm = n(s.maxDeliveryDistanceKm, PRICING.maxDeliveryDistanceKm);
+    SETTINGS.loaded = true;
+    render();
+  } catch (e) { /* يبقى الاحتياطي — وهو ما يعمل به التطبيق عند الفشل نفسه */ }
+}
 /* كسر الكيلومتر يُجبر للأعلى (٩٫٨ كم ← ١٠) — كما في ceilExtraKm. */
 function ceilExtraKm(distanceKm, freeKm) {
   const extra = distanceKm - freeKm;
   return extra <= 0 ? 0 : Math.ceil(extra);
 }
 function deliveryFeeFor(distanceKm) {
-  return PRICING.baseDeliveryFee + ceilExtraKm(distanceKm, PRICING.baseDeliveryKm) * PRICING.perExtraKmFee;
+  return SETTINGS.baseDeliveryFee + ceilExtraKm(distanceKm, SETTINGS.baseDeliveryKm) * SETTINGS.perExtraKmFee;
 }
-function appCommission(itemsTotal) { return itemsTotal * PRICING.appCommissionRate; }
-function isOutOfRange(km) { return km > PRICING.maxDeliveryDistanceKm; }
+/* النسبة الفعّالة للمطعم: صفرٌ ما دام «مجاني حتى» في المستقبل، ثم النسبة
+ * المتفَّق عليها — نسخة `effectiveCommissionPercent` في نموذج التطبيق.
+ * تُختم على الطلب عند الإنشاء فينتهي الإعفاء وحده في موعده. */
+function effectiveCommissionPercent(r) {
+  const pct = Number(r && r.commissionPercent);
+  const nominal = Number.isFinite(pct) ? pct : 15;
+  const until = r && r.commissionFreeUntil;
+  const ms = until && typeof until.toMillis === 'function' ? until.toMillis()
+    : until && until.seconds != null ? until.seconds * 1000 : null;
+  return ms != null && ms > Date.now() ? 0 : nominal;
+}
+function appCommission(itemsTotal, r) {
+  return itemsTotal * (effectiveCommissionPercent(r) / 100);
+}
+function isOutOfRange(km) { return km > SETTINGS.maxDeliveryDistanceKm; }
 
 /* المسافة بخط مستقيم — نفس haversine المستخدم في التطبيق. */
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -673,6 +710,9 @@ onAuthStateChanged(auth, async (u) => {
   S.user = { uid: u.uid, ...d };
   hideAuth();
   if (!S.booted) { S.booted = true; loadCart(); loadRestaurants(); }
+  // إعداد التسعير يُقرأ عند كل دخول لا مرّةً عند الإقلاع: القواعد
+  // تشترط التسجيل لقراءته، وزائرٌ دخل الآن لم يكن يستطيع قبل قليل.
+  loadPricing();
   listenOrders();
   // نيّةٌ كانت معلّقة قبل الدخول تُستأنف الآن؛ وإلا نبقى حيث كان الزائر.
   const next = S.authNext; S.authNext = null;
@@ -1047,7 +1087,7 @@ function viewCart() {
   const items = cartTotal();
   const km = distanceKm();
   const dFee = deliveryFeeFor(km ?? 0);
-  const fixed = PRICING.fixedDeliveryCommission;
+  const fixed = SETTINGS.fixedDeliveryCommission;
   const total = items + dFee + fixed;
   const r = S.restaurants.find((x) => x.id === (S.cartResto || {}).id);
   const minOrder = r ? (r.minOrder ?? 20) : 20;
@@ -1124,7 +1164,7 @@ function viewCart() {
     ${shut ? `<div class="err">🔒 <b>${esc((S.cartResto || {}).name || 'المطعم')}</b> مغلق الآن،
       ولن يصله طلبك. سلتك محفوظة — أرسلها حين يفتح.</div>` : ''}
     ${belowMin ? `<div class="err">الحد الأدنى للطلب من هذا المطعم ${money(minOrder)} — أضف ${money(minOrder - items)} لتتمكن من الإرسال.</div>` : ''}
-    ${far ? `<div class="err">موقعك يبعد ${km.toFixed(1)} كم — خارج نطاق التوصيل (${PRICING.maxDeliveryDistanceKm} كم).</div>` : ''}
+    ${far ? `<div class="err">موقعك يبعد ${km.toFixed(1)} كم — خارج نطاق التوصيل (${SETTINGS.maxDeliveryDistanceKm} كم).</div>` : ''}
     <div id="orderErr"></div>
     <button class="btn block" id="placeBtn" ${shut || belowMin || far ? 'disabled' : ''}>
       ${shut ? 'المطعم مغلق الآن'
@@ -1261,6 +1301,9 @@ async function placeOrder() {
     return;
   }
   const addr = ($('addr').value || '').trim();
+  // يُحفظ في الحالة قبل أي إعادة رسم أدناه (قراءة التسعير تُعيد الرسم عند
+  // نجاحها) — وإلا عاد الحقل إلى نصٍّ قديم أمام عين العميل وهو يرسل.
+  S.addr.text = addr;
   if (addr.length < 8) { showOrderErr('اكتب عنوان التوصيل بتفصيل يكفي الكابتن للوصول.'); return; }
   if (S.addr.lat == null) { showOrderErr('حدّد موقعك أولاً — بدونه لا يعرف الكابتن أين يذهب.'); return; }
   const r = S.restaurants.find((x) => x.id === (S.cartResto || {}).id);
@@ -1269,8 +1312,13 @@ async function placeOrder() {
   // فتح الصفحة: قائمة المطاعم تُقرأ مرة واحدة، فلو أغلق المطعم بعدها بساعة
   // بقيت النسخة في الذاكرة تقول «مفتوح» — والزرّ المعطَّل في الواجهة مرسومٌ
   // على تلك النسخة نفسها، فلا يحمي من شيء. قراءةٌ واحدة هنا تحسم.
+  /* ونسخة المطعم الطازجة هي أيضاً مصدر نسبة العمولة المختومة أدناه: القاعدة
+   * تقارن ما نختمه بنسبة المستند **على الخادم**، فلو غيّر المالك النسبة بعد
+   * تحميل الصفحة لرُفض الطلب كلّه برفضٍ لا يفهمه العميل. */
+  let restDoc = r;
   try {
     const fresh = await getDoc(doc(db, 'restaurants', r.id));
+    if (fresh.exists()) restDoc = { id: r.id, ...fresh.data() };
     if (fresh.exists() && fresh.data().isOpen === false) {
       r.isOpen = false;            // نُحدِّث النسخة فتُصحَّح الشاشة أيضاً
       S.busy = false;
@@ -1279,6 +1327,11 @@ async function placeOrder() {
       return;
     }
   } catch (e) { /* تعذّرت القراءة: نمضي بما لدينا بدل منع طلبٍ ربما كان صحيحاً */ }
+
+  /* والتسعير يُعاد قراءته هنا أيضاً: قد يكون الزائر دخل قبل ثوانٍ فلم تصل
+   * قراءة الإقلاع بعد، وقد يكون المالك رفع الأجرة منذ دقائق. قراءةٌ واحدة
+   * قبل الكتابة أرخص من فاتورةٍ تخالف ما يقرؤه المطعم والكابتن. */
+  await loadPricing();
 
   const km = distanceKm();
   if (km != null && isOutOfRange(km)) { showOrderErr('موقعك خارج نطاق التوصيل.'); return; }
@@ -1292,7 +1345,7 @@ async function placeOrder() {
     price: l.price, emoji: l.emoji, quantity: l.quantity }));
   const itemsTotal = cartTotal();
   const driverShare = deliveryFeeFor(km ?? 0);
-  const appShare = PRICING.fixedDeliveryCommission;
+  const appShare = SETTINGS.fixedDeliveryCommission;
   const now = Timestamp.fromDate(new Date());
 
   /* شكل المستند مطابق لـ Order.toMap في التطبيق حقلاً بحقل. الحقول المالية
@@ -1320,7 +1373,12 @@ async function placeOrder() {
     orderNumber,
     customerRating: null, customerReview: null, driverRating: null,
     isRated: false,
-    platformCommission: appCommission(itemsTotal),
+    // النسبة الفعّالة لا ١٥٪ الثابتة: مطعمٌ معفى («مجاني حتى») كان
+    // طلبه على الويب يُختم بعمولة كاملة — والقواعد تقبله لأن
+    // `commissionPercent` اختياري، فتُجبى منه عمولةٌ أعفاه المالك
+    // منها. والحقل نفسه يُختم أدناه كما يفعل التطبيق.
+    commissionPercent: effectiveCommissionPercent(restDoc),
+    platformCommission: appCommission(itemsTotal, restDoc),
     deliveryLat: S.addr.lat, deliveryLng: S.addr.lng,
     restaurantLat: r.lat ?? null, restaurantLng: r.lng ?? null,
     rejectionReason: null,
