@@ -31,6 +31,7 @@ import '../customer/submit_complaint_screen.dart';
 import '../customer/my_complaints_screen.dart';
 import 'restaurant_reports_tab.dart';
 import 'restaurant_menu_prices_tab.dart';
+import 'restaurant_reviews_tab.dart';
 
 class RestaurantHome extends StatefulWidget {
   const RestaurantHome({super.key});
@@ -40,6 +41,70 @@ class RestaurantHome extends StatefulWidget {
 }
 
 class _RestaurantHomeState extends State<RestaurantHome> {
+  /// ورقة الإيقاف المؤقت: مدد جاهزة + استئناف فوري. الكتابة على مستند
+  /// المطعم نفسه (القاعدة تجيزها لمديره)، والاستئناف التلقائي بانقضاء
+  /// الموعد — فلا حالة «مشغول منسيّة» تُخفي المطعم إلى الأبد.
+  Future<void> _showPauseSheet(BuildContext context, String restaurantId,
+      {required bool paused}) async {
+    final service = context.read<FirebaseService>();
+    final choice = await showModalBottomSheet<int>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text(
+                paused
+                    ? 'المطعم «مشغول مؤقتاً» الآن'
+                    : 'إيقاف استقبال الطلبات مؤقتاً؟',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+                'يظهر للعملاء «مشغول مؤقتاً — يستأنف HH:MM» ويستأنف '
+                'الاستقبال وحده في الموعد. الطلبات الجارية لا تتأثر.',
+                style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+          ),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final m in [15, 30, 60, 120])
+              ActionChip(
+                label: Text(m < 60 ? '$m دقيقة' : '${m ~/ 60} ساعة${m == 120 ? 'تان' : ''}'),
+                onPressed: () => Navigator.pop(sheetCtx, m),
+              ),
+            if (paused)
+              ActionChip(
+                avatar: const Icon(Icons.play_arrow_rounded,
+                    size: 18, color: AppColors.success),
+                label: const Text('استئناف الآن'),
+                onPressed: () => Navigator.pop(sheetCtx, 0),
+              ),
+          ]),
+          const SizedBox(height: 14),
+        ]),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    try {
+      await service.setRestaurantPaused(
+          restaurantId,
+          choice == 0
+              ? null
+              : DateTime.now().add(Duration(minutes: choice)));
+      if (mounted) {
+        showSuccess(
+            context,
+            choice == 0
+                ? 'استؤنف الاستقبال — أهلاً بالطلبات'
+                : 'أوقف الاستقبال $choice دقيقة ويستأنف وحده');
+      }
+    } catch (_) {
+      if (mounted) showError(context, 'تعذّر التغيير — حاول مجدداً');
+    }
+  }
+
   int _tab = 0;
 
   Set<String> _knownPendingIds = {};
@@ -189,9 +254,33 @@ class _RestaurantHomeState extends State<RestaurantHome> {
         title: Text(switch (_tab) {
           0 => 'طلبات ${auth.user?.restaurantName ?? "المطعم"}',
           1 => 'التقارير والحسابات',
-          _ => 'أسعار القائمة',
+          2 => 'أسعار القائمة والتوفر',
+          _ => 'التقييمات',
         }),
         actions: [
+          // الإيقاف المؤقت (يوم المطعم): مطبخ غارق يوقف الاستقبال بمدد
+          // جاهزة ويستأنف وحده — بدل الإغلاق الكامل الذي يُخفيه عن
+          // العملاء أو الغرقِ بطلبات لن تخرج في وقتها.
+          if (restaurantId != null && restaurantId.isNotEmpty)
+            StreamBuilder<Restaurant?>(
+              stream: context.read<FirebaseService>().streamRestaurant(restaurantId),
+              builder: (ctx, snap) {
+                final r = snap.data;
+                final paused = r?.isPausedNow == true;
+                return IconButton(
+                  tooltip: paused
+                      ? 'مشغول حتى ${r!.pausedUntil!.hour.toString().padLeft(2, '0')}:${r.pausedUntil!.minute.toString().padLeft(2, '0')} — اضغط للاستئناف/التمديد'
+                      : 'إيقاف الاستقبال مؤقتاً',
+                  icon: Icon(
+                      paused
+                          ? Icons.pause_circle_filled_rounded
+                          : Icons.pause_circle_outline_rounded,
+                      color: paused ? AppColors.warning : null),
+                  onPressed: () => _showPauseSheet(context, restaurantId,
+                      paused: paused),
+                );
+              },
+            ),
           IconButton(
             tooltip: 'تغيير كلمة المرور',
             icon: const Icon(Icons.lock_outline),
@@ -243,6 +332,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
               ),
               RestaurantReportsTab(restaurantId: restaurantId),
               RestaurantMenuPricesTab(restaurantId: restaurantId),
+              RestaurantReviewsTab(restaurantId: restaurantId),
             ]),
       bottomNavigationBar: restaurantId == null || restaurantId.isEmpty
           ? null
@@ -267,6 +357,8 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                     icon: Icon(Icons.bar_chart_outlined), label: 'التقارير والحسابات'),
                 const NavigationDestination(
                     icon: Icon(Icons.sell_outlined), label: 'الأسعار'),
+                const NavigationDestination(
+                    icon: Icon(Icons.star_outline_rounded), label: 'التقييمات'),
               ],
             ),
     );
@@ -500,9 +592,42 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
   }
 
   Future<void> _confirmAcceptance(BuildContext context) async {
+    // وقت التحضير يُختار لحظة القبول (يوم المطعم 2026-08-20): توقّعٌ
+    // صادق للعميل والكابتن بدل التخمين. «بدون تقدير» متاح فلا يعطّل
+    // الاختيارُ مطبخاً مستعجلاً — والتراجع عن الورقة يلغي القبول كله.
+    final prep = await showModalBottomSheet<int>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.all(14),
+            child: Text('كم يحتاج التحضير؟',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final m in [10, 15, 20, 30, 45])
+                ActionChip(
+                  label: Text('$m دقيقة'),
+                  onPressed: () => Navigator.pop(sheetCtx, m),
+                ),
+              ActionChip(
+                label: const Text('بدون تقدير'),
+                onPressed: () => Navigator.pop(sheetCtx, 0),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ]),
+      ),
+    );
+    if (prep == null || !context.mounted) return;
     setState(() => _actionLoading = true);
     try {
-      await widget.service.updateOrderStatus(widget.order.id, OrderStatus.restaurantAccepted);
+      await widget.service
+          .acceptOrderWithPrep(widget.order.id, prep > 0 ? prep : null);
       final assigned =
           await widget.service.tryAutoAssignOnAcceptance(widget.order);
       // إخفاق الإسناد لحظة القبول لم يعد صامتاً أيضاً (كان الصمت هنا يخفي

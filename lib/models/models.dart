@@ -696,7 +696,17 @@ class Restaurant {
     this.priceLevel = 0,
     this.openingHours = const {},
     this.commissionFreeUntil,
+    this.pausedUntil,
   });
+
+  /// إيقاف مؤقت لاستقبال الطلبات (يوم المطعم 2026-08-20): يضبطه مدير
+  /// المطعم من تطبيقه بمدد جاهزة، **والاستئناف تلقائي بمرور الوقت** —
+  /// لا كتابة ثانية تُنسى فيبقى المطعم مختفياً. يعلو الجدولَ ولا يعلو
+  /// المفتاح اليدوي (isOpen=false أشد منه).
+  final DateTime? pausedUntil;
+
+  bool get isPausedNow =>
+      pausedUntil != null && DateTime.now().isBefore(pausedUntil!);
 
   double get deliveryFee => driverShareFee + appShareFee;
 
@@ -720,6 +730,7 @@ class Restaurant {
   /// وحده يحكم فيُغلق المطعم قبل موعده بساعتين.
   bool get isOpenNow {
     if (!isOpen) return false;
+    if (isPausedNow) return false;
     if (openingHours.isEmpty) return true;
     final now = DateTime.now();
     return scheduleOpenAt(openingHours, now.weekday, now.hour * 60 + now.minute);
@@ -745,6 +756,14 @@ class Restaurant {
   /// يكون اليوم له موعد فتحٍ قادم. رسالةٌ تطمئن المنتظِر بدل «مغلق» جافّة.
   String get openStatusLabel {
     if (isOpenNow) return 'مفتوح';
+    // «مشغول» قبل «مغلق»: مطعمٌ أوقف الاستقبال ساعةً ليس مغلقاً —
+    // والتسمية الصادقة تُبقي العميل منتظراً بدل أن تطرده لغيره.
+    if (isOpen && isPausedNow) {
+      final t = pausedUntil!;
+      final hh = t.hour.toString().padLeft(2, '0');
+      final mm = t.minute.toString().padLeft(2, '0');
+      return 'مشغول مؤقتاً — يستأنف $hh:$mm';
+    }
     if (!isOpen || openingHours.isEmpty) return 'مغلق';
     final now = DateTime.now();
     final today = openingHours[now.weekday];
@@ -809,6 +828,7 @@ class Restaurant {
         lng: (map['lng'] as num?)?.toDouble(),
         imageUrl: map['imageUrl'] as String?,
         openingHours: _parseHours(map['openingHours']),
+        pausedUntil: (map['pausedUntil'] as Timestamp?)?.toDate(),
         commissionFreeUntil:
             (map['commissionFreeUntil'] as Timestamp?)?.toDate(),
       );
@@ -842,6 +862,8 @@ class Restaurant {
         'commissionFreeUntil': commissionFreeUntil == null
             ? null
             : Timestamp.fromDate(commissionFreeUntil!),
+        'pausedUntil':
+            pausedUntil == null ? null : Timestamp.fromDate(pausedUntil!),
       };
 }
 
@@ -2187,6 +2209,16 @@ class Order {
   final String? undeliveredReason;
   final DateTime? undeliveredAt;
 
+  /// وقت التحضير الذي اختاره المطعم لحظة القبول (يوم المطعم 2026-08-20)
+  /// — يراه العميل («التحضير ~X د») والكابتن في المذكرة، فيتوقّع
+  /// الطرفان بدل التخمين.
+  final int? prepMinutes;
+
+  /// ردّ المطعم على تقييم العميل — يظهر تحت تقييمه في «طلباتي»:
+  /// مطعمٌ يجيب علناً يكسب ثقة القارئ حتى حين يعتذر.
+  final String? restaurantReply;
+  final DateTime? restaurantRepliedAt;
+
   /// هل قُيّدت عُهدة هذا الطلب النقدي على محفظة السائق لحظة استلامه من
   /// المطعم؟ (نموذج كيتا/مرسول: البضاعة بيد السائق = قيمتها عليه فوراً،
   /// لا عند التسليم.) تمنع القيد المزدوج بين الاستلام والتسليم، وتحدّد
@@ -2289,6 +2321,9 @@ class Order {
     this.deliveryFailed = false,
     this.undeliveredReason,
     this.undeliveredAt,
+    this.prepMinutes,
+    this.restaurantReply,
+    this.restaurantRepliedAt,
     this.custodyDebited = false,
     this.arrivedAtRestaurantAt,
     this.restaurantHandoverAt,
@@ -2435,6 +2470,10 @@ class Order {
         deliveryFailed: map['deliveryFailed'] as bool? ?? false,
         undeliveredReason: map['undeliveredReason'] as String?,
         undeliveredAt: (map['undeliveredAt'] as Timestamp?)?.toDate(),
+        prepMinutes: (map['prepMinutes'] as num?)?.toInt(),
+        restaurantReply: map['restaurantReply'] as String?,
+        restaurantRepliedAt:
+            (map['restaurantRepliedAt'] as Timestamp?)?.toDate(),
         custodyDebited: map['custodyDebited'] as bool? ?? false,
         arrivedAtRestaurantAt:
             (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
@@ -2492,6 +2531,10 @@ class Order {
         if (undeliveredReason != null) 'undeliveredReason': undeliveredReason,
         if (undeliveredAt != null)
           'undeliveredAt': Timestamp.fromDate(undeliveredAt!),
+        if (prepMinutes != null) 'prepMinutes': prepMinutes,
+        if (restaurantReply != null) 'restaurantReply': restaurantReply,
+        if (restaurantRepliedAt != null)
+          'restaurantRepliedAt': Timestamp.fromDate(restaurantRepliedAt!),
         'custodyDebited': custodyDebited,
         if (arrivedAtRestaurantAt != null)
           'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
@@ -2565,6 +2608,9 @@ class Order {
         deliveryFailed: deliveryFailed ?? this.deliveryFailed,
         undeliveredReason: this.undeliveredReason,
         undeliveredAt: this.undeliveredAt,
+        prepMinutes: this.prepMinutes,
+        restaurantReply: this.restaurantReply,
+        restaurantRepliedAt: this.restaurantRepliedAt,
         custodyDebited: custodyDebited,
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
         restaurantHandoverAt: restaurantHandoverAt,
