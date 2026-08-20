@@ -1502,6 +1502,97 @@ class FirebaseService {
     return (await _freeStuckDrivers(online)).length;
   }
 
+  /// «تعذّر التسليم» — مخرج الكابتن على باب عميلٍ يرفض الاستلام أو لا
+  /// يردّ (درع النقد 2026-08-20). **علمٌ لا إغلاق**: الحالة لا تتغير،
+  /// فالإغلاق المالي (إلغاء بعكس العُهدة، أو إعادة محاولة) قرارُ مديرٍ
+  /// تُشعله البطاقة الحمراء في المتابعة الحية — ضغطةُ كابتنٍ لا تصفّي
+  /// طلباً نقدياً بضاعتُه وعُهدته بيده.
+  Future<void> markDeliveryFailed(models.Order order, String reason) async {
+    await _orders.doc(order.id).update({
+      'deliveryFailed': true,
+      'undeliveredReason': reason,
+      'undeliveredAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    NotifyRelay.orderEvent(order.id, OrderEvent.status);
+  }
+
+  /// رفع/فرض حظر النقدي يدوياً — من تبويب المستخدمين (المدير حين يقتنع
+  /// بعذر العميل يرفعه، والعدّاد يُصفَّر معه فلا يعود الحظر من أول كنسة).
+  Future<void> setCashBlocked(String uid, bool blocked) async {
+    await _users.doc(uid).update({
+      'cashBlocked': blocked,
+      if (!blocked) 'cashNoShowCount': 0,
+    });
+    logAdminAction('user.cashBlock',
+        blocked ? 'حظر الدفع النقدي عن عميل' : 'رفع حظر النقدي عن عميل',
+        extra: {'uid': uid});
+  }
+
+  /// كنس أعلام درع النقد — مع فتح المتابعة الحية (نمط «أقصى ما يمكن بلا
+  /// خادم»): (١) **الترقية**: عميلٌ في نافذة الطلبات الأخيرة سُلِّم له
+  /// طلبٌ وليس موثوقاً بعد → `cashTrusted` فيسقط عنه سقف أول طلب؛
+  /// (٢) **الحظر**: عميلٌ ظهر له «تعذّر تسليم» نقدي بسبب رفض/غياب →
+  /// يُعاد عدّ كامل تاريخه النقدي الفاشل بدقة (استعلام مباشر لا نافذة)،
+  /// وإن بلغ حدَّ المدير (`cashNoShowLimit`، صفر يعطّل) حُظر النقدي عنه.
+  Future<({int promoted, int blocked})> reconcileCashFlags() async {
+    var promoted = 0, blocked = 0;
+    try {
+      final settings = await getIncentiveSettings();
+      final snap = await _orders
+          .orderBy('createdAt', descending: true)
+          .limit(300)
+          .get();
+      final deliveredCustomers = <String>{};
+      final failedCashCustomers = <String>{};
+      for (final doc in snap.docs) {
+        final o = models.Order.fromMap(doc.data(), doc.id);
+        if (o.status == models.OrderStatus.delivered) {
+          deliveredCustomers.add(o.customerId);
+        }
+        if (o.deliveryFailed &&
+            o.paymentMethod == models.PaymentMethod.cash) {
+          failedCashCustomers.add(o.customerId);
+        }
+      }
+      for (final uid in deliveredCustomers) {
+        try {
+          final u = await _users.doc(uid).get();
+          if (u.data()?['cashTrusted'] == true) continue;
+          await _users.doc(uid).update({'cashTrusted': true});
+          promoted++;
+        } catch (_) {}
+      }
+      if (settings.cashNoShowLimit > 0) {
+        for (final uid in failedCashCustomers) {
+          try {
+            final u = await _users.doc(uid).get();
+            if (u.data()?['cashBlocked'] == true) continue;
+            final fails = await _orders
+                .where('customerId', isEqualTo: uid)
+                .where('deliveryFailed', isEqualTo: true)
+                .get();
+            final cashFails = fails.docs
+                .map((d) => models.Order.fromMap(d.data(), d.id))
+                .where((o) => o.paymentMethod == models.PaymentMethod.cash)
+                .length;
+            await _users.doc(uid).update({'cashNoShowCount': cashFails});
+            if (cashFails >= settings.cashNoShowLimit) {
+              await _users.doc(uid).update({'cashBlocked': true});
+              blocked++;
+              logAdminAction('user.cashBlock',
+                  'حظر النقدي تلقائياً: $cashFails رفض استلام (الحد ${settings.cashNoShowLimit})',
+                  extra: {'uid': uid});
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (_) {
+      // الكنس تحسين لا شرط.
+    }
+    return (promoted: promoted, blocked: blocked);
+  }
+
   /// كنس الطلبات العالقة — يعمل من لوحة المتابعة لحظة فتحها (نمط «أقصى
   /// ما يمكن بلا خادم» نفسه الذي يعتمده صرف الحوافز والمصالحة).
   /// عطلان كشفهما فحص السلوك 2026-08-20 وكلاهما كان بلا أي مخرج:

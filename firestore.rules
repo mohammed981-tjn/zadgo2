@@ -34,6 +34,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(currentUid())).data;
     }
 
+    // سقف «أول طلب نقدي» من مستند الحوافز — درع النقد (2026-08-20).
+    // exists قبل get: مستندٌ غائب يعني «لا سقف» لا خطأ تقييم يُسقط
+    // الإنشاء كله (درس خطأ الكوبون).
+    function firstCashCap() {
+      let p = /databases/$(database)/documents/delivery_settings/incentives;
+      return exists(p) ? get(p).data.get('firstCashOrderCap', 0) : 0;
+    }
+
     function hasRole(role) {
       return isSignedIn() &&
           exists(/databases/$(database)/documents/users/$(currentUid())) &&
@@ -210,6 +218,11 @@ service cloud.firestore {
       allow create: if isSignedIn() &&
           (!('walletBalance' in request.resource.data) ||
               request.resource.data.walletBalance == 0) &&
+          // أعلام درع النقد تولد آمنة: حسابٌ يُنشأ «موثوقاً نقدياً» يقفز
+          // فوق سقف أول طلب من أول ثانية.
+          request.resource.data.get('cashTrusted', false) == false &&
+          request.resource.data.get('cashBlocked', false) == false &&
+          request.resource.data.get('cashNoShowCount', 0) == 0 &&
           (
             isAdmin() ||
             (currentUid() == userId && (
@@ -225,7 +238,8 @@ service cloud.firestore {
             // منيوه وأسعاره وطلباته وتسوياته المالية — تصعيدٌ أفقي من مطعم
             // إلى كل المطاعم. الدور مثبَّت لكن معرّف المطعم كان ثغرته.
             (currentUid() == userId &&
-                !changedKeys().hasAny(['role', 'isActive', 'restaurantId']) &&
+                !changedKeys().hasAny(['role', 'isActive', 'restaurantId',
+                    'cashTrusted', 'cashBlocked', 'cashNoShowCount']) &&
                 // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
                 // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
                 // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
@@ -320,6 +334,15 @@ service cloud.firestore {
       // الطلبات النقدية/المحفظة (paymentId فارغ) لا تمرّ بهذا الشرط.
       allow create: if isCustomer() &&
           request.resource.data.customerId == currentUid() &&
+          // درع النقد (2026-08-20): المحظور نقدياً (رفض استلامٍ متكرر —
+          // يرفعه كنس اللوحة) لا يُنشئ طلباً نقدياً أصلاً؛ وغير الموثوق
+          // (لم يُسلَّم له بعد) محكومٌ بسقف المدير إن ضبطه — صفر يعطّل.
+          // المحفظة والبطاقة لا تمرّان بهذا الشرط: النصب النقدي بابه النقد.
+          (request.resource.data.get('paymentMethod', '') != 'cash' ||
+              (userData().get('cashBlocked', false) != true &&
+                  (userData().get('cashTrusted', false) == true ||
+                      firstCashCap() <= 0 ||
+                      request.resource.data.get('total', 0) <= firstCashCap()))) &&
           (request.resource.data.get('paymentId', '') == '' ||
               (exists(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)) &&
                get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid())) &&

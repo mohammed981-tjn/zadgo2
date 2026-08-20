@@ -124,6 +124,55 @@ void main() {
     expect(d.referralCode, d.referralCode);
   });
 
+  group('درع النقد', () {
+    test('الافتراضيات صفر = كل المقابض معطّلة (ج١: لا رقم مبرمَج)', () {
+      expect(s.firstCashOrderCap, 0);
+      expect(s.maxConcurrentCashOrders, 0);
+      expect(s.cashNoShowLimit, 0);
+    });
+
+    test('تذهب وتعود عبر toMap/fromMap', () {
+      final r = IncentiveSettings.fromMap(const IncentiveSettings(
+        firstCashOrderCap: 120,
+        maxConcurrentCashOrders: 2,
+        cashNoShowLimit: 3,
+      ).toMap());
+      expect(r.firstCashOrderCap, 120);
+      expect(r.maxConcurrentCashOrders, 2);
+      expect(r.cashNoShowLimit, 3);
+    });
+
+    test('مستند قديم بلا الحقول لا يكسر القراءة', () {
+      final r = IncentiveSettings.fromMap(const {});
+      expect(r.firstCashOrderCap, 0);
+      expect(r.cashNoShowLimit, 0);
+    });
+  });
+
+  group('أعلام العميل النقدية', () {
+    test('تولد آمنة ولا تُكتب من toMap (يرفعها الكنس لا الحساب نفسه)', () {
+      final u = AppUser.fromMap(const {
+        'name': 'س', 'email': 'a@b.c', 'role': 'customer',
+      }, 'u1');
+      expect(u.cashTrusted, false);
+      expect(u.cashBlocked, false);
+      expect(u.cashNoShowCount, 0);
+      expect(u.toMap().containsKey('cashTrusted'), false,
+          reason: 'وجودها في toMap يفتح إنشاء حساب «موثوق» من عميل معدَّل');
+      expect(u.toMap().containsKey('cashBlocked'), false);
+    });
+
+    test('تُقرأ حين يكتبها الكنس', () {
+      final u = AppUser.fromMap(const {
+        'name': 'س', 'email': 'a@b.c', 'role': 'customer',
+        'cashTrusted': true, 'cashBlocked': true, 'cashNoShowCount': 4,
+      }, 'u2');
+      expect(u.cashTrusted, true);
+      expect(u.cashBlocked, true);
+      expect(u.cashNoShowCount, 4);
+    });
+  });
+
   group('نقطة التعادل اليومية', () {
     test('الافتراضي صفر = البطاقة مخفية (لا رقم مبرمَج — ج١)', () {
       expect(s.dailyOrdersTarget, 0);

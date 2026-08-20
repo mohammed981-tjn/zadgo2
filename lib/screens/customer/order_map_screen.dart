@@ -322,11 +322,70 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                           label: const Text('تم التوصيل'),
                         ),
                       ),
+                    // «تعذّر التسليم» (درع النقد): مخرجُ كابتنٍ على بابٍ
+                    // لا يُفتح — أيقونة صغيرة لا زر عريض: خيار اضطرار
+                    // لا دعوة ضغط، والحوار يشرح ما سيقع قبل التأكيد.
+                    if (_headingToCustomer && !order.deliveryFailed)
+                      IconButton(
+                        tooltip: 'تعذّر التسليم',
+                        onPressed: () => _reportDeliveryFailure(service),
+                        icon: const Icon(Icons.report_problem_outlined,
+                            color: AppColors.error),
+                      ),
                   ],
                 ),
               ),
             ),
     );
+  }
+
+  /// حوار «تعذّر التسليم»: سببٌ يُختار لا نصٌّ حر — الأسباب الثلاثة تغطي
+  /// الواقع وتُبقي عدَّ «رفض الاستلام» النقدي (أساس الحظر) نظيفاً من
+  /// اجتهادات الصياغة. لا يغلق الطلب: يُعلّمه أحمرَ عند الإدارة وتقرّر.
+  Future<void> _reportDeliveryFailure(FirebaseService service) async {
+    const reasons = [
+      'العميل لا يردّ على الاتصال',
+      'العميل رفض استلام الطلب',
+      'العنوان خاطئ ولا يمكن الوصول',
+    ];
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.all(14),
+            child: Text('ما الذي منع التسليم؟',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+                'اتصل بالعميل أولاً. بعد الإبلاغ يبقى الطلب معك حتى '
+                'تقرّر الإدارة (إلغاء أو إعادة محاولة) — لا تتخلص من '
+                'الطلب ولا تغادر منطقتك.',
+                style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+          ),
+          const SizedBox(height: 6),
+          for (final r in reasons)
+            ListTile(
+              leading: const Icon(Icons.chevron_left_rounded),
+              title: Text(r, style: const TextStyle(fontSize: 13.5)),
+              onTap: () => Navigator.pop(sheetCtx, r),
+            ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    try {
+      await service.markDeliveryFailed(widget.order, chosen);
+      if (mounted) {
+        showSuccess(context,
+            'أُبلغت الإدارة — ستقرّر خلال دقائق، وأجرتك محفوظة');
+      }
+    } catch (_) {
+      if (mounted) showError(context, 'تعذّر الإبلاغ — حاول مرة أخرى');
+    }
   }
 
   String _appBarTitle() {

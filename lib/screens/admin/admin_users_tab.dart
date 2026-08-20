@@ -314,6 +314,12 @@ class _UserTile extends StatelessWidget {
       ),
       isThreeLine: u.nationalId != null && u.nationalId!.isNotEmpty,
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        // شارة حظر النقدي (درع النقد): يرفعها الكنس تلقائياً عند تكرار
+        // رفض الاستلام — والمدير يرفعها من قائمة النقاط حين يقتنع بالعذر.
+        if (u.cashBlocked) ...[
+          const StatusBadge(label: 'نقدي محظور 🚫', color: AppColors.error),
+          const SizedBox(width: 4),
+        ],
         StatusBadge(
             label: u.isActive ? 'مفعّل' : 'معطّل',
             color: u.isActive ? AppColors.success : AppColors.error),
@@ -321,6 +327,12 @@ class _UserTile extends StatelessWidget {
           onSelected: (v) async {
             if (v == 'toggle') {
               await service.setUserActive(u.uid, !u.isActive);
+            } else if (v == 'cash_unblock') {
+              await service.setCashBlocked(u.uid, false);
+              if (context.mounted) {
+                showSuccess(context,
+                    'رُفع حظر النقدي عن ${u.name} وصُفّر عدّاد الرفض');
+              }
             } else if (v == 'reset_password') {
               try {
                 await service.sendPasswordReset(u.email);
@@ -354,6 +366,9 @@ class _UserTile extends StatelessWidget {
           },
           itemBuilder: (_) => [
             PopupMenuItem(value: 'toggle', child: Text(u.isActive ? 'تعطيل' : 'تفعيل')),
+            if (u.cashBlocked)
+              const PopupMenuItem(
+                  value: 'cash_unblock', child: Text('رفع حظر الدفع النقدي')),
             const PopupMenuItem(value: 'reset_password', child: Text('إعادة تعيين كلمة المرور')),
             const PopupMenuItem(value: 'delete', child: Text('حذف')),
           ],

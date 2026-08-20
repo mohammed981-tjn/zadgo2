@@ -119,6 +119,15 @@ class _OrderTrackingTabState extends State<OrderTrackingTab> {
         showSuccess(context, parts.join(' · '));
       }
     } catch (_) {}
+    // كنس أعلام درع النقد: ترقية الموثوقين بعد أول تسليم، وحظر من بلغ
+    // حدّ رفض الاستلام (الحد من شاشة الحوافز — صفر يعطّله).
+    try {
+      final flags = await service.reconcileCashFlags();
+      if (mounted && flags.blocked > 0) {
+        showSuccess(context,
+            'دِرع النقد: حُظر الدفع النقدي عن ${flags.blocked} عميل تكرر رفضه للاستلام');
+      }
+    } catch (_) {}
   }
 
   /// يحوّل آلياً أي طلب "جاري البحث عن سائق" تجاوز مهلة البحث دون أن يقبله
@@ -322,6 +331,28 @@ class _TrackedOrderCard extends StatelessWidget {
             const InfoRow(icon: Icons.delivery_dining_outlined, text: 'لم يُعيّن سائق بعد'),
           InfoRow(icon: Icons.event_available_outlined, text: _placedLabel()),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
+          // بلاغ «تعذّر التسليم» من الكابتن (درع النقد): أعلى أولوية في
+          // البطاقة — كابتنٌ واقف بطعامٍ وعُهدة ينتظر قرارك: إلغاء
+          // (بمساراته المالية) أو تحويل أو إعادة محاولة — الأزرار أدناه.
+          if (order.deliveryFailed)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 6),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.error.withOpacity(0.5)),
+              ),
+              child: Text(
+                '⛔ تعذّر التسليم — ${order.undeliveredReason ?? 'بلا سبب'}\n'
+                'الكابتن ينتظر قرارك: إلغاء أو إعادة محاولة.',
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.error,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
           OrderTrackingTimeline(status: order.status),
           const SizedBox(height: 8),
           // المبلغ حبّة بارزة، والأفعال كلها حبوب مدمجة في صفّ ملتفّ —

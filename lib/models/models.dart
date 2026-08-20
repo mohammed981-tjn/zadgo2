@@ -443,6 +443,15 @@ class AppUser {
   /// عشرات معرّفاً في أسوأ حال، وقاعدة المستخدم القائمة تحميها.
   final List<String> favoriteRestaurantIds;
 
+  /// أعلام درع النقد (2026-08-20) — يكتبها كنسُ اللوحة والمدير حصراً
+  /// (القواعد تمنع صاحب الحساب من مسّها):
+  /// [cashTrusted] تُرفع بعد أول تسليم ناجح فيسقط سقف «أول طلب نقدي»؛
+  /// [cashBlocked] تُرفع حين يبلغ رفضُ الاستلام حدَّ المدير فيُمنع
+  /// الدفع النقدي (المحفظة والبطاقة تبقيان)؛ [cashNoShowCount] عدّادها.
+  final bool cashTrusted;
+  final bool cashBlocked;
+  final int cashNoShowCount;
+
   /// كود التسجيل الذي مُنح به هذا الدور — يُكتب لحظة الإنشاء ليتحقّق منه
   /// حارس القواعد. بدونه كان أي مستخدم يُنشئ مستنده بدور `admin` فيصير
   /// مديراً عاماً على كل شيء (القاعدة كانت تفحص الرصيد ولا تفحص الدور).
@@ -465,6 +474,9 @@ class AppUser {
     this.savedAddresses = const [],
     this.favoriteRestaurantIds = const [],
     this.registrationCode = '',
+    this.cashTrusted = false,
+    this.cashBlocked = false,
+    this.cashNoShowCount = 0,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -487,6 +499,9 @@ class AppUser {
             .map((e) => e.toString())
             .toList(),
         registrationCode: map['registrationCode'] as String? ?? '',
+        cashTrusted: map['cashTrusted'] as bool? ?? false,
+        cashBlocked: map['cashBlocked'] as bool? ?? false,
+        cashNoShowCount: (map['cashNoShowCount'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -1345,6 +1360,15 @@ class IncentiveSettings {
   /// التطبيق يتطلّب Firebase Storage الموقوف على ترقية Blaze.
   final String joinUrl;
 
+  /// درع النقد (2026-08-20) — ثلاثتها من اللوحة وصفرها يعطّلها (ج١):
+  /// سقف قيمة الطلب النقدي لعميلٍ لم يُسلَّم له بعد (القاعدة تحرسه)،
+  /// وحدّ الطلبات النقدية الجارية معاً للعميل الواحد (بوابة السلة —
+  /// القواعد لا تعدّ)، وحدّ مرات رفض الاستلام قبل حظر النقدي عنه
+  /// (يطبّقه كنس اللوحة).
+  final double firstCashOrderCap;
+  final int maxConcurrentCashOrders;
+  final int cashNoShowLimit;
+
   /// نقطة التعادل اليومية (طلبات/يوم) من الدراسة المالية — الرقم الوحيد
   /// الذي طُلب من المالك مراقبته أسبوعياً. يضبطه المدير من اللوحة لا من
   /// الكود (ج١) لأنه يتغيّر مع كل تعديل على العمولة أو الرسم الثابت.
@@ -1378,6 +1402,9 @@ class IncentiveSettings {
     this.tipOptions = const [2, 5, 10],
     this.joinUrl = 'https://zadgo.co/join',
     this.dailyOrdersTarget = 0,
+    this.firstCashOrderCap = 0,
+    this.maxConcurrentCashOrders = 0,
+    this.cashNoShowLimit = 0,
   });
 
   /// خيارات الإكرامية المعروضة للعميل (ح3) — بالريال، من لوحة المدير
@@ -1442,6 +1469,13 @@ class IncentiveSettings {
           : d.joinUrl,
       dailyOrdersTarget:
           (map['dailyOrdersTarget'] as num?)?.toInt() ?? d.dailyOrdersTarget,
+      firstCashOrderCap: (map['firstCashOrderCap'] as num?)?.toDouble() ??
+          d.firstCashOrderCap,
+      maxConcurrentCashOrders:
+          (map['maxConcurrentCashOrders'] as num?)?.toInt() ??
+              d.maxConcurrentCashOrders,
+      cashNoShowLimit:
+          (map['cashNoShowLimit'] as num?)?.toInt() ?? d.cashNoShowLimit,
     );
   }
 
@@ -1468,6 +1502,9 @@ class IncentiveSettings {
         'tipOptions': tipOptions,
         'joinUrl': joinUrl,
         'dailyOrdersTarget': dailyOrdersTarget,
+        'firstCashOrderCap': firstCashOrderCap,
+        'maxConcurrentCashOrders': maxConcurrentCashOrders,
+        'cashNoShowLimit': cashNoShowLimit,
       };
 
   IncentiveSettings copyWith({
@@ -1492,6 +1529,9 @@ class IncentiveSettings {
     List<double>? tipOptions,
     String? joinUrl,
     int? dailyOrdersTarget,
+    double? firstCashOrderCap,
+    int? maxConcurrentCashOrders,
+    int? cashNoShowLimit,
   }) =>
       IncentiveSettings(
         referralEnabled: referralEnabled ?? this.referralEnabled,
@@ -1518,6 +1558,10 @@ class IncentiveSettings {
         tipOptions: tipOptions ?? this.tipOptions,
         joinUrl: joinUrl ?? this.joinUrl,
         dailyOrdersTarget: dailyOrdersTarget ?? this.dailyOrdersTarget,
+        firstCashOrderCap: firstCashOrderCap ?? this.firstCashOrderCap,
+        maxConcurrentCashOrders:
+            maxConcurrentCashOrders ?? this.maxConcurrentCashOrders,
+        cashNoShowLimit: cashNoShowLimit ?? this.cashNoShowLimit,
       );
 
   /// أعلى مستوى بلغه سائق أنجز [count] توصيلة — `null` إن لم يبلغ أدناها.
@@ -2134,6 +2178,15 @@ class Order {
   final double walletUsed;
   final bool driverAcknowledged;
 
+  /// «تعذّر التسليم» (درع النقد 2026-08-20): الكابتن على باب عميلٍ يرفض
+  /// الاستلام أو لا يردّ كان بلا أي مخرج داخل التطبيق — يعلّمه هنا
+  /// بسببه فتشتعل بطاقة الطلب حمراء في المتابعة الحية ويقرّر المدير
+  /// (إلغاء بمساراته المالية الكاملة، أو إعادة محاولة). العلم لا يغيّر
+  /// الحالة: الإغلاق المالي قرار إداري لا ضغطة كابتن.
+  final bool deliveryFailed;
+  final String? undeliveredReason;
+  final DateTime? undeliveredAt;
+
   /// هل قُيّدت عُهدة هذا الطلب النقدي على محفظة السائق لحظة استلامه من
   /// المطعم؟ (نموذج كيتا/مرسول: البضاعة بيد السائق = قيمتها عليه فوراً،
   /// لا عند التسليم.) تمنع القيد المزدوج بين الاستلام والتسليم، وتحدّد
@@ -2233,6 +2286,9 @@ class Order {
     this.paymentId,
     this.walletUsed = 0,
     this.driverAcknowledged = true,
+    this.deliveryFailed = false,
+    this.undeliveredReason,
+    this.undeliveredAt,
     this.custodyDebited = false,
     this.arrivedAtRestaurantAt,
     this.restaurantHandoverAt,
@@ -2376,6 +2432,9 @@ class Order {
         paymentId: map['paymentId'] as String?,
         walletUsed: (map['walletUsed'] as num?)?.toDouble() ?? 0,
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
+        deliveryFailed: map['deliveryFailed'] as bool? ?? false,
+        undeliveredReason: map['undeliveredReason'] as String?,
+        undeliveredAt: (map['undeliveredAt'] as Timestamp?)?.toDate(),
         custodyDebited: map['custodyDebited'] as bool? ?? false,
         arrivedAtRestaurantAt:
             (map['arrivedAtRestaurantAt'] as Timestamp?)?.toDate(),
@@ -2429,6 +2488,10 @@ class Order {
         if (paymentId != null) 'paymentId': paymentId,
         'walletUsed': walletUsed,
         'driverAcknowledged': driverAcknowledged,
+        'deliveryFailed': deliveryFailed,
+        if (undeliveredReason != null) 'undeliveredReason': undeliveredReason,
+        if (undeliveredAt != null)
+          'undeliveredAt': Timestamp.fromDate(undeliveredAt!),
         'custodyDebited': custodyDebited,
         if (arrivedAtRestaurantAt != null)
           'arrivedAtRestaurantAt': Timestamp.fromDate(arrivedAtRestaurantAt!),
@@ -2460,6 +2523,7 @@ class Order {
     bool? isRated,
     String? rejectionReason,
     bool? driverAcknowledged,
+    bool? deliveryFailed,
     double? restaurantLat,
     double? restaurantLng,
   }) =>
@@ -2498,6 +2562,9 @@ class Order {
         paymentId: paymentId,
         walletUsed: walletUsed,
         driverAcknowledged: driverAcknowledged ?? this.driverAcknowledged,
+        deliveryFailed: deliveryFailed ?? this.deliveryFailed,
+        undeliveredReason: this.undeliveredReason,
+        undeliveredAt: this.undeliveredAt,
         custodyDebited: custodyDebited,
         arrivedAtRestaurantAt: arrivedAtRestaurantAt,
         restaurantHandoverAt: restaurantHandoverAt,
