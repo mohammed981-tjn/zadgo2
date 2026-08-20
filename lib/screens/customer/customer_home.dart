@@ -567,13 +567,11 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         ),
       ),
       const SizedBox(height: 4),
-      // البنرات الترويجية — تختفي أثناء البحث حتى لا تزاحم النتائج، وتختفي
-      // كلياً حين لا حملة فعّالة.
-      if (_query.isEmpty) const PromoBannerCarousel(),
-      // شريحة «اطلب مجدداً» (لمسات العميل): أرخص ميزة تزيد تكرار الشراء —
-      // آخر طلبٍ مكتمل على بُعد ضغطة من الرئيسية، لا بعد تنقّلٍ إلى
-      // «طلباتي». تختفي أثناء البحث ولمن لا طلب مكتمل له.
-      if (_query.isEmpty) const _ReorderStrip(),
+      // ملاحظة تخطيط (شكوى المالك 2026-08-20): كان البنر و«اطلب مجدداً»
+      // مثبّتَين هنا فوق القائمة، فيبتلعان ارتفاع الشاشة ولا يبقى للمطاعم
+      // إلا شريطٌ يعرض مطعمين. نُقلا **داخل** قائمة المطاعم كعنصرَي رأسٍ
+      // يمرّان معها (نمط تطبيقات التوصيل) — فالقائمة تأخذ كامل الارتفاع،
+      // والبنر يختفي عند التمرير. (يُبنيان في itemBuilder أدناه.)
       Expanded(
         // ملاحظة مهمة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس Stream
         // جاهزاً، لذلك يُمرَّر اسم الدالة بلا أقواس (tear-off). إضافة أقواس
@@ -631,11 +629,23 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                 ),
             ]);
           }
+          // البنر و«اطلب مجدداً» عنصرا رأسٍ يمرّان مع القائمة (لا مثبّتان
+          // فوقها) كي تأخذ المطاعم كامل الارتفاع — يظهران خارج البحث فقط.
+          final headers = <Widget>[
+            if (_query.isEmpty) const PromoBannerCarousel(),
+            if (_query.isEmpty) const _ReorderStrip(),
+          ];
+          final h = headers.length;
           return Column(children: [
             // بشير «مطعمك المطلوب وصل» فوق القائمة (لا أثناء البحث).
             if (_query.isEmpty) _RequestedArrivedBanner(restaurants: list),
             Expanded(
-          child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: filtered.length, itemBuilder: (_, i) {
+          child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              itemCount: filtered.length + h,
+              itemBuilder: (_, idx) {
+            if (idx < h) return headers[idx];
+            final i = idx - h;
             // دخول متعاقب لأول ثماني بطاقات فقط: التتابع بعدها لا يُرى
             // (خارج الشاشة)، وتأخيرُ عنصرٍ في أسفل قائمة طويلة بحساب
             // ترتيبه يجعله يظهر متأخراً بلا سبب مرئي عند القفز إليه.
