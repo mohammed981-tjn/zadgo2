@@ -108,7 +108,15 @@ h1,h2,h3,.name,.btn,.dish b,.step b,.door b{font-family:'Alexandria','IBM Plex S
 /* العربية لا تُضيَّق أبداً؛ واللاتينية في العناوين تُضبط قليلاً وحدها. */
 h1,h2,h3{letter-spacing:0}
 body{background:var(--mist);color:var(--ink);line-height:1.9;
-  overflow-x:hidden;-webkit-text-size-adjust:100%}
+  -webkit-text-size-adjust:100%}
+/* **`clip` لا `hidden`** — تقسيةٌ لا إصلاح عطب:
+ * `overflow-x:hidden` يجعل العنصر **حاوية تمرير**، ومقياس `view()` يقيس
+ * مداه على أقرب حاويةِ تمرير — فيصير `body` (وهو لا يتمرّر) مرجعَ القياس
+ * بدل الشاشة. لم يظهر من ذلك عطبٌ مرئي اليوم (فُحص: صفر عنصرٍ مخفيّ وهو
+ * في الشاشة، قبل التغيير وبعده)، لكنه فخٌّ مفتوح لكل حركةٍ مدفوعة بالتمرير
+ * تُضاف لاحقاً. و`clip` يقصّ الزيادة الأفقية بلا أن يصنع حاوية تمرير. */
+html{overflow-x:clip}
+@supports not (overflow-x:clip){ html{overflow-x:hidden} }
 /* لكل لغة حرفها: البنغالية والأردية لا تُرسمان بحروف تجوال */
 body.lang-bn,body.lang-bn button,body.lang-bn select,
 body.lang-bn h1,body.lang-bn h2,body.lang-bn h3{font-family:'Noto Sans Bengali','IBM Plex Sans Arabic',sans-serif}
