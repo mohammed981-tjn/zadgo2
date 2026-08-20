@@ -179,6 +179,12 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   IncentiveSettings _settings = const IncentiveSettings();
   bool _settingsLoaded = false;
 
+  /// طيّ شريط البحث والفلاتر عند التمرير (شكوى المالك «زر البحث يأخذ مساحة»،
+  /// 2026-08-20): يختفيان عند التمرير لأسفل فتتّسع القائمة، ويعودان فور
+  /// التمرير لأعلى — نمط تطبيقات التوصيل. تحكّمٌ في قائمة المطاعم يقود الطيّ.
+  final ScrollController _restScroll = ScrollController();
+  bool _hideHeader = false;
+
   @override
   void initState() {
     super.initState();
@@ -190,6 +196,18 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
         });
       }
     }).catchError((_) {});
+    _restScroll.addListener(() {
+      if (!_restScroll.hasClients) return;
+      final dir = _restScroll.position.userScrollDirection;
+      // عتبةُ ٦٠ بكسل تمنع الطيّ من أول لمسةٍ عند القمّة (حيث لا فائدة منه).
+      if (dir == ScrollDirection.reverse &&
+          !_hideHeader &&
+          _restScroll.offset > 60) {
+        setState(() => _hideHeader = true);
+      } else if (dir == ScrollDirection.forward && _hideHeader) {
+        setState(() => _hideHeader = false);
+      }
+    });
   }
 
   bool get _hasQuickFilters =>
@@ -223,6 +241,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   void dispose() {
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
+    _restScroll.dispose();
     super.dispose();
   }
 
@@ -479,6 +498,16 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return Column(children: [
+      // طيّ شريط البحث والفلاتر عند التمرير لأسفل (شكوى المالك «زر البحث
+      // يأخذ مساحة») — ينكمشان بسلاسة فتتّسع القائمة، ويعودان فور التمرير
+      // لأعلى. AnimatedSize يحرّك الارتفاع من الكامل إلى صفر.
+      AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        alignment: Alignment.topCenter,
+        child: _hideHeader
+            ? const SizedBox(width: double.infinity)
+            : Column(mainAxisSize: MainAxisSize.min, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: TextField(
@@ -566,6 +595,8 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           ],
         ),
       ),
+            ]),
+      ),
       const SizedBox(height: 4),
       // ملاحظة تخطيط (شكوى المالك 2026-08-20): كان البنر و«اطلب مجدداً»
       // مثبّتَين هنا فوق القائمة، فيبتلعان ارتفاع الشاشة ولا يبقى للمطاعم
@@ -641,6 +672,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             if (_query.isEmpty) _RequestedArrivedBanner(restaurants: list),
             Expanded(
           child: ListView.builder(
+              controller: _restScroll,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               itemCount: filtered.length + h,
               itemBuilder: (_, idx) {
