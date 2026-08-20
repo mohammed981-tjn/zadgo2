@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#08152C">
+  <meta name="theme-color" content="#13224A">
   <!-- سياسة المحتوى: `form-action 'none'` لأن الصفحة بلا نموذج أصلاً — فأي
        نموذج يظهر فيها يوماً هو نموذجٌ لم نكتبه نحن، ومنعُه قبل وجوده أرخص
        من اكتشافه بعده. و`frame-ancestors` مذكور للتوثيق (لا أثر له في وسم
@@ -83,7 +83,7 @@
    الأمر لمساعد التطبيق في `dev-docs/identity-navy-handoff.md`.
    ══════════════════════════════════════════════════════════════ */
 :root{
-  --n900:#050D1C; --n800:#08152C; --n700:#0B1E3D; --n600:#132C56;
+  --n900:#0B1935; --n800:#13224A; --n700:#1A2E5E; --n600:#24407D;
   --gold:#FFC107; --gold-lt:#FFD65A; --gold-dk:#E0A800;
   --paper:#FFFFFF; --mist:#F4F7FC; --ink:#0A1A33;
   --line:rgba(255,255,255,.13); --line-l:#E3E9F3;
@@ -123,14 +123,14 @@ a{text-decoration:none}
 .wrap{max-width:1060px;margin:0 auto;padding:0 20px}
 
 /* ───────── الترويسة ───────── */
-header{position:sticky;top:0;z-index:50;background:rgba(5,13,28,.88);
+header{position:sticky;top:0;z-index:50;background:rgba(11,25,53,.88);
   backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .hrow{display:flex;align-items:center;gap:10px;padding:12px 0}
 .hrow .logo{height:26px;width:auto}
 .hrow nav{margin-inline-start:auto;display:flex;align-items:center;gap:7px}
 #langSel{background:rgba(255,255,255,.08);color:#fff;border:1px solid var(--line);
   border-radius:999px;padding:7px 11px;font-size:.8rem;font-weight:700;cursor:pointer}
-#langSel option{background:#0B1E3D;color:#fff}
+#langSel option{background:#1A2E5E;color:#fff}
 .btn{display:inline-block;border-radius:999px;padding:11px 22px;font-weight:800;
   font-size:.94rem;border:0;cursor:pointer;transition:transform .18s ease}
 .btn:active{transform:scale(.97)}
@@ -146,16 +146,23 @@ header{position:sticky;top:0;z-index:50;background:rgba(5,13,28,.88);
  * أخضر مسطّح (بلاغ المالك من جوّاله). النسخة العمودية قصّةٌ من يسار
  * الأصل حيث الأطباق والشوك، فتُرى على الشاشة الضيّقة.
  * والحجاب أخفّ في أعلاه: كان يبتلع ما بقي من الصورة. */
-.hero{position:relative;color:#fff;padding:56px 0 0;overflow:hidden;
-  background-image:
-    radial-gradient(120% 80% at 78% -8%, rgba(19,44,86,.62) 0%, transparent 58%),
-    linear-gradient(180deg, rgba(5,13,28,.22) 0%, rgba(5,13,28,.62) 40%, var(--n900) 96%),
-    url('images/city-night-portrait.jpg');
-  background-size:cover;background-position:50% 46%;background-repeat:no-repeat}
-.hero::before{content:'';position:absolute;inset:0;opacity:.35;pointer-events:none;
+.hero{position:relative;color:#fff;padding:clamp(58px,11vh,104px) 0 0;overflow:hidden;
+  background:var(--n900)}
+.heroimg{position:absolute;inset:-5%;z-index:0;
+  background:url('images/city-night-portrait.jpg') 50% 46%/cover no-repeat;
+  animation:drift 28s ease-in-out infinite alternate;will-change:transform}
+@keyframes drift{
+  from{transform:scale(1.05) translate3d(0,0,0)}
+  to  {transform:scale(1.16) translate3d(0,-2%,0)}}
+.hero::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:
+    radial-gradient(120% 80% at 78% -8%, rgba(36,64,125,.5) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(11,25,53,.16) 0%, rgba(11,25,53,.54) 40%, var(--n900) 97%)}
+.hero .trust{position:relative;z-index:2}
+.hero::before{content:'';position:absolute;inset:0;z-index:1;opacity:.3;pointer-events:none;
   background-image:radial-gradient(rgba(255,193,7,.18) 1px, transparent 1px);
   background-size:26px 26px}
-.hero .wrap{position:relative}
+.hero .wrap{position:relative;z-index:2}
 .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,193,7,.13);
   border:1px solid rgba(255,193,7,.42);color:var(--gold-lt);border-radius:999px;
   padding:6px 14px;font-size:.79rem;font-weight:800;margin-bottom:18px}
@@ -197,7 +204,7 @@ section.light{padding:56px 0}
 section.dark{background:linear-gradient(170deg,var(--n700),var(--n900));color:#fff;
   padding:56px 0;position:relative;overflow:hidden}
 section.dark.road{background-image:
-  linear-gradient(180deg, rgba(5,13,28,.86) 0%, rgba(8,21,44,.58) 48%, rgba(5,13,28,.92) 100%),
+  linear-gradient(180deg, rgba(11,25,53,.86) 0%, rgba(19,34,74,.58) 48%, rgba(11,25,53,.92) 100%),
   url('images/road-night.jpg');
   background-size:cover;background-position:50% 88%}
 /* بطاقات القسم الداكن زجاجيةٌ لا بيضاء: البيضاء تثقب الليل وتُفقد الصورة. */
@@ -207,7 +214,7 @@ section.dark.road .feat b{color:#fff}
 section.dark.road .feat p{color:rgba(255,255,255,.74)}
 section.dark.road .feat .ic{background:rgba(255,193,7,.14);border-color:rgba(255,193,7,.34)}
 section.dark.amb{background-image:
-  linear-gradient(180deg, rgba(11,30,61,.90), rgba(5,13,28,.97)), url('images/bg-dining.jpg');
+  linear-gradient(180deg, rgba(26,46,94,.90), rgba(11,25,53,.97)), url('images/bg-dining.jpg');
   background-size:cover;background-position:center}
 h2{font-size:clamp(1.5rem,5.4vw,2.15rem);font-weight:800;line-height:1.5;color:var(--n700)}
 h2 span{color:var(--gold-dk)}
@@ -219,7 +226,7 @@ section.dark .lead{color:rgba(255,255,255,.72)}
 /* خطوات */
 .steps{margin-top:30px;display:grid;gap:14px}
 .step{background:var(--paper);border:1px solid var(--line-l);
-  box-shadow:0 2px 12px rgba(11,30,61,.05);border-radius:var(--r-lg);padding:20px;
+  box-shadow:0 2px 12px rgba(26,46,94,.05);border-radius:var(--r-lg);padding:20px;
   position:relative;overflow:hidden}
 .step .n{font-size:3.4rem;font-weight:900;color:var(--mist);line-height:1;
   position:absolute;top:6px;inset-inline-end:16px}
@@ -229,7 +236,7 @@ section.dark .lead{color:rgba(255,255,255,.72)}
 /* ميزات */
 .feats{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .feat{background:var(--paper);border:1px solid var(--line-l);border-radius:var(--r-md);
-  padding:16px;box-shadow:0 2px 12px rgba(11,30,61,.05)}
+  padding:16px;box-shadow:0 2px 12px rgba(26,46,94,.05)}
 .feat .ic{width:42px;height:42px;border-radius:13px;background:var(--mist);border:1px solid var(--line-l);
   display:grid;place-items:center;font-size:1.25rem;margin-bottom:10px}
 .feat b{display:block;font-size:.95rem;color:var(--n700)}
@@ -301,17 +308,31 @@ section.dark .tear path{fill:var(--n700)}
 /* ظهورٌ بالتمرير — مدعوم في المتصفحات الحديثة، وما لا يدعمه يعرض
  * المحتوى كاملاً بلا حركة (تدرّجٌ لطيف لا كسر). */
 @supports (animation-timeline: view()){
+  /* الظهور بالتمرير: مدىً أطول قليلاً وحركةٌ تجمع الإزاحة إلى تكبيرٍ
+     ضئيل — العنصر يقترب لا ينزلق فحسب، فيُحسّ الظهور طبيعياً. */
   .reveal{animation:rise both;animation-timeline:view();
-    animation-range:entry 2% cover 26%}
-  @keyframes rise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+    animation-range:entry 0% cover 32%}
+  @keyframes rise{
+    from{opacity:0;transform:translateY(26px) scale(.985)}
+    to  {opacity:1;transform:none}}
+  /* لا ظهورَ بالتمرير للأطباق: `view(inline)` يقيس المحور الأفقي داخل
+     صندوقٍ يتمرّر أفقياً، فلا يستقرّ مداه وتبقى البطاقات على `opacity:0`
+     — صفٌّ فارغ بدل تسع صور. الحركة عندها في اللمس والاقتراب، وتكفي. */
 }
 
 /* لمسة الضغط: البطاقة ترتفع قليلاً ويتذهّب حدّها — على اللمس تُحسّ
  * الاستجابة، وعلى الفأرة تُرى. */
-.step,.feat,.value,.gc{transition:transform .22s ease, border-color .22s ease,
-  box-shadow .22s ease}
-.step:hover,.feat:hover{transform:translateY(-3px);border-color:var(--gold);
-  box-shadow:0 10px 26px rgba(11,30,61,.14)}
+/* منحنى واحد لكل الحركة في الصفحة: بدايةٌ سريعة ونهايةٌ تهدأ
+   (`cubic-bezier(.2,.8,.2,1)`) — وهو ما يُحسّ «سلاسة» بخلاف `ease`
+   الافتراضي الذي يقف فجأة. ومدّةٌ أطول قليلاً لأن القفزة القصيرة
+   تُقرأ ارتجافاً لا حركة. */
+.step,.feat,.value,.gc,.door,.btn{
+  transition:transform .4s cubic-bezier(.2,.8,.2,1),
+             border-color .4s cubic-bezier(.2,.8,.2,1),
+             box-shadow .4s cubic-bezier(.2,.8,.2,1)}
+.step:hover,.feat:hover{transform:translateY(-5px);border-color:var(--gold);
+  box-shadow:0 16px 34px rgba(26,46,94,.16)}
+.btn:hover{transform:translateY(-2px)}
 .value:hover,.gc:hover{border-color:rgba(255,193,7,.55)}
 
 /* أرقام الخطوات ذهبيةً شفافة بدل الرملي الباهت — ورقمٌ ضخم خلف النص
@@ -391,20 +412,38 @@ section.dark .tear path{fill:var(--n700)}
    `scroll-snap` كي تقف كل بطاقةٍ في مكانها لا بين اثنتين؛ و`scrollbar`
    مخفيّ على الجوّال (الحافّة المتدرّجة أدناه تقول «هناك المزيد» بلا شريط)؛
    والاتجاه يتبع الصفحة تلقائياً فيبدأ السحب من اليمين في العربية. */
-.strip{margin-top:26px;position:relative}
-.strip .track{display:flex;gap:12px;overflow-x:auto;padding:4px 20px 14px;
-  scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none}
+.strip{margin-top:28px;position:relative}
+.navbtn{display:none;position:absolute;top:calc(50% - 34px);z-index:3;
+  width:46px;height:46px;place-items:center;border:0;cursor:pointer;
+  border-radius:50%;background:rgba(255,255,255,.94);color:var(--n700);
+  font-size:1.25rem;font-weight:900;line-height:1;
+  box-shadow:0 8px 24px rgba(11,25,53,.22);
+  transition:transform .3s cubic-bezier(.2,.8,.2,1), background .3s ease}
+.navbtn:hover{transform:scale(1.12);background:var(--gold)}
+.navbtn.prev{inset-inline-start:14px}
+.navbtn.next{inset-inline-end:14px}
+.strip .track{display:flex;gap:14px;overflow-x:auto;padding:6px 20px 18px;
+  scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;
+  /* الانسياب: تمريرٌ ناعم لأزرار الأسهم، وزخمٌ بالإصبع على iOS، و
+     `overscroll-behavior` كي لا يجرّ السحبُ الأفقيُّ الصفحةَ كلها معه. */
+  scroll-behavior:smooth;-webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain}
 .strip .track::-webkit-scrollbar{display:none}
-.dish{flex:0 0 clamp(150px,42vw,210px);scroll-snap-align:center;
-  border-radius:var(--r-md);overflow:hidden;position:relative;
-  background:var(--n800);box-shadow:0 10px 26px rgba(5,13,28,.18);
-  transition:transform .22s ease}
-.dish:hover{transform:translateY(-4px)}
-.dish img{width:100%;height:clamp(150px,42vw,210px);object-fit:cover;display:block}
+.dish{flex:0 0 clamp(228px,68vw,320px);scroll-snap-align:center;
+  border-radius:var(--r-lg);overflow:hidden;position:relative;
+  background:var(--n800);box-shadow:0 14px 34px rgba(11,25,53,.20);
+  transition:transform .45s cubic-bezier(.2,.8,.2,1),
+             box-shadow .45s cubic-bezier(.2,.8,.2,1)}
+.dish:hover{transform:translateY(-7px);box-shadow:0 22px 48px rgba(11,25,53,.30)}
+/* الصورة تكبر داخل إطارها لا معه: البطاقة ترتفع والصورة تقترب، فيُحسّ
+   العمق. `overflow:hidden` على البطاقة يقصّ الزيادة فلا تزحف على جارتها. */
+.dish img{width:100%;height:clamp(200px,58vw,270px);object-fit:cover;display:block;
+  transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.dish:hover img{transform:scale(1.08)}
 /* الشريط الكحلي أسفل الصورة يحمل الاسم — نصٌّ فوق صورةٍ مباشرةً يختفي
    على الأطباق الفاتحة مهما ثقّلنا خطّه. */
-.dish b{display:block;background:var(--n800);color:#fff;font-size:.86rem;
-  font-weight:800;padding:9px 11px;border-top:2px solid var(--gold)}
+.dish b{display:block;background:var(--n800);color:#fff;font-size:.95rem;
+  font-weight:700;padding:12px 14px;border-top:2px solid var(--gold)}
 /* حافّتان متلاشيتان: علامةُ «تابع السحب» بلا شريط تمرير يشوّه التصميم. */
 .strip::before,.strip::after{content:'';position:absolute;inset-block:0;width:34px;
   pointer-events:none;z-index:2}
@@ -420,15 +459,16 @@ section.dark .tear path{fill:var(--n700)}
      (وهو مقصود — يقول إن وراءه المزيد) وبدايتُه على الشبكة. */
   .strip .track{padding-inline:max(20px, calc((100% - 1060px) / 2 + 20px))}
   .strip::before,.strip::after{display:none}
+  /* بالفأرة لا يوجد إصبعٌ يسحب: زرّان يدفعان الصفّ بطاقةً بطاقة —
+     و`scroll-behavior:smooth` أعلاه هو ما يجعل الدفعة تنزلق لا تقفز. */
+  .navbtn{display:grid}
 }
 
 @media(min-width:760px){
-  .hero{padding-top:64px;
-    background-image:
-      radial-gradient(120% 80% at 78% -8%, rgba(19,44,86,.55) 0%, transparent 58%),
-      linear-gradient(180deg, rgba(5,13,28,.26) 0%, rgba(5,13,28,.70) 55%, var(--n900) 100%),
-      url('images/city-night.jpg');
-    background-position:50% 40%}
+  .hero::after{background:
+      radial-gradient(120% 80% at 78% -8%, rgba(36,64,125,.5) 0%, transparent 58%),
+      linear-gradient(180deg, rgba(11,25,53,.20) 0%, rgba(11,25,53,.60) 55%, var(--n900) 100%)}
+  .heroimg{background-image:url('images/city-night.jpg');background-position:50% 40%}
   .hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center}
   .glass{margin-top:0}
   .trust .wrap{grid-template-columns:repeat(2,1fr)}
@@ -467,6 +507,7 @@ section.dark .tear path{fill:var(--n700)}
 
 <!-- ═══════════ البطل ═══════════ -->
 <section class="hero" id="home">
+  <div class="heroimg" aria-hidden="true"></div>
   <div class="wrap">
     <div>
       <div class="pill"><span class="dot"></span>
@@ -562,6 +603,8 @@ section.dark .tear path{fill:var(--n700)}
     <p class="lead" data-i18n="taste.lead">أصنافٌ تصلك ساخنة كما خرجت من المطبخ — اسحب لترى المزيد.</p>
   </div>
   <div class="strip">
+    <button class="navbtn prev" type="button" data-slide="-1" aria-label="السابق">‹</button>
+    <button class="navbtn next" type="button" data-slide="1" aria-label="التالي">›</button>
     <div class="track">
         <figure class="dish"><img src="images/food-burger.jpg" alt="برجر" loading="lazy" width="720" height="576"><b>برجر</b></figure>
         <figure class="dish"><img src="images/food-ramen.jpg" alt="رامن" loading="lazy" width="720" height="576"><b>رامن</b></figure>
@@ -713,6 +756,18 @@ try { const saved = localStorage.getItem('zadgo-lang'); if (saved && saved !== '
 
    **للفتح للجمهور: بدّل السطر التالي إلى false وادفع. لا شيء غيره.**
    ============================================================ */
+/* دفعة الأسهم بمقدار بطاقةٍ وفجوة، والاتجاه يُقلب في العربية تلقائياً
+   لأن `scrollLeft` سالبٌ في RTL في المتصفحات الحديثة. */
+document.querySelectorAll('.navbtn').forEach((b) => {
+  b.addEventListener('click', () => {
+    const t = document.querySelector('.strip .track');
+    const card = t.querySelector('.dish');
+    const step = card ? card.getBoundingClientRect().width + 14 : 260;
+    const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
+    t.scrollBy({ left: step * Number(b.dataset.slide) * (rtl ? -1 : 1), behavior: 'smooth' });
+  });
+});
+
 const TRIAL_MODE = true;
 if (TRIAL_MODE) {
   document.querySelectorAll('.order-tab, .cta[href="/order/"]').forEach((el) => el.remove());
