@@ -117,10 +117,19 @@ function lum(rgb) {
              * الفقرة. فيُستثنى ما كان داخل `p`/`li` ولم يكن وحده فيها —
              * وإلا صار الفحص يُنذر على كل مقالٍ في الموقع فيُهمَل. */
             const inlineInText = e => {
-              const par = e.closest('p,li,figcaption,td');
-              if (!par) return false;
-              const txt = (par.textContent || '').trim();
+              /* قائمةُ وسومٍ ثابتة (p,li,td) كانت تُنذر كذباً على رابطٍ
+                 داخل جملةٍ في `div` — وهي حالةٌ شائعة. فالمعيار الآن
+                 **الكتلة الأقرب أياً كان وسمها**: إن كان حولها نصٌّ
+                 آخر فالرابط سطريّ ومستثنى بنصّ WCAG 2.5.8. */
               const own = (e.textContent || '').trim();
+              let par = e.parentElement;
+              while (par && par !== document.body) {
+                const d = getComputedStyle(par).display;
+                if (d !== 'inline' && d !== 'contents') break;
+                par = par.parentElement;
+              }
+              if (!par || par === document.body) return false;
+              const txt = (par.textContent || '').trim();
               return txt.length > own.length + 3;   // حوله نصٌّ آخر = سطريّ
             };
             const small = [...document.querySelectorAll('a,button,select,input,[role=button]')]

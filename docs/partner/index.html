@@ -90,7 +90,7 @@ h2 span { color: var(--gold); }
   background: var(--ok); color: #06301a; border: 0; border-radius: 14px; padding: 16px;
   font-weight: 900; font-size: 1.05rem; cursor: pointer; margin-top: 6px; }
 .send:hover { filter: brightness(1.07); }
-.alt { display: block; text-align: center; margin-top: 13px; color: var(--muted); font-size: .9rem; }
+.alt { display: block; text-align: center; margin-top: 13px; color: var(--muted); font-size: .9rem;  display: inline-flex; align-items: center; min-height: 44px; }
 
 .preview { background: rgba(0,0,0,.3); border: 1px dashed var(--line); border-radius: 13px;
   padding: 14px 16px; margin-top: 16px; font-size: .87rem; color: var(--muted);
@@ -107,6 +107,7 @@ h2 span { color: var(--gold); }
 footer { border-top: 1px solid var(--line); padding: 26px 18px 40px; text-align: center;
   color: var(--muted); font-size: .85rem; }
 footer nav { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 12px; }
+footer nav a { min-block-size: 44px; display: inline-flex; align-items: center; }
 footer a { text-decoration: none; }
 </style>
 </head>
@@ -224,6 +225,7 @@ footer a { text-decoration: none; }
   <nav>
     <a href="/" data-i18n="nav.home">الرئيسية</a>
     <a href="/contact.html" data-i18n="nav.contact">التواصل والدعم</a>
+      <a href="mailto:info@zadgo.co" dir="ltr">info@zadgo.co</a>
     <a href="/terms.html" data-i18n="nav.terms">الشروط والأحكام</a>
     <a href="/privacy-policy.html" data-i18n="nav.privacy">سياسة الخصوصية</a>
   </nav>

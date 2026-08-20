@@ -262,9 +262,14 @@ header{position:sticky;top:0;z-index:50;background:var(--n900);
 #langpop button small{color:#9FB3D4;font-size:.8rem}
 
 /* ══════════════ البطل — أربع طبقاتٍ ثلاثٌ منها بصفر بايت ══════════════ */
-.hero{background:var(--n900);color:#fff;min-block-size:82svh;
+/* الارتفاع والحشو معاً يصنعان شريطين: أعلى للمدينة وحدها، وأسفل للنصّ.
+   طلب المالك أن تبقى الأبراج بلا كتابةٍ فوقها وأن يُملأ الفراغ تحت
+   الأزرار — فرُفع الارتفاع (الزيادة كلها تذهب للصورة فوق النصّ) وقُلّم
+   الحشو السفلي إلى نحو نصفه (النصّ ينزل فيسدّ الفراغ). البديل المرفوض:
+   تصغير العنوان — فيُقرأ الوعدُ أضعفَ، والمشكلة مساحةٌ لا حجمُ خطّ. */
+.hero{background:var(--n900);color:#fff;min-block-size:92svh;
   display:grid;align-content:end;isolation:isolate;overflow:clip;
-  padding-block:clamp(64px,11vh,120px) clamp(72px,12vh,128px)}
+  padding-block:clamp(48px,8vh,110px) clamp(40px,5.5vh,80px)}
 
 /* ١ — السماء: قبّة ضوء المدينة + وهج الأفق + عمود الليل. */
 .sky{position:absolute;inset:0;z-index:-5;background:
@@ -364,7 +369,7 @@ section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
 
 /* ══════════════ الأبواب ══════════════ */
 .doors{background:var(--n800);color:var(--on-navy-2)}
-.dgrid{display:grid;gap:14px;margin-block-start:26px;
+.dgrid{display:grid;gap:14px;margin-block-start:26px;perspective:1000px;
   grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
 /* العتبة المتشكّلة: الباب يتمدّد فعلاً تحت الإصبع.
    `grid-template-rows` هو **الاستثناء الوحيد المرخَّص** للحركة على خاصيةٍ
@@ -372,9 +377,12 @@ section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
 .door{position:relative;display:block;background:rgba(255,255,255,.05);
   border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 18px;
   overflow:hidden;transition:border-color var(--t-micro) var(--e-glide),
-    background-color var(--t-micro) var(--e-glide),transform var(--t-press) var(--e-tap)}
+    background-color var(--t-micro) var(--e-glide),scale var(--t-press) var(--e-tap)}
 .door:hover,.door:focus-within{border-color:rgba(255,193,7,.55);background:rgba(255,255,255,.08)}
-.door:active{transform:scale(.99)}
+/* ضغطةُ الإصبع على `scale` لا على `transform`: حركةُ الفتح أدناه تُنهي
+   نفسها على `transform:none` وتبقى مطبَّقة (`both`)، فلو كانت الضغطة
+   `transform` لابتلعتها الحركة ومات ردُّ الفعل تحت الإصبع. */
+.door:active{scale:.99}
 .door .top{display:flex;align-items:center;gap:12px}
 .door .k{inline-size:54px;block-size:54px;flex:0 0 54px;border-radius:50%;
   overflow:hidden;border:1.5px solid rgba(255,193,7,.4)}
@@ -393,6 +401,26 @@ section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
 /* على اللمس لا `hover`: الوصف يبقى مفتوحاً دائماً — لا يُخفى محتوى
    خلف تفاعلٍ لا يملكه الجهاز. */
 @media (hover:none){ .door .more{grid-template-rows:1fr} }
+
+/* ══════════════ الشهيّة — شريط الطعام ══════════════ */
+.taste{background:var(--n900)}
+.trail{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(146px,1fr);
+  gap:10px;margin-block-start:22px;padding-inline:var(--gutter);
+  overflow-x:auto;overscroll-behavior-inline:contain;
+  scroll-snap-type:inline mandatory;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(to left,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%);
+          mask-image:linear-gradient(to left,transparent 0,#000 26px,#000 calc(100% - 26px),transparent 100%)}
+.trail::-webkit-scrollbar{display:none}
+.trail li{scroll-snap-align:center;aspect-ratio:1;border-radius:var(--r-md);
+  overflow:clip;border:1px solid var(--line);background:var(--n900)}
+.trail img{inline-size:100%;block-size:100%;object-fit:cover;
+  transition:transform var(--t-morph) var(--e-glide)}
+.trail li:hover img{transform:scale(1.05)}
+
+/* لوحة الكباتن */
+.rshot{display:block;margin-block-start:24px;border-radius:var(--r-lg);
+  overflow:clip;border:1px solid var(--rule-l)}
+.rshot img{inline-size:100%;aspect-ratio:720/340;object-fit:cover}
 
 /* ══════════════ المطبخ — صورٌ حقيقية ══════════════ */
 /* على الجوّال **شريطٌ أفقي** لا رصفٌ رأسي: ثلاث صورٍ مربّعة فوق بعضها
@@ -556,6 +584,18 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
   @keyframes rise{
     from{opacity:.35;transform:translate3d(0,18px,0)}
     to  {opacity:1;transform:none}}
+  /* الأبواب **تُفتح**: مفصلها على حافة القراءة (يمين في العربية، يسار
+     في اللاتينية) فتدور نحو القارئ ثم تستوي. طلبها المالك حركةً عند
+     التمرير، والدوران يقول «باب» بينما الارتفاع يقول «بطاقة». */
+  .door.reveal{animation-name:dooropen;transform-origin:100% 50%}
+  :root[dir=ltr] .door.reveal{transform-origin:0 50%}
+  @keyframes dooropen{
+    from{opacity:.4;transform:translate3d(0,16px,0) rotateY(-15deg)}
+    to  {opacity:1;transform:none}}
+  :root[dir=ltr] .door.reveal{animation-name:dooropen-ltr}
+  @keyframes dooropen-ltr{
+    from{opacity:.4;transform:translate3d(0,16px,0) rotateY(15deg)}
+    to  {opacity:1;transform:none}}
   /* المصابيح تنساب بسرعتين مختلفتين = عمقٌ بالمنظور */
   @media (prefers-reduced-motion:no-preference){
     .lamps{animation:driftY linear both;animation-timeline:scroll(root);animation-range:0 60vh}
@@ -596,10 +636,13 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
 
 @media(min-width:760px){
   :root{--pad-sec:56px;--pad-sell:96px}
+  .trail{grid-auto-flow:row;grid-template-columns:repeat(5,1fr);overflow:visible;
+    inline-size:min(var(--wrap),100% - var(--gutter)*2);margin-inline:auto;
+    padding-inline:0;-webkit-mask-image:none;mask-image:none}
   .kgrid{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible;
     margin-inline:0;padding-inline:0}
   .kcard{flex:none}
-  .hero{padding-block:clamp(72px,13vh,140px) clamp(80px,14vh,150px)}
+  .hero{padding-block:clamp(56px,9vh,130px) clamp(48px,6.5vh,92px)}
   .nwrap{grid-template-columns:1.05fr .95fr;align-items:center}
   .rgrid{grid-template-columns:repeat(3,1fr)}
   .pcard{display:grid;grid-template-columns:.92fr 1.08fr}
@@ -687,7 +730,7 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
     </p>
     <h1 id="h-hero" data-i18n="hero.h1">مطاعمك… <span class="gold-word">أقرب لك</span></h1>
     <p class="honest" data-i18n="hero.honest">السعر الذي تراه هو الذي تدفعه.</p>
-    <p class="where"  data-i18n="hero.where">نبدأ من حيٍّ واحد في المدينة المنورة، ونتوسّع حيّاً حيّاً.</p>
+    <p class="where"  data-i18n="hero.where">نقطة انطلاقنا من المدينة المنورة إلى باقي المعمورة.</p>
     <div class="ctas">
       <a class="btn gold" href="/partner/" data-i18n="partners.cta">ضمّ مطعمك الآن</a>
       <a class="btn edge" href="/join/"    data-i18n="riders.cta">انضم كابتناً الآن</a>
@@ -742,13 +785,77 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
     </div>
   </div>
 </section>
+
+<!-- ═══════════ ٢ب · الشهيّة — شريط الطعام ═══════════
+     على الكحلي لا على الورق: الطعام المضاء يتوهّج على الداكن ويبهت على
+     الأبيض، وهذه هي القاعدة في مواقع الطعام كلها. وبلا `reveal` على
+     البلاطات: `overflow-x:auto` يصنع حاوية تمرير تُجمّد جدول التمرير
+     الزمني — وقعتُ في هذا الفخّ مرّتين، فالبلاطات تظهر مرسومةً كاملة. -->
+<section class="dark taste" id="taste" aria-labelledby="h-taste">
+  <div class="wrap">
+    <h2 id="h-taste" data-i18n="taste.h2">ما <em>تشتهيه</em> — يصلك</h2>
+    <p class="lead" data-i18n="taste.lead">تصفّح مطاعم حيّك واطلب، والسعر أمامك قبل أن تضغط: الوجبة والتوصيل، بلا بندٍ يظهر عند الدفع.</p>
+  </div>
+  <ul class="trail" role="list">
+      <li><picture>
+        <source srcset="images/taste-1.avif" type="image/avif">
+        <source srcset="images/taste-1.webp" type="image/webp">
+        <img src="images/taste-1.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-2.avif" type="image/avif">
+        <source srcset="images/taste-2.webp" type="image/webp">
+        <img src="images/taste-2.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-3.avif" type="image/avif">
+        <source srcset="images/taste-3.webp" type="image/webp">
+        <img src="images/taste-3.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-4.avif" type="image/avif">
+        <source srcset="images/taste-4.webp" type="image/webp">
+        <img src="images/taste-4.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-5.avif" type="image/avif">
+        <source srcset="images/taste-5.webp" type="image/webp">
+        <img src="images/taste-5.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-6.avif" type="image/avif">
+        <source srcset="images/taste-6.webp" type="image/webp">
+        <img src="images/taste-6.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-7.avif" type="image/avif">
+        <source srcset="images/taste-7.webp" type="image/webp">
+        <img src="images/taste-7.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-8.avif" type="image/avif">
+        <source srcset="images/taste-8.webp" type="image/webp">
+        <img src="images/taste-8.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-9.avif" type="image/avif">
+        <source srcset="images/taste-9.webp" type="image/webp">
+        <img src="images/taste-9.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+      <li><picture>
+        <source srcset="images/taste-10.avif" type="image/avif">
+        <source srcset="images/taste-10.webp" type="image/webp">
+        <img src="images/taste-10.jpg" alt="" width="400" height="400" loading="lazy" decoding="async">
+      </picture></li>
+  </ul>
+</section>
 <svg class="horizon" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
 
 <!-- ═══════════ ٣ · المطبخ — صورٌ حقيقية ═══════════ -->
 <section class="light" id="kitchen" aria-labelledby="h-kitchen">
   <div class="wrap">
     <h2 id="h-kitchen" data-i18n="kitchen.h2">ما تراه <em>هو ما يصلك</em></h2>
-    <p class="lead" data-i18n="kitchen.lead">صورٌ حقيقية من مطابخ شركائنا وبأسعارهم هم — لا صور مخزون ولا سعرٌ يتغيّر عند الدفع.</p>
+    <p class="lead" data-i18n="kitchen.lead">صور الأصناف في التطبيق من مطابخ شركائنا أنفسهم وبأسعارهم هم — ولا سعرٌ يتغيّر عند الدفع.</p>
     <div class="kgrid">
       <figure class="kcard reveal" style="--i:0">
         <picture>
@@ -876,6 +983,13 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
 <section class="light riders sell" id="riders" aria-labelledby="h-riders">
   <div class="wrap">
     <h2 id="h-riders" data-i18n="riders.h2">للكباتن — <em>دخلٌ مرن بشروط عادلة</em></h2>
+    <!-- لوحةٌ تُقابل صورة المطبخ في قسم المطاعم: لكل طرفٍ صورته، فلا
+         يُقرأ قسمُ الكباتن نصّاً أفقرَ من قسم الشركاء. -->
+    <picture class="rshot">
+      <source srcset="images/road-wide.avif" type="image/avif">
+      <source srcset="images/road-wide.webp" type="image/webp">
+      <img src="images/road-wide.jpg" alt="" width="720" height="340" loading="lazy" decoding="async">
+    </picture>
     <div class="rgrid">
       <div class="rcard reveal" style="--i:0"><h3 data-i18n="r1.t">أرباح واضحة</h3>
         <p data-i18n="r1.d">نصيبك من كل توصيلة معروفٌ قبل أن تقبلها — ومحفظةٌ ترصد كل ريال.</p></div>
@@ -929,6 +1043,7 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
       <a href="/app/" data-i18n="nav.app">تطبيق المطعم</a>
       <a href="#" data-feedback data-i18n="say.open">اقترح علينا</a>
       <a href="contact.html" data-i18n="nav.contact">التواصل والدعم</a>
+      <a href="mailto:info@zadgo.co" dir="ltr">info@zadgo.co</a>
     </nav>
     <div class="legal">
       <a href="privacy-policy.html" data-i18n="nav.privacy">سياسة الخصوصية</a>

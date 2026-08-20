@@ -658,6 +658,10 @@
       sel = document.createElement('select');
       sel.id = 'langSel';
       sel.setAttribute('aria-label', 'Language');
+      // هدف لمسٍ ٤٤px: المنتقى يُبنى هنا بلا أنماط في صفحاتٍ لا CSS
+      // فيها له، فيرث ارتفاع المتصفّح الافتراضي (٣٣px) ويسقط تحت الحدّ.
+      sel.style.minHeight = '44px';
+      sel.style.padding = '0 10px';
       ORDER.forEach(function (l) {
         var o = document.createElement('option');
         o.value = l; o.textContent = NAMES[l];
