@@ -996,11 +996,16 @@ class FirebaseService {
       'rejectionReason': reason.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
       'statusChangedAt': FieldValue.serverTimestamp(),
+      // رفض المطعم إنهاءٌ للطلب بلا خدمة فيُعاد ما خُصم من المحفظة —
+      // لكن **ليس من هذا الجهاز**: هذه الدالة تعمل على جهاز المطعم،
+      // والقواعد تمنعه — بحق — من زيادة رصيد عميل، فكان نداء الاسترداد
+      // المباشر هنا يُرفض ويضيع الرصيد بصمت (فحص السلوك 2026-08-20 —
+      // نفس داء الإلغاء الذاتي الذي عولج 2026-08-15 ولم يُنقل علاجه).
+      // الختم walletRefundPending يُظهره في بطاقة «ردود محفظة معلّقة»
+      // برئيسة الإدارة فيصرفه المدير بضغطة.
+      if (current.walletUsed > 0) 'walletRefundPending': true,
     });
 
-    // رفض المطعم إنهاءٌ للطلب بلا خدمة، فيُعاد للعميل ما خُصم من محفظته تماماً
-    // كالإلغاء — وإلا خسر رصيده بسبب رفضٍ لا ذنب له فيه.
-    await _refundWalletOnCancel(current);
     await _releaseOrderDriver(current);
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
@@ -1497,6 +1502,86 @@ class FirebaseService {
     return (await _freeStuckDrivers(online)).length;
   }
 
+  /// كنس الطلبات العالقة — يعمل من لوحة المتابعة لحظة فتحها (نمط «أقصى
+  /// ما يمكن بلا خادم» نفسه الذي يعتمده صرف الحوافز والمصالحة).
+  /// عطلان كشفهما فحص السلوك 2026-08-20 وكلاهما كان بلا أي مخرج:
+  ///
+  /// **١) العرض الميت**: عرضُ الإسناد التلقائي مهلته ٤٥ ثانية تعدّ على
+  /// جهاز الكابتن وحده — فإن مات جهازه لحظتها بقي الطلب معلّقاً عليه
+  /// للأبد (driverAcknowledged=false) والكابتن محجوزاً «غير متاح».
+  /// هنا: كل عرضٍ مرّت عليه ٣ دقائق (المهلة + هامش أعطال سخيّ كي لا
+  /// نسابق عدّاداً حياً) يُحرَّر كابتنُه ويُعاد ترشيح الطلب فوراً من
+  /// هذا الجهاز. **قصداً لا يمسّ الإسناد اليدوي** (حالته driverAssigned
+  /// — قد يكون المدير أسند كابتناً غير متصل عمداً بعد مهاتفته).
+  ///
+  /// **٢) الطلب المتجاهَل**: طلبٌ لم يردّ عليه المطعم أطول من ضعف مهلة
+  /// التنبيه (restaurantResponseTimeoutMinutes×٢، وبحد أدنى ١٠ دقائق —
+  /// الضعف يترك للتنبيه الأصفر فرصة معالجة يدوية قبل البتر) يُلغى
+  /// بالمسار الإداري الكامل: استرداد المحفظة مباشرةً (هذا الجهاز مدير)،
+  /// تحرير الكوبون والكابتن، وإشعار العميل — بدل انتظارٍ بلا نهاية
+  /// يقتل ثقته من أول طلب.
+  Future<({int reclaimedOffers, int cancelledIgnored})>
+      reconcileStuckOrders() async {
+    var reclaimed = 0, cancelled = 0;
+    try {
+      final now = DateTime.now();
+      final cfg = await getDeliverySettings();
+      final alertMin =
+          (cfg['restaurantResponseTimeoutMinutes'] as num?)?.toInt() ?? 5;
+      final cancelAfter = Duration(
+          minutes: (alertMin * 2) < 10 ? 10 : (alertMin * 2));
+      final snap = await _orders
+          .orderBy('createdAt', descending: true)
+          .limit(300)
+          .get();
+      for (final doc in snap.docs) {
+        final o = models.Order.fromMap(doc.data(), doc.id);
+        final age =
+            now.difference(o.statusChangedAt ?? o.updatedAt ?? o.createdAt);
+        final offerAge = now.difference(o.updatedAt ?? o.createdAt);
+
+        if (o.status == models.OrderStatus.searchingDriver &&
+            o.hasPendingOffer &&
+            offerAge > const Duration(minutes: 3)) {
+          try {
+            final deadDriverId = o.driverId!;
+            await _orders.doc(o.id).update({
+              'driverId': null,
+              'driverName': null,
+              'driverPhone': null,
+              'driverAcknowledged': true,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            await _drivers
+                .doc(deadDriverId)
+                .update({'isAvailable': true});
+            reclaimed++;
+            logAdminAction('order.reclaimOffer',
+                'استرجاع عرض ميت للطلب #${o.orderNumber} وإعادة ترشيحه',
+                extra: {'orderId': o.id});
+            final fresh = await getOrderOnce(o.id);
+            if (fresh != null) await autoAssignNearestDriver(fresh);
+          } catch (_) {
+            // فشل استرجاع طلبٍ لا يوقف كنس البقية.
+          }
+        } else if (o.status == models.OrderStatus.restaurantPending &&
+            age > cancelAfter) {
+          try {
+            await cancelOrder(o.id);
+            cancelled++;
+            logAdminAction('order.autoCancelIgnored',
+                'إلغاء تلقائي لطلب #${o.orderNumber} تجاهله المطعم '
+                '${age.inMinutes} دقيقة',
+                extra: {'orderId': o.id});
+          } catch (_) {}
+        }
+      }
+    } catch (_) {
+      // الكنس تحسين لا شرط لعمل اللوحة.
+    }
+    return (reclaimedOffers: reclaimed, cancelledIgnored: cancelled);
+  }
+
   /// تحرير سائق طلبٍ انتهى قبل أوانه (إلغاء/رفض) — الوقاية التي تُغني عن
   /// المصالحة أعلاه: يُستدعى في كل مسار إنهاء لا يمرّ بالتسليم.
   Future<void> _releaseOrderDriver(models.Order order) async {
@@ -1886,6 +1971,51 @@ class FirebaseService {
       performedBy: _auth.currentUser?.uid ?? '',
       createdAt: DateTime.now(),
     ).toMap());
+  }
+
+  /// دفتر مطعمٍ كامل التاريخ — قراءة واحدة لكل طلباته وتسوياته معاً.
+  ///
+  /// **بلا سقف عمداً** (فحص السلوك 2026-08-20): كان «المتبقي» يُحسب من
+  /// صافي أحدث ٢٠٠ طلب مقابل مدفوعاتٍ كاملةِ التاريخ — طرفا معادلة من
+  /// عمرين مختلفين، فينحرف الدفتر فور تجاوز الـ٢٠٠ ويهدم ثقة التسوية.
+  /// حجم مطعم واحد محتملٌ في مرحلة الإطلاق (get لا تدفّق حي)؛ وحين يكبر
+  /// التاريخ فالحل رصيدٌ جارٍ مخزَّن يحدّثه الخادم (المسار د).
+  Future<
+      ({
+        double meals,
+        double commission,
+        double compensations,
+        double chargebacks,
+        double paid,
+        int deliveredCount,
+      })> restaurantLedgerBalance(String restaurantId) async {
+    final ordersSnap =
+        await _orders.where('restaurantId', isEqualTo: restaurantId).get();
+    double meals = 0, commission = 0, comp = 0, charge = 0;
+    var delivered = 0;
+    for (final d in ordersSnap.docs) {
+      final o = models.Order.fromMap(d.data(), d.id);
+      if (o.status == models.OrderStatus.delivered) {
+        meals += o.itemsTotal;
+        commission += o.effectiveCommission;
+        delivered++;
+      }
+      comp += o.restaurantCompensation;
+      charge += o.restaurantChargeback;
+    }
+    final setSnap = await _restaurantSettlements
+        .where('restaurantId', isEqualTo: restaurantId)
+        .get();
+    final paid = setSnap.docs.fold(
+        0.0, (s, d) => s + ((d.data()['amount'] as num?)?.toDouble() ?? 0));
+    return (
+      meals: meals,
+      commission: commission,
+      compensations: comp,
+      chargebacks: charge,
+      paid: paid,
+      deliveredCount: delivered,
+    );
   }
 
   /// تسويات مطعم واحد، الأحدث أولاً (ترتيب محلي — لا فهرس مركّب).

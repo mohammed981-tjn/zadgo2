@@ -329,12 +329,22 @@ async function handleNotify(request, env) {
   if (!order) return fail(404, 'الطلب غير موجود');
 
   // ٣) المُبلِّغ طرف في الطلب؟ — الحارس الذي يمنع إشعاراً عن طلب الغير.
+  //
+  // استثناء «تمرير العرض» (إصلاح فحص السلوك 2026-08-20): حين يرفض
+  // كابتنٌ عرضاً يمرّره **جهازُه هو** للكابتن التالي ثم يُبلغ بحدث
+  // assigned — لكن لحظة الإبلاغ صار driverId للتالي، فالرافض «ليس
+  // طرفاً» ويُرفض 403 في **كل** تمرير: البديل لا يُشعَر أبداً والطلب
+  // الجاهز يبرد على الرف. العلاج: حدث assigned يُقبل من أي حساب
+  // بدور «كابتن» — أثره الوحيد إشعارُ الكابتن المُسنَد فعلاً في
+  // المستند بنصٍّ يبنيه الخادم، فأسوأ إساءة ممكنة إشعارُ كابتنٍ
+  // بطلبٍ مُسندٍ إليه حقاً.
   const caller = await firestoreGet(projectId, `users/${callerUid}`, saToken);
   const callerRole = caller?.role ?? '';
   const isParty =
     order.customerId === callerUid ||
     order.driverId === callerUid ||
     callerRole === 'admin' ||
+    (event === 'assigned' && callerRole === 'driver') ||
     (callerRole === 'restaurantManager' &&
       caller?.restaurantId === order.restaurantId);
   if (!isParty) return fail(403, 'لست طرفاً في هذا الطلب');

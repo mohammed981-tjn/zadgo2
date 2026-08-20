@@ -595,24 +595,40 @@ class _RestaurantReportCard extends StatelessWidget {
                 value: formatCurrency(totals.net),
                 bold: true),
             // الدفتر: المستحق ناقص ما سُلّم فعلاً — الرقم الذي يهم عند
-            // التسوية. يُحسب على كل تاريخ المطعم لا على الفترة المعروضة،
-            // فالدَّين لا يتقيّد بفلتر شاشة.
-            AppStreamBuilder<List<RestaurantSettlement>>(
-              stream: () => context
+            // التسوية. **كامل التاريخ من الطرفين** (الإنقاذ السلوكي
+            // 2026-08-20): السطر السابق كان يطرح مدفوعاتِ كل التاريخ من
+            // صافي الفترة المعروضة وحدها — «متبقٍّ» من عمرين مختلفين
+            // ينقلب سالباً وهمياً فور وجود تسوية أقدم من الفلتر.
+            FutureBuilder<
+                ({
+                  double meals,
+                  double commission,
+                  double compensations,
+                  double chargebacks,
+                  double paid,
+                  int deliveredCount,
+                })>(
+              future: context
                   .read<FirebaseService>()
-                  .streamRestaurantSettlements(restaurantId),
-              loading: const SizedBox.shrink(),
-              builder: (ctx, settlements) {
-                final paid = settlements.fold(0.0, (s, x) => s + x.amount);
-                if (paid == 0) return const SizedBox.shrink();
+                  .restaurantLedgerBalance(restaurantId),
+              builder: (ctx, snap) {
+                final led = snap.data;
+                if (led == null || led.paid == 0) {
+                  return const SizedBox.shrink();
+                }
+                final fullNet = led.meals -
+                    led.commission +
+                    led.compensations -
+                    led.chargebacks;
                 return Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Column(children: [
                     PriceRow(
-                        label: 'سُلّم للمطعم', value: '- ${formatCurrency(paid)}'),
+                        label: 'سُلّم للمطعم (كل التاريخ)',
+                        value: '- ${formatCurrency(led.paid)}'),
                     PriceRow(
-                        label: 'المتبقّي (ضمن هذا النطاق)',
-                        value: formatCurrency(totals.net - paid),
+                        label: 'المتبقّي في الدفتر (كل التاريخ)',
+                        value: formatCurrency(fullNet - led.paid),
                         bold: true),
                   ]),
                 );

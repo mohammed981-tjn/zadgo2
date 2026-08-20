@@ -387,8 +387,36 @@ service cloud.firestore {
             // لغيره صار مجرد «عرض» يملك صاحبه رفضه (driverAcknowledged).
             (resource.data.driverId == null && isDriver() &&
                 !changedKeys().hasAny(orderMoneyKeys())) ||
+            // فرع المطعم — كان «كل ما ليس مالاً» فيستطيع مطعمٌ معدَّل
+            // البرمجية ختم delivered أو انتحال أختام مراحل الكابتن
+            // (فحص السلوك 2026-08-20). الآن: مفاتيح دورته حصراً
+            // (قبول/تحضير/جاهز/إسنادٌ من جهازه/رفض/ختم تسليمه)، والحالات
+            // التي يبلغها هي حالات دورته وحدها — pickedUp/onTheWay/
+            // delivered/cancelled ليست له. وعلم ردّ الرصيد لا يُرفع إلا
+            // بشكله الحرفي: رفضٌ لطلبٍ دُفع من المحفظة فعلاً.
             (isRestaurantManagerOf(resource.data.restaurantId) &&
-                !changedKeys().hasAny(orderMoneyKeys()))
+                !changedKeys().hasAny(orderMoneyKeys()) &&
+                changedKeys().hasOnly(['status', 'updatedAt',
+                    'statusChangedAt', 'rejectionReason',
+                    'walletRefundPending', 'restaurantHandoverAt',
+                    'driverId', 'driverName', 'driverPhone',
+                    'driverAcknowledged']) &&
+                (!changedKeys().hasAny(['status']) ||
+                    request.resource.data.status in ['restaurantAccepted',
+                        'preparing', 'readyForPickup', 'searchingDriver',
+                        'driverAssigned', 'noDriverFound',
+                        'restaurantRejected']) &&
+                (!changedKeys().hasAny(['walletRefundPending']) ||
+                    (request.resource.data.walletRefundPending == true &&
+                        request.resource.data.status == 'restaurantRejected' &&
+                        resource.data.get('walletUsed', 0) > 0)) &&
+                // ختم التسليم لا يُصطنع قبل أوانه: يقع والطلب «جاهز
+                // للاستلام» أو بعدها (سباق ضغطة الكابتن المشروع)، لا
+                // على طلبٍ ما زال يُطبخ.
+                (!changedKeys().hasAny(['restaurantHandoverAt']) ||
+                    resource.data.status in ['readyForPickup',
+                        'searchingDriver', 'driverAssigned', 'pickedUp',
+                        'onTheWay']))
           );
       allow delete: if isAdmin();
     }

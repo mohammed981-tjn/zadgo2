@@ -103,6 +103,22 @@ class _OrderTrackingTabState extends State<OrderTrackingTab> {
     } catch (_) {
       // المصالحة تحسينٌ لا شرط لعمل الشاشة.
     }
+    // كنس الطلبات العالقة (الإنقاذ السلوكي 2026-08-20): عروضٌ ميتة تُسترجع
+    // ويعاد ترشيحها، وطلباتٌ تجاهلها المطعم طويلاً تُلغى وتُردّ أموالها —
+    // التفصيل والمُهل في تعليق reconcileStuckOrders.
+    try {
+      final swept = await service.reconcileStuckOrders();
+      if (mounted &&
+          (swept.reclaimedOffers > 0 || swept.cancelledIgnored > 0)) {
+        final parts = <String>[
+          if (swept.reclaimedOffers > 0)
+            'أُعيد ترشيح ${swept.reclaimedOffers} طلب كان عرضه معلّقاً على جهاز ميت',
+          if (swept.cancelledIgnored > 0)
+            'أُلغي ${swept.cancelledIgnored} طلب تجاهله مطعمه ورُدّت أمواله',
+        ];
+        showSuccess(context, parts.join(' · '));
+      }
+    } catch (_) {}
   }
 
   /// يحوّل آلياً أي طلب "جاري البحث عن سائق" تجاوز مهلة البحث دون أن يقبله
