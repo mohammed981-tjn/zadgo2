@@ -110,6 +110,8 @@ nav.bottom .badge { position: absolute; top: 4px; inset-inline-end: 22%; backgro
   font-size: .88rem; font-weight: 600; margin-bottom: 12px; }
 .ok { background: var(--success-bg); color: #067a4d; border-radius: 11px; padding: 11px 13px;
   font-size: .88rem; font-weight: 600; margin-bottom: 12px; }
+.note { background: #FFF6E0; color: #7A5A00; border: 1px solid #F0DCA6; border-radius: 11px;
+  padding: 11px 13px; font-size: .86rem; font-weight: 600; margin: 0 0 12px; }
 .empty { text-align: center; padding: 56px 20px; color: var(--muted); }
 .empty .big { font-size: 3.4rem; margin-bottom: 10px; }
 .empty h3 { color: var(--text); font-size: 1.05rem; margin-bottom: 6px; }
@@ -526,6 +528,11 @@ const S = {
   unsubOrders: null,
   addr: { text: '', lat: null, lng: null, auto: '', suggest: null, geoFailed: false },
   busy: false,
+  /* ملصق المطعم يحمل `?r=<معرّف المطعم>`: يُقرأ مرّةً عند الإقلاع ويُستهلك
+   * بعد وصول قائمة المطاعم. حُفظ في الحالة لا في المتغيّر العام كي لا
+   * يُعاد فتح المطعم كلما أُعيد تحميل القائمة والعميل قد خرج منه بإرادته. */
+  deepResto: new URLSearchParams(location.search).get('r') || null,
+  deepMiss: false,       // ملصقٌ يشير إلى مطعمٍ لم يعد موجوداً
 };
 
 /* السلة تعيش في المتصفح: من أضاف صنفاً ثم حدّث الصفحة لا يبدأ من الصفر. */
@@ -739,6 +746,13 @@ async function loadRestaurants() {
     S.restaurants = [];
   }
   S.loadingRestaurants = false;
+  if (S.deepResto) {
+    const id = S.deepResto; S.deepResto = null;
+    if (S.restaurants.some((r) => r.id === id)) { openResto(id); return; }
+    // ملصقٌ مطبوعٌ يبقى على الجدار بعد أن يترك المطعمُ المنصّة: نُنزل
+    // العميل على القائمة ونقول له لماذا، بدل شاشةٍ فارغة يظنّها عطلاً.
+    S.deepMiss = true;
+  }
   if (S.page === 'home') render();
 }
 
@@ -800,6 +814,8 @@ function viewHome() {
     return;
   }
   $('main').innerHTML = `
+    ${S.deepMiss ? `<div class="note">المطعم الذي يشير إليه الملصق لم يعد متاحاً على المنصّة.
+      هذه بقيّة مطاعمنا.</div>` : ''}
     <div class="searchbar">
       <input type="search" id="q" placeholder="ابحث عن مطعم…" value="${esc(S.q || '')}">
       <div class="filters">${FILTERS.map(([k, l]) =>

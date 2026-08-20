@@ -698,7 +698,11 @@ function navHtml() {
    * بين شاشات اللوحة، ورابطٌ يخرج منها بينها يُربك. */
   + '<div class="nav-sep"></div>'
   + '<a class="nav-btn" href="/guide/admin/" target="_blank" rel="noopener">'
-  + '<span class="ico">📖</span><span>دليل الإدارة</span></a>';
+  + '<span class="ico">📖</span><span>دليل الإدارة</span></a>'
+  /* ملصق الرمز أداةُ طباعةٍ لا شاشةَ إدارة: مكانه هنا لأن المدير هو من
+   * يطبعه للمطاعم، ويُفتح في تبويبٍ جديد للسبب نفسه — الطباعة تستغرق. */
+  + '<a class="nav-btn" href="/poster/" target="_blank" rel="noopener">'
+  + '<span class="ico">🖨️</span><span>ملصق الرمز</span></a>';
 }
 function renderNav() {
   $('sideNav').innerHTML = navHtml();
