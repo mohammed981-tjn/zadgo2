@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#13224A">
+  <meta name="theme-color" content="#0B1935">
   <!-- سياسة المحتوى: `form-action 'none'` لأن الصفحة بلا نموذج أصلاً — فأي
        نموذج يظهر فيها يوماً هو نموذجٌ لم نكتبه نحن، ومنعُه قبل وجوده أرخص
        من اكتشافه بعده. و`frame-ancestors` مذكور للتوثيق (لا أثر له في وسم
@@ -15,11 +15,11 @@
   <!-- بطاقة المشاركة: أول ما يراه من تصله وصلة الموقع في واتساب — وهو قناة
        التسويق الفعلية للمنصة. الرابط مطلق عمداً: قارئات البطاقات لا تحلّ
        المسارات النسبية. -->
-  <meta name="description" content="زادقو ZadGo — منصة توصيل سعودية: اطلب من مطاعمك القريبة وتابع طلبك لحظة بلحظة حتى باب بيتك.">
+  <meta name="description" content="زادقو ZadGo — منصة توصيل سعودية في المدينة المنورة: السعر الذي تراه هو الذي تدفعه، وفاتورتك ثلاثة بنود بلا رابع.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="ZadGo زادقو">
   <meta property="og:title" content="زادقو ZadGo — مطاعمك… أقرب لك">
-  <meta property="og:description" content="منصة توصيل سعودية: اطلب من مطاعمك القريبة وتابع طلبك لحظة بلحظة حتى باب بيتك.">
+  <meta property="og:description" content="منصة توصيل سعودية: السعر الذي تراه هو الذي تدفعه، وفاتورتك ثلاثة بنود بلا رابع.">
   <meta property="og:url" content="https://zadgo.co/">
   <meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
   <meta property="og:image:width" content="1200">
@@ -29,12 +29,21 @@
   <meta name="twitter:image" content="https://zadgo.co/images/og-card.jpg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;700;800&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
+  <!-- ══════ طلب الخطوط — ثلاثة تغييرات مقيسة ══════
+       ١. `Alexandria:wght@100..900` بدل أربعة أوزان مفردة: العائلة **متغيّرة**،
+          والأوزان الأربعة كانت تشير إلى الملف نفسه بالحجم نفسه، لكن إعلان كل
+          وزنٍ منفصلاً يقفل المحور. المدى **بصفر بايت إضافي** ويفتح ٨٠٠ درجة.
+       ٢. `IBM Plex Sans Arabic:wght@400;700` بدل أربعة: العائلة **ثابتة**، فكل
+          وزنٍ ملفٌّ كامل — أربعة = ١٧٣ ك.ب، اثنان ≈ ٨٥ ك.ب. **−٨٧ ك.ب**.
+       ٣. حُذف `Noto Sans Bengali` و`Noto Nastaliq Urdu` من هنا: النستعليق وحده
+          ٢٣٣ ك.ب في طلبٍ حاجب **لكل زائرٍ عربي** لم يطلب الأردية. يُحقنان عند
+          اختيار اللغة (home.js) — وهي السياسة التي كتبها المشروع لنفسه في
+          `lang.js` وكانت الرئيسية وحدها تخالفها. **−٢٩٠ ك.ب** للزائر العربي. -->
+  <link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@100..900&family=IBM+Plex+Sans+Arabic:wght@400;700&display=swap" rel="stylesheet">
   <link rel="canonical" href="https://zadgo.co/">
   <title>ZadGo — زادقو | توصيل طلبات المدينة المنورة</title>
   <!-- بيانات منظَّمة: تُخبر جوجل **ماذا** نحن لا نصّاً يقرؤه فحسب — الاسم
-       والنشاط ومدينة الخدمة وقنوات التواصل. بها يظهر الاسم الصحيح ووسائل
-       الاتصال في نتيجة البحث بدل سطرٍ مقتطع من الصفحة.
+       والنشاط ومدينة الخدمة وقنوات التواصل.
        نوع Organization لا LocalBusiness: لا مقرّ يزوره العملاء، والمنصّة
        تخدم مدينةً لا عنواناً بعينه — وادّعاء عنوانٍ لا وجود له يُضرّ. -->
   <script type="application/ld+json">
@@ -46,7 +55,7 @@
     "url": "https://zadgo.co/",
     "logo": "https://zadgo.co/images/zadgo-logo-gold.png",
     "image": "https://zadgo.co/images/og-card.jpg",
-    "description": "منصة توصيل سعودية في المدينة المنورة: اطلب من مطاعمك القريبة وتابع طلبك لحظة بلحظة حتى باب بيتك.",
+    "description": "منصة توصيل سعودية في المدينة المنورة: السعر الذي تراه هو الذي تدفعه، وفاتورتك ثلاثة بنود بلا رابع.",
     "areaServed": { "@type": "City", "name": "المدينة المنورة" },
     "address": { "@type": "PostalAddress", "addressCountry": "SA", "addressRegion": "منطقة المدينة المنورة" },
     "contactPoint": [{
@@ -59,746 +68,876 @@
   }
   </script>
   <style>
-/* ══════════════════════════════════════════════════════════════
-   الهوية: **الكحلي × الذهبي × الأبيض** — عودةٌ إلى هوية زادقو
-   الأصلية بأمر المالك (2026-08-20).
+/* ══════════════════════════════════════════════════════════════════════
+   «ليلُ المدينة» — الهوية: الكحلي × الذهبي × الأبيض.
 
-   ولماذا الكحلي تحديداً يخدمنا؟ لأن السوق كلّه مضيءٌ صارخ: هنقرستيشن
-   أصفر ساطع على أبيض، وكيتا وجاهز أحمر على أبيض. من يفتح ثلاثتها
-   لا يفرّق بينها إلا بالشعار. والكحلي في هذه الساحة **لا يملكه أحد** —
-   وهو فوق ذلك لون الوقت الذي يُطلَب فيه الطعام فعلاً: الليل. فالصفحة
-   ليلُ المدينة، والذهب ضوءُ المحلّ فيه.
+   ولماذا الكحلي يخدمنا تجارياً؟ الساحة كلّها مضيئةٌ صارخة (هنقرستيشن أصفر
+   ساطع، وكيتا وجاهز أحمر، وكلّها على أبيض) — فمن فتح ثلاثتها لا يفرّق
+   بينها إلا بالشعار. والكحلي في هذه الساحة **لا يملكه أحد**، وهو فوق ذلك
+   لون الوقت الذي يُطلب فيه الطعام فعلاً: الليل.
 
-   الذهب مأخوذٌ من الشعار نفسه لا مخترعاً: #FFC107 هو لون «Go» فيه
-   حرفاً بحرف (قِيس من الملف)، فلا تفترق الصفحة عن العلامة درجةً.
-
-   والأبيض هو أرضية الأقسام الفاتحة صافياً، والبطاقات عليه بزرقةٍ
-   خفيفة (--mist) — لا رمليّاً كما كان: الرملي يخدم الأخضر ويُوحل
-   الكحلي.
-
-   وبنيتها تمريرٌ متصل لا شرائح بملء الشاشة: الشريحة الواحدة كانت
-   تُفرد شاشةً كاملة لسطرين، فيبدو كل قسمٍ خاوياً مهما جوّدنا نصّه.
+   وقاعدة الذوق الحاكمة في هذا الملف كلّه:
+   ► **الذهب مصدر ضوء لا مساحة.** يظهر نقطةً ووهجاً وخطّاً، لا خلفيةً.
+   ► **الذهب نصّاً على الكحلي وحده** — على الورق يكون خطّاً أو حدّاً أو
+     نقطة، والتمييز بالوزن لا باللون. (`#FFC107` على أبيض = ١٫٧:١،
+     و`#E0A800` = ٢٫١٥:١ — كلاهما ساقطٌ نظاماً، وكان يصيب نصف كل عنوان
+     في الأقسام الفاتحة.)
+   ► **الحالة النهائية هي الأساس**: لا `opacity:0` خارج `@keyframes`، ولا
+     كشفٌ يبدأ من الصفر. `@supports` يفحص النحو لا الواقع — لا يعرف هل
+     الجدول الزمني نشط. وفشلُه **صامتٌ تماماً**: عنصرٌ مفقود بلا خطأ.
 
    ⚠️ التطبيق ما زال أخضر (AppColors في lib/utils/theme.dart) — رُفع
    الأمر لمساعد التطبيق في `dev-docs/identity-navy-handoff.md`.
-   ══════════════════════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════════════════ */
 :root{
+  /* ── الهوية (اعتمدها المالك بعد جولتَي تصحيح — لا تُغيَّر) ── */
   --n900:#0B1935; --n800:#13224A; --n700:#1A2E5E; --n600:#24407D;
   --gold:#FFC107; --gold-lt:#FFD65A; --gold-dk:#E0A800;
   --paper:#FFFFFF; --mist:#F4F7FC; --ink:#0A1A33;
-  --line:rgba(255,255,255,.13); --line-l:#E3E9F3;
-  --r-lg:26px; --r-md:20px;
+
+  /* ── نصٌّ مشتقّ: كل قيمةٍ مقيسة على أرضيتها لا مقدَّرة ── */
+  --on-navy-1:#FFFFFF;   /* 17.4:1 على n900 */
+  --on-navy-2:#EAF1FD;   /* 15.4:1 */
+  --on-navy-3:#C9D6EE;   /* 11.9:1 */
+  --on-navy-4:#B9C7E2;   /*  9.9:1 — أخفض المسموح على الكحلي */
+  --on-paper-1:#0A1A33;  /* 17.9:1 */
+  --on-paper-2:#2A3B57;  /* 10.4:1 */
+  --on-paper-3:#4A5C7A;  /*  6.4:1 — أخفض المسموح على الورق */
+
+  --line:rgba(255,255,255,.13); --line-l:#E3E9F3; --rule-l:#DDE4F0;
+
+  /* ── الشبكة والمسافات (أساس 4px) ── */
+  --wrap:1060px; --gutter:clamp(16px,4vw,28px);
+  /* الفراغ أقوى أداة هرمية بعد الحجم — لكنه يُقاس بالشاشة لا بالمسطرة:
+     ٥٦px على جوّالٍ ارتفاعه ٧٤٠ ليست ٥٦px على شاشةٍ ارتفاعها ٩٠٠. */
+  --pad-sec:40px; --pad-sell:56px;
+
+  --r-xs:8px; --r-sm:12px; --r-md:20px; --r-lg:26px; --r-pill:999px;
+
+  /* ── الظلال: ثابتة أبداً. تحريك `box-shadow` يُرسم على المعالج لا كرت
+        الرسوم — وهو أغلى حركةٍ في الصفحة القديمة. ── */
+  --sh-1:0 2px 8px rgba(6,16,36,.10);
+  --sh-2:0 14px 34px rgba(6,16,36,.14);
+  --sh-gold:0 0 12px 2px rgba(255,193,7,.55);
+
+  /* ── ثلاثة منحنيات لا أكثر. وكل ما يقوده التمرير: linear حصراً،
+        لأن التمرير نفسه هو التوقيت. ── */
+  --e-glide:cubic-bezier(.22,.9,.28,1);
+  --e-tap:cubic-bezier(.34,1.2,.64,1);
+  --e-morph:cubic-bezier(.65,0,.35,1);
+  --t-press:140ms; --t-micro:240ms; --t-morph:420ms; --t-draw:850ms;
+
+  /* ── سلّم المقاسات ── */
+  --fs-h1:clamp(2.05rem,8.2vw,3.6rem);
+  --fs-h2:clamp(1.55rem,5.4vw,2.25rem);
+  --fs-h3:clamp(1.05rem,3.6vw,1.2rem);
+  --fs-lead:clamp(1rem,3.4vw,1.12rem);
+  --fs-meta:.95rem;                    /* الأرضية المطلقة — لا أصغر منها */
+  --fs-fig:clamp(1.6rem,7vw,2.6rem);
+
+  /* ── متغيّر إشارةٍ واحد يُنهي كل استثناء اتجاهٍ يدوي ── */
+  --rtl:1;
 }
+:root[dir=ltr]{--rtl:-1}
+
 *{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
-/* ══════════════ الطباعة ══════════════
-   خطّان لا خطٌّ واحد، ولكلٍّ عمله:
-
-   • **Alexandria** للعناوين — خطٌّ عربيٌّ معاصر بأوزانٍ حتى ٩٠٠، حروفه
-     مفتوحة وعريضة فتحمل العنوان الكبير بثقة. (كان الموقع كلّه «تجوّال»:
-     خطٌّ سليم لكنه خطُّ آلاف المواقع العربية، فلا يميّز علامةً عن أخرى.)
-   • **IBM Plex Sans Arabic** للنصّ — صُمّم للقراءة الطويلة على الشاشة:
-     فتحاتٌ واسعة وتمييزٌ واضح بين المتشابهات، فلا يتعب العين.
-
-   وأهمّ من اختيار الخط: **لا تباعد سالب بين الحروف في العربية**. كان
-   `letter-spacing:-.5px` على العنوان — والعربية حروفٌ متّصلة، فالتضييق
-   يخنق الوصلات ويجعل الكلمة تبدو «مطبوخة». حُذف. */
-body,button,select,input,textarea{font-family:'IBM Plex Sans Arabic','Tajawal',Tahoma,sans-serif}
-h1,h2,h3,.name,.btn,.dish b,.step b,.door b{font-family:'Alexandria','IBM Plex Sans Arabic',Tahoma,sans-serif}
-/* العربية لا تُضيَّق أبداً؛ واللاتينية في العناوين تُضبط قليلاً وحدها. */
-h1,h2,h3{letter-spacing:0}
-body{background:var(--mist);color:var(--ink);line-height:1.9;
-  -webkit-text-size-adjust:100%}
-/* **`clip` لا `hidden`** — تقسيةٌ لا إصلاح عطب:
- * `overflow-x:hidden` يجعل العنصر **حاوية تمرير**، ومقياس `view()` يقيس
- * مداه على أقرب حاويةِ تمرير — فيصير `body` (وهو لا يتمرّر) مرجعَ القياس
- * بدل الشاشة. لم يظهر من ذلك عطبٌ مرئي اليوم (فُحص: صفر عنصرٍ مخفيّ وهو
- * في الشاشة، قبل التغيير وبعده)، لكنه فخٌّ مفتوح لكل حركةٍ مدفوعة بالتمرير
- * تُضاف لاحقاً. و`clip` يقصّ الزيادة الأفقية بلا أن يصنع حاوية تمرير. */
-html{overflow-x:clip}
+/* `clip` لا `hidden`: الثاني يجعل العنصر **حاوية تمرير**، فيقيس `view()`
+   مداه عليه بدل الشاشة — فخٌّ مفتوح لكل حركةٍ مدفوعة بالتمرير. */
+html{overflow-x:clip;scroll-behavior:smooth}
 @supports not (overflow-x:clip){ html{overflow-x:hidden} }
-/* لكل لغة حرفها: البنغالية والأردية لا تُرسمان بحروف تجوال */
-body.lang-bn,body.lang-bn button,body.lang-bn select,
+
+/* احتياطيٌّ محليّ بمقاييس Plex — أخطر مصدر انزياحٍ في صفحة عربية هو تبديل
+   الخطّ بعد الرسم، فتُضبط مقاييس البديل لتطابقه تقريباً. */
+@font-face{font-family:'Plex Fallback';src:local('Tahoma');
+  size-adjust:96%;ascent-override:96%;descent-override:26%;line-gap-override:0%}
+
+body{font-family:'IBM Plex Sans Arabic','Plex Fallback','Noto Naskh Arabic',Tahoma,sans-serif;
+  font-weight:400;font-size:16px;line-height:1.75;
+  /* التباعد الحرفي ممنوعٌ في العربية (يكسر الوصل)، **والتباعد بين الكلمات
+     مسموحٌ ومهمَل** — رافعة إيقاعٍ بصفر بايت وصفر مخاطرة. */
+  word-spacing:.045em;letter-spacing:0;
+  background:var(--mist);color:var(--on-paper-1);
+  -webkit-text-size-adjust:100%}
+body.lang-ar{font-size:17px}   /* المحرف العربي يبدو أصغر بالمقاس نفسه */
+
+/* لكل لغة حرفها. الخطّان يُحقنان عند اختيار لغتهما لا قبلها. */
+body.lang-bn,body.lang-bn button,body.lang-bn input,
 body.lang-bn h1,body.lang-bn h2,body.lang-bn h3{font-family:'Noto Sans Bengali','IBM Plex Sans Arabic',sans-serif}
-body.lang-ur,body.lang-ur button,body.lang-ur select,
+body.lang-ur,body.lang-ur button,body.lang-ur input,
 body.lang-ur h1,body.lang-ur h2,body.lang-ur h3{font-family:'Noto Nastaliq Urdu','IBM Plex Sans Arabic',sans-serif}
-/* النستعليق خطٌّ عالي القامة — سطور أرحب وإلا تلامست حروفه */
-body.lang-ur h1{line-height:1.9}
-body.lang-ur h2{line-height:1.9}
-body.lang-ur p,body.lang-ur li,body.lang-ur .gc b{line-height:2.3}
-img{max-width:100%;display:block}
-a{text-decoration:none}
-.wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+body.lang-ur h1,body.lang-ur h2{line-height:1.9}
+body.lang-ur p,body.lang-ur li{line-height:2.3}   /* النستعليق يحتاجها فعلاً */
 
-/* ───────── الترويسة ───────── */
-header{position:sticky;top:0;z-index:50;background:rgba(11,25,53,.88);
-  backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
-.hrow{display:flex;align-items:center;gap:10px;padding:12px 0}
-.hrow .logo{height:26px;width:auto}
-.hrow nav{margin-inline-start:auto;display:flex;align-items:center;gap:7px}
-#langSel{background:rgba(255,255,255,.08);color:#fff;border:1px solid var(--line);
-  border-radius:999px;padding:7px 11px;font-size:.8rem;font-weight:700;cursor:pointer}
-#langSel option{background:#1A2E5E;color:#fff}
-.btn{display:inline-block;border-radius:999px;padding:11px 22px;font-weight:800;
-  font-size:.94rem;border:0;cursor:pointer;transition:transform .18s ease}
-.btn:active{transform:scale(.97)}
-.btn.gold{background:linear-gradient(160deg,var(--gold-lt),var(--gold));color:var(--n900);
-  box-shadow:0 8px 22px rgba(255,193,7,.34)}
-.btn.ghost{background:rgba(255,255,255,.07);color:#fff;border:1px solid var(--line)}
-.btn.sm{padding:8px 15px;font-size:.82rem}
-.btn.light{background:#fff;color:var(--n700);border:1px solid var(--line-l)}
-/* الترويسة تتّسع لزرّين لا لثلاثة: إضافة الثالث على جوّالٍ ضيّق كانت
-   تعصر «ضمّ مطعمك الآن» حتى يلتفّ ثلاثة أسطر ويصير دائرة، ويُقصّ الشعار.
-   فيُخفى زرّ التطبيق هنا وحده — وله موضعان أظهر منه: زرٌّ كامل في قسم
-   المطاعم ورابطٌ في شريط الأدلّة. */
-@media (max-width:640px){ .hrow nav .btn.ghost[href="/app/"]{display:none} }
-.hrow nav{flex-wrap:nowrap}
-.hrow nav .btn{white-space:nowrap}
+/* **قاعدة مُلزِمة بعد تقليص الخطوط**: لا يحمل أي عنصرٍ بخطّ النصّ (Plex)
+   وزناً غير 400 أو 700 — فالعائلة ثابتة الأوزان ولم نطلب سواهما. وأي وزنٍ
+   آخر عليها يُصطنع برمجياً فتُشوَّه وصلات الحروف العربية. الأوزان 800 و900
+   مقصورةٌ على عناصر Alexandria وحدها (وهي متغيّرة فتحملها بصفر بايت). */
+h1,h2,h3,.btn,.fig{font-family:'Alexandria','IBM Plex Sans Arabic',Tahoma,sans-serif}
+h1{font-weight:800;font-size:var(--fs-h1);line-height:1.28;word-spacing:.02em}
+h2{font-weight:700;font-size:var(--fs-h2);line-height:1.34}
+h3{font-weight:700;font-size:var(--fs-h3);line-height:1.42}
+h1,h2,h3{letter-spacing:0;text-wrap:balance}
+p,li{line-height:1.75;text-wrap:pretty}
+/* `block-size:auto` ليست تجميلاً: سمتا `width`/`height` على الوسم تحجزان
+   المساحة قبل التحميل (فلا انزياح)، لكنهما تثبّتان الارتفاع أيضاً —
+   و`aspect-ratio` لا تعمل إلا إذا كان أحد البعدين `auto`. بدونها خرجت
+   بطاقة الطعام ٨٣٤px بدل ٣٠٠ (مقيسة). */
+img{max-width:100%;display:block;block-size:auto}
+/* `<picture>` عنصرٌ **سطريّ** افتراضاً، فينكمش على العرض الأصلي للصورة
+   ولا تُحلّ `inline-size:100%` داخله على عرض البطاقة — فخرجت بطاقة الطعام
+   ٨٣٤px بدل ٣٠٠ (مقيسة). سطرٌ واحد يُنهيه. */
+picture{display:block}
+a{color:inherit;text-decoration:none}
+ul{list-style:none}
 
-/* ───────── البطل ───────── */
-/* صورتان لا واحدة: الأصل **عرضية** (16:9) ووسطها خالٍ عمداً، فبطلٌ طويل
- * على الجوّال يقتصّ الوسط الفارغ بـ`cover` — فتختفي الصورة تماماً ويظهر
- * أخضر مسطّح (بلاغ المالك من جوّاله). النسخة العمودية قصّةٌ من يسار
- * الأصل حيث الأطباق والشوك، فتُرى على الشاشة الضيّقة.
- * والحجاب أخفّ في أعلاه: كان يبتلع ما بقي من الصورة. */
-.hero{position:relative;color:#fff;padding:clamp(58px,11vh,104px) 0 0;overflow:hidden;
-  background:var(--n900)}
-.heroimg{position:absolute;inset:-5%;z-index:0;
-  background:url('images/city-night-portrait.jpg') 50% 46%/cover no-repeat;
-  animation:drift 28s ease-in-out infinite alternate;will-change:transform}
-@keyframes drift{
-  from{transform:scale(1.05) translate3d(0,0,0)}
-  to  {transform:scale(1.16) translate3d(0,-2%,0)}}
-.hero::after{content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:
-    radial-gradient(120% 80% at 78% -8%, rgba(36,64,125,.5) 0%, transparent 58%),
-    linear-gradient(180deg, rgba(11,25,53,.16) 0%, rgba(11,25,53,.54) 40%, var(--n900) 97%)}
-.hero .trust{position:relative;z-index:2}
-.hero::before{content:'';position:absolute;inset:0;z-index:1;opacity:.3;pointer-events:none;
-  background-image:radial-gradient(rgba(255,193,7,.18) 1px, transparent 1px);
-  background-size:26px 26px}
-.hero .wrap{position:relative;z-index:2}
-.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,193,7,.13);
-  border:1px solid rgba(255,193,7,.42);color:var(--gold-lt);border-radius:999px;
-  padding:6px 14px;font-size:.79rem;font-weight:800;margin-bottom:18px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex:0 0 7px;
-  box-shadow:0 0 0 0 rgba(255,193,7,.6);animation:p 2.2s infinite}
-@keyframes p{70%{box-shadow:0 0 0 9px rgba(255,193,7,0)}100%{box-shadow:0 0 0 0 rgba(255,193,7,0)}}
-/* سطرٌ أرحب للعربية: نقاطها فوق السطر وتحته، والسطر الضيّق يجعلها تتلامس. */
-h1{font-size:clamp(1.95rem,8vw,3.35rem);font-weight:800;line-height:1.42}
-h1 span{color:var(--gold)}
-.honest{margin-top:18px;font-size:clamp(.95rem,3.6vw,1.1rem);font-weight:700;
-  color:#E7EEFA;border-inline-start:4px solid var(--gold);padding-inline-start:13px}
-.hero p.sub{margin-top:18px;color:rgba(255,255,255,.76);font-size:1rem;line-height:1.95;max-width:32em}
-.ctas{display:flex;gap:11px;flex-wrap:wrap;margin-top:26px}
+/* ── التركيز: لم تكن في الصفحة قاعدةٌ واحدة (مخالفة WCAG 2.4.7) ── */
+:focus-visible{outline:3px solid var(--gold-lt);outline-offset:3px;border-radius:inherit}
+.btn.gold:focus-visible{outline-color:var(--n900)}    /* الأصفر على الأصفر لا يُرى */
+section.light :focus-visible{outline-color:var(--n600)}
+.skip{position:absolute;inset-inline-start:-9999px;top:0;z-index:99;
+  background:var(--gold);color:var(--n900);padding:12px 18px;font-weight:700;
+  border-end-end-radius:var(--r-sm)}
+.skip:focus{inset-inline-start:0}
 
-/* الشرائح تعِد بـ**شفافية السعر** لا بمعادلته: نشرُ «٩ ر.س لأول ٧ كم وريال
- * لكل كيلو» على صفحة عامة يقيّدنا بتسعيرةٍ قد تتغيّر ويدعو المنافس لتسعيرٍ
- * تحتنا بريال. والمعيار العالمي (دور داش نصّاً: «لا رسوم خفية ولا مفاجآت
- * عند الدفع… ترى ما ستدفعه قبل أن تؤكّد») يَعِد بالوضوح لا بالرقم —
- * والرقم يراه العميل في سلّته حين يصير معلوماً. */
-.glass{margin-top:30px;display:grid;gap:11px}
-.gc{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);
-  border-radius:var(--r-md);padding:14px 16px;backdrop-filter:blur(10px);
-  display:flex;align-items:center;gap:13px}
-.gc .ic{width:44px;height:44px;border-radius:14px;flex:0 0 44px;display:grid;
-  place-items:center;font-size:1.3rem;background:rgba(255,193,7,.15);
-  border:1px solid rgba(255,193,7,.36)}
-.gc b{display:block;font-size:.97rem}
-.gc span{color:rgba(255,255,255,.68);font-size:.83rem;display:block}
+.wrap{width:min(var(--wrap),100% - var(--gutter)*2);margin-inline:auto}
+.lead{font-size:var(--fs-lead);line-height:1.85;max-inline-size:34ch;margin-top:10px}
+section{padding-block:var(--pad-sec);position:relative}
+section.dark{background:var(--n900);color:var(--on-navy-2)}
+section.dark h2{color:var(--on-navy-1)}
+section.dark .lead{color:var(--on-navy-3)}
+section.light{background:var(--paper);color:var(--on-paper-1)}
+section.light .lead{color:var(--on-paper-2)}
 
-/* شريط الثقة */
-.trust{background:var(--n900);border-top:1px solid var(--line);padding:16px 0}
-.trust .wrap{display:grid;grid-template-columns:1fr;gap:11px}
-.t-item{display:flex;gap:9px;align-items:flex-start;color:#DAE3F2;font-size:.82rem;
-  font-weight:600;line-height:1.6}
-.t-item i{font-style:normal;font-size:1.05rem;color:var(--gold);flex:0 0 auto}
-
-/* ───────── الأقسام ───────── */
-section.light{padding:56px 0}
-section.dark{background:linear-gradient(170deg,var(--n700),var(--n900));color:#fff;
-  padding:56px 0;position:relative;overflow:hidden}
-section.dark.road{background-image:
-  linear-gradient(180deg, rgba(11,25,53,.86) 0%, rgba(19,34,74,.58) 48%, rgba(11,25,53,.92) 100%),
-  url('images/road-night.jpg');
-  background-size:cover;background-position:50% 88%}
-/* بطاقات القسم الداكن زجاجيةٌ لا بيضاء: البيضاء تثقب الليل وتُفقد الصورة. */
-section.dark.road .feat{background:rgba(255,255,255,.07);border-color:var(--line);
-  box-shadow:none}
-section.dark.road .feat b{color:#fff}
-section.dark.road .feat p{color:rgba(255,255,255,.74)}
-section.dark.road .feat .ic{background:rgba(255,193,7,.14);border-color:rgba(255,193,7,.34)}
-section.dark.amb{background-image:
-  linear-gradient(180deg, rgba(26,46,94,.90), rgba(11,25,53,.97)), url('images/bg-dining.jpg');
-  background-size:cover;background-position:center}
-h2{font-size:clamp(1.5rem,5.4vw,2.15rem);font-weight:800;line-height:1.5;color:var(--n700)}
-h2 span{color:var(--gold-dk)}
-section.dark h2{color:#fff}
-section.dark h2 span{color:var(--gold)}
-.lead{color:#5A6A85;margin-top:12px;font-size:1rem;line-height:1.95;max-width:34em}
-section.dark .lead{color:rgba(255,255,255,.72)}
-
-/* خطوات */
-.steps{margin-top:30px;display:grid;gap:14px}
-.step{background:var(--paper);border:1px solid var(--line-l);
-  box-shadow:0 2px 12px rgba(26,46,94,.05);border-radius:var(--r-lg);padding:20px;
-  position:relative;overflow:hidden}
-.step .n{font-size:3.4rem;font-weight:900;color:var(--mist);line-height:1;
-  position:absolute;top:6px;inset-inline-end:16px}
-.step b{display:block;font-size:1.08rem;color:var(--n700);position:relative}
-.step p{color:#5A6A85;font-size:.92rem;margin-top:5px;position:relative}
-
-/* ميزات */
-.feats{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.feat{background:var(--paper);border:1px solid var(--line-l);border-radius:var(--r-md);
-  padding:16px;box-shadow:0 2px 12px rgba(26,46,94,.05)}
-.feat .ic{width:42px;height:42px;border-radius:13px;background:var(--mist);border:1px solid var(--line-l);
-  display:grid;place-items:center;font-size:1.25rem;margin-bottom:10px}
-.feat b{display:block;font-size:.95rem;color:var(--n700)}
-.feat p{color:#63728C;font-size:.83rem;margin-top:3px;line-height:1.6}
-.feat.wide{grid-column:1 / -1}
-.feat.wide p{font-size:.88rem}
-
-/* قيم */
-.values{margin-top:26px;display:grid;gap:12px}
-.value{background:rgba(255,255,255,.06);border:1px solid var(--line);
-  border-radius:var(--r-md);padding:16px 18px;display:flex;gap:12px;align-items:flex-start}
-.value i{font-style:normal;font-size:1.3rem;flex:0 0 auto}
-.value p{color:rgba(255,255,255,.82);font-size:.9rem}
-.value b{color:var(--gold-lt)}
-
-/* بطاقة شريك */
-.pcard{margin-top:24px;background:#fff;border-radius:var(--r-lg);overflow:hidden;
-  box-shadow:0 18px 44px rgba(0,0,0,.28)}
-.pcard img{height:180px;width:100%;object-fit:cover}
-.pcard .in{padding:20px}
-.pcard .in > p{color:#5A6A85;font-size:.92rem}
-.pcard .in > p b{color:var(--n700)}
-.pcard ul{list-style:none;margin:14px 0 16px}
-.pcard li{color:#5A6A85;font-size:.9rem;padding:5px 0;display:flex;gap:8px;align-items:flex-start}
-.pcard li::before{content:'✓';color:var(--gold-dk);font-weight:900;flex:0 0 auto}
-
-/* أدلة */
-.guides{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
-.guides a{background:rgba(255,255,255,.07);border:1px solid var(--line);color:#fff;
-  border-radius:999px;padding:10px 17px;font-size:.86rem;font-weight:700}
-
-/* التذييل */
-footer{background:var(--n900);color:rgba(255,255,255,.6);padding:38px 0 46px;
-  text-align:center;border-top:1px solid var(--line)}
-footer img{height:30px;margin:0 auto 14px}
-footer nav{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
-footer nav a{color:rgba(255,255,255,.75);font-size:.84rem;
-  border:1px solid var(--line);border-radius:999px;padding:6px 13px}
-footer .cr{font-size:.8rem}
-
-
-/* ══════════════ لمساتُ الهوية ══════════════
-   ثلاثة موتيفات مشتقّة من العلامة نفسها لا مضافة إليها:
-
-   ١. **قصّة الفاتورة** — حافة مسنّنة كحافة الإيصال الممزّق عند انتقال
-      الأخضر إلى الكريمي. أنسب موتيف لعلامةٍ وعدُها الأول «فاتورة مفصّلة
-      بلا رسوم خفية»: الشكل يقول ما يقوله النص.
-   ٢. **خطوط السرعة** — الشعار نفسه ينتهي بخطوط اندفاع خلف «Go»؛ تتكرّر
-      شريطاً مائلاً يفصل الأقسام، فتصير حركةُ الشعار لغةً بصرية للصفحة.
-   ٣. **الذهب متدرّجاً لا مسطّحاً** على كلمات التمييز — يعطي المعدن عمقاً
-      كما في الشعار المطبوع.
-   ══════════════════════════════════════════ */
-.tear{display:block;width:100%;height:22px;margin-bottom:-1px}
-section.dark .tear path{fill:var(--n700)}
-.doors .tear{margin-bottom:-44px}
-
-.streak{height:14px;overflow:hidden;position:relative;background:var(--mist)}
-.streak::before{content:'';position:absolute;inset:0;opacity:.5;
-  background:repeating-linear-gradient(112deg,
-    var(--gold) 0 3px, transparent 3px 9px,
-    var(--gold-lt) 9px 11px, transparent 11px 26px)}
-
-/* الذهب المتدرّج — على الداكن وحده: على الكريمي يخفت التباين، فيبقى
- * هناك الذهبُ الغامق المصمت. */
-.hero h1 span, section.dark h2 span{
-  background:linear-gradient(100deg,var(--gold-lt) 0%,var(--gold) 52%,#FFE9A8 100%);
+/* ── قاعدة الذهب ──
+   على الكحلي: تدرّجٌ ذهبيّ مسموح (10.7:1).
+   على الورق : الوزن يميّز، والذهب خطٌّ زخرفيّ تحت الكلمة لا لونُ نصّ. */
+section.dark h2 em{font-style:normal;background:linear-gradient(100deg,
+  var(--gold-lt),var(--gold) 52%,#FFE9A8);
   -webkit-background-clip:text;background-clip:text;color:transparent}
+section.light h2 em{font-style:normal;font-weight:900;color:var(--on-paper-1);
+  position:relative;display:inline-block}
+section.light h2 em::after{content:'';position:absolute;inset-inline:0;bottom:-.1em;
+  block-size:.09em;border-radius:99px;background:var(--gold)}
 
-/* ظهورٌ بالتمرير — مدعوم في المتصفحات الحديثة، وما لا يدعمه يعرض
- * المحتوى كاملاً بلا حركة (تدرّجٌ لطيف لا كسر). */
-@supports (animation-timeline: view()){
-  /* الظهور بالتمرير: مدىً أطول قليلاً وحركةٌ تجمع الإزاحة إلى تكبيرٍ
-     ضئيل — العنصر يقترب لا ينزلق فحسب، فيُحسّ الظهور طبيعياً. */
-  .reveal{animation:rise both;animation-timeline:view();
-    animation-range:entry 0% cover 32%}
-  @keyframes rise{
-    from{opacity:0;transform:translateY(26px) scale(.985)}
-    to  {opacity:1;transform:none}}
-  /* لا ظهورَ بالتمرير للأطباق: `view(inline)` يقيس المحور الأفقي داخل
-     صندوقٍ يتمرّر أفقياً، فلا يستقرّ مداه وتبقى البطاقات على `opacity:0`
-     — صفٌّ فارغ بدل تسع صور. الحركة عندها في اللمس والاقتراب، وتكفي. */
+/* ── الأزرار ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-block-size:48px;padding:0 22px;border-radius:var(--r-pill);
+  font-weight:700;font-size:1rem;cursor:pointer;border:0;
+  transition:transform var(--t-press) var(--e-tap)}
+.btn:active{transform:scale(.975)}
+.btn.gold{background:linear-gradient(160deg,var(--gold-lt),var(--gold));color:var(--n900)}
+.btn.edge{border:1.5px solid rgba(255,255,255,.34);color:#fff;background:transparent}
+.btn.ink{border:1.5px solid var(--rule-l);color:var(--on-paper-1);background:var(--paper)}
+.btn.sm{min-block-size:44px;padding:0 16px;font-size:.92rem}
+.ctas{display:flex;gap:12px;flex-wrap:wrap;margin-block-start:30px}
+
+/* ══════════════ الترويسة ══════════════
+   بلا `backdrop-filter`: يُعيد التضبيب كل إطار، وما خلفه متحرّك — أغلى
+   بندٍ في الصفحة القديمة مقابل أثرٍ لا يكاد يُرى على أرضيةٍ مصمتة. */
+header{position:sticky;top:0;z-index:50;background:var(--n900);
+  border-block-end:1px solid var(--line)}
+.hrow{display:flex;align-items:center;gap:8px;min-block-size:56px}
+.hrow .logo{display:grid;place-items:center;min-block-size:44px;min-inline-size:44px}
+.hrow .logo img{block-size:26px;inline-size:auto}
+.hrow nav{margin-inline-start:auto;display:flex;align-items:center;gap:8px}
+.langbtn{inline-size:44px;block-size:44px;display:grid;place-items:center;
+  background:transparent;border:1px solid var(--line);border-radius:var(--r-sm);
+  color:#EAF1FD;font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
+/* منفذ اللغة: الأساس **مخفيٌّ تماماً** حيث لا `popover` — فلا تبقى قائمةٌ
+   معلّقة مكسورة وسط الصفحة على iOS الأقدم، وهو جهاز الكابتن البنغالي
+   والأردي بالضبط. والبديل هناك: الضغطة تنقلك إلى صفّ اللغات في قسم
+   الكباتن — إخفاءٌ لا كسر. */
+#langpop{display:none}
+@supports selector(:popover-open){
+  #langpop{display:revert;margin:0;inset:auto;position:fixed;
+    inset-block-start:60px;inset-inline-end:12px;
+    background:var(--n800);border:1px solid var(--line);
+    border-radius:var(--r-md);padding:8px;min-inline-size:190px;
+    box-shadow:0 18px 40px rgba(0,0,0,.45)}
+}
+#langpop button{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  inline-size:100%;min-block-size:44px;padding:0 12px;background:transparent;
+  border:0;color:#fff;font:inherit;font-size:1rem;border-radius:10px;cursor:pointer}
+#langpop button:hover{background:rgba(255,255,255,.08)}
+#langpop button small{color:#9FB3D4;font-size:.8rem}
+
+/* ══════════════ البطل — أربع طبقاتٍ ثلاثٌ منها بصفر بايت ══════════════ */
+.hero{background:var(--n900);color:#fff;min-block-size:82svh;
+  display:grid;align-content:end;isolation:isolate;overflow:clip;
+  padding-block:clamp(64px,11vh,120px) clamp(72px,12vh,128px)}
+
+/* ١ — السماء: قبّة ضوء المدينة + وهج الأفق + عمود الليل. */
+.sky{position:absolute;inset:0;z-index:-5;background:
+  radial-gradient(120% 78% at 72% -12%, #24407D 0%, rgba(36,64,125,0) 58%),
+  radial-gradient(92% 56% at 50% 106%, rgba(255,193,7,.15) 0%, rgba(255,193,7,0) 62%),
+  linear-gradient(180deg,#0B1935 0%,#13224A 54%,#0B1935 100%)}
+
+/* ٢ و٣ — حقلا المصابيح: نقطتان بحجمين وكثافتين = عمقٌ بالمنظور.
+   ولا `will-change`: ترقية طبقتين بملء البطل ترقيةٌ **دائمة** تُدفع ولا
+   تُسترد على كرت رسومٍ رخيص، والجدول الزمني للتمرير يتوقّف وحده أصلاً. */
+.lamps{position:absolute;inset:-10% 0;z-index:-4;pointer-events:none;
+  transform:translate3d(0,0,0)}
+.lamps.far {opacity:.34;--dy:-3%;
+  background-image:radial-gradient(#FFD65A 1px, transparent 1.6px);background-size:34px 34px}
+.lamps.near{opacity:.20;--dy:-9%;
+  background-image:radial-gradient(#FFC107 1.7px, transparent 2.4px);background-size:92px 92px}
+/* حارس التشريط على شاشات LCD الرخيصة: تخفيف الكثافة أولاً */
+@media (max-width:400px){
+  .lamps.far {opacity:.40;background-size:40px 40px}
+  .lamps.near{opacity:.24;background-size:104px 104px}
 }
 
-/* لمسة الضغط: البطاقة ترتفع قليلاً ويتذهّب حدّها — على اللمس تُحسّ
- * الاستجابة، وعلى الفأرة تُرى. */
-/* منحنى واحد لكل الحركة في الصفحة: بدايةٌ سريعة ونهايةٌ تهدأ
-   (`cubic-bezier(.2,.8,.2,1)`) — وهو ما يُحسّ «سلاسة» بخلاف `ease`
-   الافتراضي الذي يقف فجأة. ومدّةٌ أطول قليلاً لأن القفزة القصيرة
-   تُقرأ ارتجافاً لا حركة. */
-.step,.feat,.value,.gc,.door,.btn{
-  transition:transform .4s cubic-bezier(.2,.8,.2,1),
-             border-color .4s cubic-bezier(.2,.8,.2,1),
-             box-shadow .4s cubic-bezier(.2,.8,.2,1)}
-.step:hover,.feat:hover{transform:translateY(-5px);border-color:var(--gold);
-  box-shadow:0 16px 34px rgba(26,46,94,.16)}
-.btn:hover{transform:translateY(-2px)}
-.value:hover,.gc:hover{border-color:rgba(255,193,7,.55)}
+/* ٤ — شبكة الزاي: زاويتا ±٦٠° وهي زاوية قلم الخطّ العربي — اشتقاقٌ من
+   حرفنا لا زخرفةٌ منسوخة من قالب. */
+.mesh{position:absolute;inset:0;z-index:-3;pointer-events:none;
+  background-image:
+    repeating-linear-gradient( 60deg, rgba(255,255,255,.035) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(-60deg, rgba(255,255,255,.035) 0 1px, transparent 1px 46px);
+  -webkit-mask-image:linear-gradient(to bottom,#000 0%,transparent 62%);
+          mask-image:linear-gradient(to bottom,#000 0%,transparent 62%)}
 
-/* أرقام الخطوات ذهبيةً شفافة بدل الرملي الباهت — ورقمٌ ضخم خلف النص
- * يعطي القسم إيقاعاً بصرياً كما في صفحات المنصّات الكبرى. */
-.step .n{background:linear-gradient(160deg,var(--gold) 0%,rgba(255,193,7,.14) 85%);
-  -webkit-background-clip:text;background-clip:text;color:transparent;opacity:.5}
+/* ٥ — المدينة الليلية: **تملأ البطل**، وتذوب في السماء المرسومة أعلاها
+   فلا يظهر لها حدٌّ مستقيم يفضح أنها صورة ملصوقة. */
+.heroshot{position:absolute;inset:0;z-index:-2;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 26%,#000 100%);
+          mask-image:linear-gradient(180deg,transparent 0,#000 26%,#000 100%)}
+.heroshot img{inline-size:100%;block-size:100%;object-fit:cover;
+  object-position:50% 18%;
+  /* خفضُ الإشباع والسطوع ليس تجميلاً: النصّ الأبيض فوق مصباحٍ برتقاليّ
+     ساطع يسقط تحت ٤٫٥:١ — والحجاب وحده لا يكفي فوق أعلى نقطةٍ ضوئية. */
+  filter:saturate(.86) brightness(.82) contrast(1.05)}
 
+/* ٦ — الحجاب: يضمن 4.5:1 للنصّ فوق **أي** بكسلٍ من الصورة، ويثبّت
+   قاع البطل على الكحلي فينتقل إلى القسم التالي بلا حدّ. */
+.hero::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+  /* الظلمة حيث النصّ لا حيث المشهد: أعلى البطل يبقى مفتوحاً لتُرى
+     المدينة، ويثقل التدرّج تحت العنوان فيبلغ النصّ ٤٫٥:١ فوق أي بكسل. */
+  background:
+    linear-gradient(180deg,rgba(11,25,53,.30) 0%,rgba(11,25,53,.10) 26%,
+      rgba(11,25,53,.62) 56%,rgba(11,25,53,.93) 84%,#0B1935 100%),
+    radial-gradient(80% 46% at 50% 104%, rgba(255,193,7,.13), transparent 72%)}
 
-/* ══════════════ ثلاثُ لمساتٍ تميّزنا عن الساحة ══════════════
-   الساحة كلّها صفحةٌ بيضاء بلونٍ صارخ واحد وشعاراتِ متاجر التطبيقات.
-   وهذه ثلاثةٌ لا يفعلها أحدهم:
-   ══════════════════════════════════════════════════════════ */
+/* ٧ — ختم الزاي */
+.zay-seal{position:absolute;inset-block-start:72px;inset-inline-end:16px;
+  inline-size:88px;block-size:88px;opacity:.16;z-index:-1;
+  color:var(--gold-lt);fill:currentColor}
+@media (max-width:400px){.zay-seal{inline-size:62px;block-size:62px;opacity:.13}}
 
-/* ١) **الخيط الذهبي** — خطٌّ رفيع على حافة القراءة (يمين في العربية)
- *    يمتلئ ذهباً بمقدار ما قرأتَ من الصفحة. الفكرة من العلامة نفسها:
- *    زادقو تنقل شيئاً من نقطةٍ إلى نقطة، فليكن التمرير نفسه طريقاً
- *    يُقطع. ولا سكربت فيه إطلاقاً — CSS خالص مربوطٌ بشريط التمرير،
- *    فلا يكلّف إطاراً واحداً من الأداء.
- *    ويختفي كلياً حيث لا يُدعم: خيطٌ ذهبيٌّ ممتلئ أبداً كذبةٌ بصرية. */
-.rail{display:none}
-@supports (animation-timeline: scroll()){
-  .rail{display:block;position:fixed;inset-block:0;inset-inline-start:0;width:3px;
-    z-index:60;background:rgba(255,193,7,.13);pointer-events:none}
-  .rail i{display:block;width:100%;height:100%;transform-origin:top;transform:scaleY(0);
-    background:linear-gradient(180deg,var(--gold-lt),var(--gold) 55%,var(--gold-dk));
-    animation:railfill linear both;animation-timeline:scroll(root)}
-  @keyframes railfill{from{transform:scaleY(0)}to{transform:scaleY(1)}}
-}
+.heroin{position:relative;z-index:1}
+.eyebrow{display:flex;align-items:center;gap:9px;color:var(--on-navy-3);
+  font-size:var(--fs-meta);font-weight:700;margin-block-end:20px}
+.eyebrow .lamp{inline-size:8px;block-size:8px;border-radius:50%;flex:0 0 8px;
+  background:var(--gold);box-shadow:var(--sh-gold)}   /* ظلٌّ ثابت، لا نبض */
+.hero h1{max-inline-size:13ch}
 
-/* ٢) **خطٌّ يُرسم تحت الكلمة الذهبية** — لا يظهر جاهزاً بل يُمدّ من
- *    جهة القراءة، فتتحرّك الصفحة أول ثانية بلا صورةٍ ثقيلة ولا فيديو. */
-.hero h1 span{position:relative;display:inline-block}
-.hero h1 span::after{content:'';position:absolute;inset-inline:0;bottom:-.2em;
-  height:.055em;border-radius:99px;transform:scaleX(0);transform-origin:right;
+/* الكلمة الذهبية — على الكحلي وحده. والخطّ تحتها أساسه **النهاية**
+   (`scaleX(1)`) فلو تجمّدت الحركة بقي الخطّ مرسوماً لا مفقوداً. */
+.gold-word{display:inline-block;padding-block:.09em;position:relative;
+  background:linear-gradient(102deg,#FFD65A 0%,#FFC107 54%,#FFE9A8 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.gold-word::after{content:'';position:absolute;inset-inline:0;bottom:-.16em;
+  block-size:.055em;border-radius:99px;
   background:linear-gradient(90deg,var(--gold-dk),var(--gold-lt));
-  animation:draw .85s .4s cubic-bezier(.22,.9,.3,1) forwards}
-:root[dir="ltr"] .hero h1 span::after{transform-origin:left}
-@keyframes draw{to{transform:scaleX(1)}}
+  transform:scaleX(1);transform-origin:right;
+  animation:draw var(--t-draw) 380ms var(--e-glide) backwards}
+:root[dir=ltr] .gold-word::after{transform-origin:left}
+@keyframes draw{from{transform:scaleX(0)}}
 
-/* ٣) **الأبواب الثلاثة** — صفحاتُ المنافسين للعميل وحده، ودخولُ المطعم
- *    والكابتن سطرٌ في التذييل. ونحن منصّةُ ثلاثة أطراف فعلاً، فيصير
- *    الاختيار عنصراً أولَ في الصفحة لا حاشية: من فتح الصفحة يعرف في
- *    ثانيةٍ أين بابُه. */
-.doors{background:var(--n800);color:#fff;padding:40px 0 44px;position:relative}
-.doors::before{content:'';position:absolute;inset-inline:0;top:0;height:2px;
-  background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.7}
-.doors h2{color:#fff;font-size:clamp(1.35rem,5vw,1.9rem)}
-.doors h2 span{color:var(--gold)}
-.dgrid{display:grid;gap:12px;margin-top:20px}
-.door{display:flex;gap:13px;align-items:flex-start;padding:16px 18px;
-  border-radius:var(--r-md);background:rgba(255,255,255,.05);
-  border:1px solid var(--line);transition:transform .22s ease,border-color .22s ease}
-.door:hover{transform:translateY(-3px);border-color:rgba(255,193,7,.5)}
-.door .k{width:58px;height:58px;flex:0 0 58px;border-radius:50%;overflow:hidden;
-  display:grid;place-items:center;background:rgba(255,193,7,.14);
-  border:2px solid rgba(255,193,7,.45)}
-.door .k img{width:100%;height:100%;object-fit:cover;display:block}
-/* حلقةٌ تتوهّج عند اللمس: الصورة وجهُ إنسانٍ لا أيقونة، فتستحق إبرازاً. */
-.door:hover .k{box-shadow:0 0 0 4px rgba(255,193,7,.16)}
-.door b{display:block;font-size:1rem;color:#fff}
-.door p{color:rgba(255,255,255,.7);font-size:.85rem;margin-top:4px;line-height:1.65}
-.door em{font-style:normal;display:inline-block;margin-top:9px;color:var(--gold);
-  font-size:.83rem;font-weight:800}
-.door em::after{content:'←';margin-inline-start:6px;display:inline-block;
-  transition:transform .22s ease}
-:root[dir="ltr"] .door em::after{content:'→'}
-.door:hover em::after{transform:translateX(-4px)}
-:root[dir="ltr"] .door:hover em::after{transform:translateX(4px)}
+.honest{margin-block-start:20px;font-size:clamp(1.05rem,3.9vw,1.28rem);
+  font-weight:700;color:var(--on-navy-2);line-height:1.7;
+  border-inline-start:4px solid var(--gold);padding-inline-start:14px}
+.where{margin-block-start:14px;color:var(--on-navy-4);font-size:1rem;
+  line-height:1.8;max-inline-size:28em}
 
+/* ══════════════ الأفق الذهبي — فاصلٌ لغةً لا استثناء ══════════════
+   الموتيف القديم `.tear` كان يُستعمل مرّةً واحدة ومعه قاعدة CSS ميتة.
+   وهذا يتكرّر عند **كل** انتقال داكن↔فاتح فيصير لغةً للصفحة. */
+.horizon{display:block;inline-size:100%;block-size:26px;color:var(--gold)}
+section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
 
-/* ══════════════ شريط الشهيّة ══════════════
-   تسع صورٍ في صفحةٍ رأسية تعني تسع شاشاتٍ من التمرير — فتُقرأ الصفحة
-   طويلةً مملّة وتُترك قبل بلوغ آخرها. الحلّ الذي تفعله المنصّات الكبرى
-   (وطلبه المالك نصّاً): **الصفّ يمشي أفقيّاً**، فيأخذ ارتفاع بطاقةٍ
-   واحدة ويعرض تسعاً، ويدعو الإصبع إلى السحب.
+/* ══════════════ الأبواب ══════════════ */
+.doors{background:var(--n800);color:var(--on-navy-2)}
+.dgrid{display:grid;gap:14px;margin-block-start:26px;
+  grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+/* العتبة المتشكّلة: الباب يتمدّد فعلاً تحت الإصبع.
+   `grid-template-rows` هو **الاستثناء الوحيد المرخَّص** للحركة على خاصيةٍ
+   تُعيد التخطيط — لأنه الوحيد الذي يحرّك ارتفاعاً مجهولاً بلا رقمٍ مخمَّن. */
+.door{position:relative;display:block;background:rgba(255,255,255,.05);
+  border:1px solid var(--line);border-radius:var(--r-lg);padding:17px 18px;
+  overflow:hidden;transition:border-color var(--t-micro) var(--e-glide),
+    background-color var(--t-micro) var(--e-glide),transform var(--t-press) var(--e-tap)}
+.door:hover,.door:focus-within{border-color:rgba(255,193,7,.55);background:rgba(255,255,255,.08)}
+.door:active{transform:scale(.99)}
+.door .top{display:flex;align-items:center;gap:12px}
+.door .k{inline-size:54px;block-size:54px;flex:0 0 54px;border-radius:50%;
+  overflow:hidden;border:1.5px solid rgba(255,193,7,.4)}
+.door .k img{inline-size:100%;block-size:100%;object-fit:cover}
+.door h3{color:#fff}
+.door .more{display:grid;grid-template-rows:0fr;
+  transition:grid-template-rows var(--t-morph) var(--e-morph)}
+.door:hover .more,.door:focus-within .more{grid-template-rows:1fr}
+.door .more>div{overflow:hidden;min-block-size:0}
+.door p{color:var(--on-navy-3);font-size:var(--fs-meta);margin-block-start:12px}
+.door .go{display:inline-block;margin-block-start:12px;color:var(--gold);
+  font-weight:700;font-size:var(--fs-meta)}
+.door .seal{position:absolute;inset-block-end:-6px;inset-inline-start:-6px;
+  inline-size:64px;block-size:64px;opacity:.22;pointer-events:none;
+  color:var(--gold-lt);fill:currentColor}
+/* على اللمس لا `hover`: الوصف يبقى مفتوحاً دائماً — لا يُخفى محتوى
+   خلف تفاعلٍ لا يملكه الجهاز. */
+@media (hover:none){ .door .more{grid-template-rows:1fr} }
 
-   `scroll-snap` كي تقف كل بطاقةٍ في مكانها لا بين اثنتين؛ و`scrollbar`
-   مخفيّ على الجوّال (الحافّة المتدرّجة أدناه تقول «هناك المزيد» بلا شريط)؛
-   والاتجاه يتبع الصفحة تلقائياً فيبدأ السحب من اليمين في العربية. */
-.strip{margin-top:28px;position:relative}
-.navbtn{display:none;position:absolute;top:calc(50% - 34px);z-index:3;
-  width:46px;height:46px;place-items:center;border:0;cursor:pointer;
-  border-radius:50%;background:rgba(255,255,255,.94);color:var(--n700);
-  font-size:1.25rem;font-weight:900;line-height:1;
-  box-shadow:0 8px 24px rgba(11,25,53,.22);
-  transition:transform .3s cubic-bezier(.2,.8,.2,1), background .3s ease}
-.navbtn:hover{transform:scale(1.12);background:var(--gold)}
-.navbtn.prev{inset-inline-start:14px}
-.navbtn.next{inset-inline-end:14px}
-.strip .track{display:flex;gap:14px;overflow-x:auto;padding:6px 20px 18px;
-  scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;
-  /* الانسياب: تمريرٌ ناعم لأزرار الأسهم، وزخمٌ بالإصبع على iOS، و
-     `overscroll-behavior` كي لا يجرّ السحبُ الأفقيُّ الصفحةَ كلها معه. */
-  scroll-behavior:smooth;-webkit-overflow-scrolling:touch;
-  overscroll-behavior-x:contain}
-.strip .track::-webkit-scrollbar{display:none}
-.dish{flex:0 0 clamp(228px,68vw,320px);scroll-snap-align:center;
-  border-radius:var(--r-lg);overflow:hidden;position:relative;
-  background:var(--n800);box-shadow:0 14px 34px rgba(11,25,53,.20);
-  transition:transform .45s cubic-bezier(.2,.8,.2,1),
-             box-shadow .45s cubic-bezier(.2,.8,.2,1)}
-.dish:hover{transform:translateY(-7px);box-shadow:0 22px 48px rgba(11,25,53,.30)}
-/* الصورة تكبر داخل إطارها لا معه: البطاقة ترتفع والصورة تقترب، فيُحسّ
-   العمق. `overflow:hidden` على البطاقة يقصّ الزيادة فلا تزحف على جارتها. */
-.dish img{width:100%;height:clamp(200px,58vw,270px);object-fit:cover;display:block;
-  transition:transform .7s cubic-bezier(.2,.8,.2,1)}
-.dish:hover img{transform:scale(1.08)}
-/* الشريط الكحلي أسفل الصورة يحمل الاسم — نصٌّ فوق صورةٍ مباشرةً يختفي
-   على الأطباق الفاتحة مهما ثقّلنا خطّه. */
-.dish b{display:block;background:var(--n800);color:#fff;font-size:.95rem;
-  font-weight:700;padding:12px 14px;border-top:2px solid var(--gold)}
-/* حافّتان متلاشيتان: علامةُ «تابع السحب» بلا شريط تمرير يشوّه التصميم. */
-.strip::before,.strip::after{content:'';position:absolute;inset-block:0;width:34px;
-  pointer-events:none;z-index:2}
-.strip::before{inset-inline-start:0;
-  background:linear-gradient(to var(--fade-s,left),var(--mist),transparent)}
-.strip::after{inset-inline-end:0;
-  background:linear-gradient(to var(--fade-e,right),var(--mist),transparent)}
-:root[dir="rtl"] .strip::before{--fade-s:right}
-:root[dir="rtl"] .strip::after{--fade-e:left}
-@media(min-width:760px){
-  /* على الشاشة الواسعة تبدأ أول بطاقةٍ تحت العنوان تماماً لا عند حافّة
-     النافذة: نفس هامش `.wrap` يُحسب هنا، فيبقى الصفّ ممتدّاً إلى الحافّة
-     (وهو مقصود — يقول إن وراءه المزيد) وبدايتُه على الشبكة. */
-  .strip .track{padding-inline:max(20px, calc((100% - 1060px) / 2 + 20px))}
-  .strip::before,.strip::after{display:none}
-  /* بالفأرة لا يوجد إصبعٌ يسحب: زرّان يدفعان الصفّ بطاقةً بطاقة —
-     و`scroll-behavior:smooth` أعلاه هو ما يجعل الدفعة تنزلق لا تقفز. */
-  .navbtn{display:grid}
+/* ══════════════ مطبخ أوّل شركائنا ══════════════ */
+/* على الجوّال **شريطٌ أفقي** لا رصفٌ رأسي: ثلاث صورٍ مربّعة فوق بعضها
+   تعني ٣٫٤ شاشة من التمرير لقسمٍ واحد (مقيسة) — والزائر يترك الصفحة قبل
+   أن يبلغ ما بعدها. والشريط يأخذ ارتفاع بطاقةٍ واحدة ويعرض الثلاث،
+   بوقوفٍ عند كل بطاقة فلا تقف نصفها ظاهر. */
+.kgrid{display:flex;gap:14px;margin-block-start:26px;overflow-x:auto;
+  scroll-snap-type:x mandatory;overscroll-behavior-x:contain;
+  padding-block-end:10px;scrollbar-width:none;
+  margin-inline:calc(var(--gutter) * -1);padding-inline:var(--gutter)}
+.kgrid::-webkit-scrollbar{display:none}
+.kcard{flex:0 0 clamp(230px,72vw,280px);scroll-snap-align:center;
+  border:1px solid var(--line-l);border-radius:var(--r-lg);overflow:hidden;
+  background:var(--paper);box-shadow:var(--sh-1)}
+.kcard img{aspect-ratio:4/3;object-fit:cover;inline-size:100%}
+.kcard figcaption{padding:14px 16px;font-size:var(--fs-meta);color:var(--on-paper-2)}
+.kcard b{display:block;color:var(--on-paper-1);font-size:1rem;margin-block-end:3px}
+.knote{margin-block-start:22px;padding:14px 16px;border-inline-start:4px solid var(--gold);
+  background:var(--mist);border-radius:0 var(--r-sm) var(--r-sm) 0;
+  color:var(--on-paper-2);font-size:var(--fs-meta)}
+:root[dir=ltr] .knote{border-radius:var(--r-sm) 0 0 var(--r-sm)}
+
+/* ══════════════ الليل والطريق ══════════════ */
+.night{background:var(--n900)}
+.nwrap{display:grid;gap:26px;margin-block-start:26px}
+.hours{display:grid;gap:12px}
+.hour{display:flex;align-items:flex-start;gap:12px;padding:13px 16px;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:var(--r-md)}
+.hour .t{color:var(--gold);font-weight:700;font-size:var(--fs-meta);
+  flex:0 0 auto;white-space:nowrap;
+  font-variant-numeric:tabular-nums lining-nums;unicode-bidi:isolate}
+@media (max-width:430px){
+  /* على الجوّال الضيّق: الساعة سطرٌ فوق وصفها لا عموداً بجانبه —
+     عمودان في ٣٦٠px يعنيان التفافاً في كليهما. */
+  .hour{flex-direction:column;gap:5px}
+}
+.hour p{color:var(--on-navy-3);font-size:var(--fs-meta)}
+.road{display:block;inline-size:100%;max-block-size:240px;margin-inline:auto}
+@media(min-width:760px){.road{max-block-size:340px}}
+.road .lane{fill:none;stroke:rgba(255,255,255,.16);stroke-width:2;stroke-dasharray:10 12}
+.road .path{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-linecap:round;
+  stroke-dasharray:1;stroke-dashoffset:0}     /* الأساس = مرسومٌ كاملاً */
+.courier{fill:var(--gold-lt);offset-distance:100%}   /* الأساس = وَصَل */
+
+/* ══════════════ الفاتورة المكشوفة ══════════════ */
+.bill{display:grid;gap:18px;margin-block-start:26px;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.slip{position:relative;background:var(--paper);border:1px solid var(--rule-l);
+  border-radius:var(--r-md);padding:18px 18px 18px 20px;box-shadow:var(--sh-1)}
+.slip h3{margin-block-end:14px}
+.slip table{inline-size:100%;border-collapse:collapse}
+.slip td{padding:9px 0;border-block-end:1px dashed var(--rule-l);
+  color:var(--on-paper-2);font-size:var(--fs-meta)}
+.slip td:last-child{text-align:end;color:var(--on-paper-1);font-weight:700;
+  font-variant-numeric:tabular-nums lining-nums;unicode-bidi:isolate}
+.slip tr:last-child td{border-block-end:0}
+.slip tr.sum td{font-weight:700;color:var(--on-paper-1);
+  border-block-start:2px solid var(--on-paper-1);padding-block-start:13px}
+/* خطّ التدقيق: شريطٌ ذهبيّ ينزل بجانب الفاتورة مع التمرير. أساسه
+   **ممتلئ** — فخيطٌ فارغٌ أبداً كذبةٌ بصرية كالممتلئ أبداً تماماً. */
+.slip::before{content:'';position:absolute;inset-block:18px;inset-inline-start:0;
+  inline-size:3px;border-radius:99px;background:linear-gradient(180deg,var(--gold),var(--gold-dk));
+  transform:scaleY(1);transform-origin:top}
+.bnotes{margin-block-start:18px;display:grid;gap:9px}
+.bnotes li{color:var(--on-paper-2);font-size:var(--fs-meta);
+  padding-inline-start:22px;position:relative}
+.bnotes li::before{content:'';position:absolute;inset-inline-start:0;top:.62em;
+  inline-size:9px;block-size:9px;border-radius:50%;background:var(--gold)}
+
+/* ══════════════ القسمان البائعان ══════════════ */
+.sell{padding-block:var(--pad-sell)}
+.pcard{margin-block-start:26px;background:var(--paper);border-radius:var(--r-lg);
+  overflow:hidden;box-shadow:var(--sh-2);color:var(--on-paper-1)}
+.pcard img{inline-size:100%;aspect-ratio:720/339;object-fit:cover}
+.pcard .in{padding:26px 22px}
+.pcard ul{display:grid;gap:11px;margin-block:16px}
+.pcard li{padding-inline-start:26px;position:relative;color:var(--on-paper-2);
+  font-size:var(--fs-meta)}
+.pcard li::before{content:'';position:absolute;inset-inline-start:0;top:.55em;
+  inline-size:11px;block-size:11px;border-radius:3px;background:var(--gold)}
+
+.riders{background:var(--mist);color:var(--on-paper-1)}
+/* `clip` لا `hidden` — للمرّة الثالثة في هذا المشروع: `hidden` يجعل
+   العنصر حاوية تمرير، فيقيس `view()` مدى أبنائه عليها لا على الشاشة،
+   وهي لا تتمرّر — فيتجمّد الكشف على أول إطاره وتبقى البطاقة شبه شفافة.
+   كشفته أداة `tools/web-check/site-audit.js` قبل الدفع. */
+.rgrid{display:grid;gap:2px;margin-block-start:22px;
+  background:var(--line-l);border:1px solid var(--line-l);
+  border-radius:var(--r-md);overflow:clip}
+.rcard{background:var(--paper);padding:15px 18px}
+.rcard h3{margin-block-end:3px}
+.rcard p{color:var(--on-paper-2);font-size:var(--fs-meta)}
+
+/* الحاسبة: بصفر قيمةٍ افتراضية — لا رقم مبرمَج للحوافز (بند ج١). */
+.calc{margin-block-start:22px;background:var(--paper);border:1px solid var(--line-l);
+  border-radius:var(--r-lg);padding:18px;box-shadow:var(--sh-1)}
+.cfields{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  margin-block:16px}
+/* كل حقلٍ عمودٌ يدفع مدخله إلى القاع، فتصطفّ المدخلات على خطٍّ واحد
+   مهما اختلفت أطوال التسميات — وإلا بدت الشبكة مبعثرة. */
+.cfields>div{display:flex;flex-direction:column;justify-content:space-between}
+.cfields label{display:block;font-size:.88rem;color:var(--on-paper-2);
+  font-weight:700;margin-block-end:6px;line-height:1.45}
+.cfields input{inline-size:100%;min-block-size:46px;padding:0 14px;font:inherit;
+  font-size:1rem;border:1.5px solid var(--rule-l);border-radius:var(--r-sm);
+  background:var(--mist);color:var(--on-paper-1);
+  font-variant-numeric:tabular-nums lining-nums}
+.cout{display:grid;gap:10px;grid-template-columns:1fr 1fr;
+  padding-block-start:16px;border-block-start:2px solid var(--on-paper-1)}
+.cout div{text-align:center}
+.cout span{display:block;font-size:var(--fs-meta);color:var(--on-paper-2);font-weight:700}
+.fig{display:block;font-size:var(--fs-fig);font-weight:800;color:var(--on-paper-1);
+  font-variant-numeric:tabular-nums lining-nums;unicode-bidi:isolate;line-height:1.2}
+.cnote{margin-block-start:14px;font-size:var(--fs-meta);color:var(--on-paper-3);
+  padding-inline-start:22px;position:relative}
+.cnote::before{content:'';position:absolute;inset-inline-start:0;top:.62em;
+  inline-size:9px;block-size:9px;border-radius:50%;background:var(--gold-dk)}
+
+.langrow{display:flex;gap:9px;flex-wrap:wrap;margin-block-start:22px}
+.langrow button{min-block-size:48px;padding:0 16px;background:var(--paper);
+  border:1.5px solid var(--rule-l);border-radius:var(--r-pill);cursor:pointer;
+  font:inherit;color:var(--on-paper-1);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;line-height:1.2}
+.langrow button small{color:var(--on-paper-3);font-size:.72rem}
+.langrow button[aria-current=true]{border-color:var(--gold);background:#FFFBEF}
+
+/* ══════════════ التذييل — والأدلة مدموجة فيه ══════════════ */
+footer{background:var(--n900);color:var(--on-navy-3);padding-block:40px}
+footer .logo{display:grid;place-items:center;min-block-size:44px}
+footer .logo img{block-size:26px;inline-size:auto}
+.fgrid{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin-block:20px 14px}
+.fgrid a{border:1px solid var(--line);border-radius:var(--r-pill);
+  padding:11px 16px;font-size:var(--fs-meta);color:var(--on-navy-2);
+  min-block-size:44px;display:inline-flex;align-items:center}
+.fgrid a:hover{border-color:rgba(255,193,7,.5)}
+footer .legal{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-block-end:14px}
+footer .legal a{font-size:var(--fs-meta);color:var(--on-navy-4);
+  min-block-size:44px;display:inline-flex;align-items:center;padding-inline:8px}
+footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
+
+/* ══════════════ قنديل القراءة ══════════════
+   خيطٌ على حافة القراءة يمتلئ بمقدار ما قُرئ، بـCSS خالص مربوطٍ بشريط
+   التمرير بلا سطر جافاسكربت — **ويختفي كلياً حيث لا يُدعم**، فخيطٌ
+   ممتلئ أبداً كذبةٌ بصرية. */
+.rail{position:fixed;inset-block:0;inset-inline-end:0;inline-size:3px;z-index:60;
+  display:none;pointer-events:none}
+.rail i{display:block;block-size:100%;transform-origin:top;transform:scaleY(0);
+  background:linear-gradient(180deg,var(--gold-lt),var(--gold),var(--gold-dk))}
+@supports (animation-timeline: scroll()){
+  .rail{display:block}
+  .rail i{animation:fill linear both;animation-timeline:scroll(root)}
+  @keyframes fill{to{transform:scaleY(1)}}
+}
+
+/* ══════════════ الكشف بالتمرير ══════════════
+   **الأساس مرئيٌّ كامل — دائماً.** والحركة زيادةٌ تُطلب بدليل.
+   ولا يبدأ الكشف من `opacity:0` بل من `.35`: لو تجمّد الجدول عند 0%
+   (الفخّ الذي أصاب المشروع مرّتين) يبقى النصّ **مقروءاً** لا مفقوداً. */
+.reveal{opacity:1;transform:none;--i:0}
+@supports (animation-timeline: view()){
+  .reveal{animation:rise linear both;animation-timeline:view();
+    /* التدرّج بين الأشقّاء **بإزاحة المدى** لا بـ`animation-delay`:
+       التأخير الزمني بلا معنى على مقياسٍ يقوده التمرير. */
+    animation-range:entry calc(6% + var(--i) * 4%) cover 34%}
+  @keyframes rise{
+    from{opacity:.35;transform:translate3d(0,18px,0)}
+    to  {opacity:1;transform:none}}
+  /* المصابيح تنساب بسرعتين مختلفتين = عمقٌ بالمنظور */
+  @media (prefers-reduced-motion:no-preference){
+    .lamps{animation:driftY linear both;animation-timeline:scroll(root);animation-range:0 60vh}
+    @keyframes driftY{to{transform:translate3d(0,var(--dy),0)}}
+    .road .path{animation:drawRoad linear both;animation-timeline:view();
+      animation-range:entry 15% cover 85%}
+    @keyframes drawRoad{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+    .courier{animation:ride linear both;animation-timeline:view();
+      animation-range:entry 15% cover 85%}
+    @keyframes ride{from{offset-distance:0%}to{offset-distance:100%}}
+    .slip::before{animation:audit linear both;animation-timeline:view();
+      animation-range:entry 20% cover 55%}
+    @keyframes audit{from{transform:scaleY(.06)}to{transform:scaleY(1)}}
+  }
+}
+/* ممنوع `view(inline)` إطلاقاً: المحور الأفقي داخل صندوقٍ يتمرّر أفقياً
+   لا يستقرّ مداه، فتبقى العناصر على أول إطارها. (وقع مرّة، وسببه زال.) */
+
+/* ══════════════ تفضيل تقليل الحركة ══════════════
+   **«القفز إلى النهاية» لا «الإلغاء».** القاعدة القديمة
+   `*{animation:none!important}` كانت لغماً: تفي بالحرف اليوم فقط لأن كل
+   أساساتنا مرئية، وأول حركة كشفٍ تُضاف تنكسر **هنا قبل غيرها، ولدى
+   الفئة الأحوج**. و`!important` على `*` يُبطل انتقالات `dialog`/`popover`
+   فتُغلق النوافذ بلا إشارةٍ بصرية.
+   وملاحظةٌ دقيقة: `animation-duration` **لا أثر له على الجداول الزمنية
+   للتمرير** — فيبقى القنديل والفاتورة والطريق صحيحةً عاملة تحت هذه
+   القاعدة، بخلاف القديمة التي كانت تجمّد القنديل على `scaleY(0)`. */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms!important;animation-delay:0ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;transition-delay:0ms!important}
+  html{scroll-behavior:auto!important}
+  .lamps{animation:none!important;transform:none!important}
+  .door .more{grid-template-rows:1fr}
+  .courier{display:none}
 }
 
 @media(min-width:760px){
-  .hero::after{background:
-      radial-gradient(120% 80% at 78% -8%, rgba(36,64,125,.5) 0%, transparent 58%),
-      linear-gradient(180deg, rgba(11,25,53,.20) 0%, rgba(11,25,53,.60) 55%, var(--n900) 100%)}
-  .heroimg{background-image:url('images/city-night.jpg');background-position:50% 40%}
-  .hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center}
-  .glass{margin-top:0}
-  .trust .wrap{grid-template-columns:repeat(2,1fr)}
-  .steps{grid-template-columns:repeat(3,1fr)}
-  .feats{grid-template-columns:repeat(3,1fr)}
-  .values{grid-template-columns:repeat(3,1fr)}
-  /* auto-fit لا 3 ثابتة: وضع التجربة يحذف باب العميل، فتتوزّع
-     البقيّة على العرض بدل أن تترك فجوةً ثالثة فارغة. */
-  .dgrid{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-  .pcard{display:grid;grid-template-columns:.9fr 1.1fr}
-  .pcard img{height:100%}
+  :root{--pad-sec:56px;--pad-sell:96px}
+  .kgrid{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible;
+    margin-inline:0;padding-inline:0}
+  .kcard{flex:none}
+  .hero{padding-block:clamp(72px,13vh,140px) clamp(80px,14vh,150px)}
+  .nwrap{grid-template-columns:1.05fr .95fr;align-items:center}
+  .rgrid{grid-template-columns:repeat(3,1fr)}
+  .pcard{display:grid;grid-template-columns:.92fr 1.08fr}
+  .pcard img{block-size:100%;aspect-ratio:auto}
+  .pcard .in{padding:34px 30px}
+  .cout{grid-template-columns:repeat(2,1fr)}
 }
-@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   </style>
 </head>
-<body>
+<body class="lang-ar">
 
+<a class="skip" href="#main" data-i18n="a11y.skip">تخطَّ إلى المحتوى</a>
 <div class="rail" aria-hidden="true"><i></i></div>
+
+<!-- أختامٌ تُعرَّف مرّةً وتُستعمل في كل موضع. SVG مضمَّن في الوثيقة لا ملفّ
+     ولا `data:` URI — الأخير يمنعه `img-src 'self'` فيفشل **صامتاً**. -->
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+ <defs>
+  <symbol id="zay" viewBox="0 0 40 40">
+    <path d="M7 27h19.5L34 14" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="square"/>
+    <rect x="17.2" y="7.2" width="5.4" height="5.4" fill="currentColor" transform="rotate(60 19.9 9.9)"/>
+  </symbol>
+  <symbol id="horizon" viewBox="0 0 1200 40" preserveAspectRatio="none">
+    <ellipse cx="600" cy="20" rx="430" ry="17" fill="currentColor" opacity=".10"/>
+    <rect x="60" y="19.5" width="1080" height="1" fill="currentColor" opacity=".55"/>
+    <path d="M1112 6a15 15 0 1 0 0 30 12 12 0 1 1 0-30Z" fill="currentColor" opacity=".85"/>
+  </symbol>
+  <symbol id="globe" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    <path d="M3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18" fill="none"
+          stroke="currentColor" stroke-width="1.7"/>
+  </symbol>
+ </defs>
+</svg>
 
 <header>
   <div class="wrap hrow">
-    <img class="logo" src="images/zadgo-logo.png" alt="ZadGo زادقو">
-    <nav>
-      <select id="langSel" aria-label="Language">
-        <option value="ar">العربية</option>
-        <option value="en">English</option>
-        <option value="bn">বাংলা</option>
-        <option value="ur">اردو</option>
-        <option value="id">Indonesia</option>
-      </select>
-      <a class="btn gold sm order-tab" href="/order/" data-i18n="nav.order">اطلب الآن</a>
-      <a class="btn ghost sm" href="/app/" data-i18n="nav.app">تطبيق المطعم</a>
-      <a class="btn gold sm" href="/partner/" data-i18n="partners.cta">ضمّ مطعمك الآن</a>
+    <a class="logo" href="/" aria-label="ZadGo زادقو">
+      <img src="images/zadgo-logo-192.png" alt="ZadGo زادقو" width="192" height="60">
+    </a>
+    <nav aria-label="أدوات">
+      <button class="langbtn" id="langbtn" popovertarget="langpop"
+              aria-label="اللغة / Language" data-i18n-aria="a11y.lang">
+        <svg width="20" height="20" aria-hidden="true"><use href="#globe"/></svg>
+      </button>
+      <div id="langpop" popover>
+        <button data-lang="ar" dir="rtl">العربية</button>
+        <button data-lang="en" dir="ltr">English</button>
+        <button data-lang="bn" dir="ltr">বাংলা <small>Bangla</small></button>
+        <button data-lang="ur" dir="rtl">اردو <small>Urdu</small></button>
+        <button data-lang="id" dir="ltr">Indonesia</button>
+      </div>
+      <a class="btn gold sm" href="/partner/" data-i18n="nav.partner">ضمّ مطعمك</a>
     </nav>
   </div>
 </header>
 
-<!-- ═══════════ البطل ═══════════ -->
-<section class="hero" id="home">
-  <div class="heroimg" aria-hidden="true"></div>
+<main id="main">
+
+<!-- ═══════════ ١ · البطل — السماء ═══════════ -->
+<section class="hero" id="home" aria-labelledby="h-hero">
+  <div class="sky"        aria-hidden="true"></div>
+  <div class="lamps far"  aria-hidden="true"></div>
+  <div class="lamps near" aria-hidden="true"></div>
+  <div class="mesh"       aria-hidden="true"></div>
+  <!-- **الصورة تملأ البطل** بأمر المالك (2026-08-20) بعد أن أرانا بطل
+       كيتا: مدينةٌ ليلية بمصابيحها تحت النصّ مباشرة. ومصدرَان بمقاسين لا
+       واحد: الأفقيّ يُقصّ على الجوّال فتضيع الأبراج ويبقى وسطٌ خالٍ —
+       وهو بالضبط ما شكا منه المالك في صورةٍ سابقة. -->
+  <picture class="heroshot" aria-hidden="true">
+    <source media="(min-width:760px)" srcset="images/hero-wide.avif" type="image/avif">
+    <source media="(min-width:760px)" srcset="images/hero-wide.webp" type="image/webp">
+    <source media="(min-width:760px)" srcset="images/hero-wide.jpg">
+    <source srcset="images/hero-tall.avif" type="image/avif">
+    <source srcset="images/hero-tall.webp" type="image/webp">
+    <img src="images/hero-tall.jpg" alt="" width="880" height="780"
+         loading="eager" decoding="async" fetchpriority="high">
+  </picture>
+  <svg class="zay-seal" aria-hidden="true" viewBox="0 0 40 40"><use href="#zay"/></svg>
+
+  <div class="wrap heroin">
+    <p class="eyebrow">
+      <span class="lamp" aria-hidden="true"></span>
+      <span data-i18n="hero.note">والتطبيق قادم قريباً</span>
+    </p>
+    <h1 id="h-hero" data-i18n="hero.h1">مطاعمك… <span class="gold-word">أقرب لك</span></h1>
+    <p class="honest" data-i18n="hero.honest">السعر الذي تراه هو الذي تدفعه.</p>
+    <p class="where"  data-i18n="hero.where">نبدأ من حيٍّ واحد في المدينة المنورة، ونتوسّع حيّاً حيّاً.</p>
+    <div class="ctas">
+      <a class="btn gold" href="/partner/" data-i18n="partners.cta">ضمّ مطعمك الآن</a>
+      <a class="btn edge" href="/join/"    data-i18n="riders.cta">انضم كابتناً الآن</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ ٢ · الأبواب — مستوى الشارع ═══════════ -->
+<section class="dark doors" id="doors" aria-labelledby="h-doors">
   <div class="wrap">
-    <div>
-      <div class="pill"><span class="dot"></span>
-        <span data-i18n="hero.note">والتطبيق قادم قريباً</span></div>
-      <h1 data-i18n="hero.h1">مطاعمك… <span>أقرب لك</span></h1>
-      <div class="honest" data-i18n="hero.honest">السعر اللي تشوفه هو اللي تدفعه<br><b>بلا رسوم خفية</b></div>
-      <p class="sub" data-i18n="hero.sub">منصة توصيل سعودية تجمع مطاعمك المفضلة في تطبيق واحد: توصيل سريع، وتتبع لحظي لطلبك من المطبخ حتى بابك.</p>
-      <div class="ctas">
-        <a class="btn gold cta" href="/order/" data-i18n="hero.cta">اطلب الآن من متصفحك</a>
-        <a class="btn gold" href="/partner/" data-i18n="partners.cta">ضمّ مطعمك الآن</a>
-        <a class="btn ghost" href="/join/" data-i18n="riders.cta">انضم كابتناً الآن</a>
+    <h2 id="h-doors" data-i18n="doors.h2">ادخل من <em>بابك</em></h2>
+    <p class="lead" data-i18n="doors.lead">زادقو منصّةٌ لثلاثة: من يطلب، ومن يطبخ، ومن يوصّل — اختر بابك.</p>
+    <div class="dgrid">
+      <a class="door reveal" style="--i:0" href="/partner/">
+        <svg class="seal" aria-hidden="true" viewBox="0 0 40 40"><use href="#zay"/></svg>
+        <span class="top">
+          <span class="k"><picture>
+            <source srcset="images/p-partner-sm.avif" type="image/avif">
+            <source srcset="images/p-partner-sm.webp" type="image/webp">
+            <img src="images/p-partner-sm.jpg" alt="" width="160" height="160" loading="lazy"></picture></span>
+          <h3 data-i18n="doors.r.t">أنا مطعم</h3>
+        </span>
+        <span class="more"><span><p data-i18n="doors.r.d">قائمتك الرقمية وطلباتك ومستحقاتك بحساب مكشوف.</p></span></span>
+        <span class="go" data-i18n="doors.go">ادخل ←</span>
+      </a>
+      <a class="door reveal" style="--i:1" href="/join/">
+        <svg class="seal" aria-hidden="true" viewBox="0 0 40 40"><use href="#zay"/></svg>
+        <span class="top">
+          <span class="k"><picture>
+            <source srcset="images/p-captain-sm.avif" type="image/avif">
+            <source srcset="images/p-captain-sm.webp" type="image/webp">
+            <img src="images/p-captain-sm.jpg" alt="" width="160" height="160" loading="lazy"></picture></span>
+          <h3 data-i18n="doors.d.t">أنا كابتن</h3>
+        </span>
+        <span class="more"><span><p data-i18n="doors.d.d">دخلٌ مرن، ونصيبك من كل توصيلة معروف قبل قبولها.</p></span></span>
+        <span class="go" data-i18n="doors.go">ادخل ←</span>
+      </a>
+      <!-- باب العميل **لا يُحذف** في وضع التجربة — يتغيّر نصّه فقط.
+           النصّ يعد بثلاثة أبواب، وعرضُ بابين تكذيبٌ للنصّ فوقه مباشرة. -->
+      <a class="door reveal" id="door-c" style="--i:2" href="/guide/restaurant/">
+        <svg class="seal" aria-hidden="true" viewBox="0 0 40 40"><use href="#zay"/></svg>
+        <span class="top">
+          <span class="k"><picture>
+            <source srcset="images/p-customer-sm.avif" type="image/avif">
+            <source srcset="images/p-customer-sm.webp" type="image/webp">
+            <img src="images/p-customer-sm.jpg" alt="" width="160" height="160" loading="lazy"></picture></span>
+          <h3 data-i18n="doors.c.t">أنا عميل</h3>
+        </span>
+        <span class="more"><span><p data-i18n="doors.c.d">اطلب من مطاعم مدينتك — بلا تطبيق يُحمَّل.</p></span></span>
+        <span class="go" data-i18n="doors.go">ادخل ←</span>
+      </a>
+    </div>
+  </div>
+</section>
+<svg class="horizon" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
+
+<!-- ═══════════ ٣ · مطبخ أوّل شركائنا ═══════════ -->
+<section class="light" id="kitchen" aria-labelledby="h-kitchen">
+  <div class="wrap">
+    <h2 id="h-kitchen" data-i18n="kitchen.h2">من مطبخ <em>أوّل شركائنا</em></h2>
+    <p class="lead" data-i18n="kitchen.lead">هذه صورٌ حقيقية من مطعمٍ شريكٍ فعليّ — لا صور مخزون. ما تراه هو ما يصلك.</p>
+    <div class="kgrid">
+      <figure class="kcard reveal" style="--i:0">
+        <picture>
+          <source srcset="images/kitchen-1.avif" type="image/avif">
+          <source srcset="images/kitchen-1.webp" type="image/webp">
+          <img src="images/kitchen-1.jpg" alt="فطيرة بالعسل" width="720" height="720" loading="lazy" decoding="async">
+        </picture>
+        <figcaption><b data-i18n="kitchen.c1">فطير بالعسل</b>
+          <span data-i18n="kitchen.c1d">من فطير ستيشن — أوّل شركائنا في المدينة</span></figcaption>
+      </figure>
+      <figure class="kcard reveal" style="--i:1">
+        <picture>
+          <source srcset="images/kitchen-2.avif" type="image/avif">
+          <source srcset="images/kitchen-2.webp" type="image/webp">
+          <img src="images/kitchen-2.jpg" alt="فطيرة بالشيدر والعسل" width="720" height="720" loading="lazy" decoding="async">
+        </picture>
+        <figcaption><b data-i18n="kitchen.c2">شيدر وعسل</b>
+          <span data-i18n="kitchen.c2d">الصورة من المطعم نفسه، بسعره هو</span></figcaption>
+      </figure>
+      <figure class="kcard reveal" style="--i:2">
+        <picture>
+          <source srcset="images/kitchen-3.avif" type="image/avif">
+          <source srcset="images/kitchen-3.webp" type="image/webp">
+          <img src="images/kitchen-3.jpg" alt="فطيرة بالحلاوة والقشطة" width="720" height="720" loading="lazy" decoding="async">
+        </picture>
+        <figcaption><b data-i18n="kitchen.c3">حلاوة وقشطة</b>
+          <span data-i18n="kitchen.c3d">ونعرض السعرات لكل صنف قبل أن تطلب</span></figcaption>
+      </figure>
+    </div>
+    <p class="knote" data-i18n="kitchen.note"><b>لماذا صورٌ من مطعمٍ واحد؟</b> لأننا ما زلنا في التجربة، ولا نملك تسعة مطابخ نصوّرها. وصورةٌ من مخزونٍ عالميّ تحت عنوان «من مطابخ مدينتك» كذبةٌ يكشفها القارئ في ثانية.</p>
+  </div>
+</section>
+<svg class="horizon on-light" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
+
+<!-- ═══════════ ٤ · نعمل حين تعمل المدينة ═══════════ -->
+<section class="dark night" id="night" aria-labelledby="h-night">
+  <div class="wrap">
+    <h2 id="h-night" data-i18n="night.h2">نعمل حين <em>تعمل المدينة</em></h2>
+    <p class="lead" data-i18n="night.lead">أعلى ساعات المطبخ في المدينة ليست الظهر. هي ما بعد المغرب، وما بعد العشاء، وساعات السحور الطويلة. من يوصّل في تلك الساعات يكسب أكثر، ومن يطبخ فيها يبيع أكثر — ونحن مبنيّون لها.</p>
+    <div class="nwrap">
+      <div class="hours">
+        <div class="hour reveal" style="--i:0"><span class="t" data-i18n="night.t1">قبيل المغرب</span>
+          <p data-i18n="night.t1d">الطلبات تتجمّع قبل الأذان بنصف ساعة — والمطبخ الجاهز يكسبها.</p></div>
+        <div class="hour reveal" style="--i:1"><span class="t" data-i18n="night.t2">بعد العشاء</span>
+          <p data-i18n="night.t2d">أطول موجةٍ في اليوم، وأكثر ساعةٍ يحتاج فيها المطعم كابتناً قريباً.</p></div>
+        <div class="hour reveal" style="--i:2"><span class="t" data-i18n="night.t3"><bdi>١٢ص — ٤ص</bdi></span>
+          <p data-i18n="night.t3d">ساعات السحور: قليلٌ من المنافسين، وطلبٌ لا ينقطع.</p></div>
+      </div>
+      <!-- الطريق والطرد في **نفس الـSVG** فيتجاوب الطرد مجّاناً مع كل عرض.
+           `offset-path` بإحداثيات ثابتة خارجه يطير الطرد خارج الخطّ. -->
+      <svg class="road" viewBox="0 0 320 360" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+        <path class="lane" d="M40 348 C 40 250, 280 230, 280 140 S 120 60, 160 12"/>
+        <path class="path" id="rp" pathLength="1" d="M40 348 C 40 250, 280 230, 280 140 S 120 60, 160 12"/>
+        <g class="courier" style="offset-path:path('M40 348 C 40 250, 280 230, 280 140 S 120 60, 160 12')">
+          <rect x="-9" y="-9" width="18" height="18" rx="4"/>
+          <path d="M-9 -2h18" stroke="#0B1935" stroke-width="2"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+<svg class="horizon" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
+
+<!-- ═══════════ ٥ · إلى أين يذهب ريالك ═══════════ -->
+<section class="light" id="bill" aria-labelledby="h-bill">
+  <div class="wrap">
+    <h2 id="h-bill" data-i18n="bill.h2">إلى أين يذهب <em>ريالك</em></h2>
+    <p class="lead" data-i18n="bill.lead">فاتورتك ثلاثة بنودٍ وإجمال — ولا بند رابع يظهر عند الدفع.</p>
+    <div class="bill">
+      <div class="slip reveal" style="--i:0">
+        <h3 data-i18n="bill.you">ما تدفعه أنت</h3>
+        <table><tbody>
+          <tr><td data-i18n="bill.items">الوجبات</td><td>——</td></tr>
+          <tr><td data-i18n="bill.delivery">التوصيل</td><td>——</td></tr>
+          <tr><td data-i18n="bill.coupon">خصم الكوبون</td><td>——</td></tr>
+          <tr class="sum"><td data-i18n="bill.total">الإجمالي</td><td>——</td></tr>
+        </tbody></table>
+      </div>
+      <div class="slip reveal" style="--i:1">
+        <h3 data-i18n="bill.where">وأين يذهب</h3>
+        <table><tbody>
+          <tr><td data-i18n="bill.w1">إلى المطعم</td><td>——</td></tr>
+          <tr><td data-i18n="bill.w2">إلى الكابتن</td><td>——</td></tr>
+          <tr><td data-i18n="bill.w3">إلى زادقو</td><td>——</td></tr>
+        </tbody></table>
       </div>
     </div>
-
-    <!-- صور أجواء عامة لا صور مطعمٍ بعينه: صورة شريكٍ واحد على الرئيسية
-         تجعله يبدو «المنصّة» لا شريكاً فيها، وتُحرج بقية الشركاء. -->
-    <div class="glass">
-      <div class="reveal gc"><div class="ic">🧾</div>
-        <div><b data-i18n="chip1.t">سعر واضح قبل أن تطلب</b>
-          <span data-i18n="chip1.d">الوجبة + التوصيل أمامك قبل الدفع</span></div></div>
-      <div class="reveal gc"><div class="ic">📍</div>
-        <div><b data-i18n="f2.t">تتبع حيّ</b>
-          <span data-i18n="f2.d">موقع مندوبك أولاً بأول حتى باب بيتك.</span></div></div>
-      <div class="reveal gc"><div class="ic">⏱️</div>
-        <div><b data-i18n="chip3.t">تعرف متى يصل</b>
-          <span data-i18n="chip3.d">وقتٌ متوقّع يتحدّث مع كل خطوة، لا وعدٌ ثابت</span></div></div>
-    </div>
-  </div>
-
-  <div class="trust">
-    <div class="wrap">
-      <div class="t-item"><i>💳</i><span data-i18n="f1.d">مدى وبطاقة، كاش عند الاستلام، أو محفظتك في التطبيق.</span></div>
-      <div class="t-item"><i>⭐</i><span data-i18n="f4.d">من عملاء طلبوا فعلاً — لا مجاملات.</span></div>
-    </div>
+    <ul class="bnotes">
+      <li data-i18n="bill.n1">الأسعار شاملة ضريبة القيمة المضافة — لا سطر يُضاف عند الدفع.</li>
+      <li data-i18n="bill.n2">الخصم تموّله زادقو وحدها؛ لا يُخصم من المطعم ولا من الكابتن.</li>
+      <li data-i18n="bill.n3">ولو أُلغي طلبك، يعود إليك ما دفعته.</li>
+    </ul>
   </div>
 </section>
+<svg class="horizon on-light" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
 
-
-<!-- ═══════════ الأبواب الثلاثة ═══════════ -->
-<section class="doors" id="doors">
+<!-- ═══════════ ٦ · لأصحاب المطاعم ═══════════ -->
+<section class="dark sell" id="partners" aria-labelledby="h-partners">
   <div class="wrap">
-    <h2 data-i18n="doors.h2">ادخل من <span>بابك</span></h2>
-    <p class="lead" data-i18n="doors.lead">منصّةٌ واحدة وثلاثة أبواب: تطلب، أو تبيع، أو توصّل.</p>
-    <div class="dgrid">
-      <!-- باب العميل يحمل `order-tab` فيُحذف في وضع التجربة مع بقيّة
-           مداخل الطلب — بابٌ يقود إلى صفحةٍ أخفيناها عمداً تناقضٌ ظاهر. -->
-      <a class="door order-tab" href="/order/">
-        <span class="k"><img src="images/p-customer.jpg" alt="عميلة تطلب من جوّالها" loading="lazy"></span>
-        <span><b data-i18n="doors.c.t">أنا عميل</b>
-          <p data-i18n="doors.c.d">اطلب من مطاعم مدينتك — بلا تطبيق يُحمَّل.</p>
-          <em data-i18n="doors.go">ادخل</em></span></a>
-      <a class="door" href="/partner/">
-        <span class="k"><img src="images/p-partner.jpg" alt="صاحب مطعم يتابع طلباته" loading="lazy"></span>
-        <span><b data-i18n="doors.r.t">أنا مطعم</b>
-          <p data-i18n="doors.r.d">قائمتك الرقمية وطلباتك ومستحقاتك بحساب مكشوف.</p>
-          <em data-i18n="doors.go">ادخل</em></span></a>
-      <a class="door" href="/join/">
-        <span class="k"><img src="images/p-captain.jpg" alt="تسليم مفتاح لكابتن" loading="lazy"></span>
-        <span><b data-i18n="doors.d.t">أنا كابتن</b>
-          <p data-i18n="doors.d.d">دخلٌ مرن، ونصيبك من كل توصيلة معروف قبل قبولها.</p>
-          <em data-i18n="doors.go">ادخل</em></span></a>
-    </div>
-  </div>
-<svg class="tear" viewBox="0 0 1200 22" preserveAspectRatio="none" aria-hidden="true"><path d="M0 22 L0 13 L0.0 13 L40.0 2 L80.0 13 L120.0 2 L160.0 13 L200.0 2 L240.0 13 L280.0 2 L320.0 13 L360.0 2 L400.0 13 L440.0 2 L480.0 13 L520.0 2 L560.0 13 L600.0 2 L640.0 13 L680.0 2 L720.0 13 L760.0 2 L800.0 13 L840.0 2 L880.0 13 L920.0 2 L960.0 13 L1000.0 2 L1040.0 13 L1080.0 2 L1120.0 13 L1160.0 2 L1200.0 13 L1200 22 Z" fill="var(--mist)"/></svg>
-</section>
-
-<!-- ═══════════ الخطوات ═══════════ -->
-<section class="light" id="why">
-  <div class="wrap">
-    <h2 data-i18n="why.h2">اطلب<br><span>بثلاث خطوات</span></h2>
-    <p class="lead" data-i18n="steps.lead">لا حسابات ولا تعقيد — تتصفّح أولاً، ولا نطلب تسجيلك إلا عند الطلب.</p>
-    <div class="steps">
-      <div class="reveal step"><span class="n">١</span>
-        <b data-i18n="s1.t">تصفّح واختر</b>
-        <p data-i18n="s1.d">مطاعمك المفضلة بصور حقيقية وأسعار كاملة أمامك.</p></div>
-      <div class="reveal step"><span class="n">٢</span>
-        <b data-i18n="s2.t">تابع طلبك حيّاً</b>
-        <p data-i18n="s2.d">من قبول المطعم حتى انطلاق مندوبك — خطوة بخطوة على الخريطة.</p></div>
-      <div class="reveal step"><span class="n">٣</span>
-        <b data-i18n="s3.t">استلم عند بابك</b>
-        <p data-i18n="s3.d">وادفع كما يناسبك: بطاقة، كاش، أو محفظتك.</p></div>
-    </div>
-  </div>
-</section>
-
-<div class="streak" aria-hidden="true"></div>
-
-
-<!-- ═══════════ شريط الشهيّة ═══════════ -->
-<section class="light" id="taste" style="padding-bottom:44px">
-  <div class="wrap">
-    <h2 data-i18n="taste.h2">من مطابخ <span>مدينتك</span></h2>
-    <p class="lead" data-i18n="taste.lead">أصنافٌ تصلك ساخنة كما خرجت من المطبخ — اسحب لترى المزيد.</p>
-  </div>
-  <div class="strip">
-    <button class="navbtn prev" type="button" data-slide="-1" aria-label="السابق">‹</button>
-    <button class="navbtn next" type="button" data-slide="1" aria-label="التالي">›</button>
-    <div class="track">
-        <figure class="dish"><img src="images/food-burger.jpg" alt="برجر" loading="lazy" width="720" height="576"><b>برجر</b></figure>
-        <figure class="dish"><img src="images/food-ramen.jpg" alt="رامن" loading="lazy" width="720" height="576"><b>رامن</b></figure>
-        <figure class="dish"><img src="images/food-kimchi.jpg" alt="أرز بالكيمتشي" loading="lazy" width="720" height="576"><b>أرز بالكيمتشي</b></figure>
-        <figure class="dish"><img src="images/food-noodles.jpg" alt="نودلز باللحم" loading="lazy" width="720" height="576"><b>نودلز باللحم</b></figure>
-        <figure class="dish"><img src="images/food-dimsum.jpg" alt="ديم سَم" loading="lazy" width="720" height="576"><b>ديم سَم</b></figure>
-        <figure class="dish"><img src="images/food-berry.jpg" alt="كيك التوت" loading="lazy" width="720" height="576"><b>كيك التوت</b></figure>
-        <figure class="dish"><img src="images/food-coffee.jpg" alt="قهوة مختصّة" loading="lazy" width="720" height="576"><b>قهوة مختصّة</b></figure>
-        <figure class="dish"><img src="images/food-orange.jpg" alt="فطور خفيف" loading="lazy" width="720" height="576"><b>فطور خفيف</b></figure>
-        <figure class="dish"><img src="images/food-cake.jpg" alt="حلا البيت" loading="lazy" width="720" height="576"><b>حلا البيت</b></figure>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ القيم ═══════════ -->
-<section class="dark amb" id="values">
-  <div class="wrap">
-    <h2 data-i18n="values.h2">العميل <span>أولاً!</span></h2>
-    <p class="lead" data-i18n="values.lead">ثلاثة وعود نقيس أنفسنا بها — ومكتوبةٌ في نظامنا لا في إعلاننا.</p>
-    <div class="values">
-      <div class="reveal value"><i>💰</i><p data-i18n="v1"><b>الصدق في السعر:</b> السعر الذي تراه هو الذي تدفعه — لا رسوم خفية في نهاية الطلب.</p></div>
-      <div class="reveal value"><i>📸</i><p data-i18n="v2"><b>الصدق في الصورة:</b> صور حقيقية للأطباق من مطابخ شركائنا — ما تراه هو ما يصلك.</p></div>
-      <div class="reveal value"><i>⏱️</i><p data-i18n="v3"><b>الصدق في الوقت:</b> تتبع مباشر من المطبخ حتى بابك، وتعرف أولاً بأول أين طلبك.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ الميزات ═══════════ -->
-<section class="light" id="features">
-  <div class="wrap">
-    <h2 data-i18n="feat.h2">كل ما تتوقعه من تطبيق عالمي<br><span>بلمسة سعودية</span></h2>
-    <div class="feats">
-      <div class="reveal feat"><div class="ic">💳</div><b data-i18n="f1.t">الدفع على راحتك</b>
-        <p data-i18n="f1.d">مدى وبطاقة، كاش عند الاستلام، أو محفظتك في التطبيق.</p></div>
-      <div class="reveal feat"><div class="ic">📍</div><b data-i18n="f2.t">تتبع حيّ</b>
-        <p data-i18n="f2.d">موقع مندوبك أولاً بأول حتى باب بيتك.</p></div>
-      <div class="reveal feat"><div class="ic">🎟️</div><b data-i18n="f3.t">كوبونات وعروض</b>
-        <p data-i18n="f3.d">خصومات حقيقية بلا شروط مخفية.</p></div>
-      <div class="reveal feat"><div class="ic">⭐</div><b data-i18n="f4.t">تقييمات موثوقة</b>
-        <p data-i18n="f4.d">من عملاء طلبوا فعلاً — لا مجاملات.</p></div>
-      <div class="reveal feat"><div class="ic">🔥</div><b data-i18n="f5.t">السعرات أمامك</b>
-        <p data-i18n="f5.d">لكل صنف قبل أن تطلب.</p></div>
-      <div class="reveal feat"><div class="ic">🧾</div><b data-i18n="f6.t">فاتورة مفصّلة</b>
-        <p data-i18n="f6.d">كل ريال واضح: الوجبة والتوصيل بلا دمج.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════ للمطاعم ═══════════ -->
-<section class="dark" id="partners">
-  <div class="wrap">
-    <h2 data-i18n="partners.h2">لأصحاب المطاعم<br><span>كن شريكاً</span></h2>
-    <div class="reveal pcard">
-      <img src="images/bg-kitchen.jpg" alt="">
+    <h2 id="h-partners" data-i18n="partners.h2">لأصحاب المطاعم — <em>كن شريكاً</em></h2>
+    <div class="pcard reveal">
+      <picture>
+        <source srcset="images/kitchen-wide.avif" type="image/avif">
+        <source srcset="images/kitchen-wide.webp" type="image/webp">
+        <img src="images/kitchen-wide.jpg" alt="" width="720" height="339" loading="lazy" decoding="async">
+      </picture>
       <div class="in">
-        <p data-i18n="partners.sub"><b>عملاء جدد يصلونك من اليوم الأول — بلا أي تكلفة تأسيس.</b> منيوك الرقمي بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها، وتقارير تُطلعك على كل ريال — ومستحقاتك بحساب مكشوف أمامك.</p>
+        <p data-i18n="partners.sub"><b>عملاء جدد يصلونك من اليوم الأول — بلا أي تكلفة تأسيس.</b> قائمة طعامك الرقمية بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها، وتقارير تُطلعك على كل ريال.</p>
         <ul>
-          <li><span data-i18n="p1">قائمة طعامك الرقمية بصورك وأسعارك</span></li>
-          <li><span data-i18n="p2">طلباتك تصل مطبخك لحظة وقوعها</span></li>
-          <li><span data-i18n="p3">مستحقاتك بحساب مكشوف أمامك سطراً سطراً</span></li>
-          <li><span data-i18n="p4">أي جوال أندرويد عندك يصير شاشة طلباتك</span></li>
+          <li data-i18n="p1">قائمة طعامك الرقمية بصورك وأسعارك</li>
+          <li data-i18n="p2">طلباتك تصل مطبخك لحظة وقوعها</li>
+          <li data-i18n="p3">مستحقاتك بحساب مكشوف أمامك سطراً سطراً</li>
+          <li data-i18n="p4">أي جوال أندرويد عندك يصير شاشة طلباتك</li>
         </ul>
         <div class="ctas">
           <a class="btn gold" href="/partner/" data-i18n="partners.cta">ضمّ مطعمك الآن</a>
-          <!-- زرّ التطبيق هنا لا في البطل: البطل يخاطب من يريد الطعام،
-               و«حمّل تطبيق المطعم» أمامه دعوةٌ لا تعنيه — وأصحاب المطاعم
-               يقرؤون هذا القسم وحده. -->
-          <a class="btn light" href="/app/" data-i18n="partners.app">⬇️ حمّل تطبيق المطعم</a>
+          <a class="btn ink" href="/app/" data-i18n="partners.app">حمّل تطبيق المطعم</a>
         </div>
       </div>
     </div>
   </div>
 </section>
+<svg class="horizon" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
 
-<!-- ═══════════ للكباتن ═══════════ -->
-<section class="dark road" id="riders">
+<!-- ═══════════ ٧ · للكباتن ═══════════ -->
+<section class="light riders sell" id="riders" aria-labelledby="h-riders">
   <div class="wrap">
-    <h2 data-i18n="riders.h2">للمناديب<br><span>دخل مرن بشروط عادلة</span></h2>
-    <div class="feats">
-      <div class="feat wide"><div class="ic">💵</div>
-        <p data-i18n="r1"><b>أرباح واضحة:</b> نصيبك من كل توصيلة معروف قبل قبولها — ومحفظة ترصد كل ريال.</p></div>
-      <div class="feat wide"><div class="ic">🕐</div>
-        <p data-i18n="r2"><b>حرية الوقت:</b> اتصل متى شئت، واستلم الطلبات القريبة منك.</p></div>
-      <div class="feat wide"><div class="ic">⚖️</div>
-        <p data-i18n="r3"><b>إنصاف التقييم:</b> نظام تقييم شفاف يحمي المجتهد.</p></div>
+    <h2 id="h-riders" data-i18n="riders.h2">للكباتن — <em>دخلٌ مرن بشروط عادلة</em></h2>
+    <div class="rgrid">
+      <div class="rcard reveal" style="--i:0"><h3 data-i18n="r1.t">أرباح واضحة</h3>
+        <p data-i18n="r1.d">نصيبك من كل توصيلة معروفٌ قبل أن تقبلها — ومحفظةٌ ترصد كل ريال.</p></div>
+      <div class="rcard reveal" style="--i:1"><h3 data-i18n="r2.t">حرية الوقت</h3>
+        <p data-i18n="r2.d">اتصل متى شئت، واستلم الطلبات القريبة منك.</p></div>
+      <div class="rcard reveal" style="--i:2"><h3 data-i18n="r3.t">إنصاف التقييم</h3>
+        <p data-i18n="r3.d">نظام تقييمٍ شفّاف يحمي المجتهد.</p></div>
     </div>
+
+    <!-- حاسبة الصافي: **بصفر قيمةٍ افتراضية**. لا رقم مبرمَج للحوافز (بند
+         ج١)، ولا وعدَ مبلغٍ — الحساب من أرقام الكابتن نفسه. -->
+    <div class="calc">
+      <h3 data-i18n="calc.h3">احسب صافيك بأرقامك أنت</h3>
+      <div class="cfields">
+        <div><label for="c-h" data-i18n="calc.hours">ساعات اليوم</label>
+          <input id="c-h" type="number" inputmode="decimal" min="0" step="0.5" value="" placeholder="—"></div>
+        <div><label for="c-t" data-i18n="calc.trips">عدد التوصيلات</label>
+          <input id="c-t" type="number" inputmode="numeric" min="0" step="1" value="" placeholder="—"></div>
+        <div><label for="c-a" data-i18n="calc.avg">متوسط ما تقاضيته للتوصيلة</label>
+          <input id="c-a" type="number" inputmode="decimal" min="0" step="0.5" value="" placeholder="—"></div>
+        <div><label for="c-f" data-i18n="calc.fuel">وقود اليوم</label>
+          <input id="c-f" type="number" inputmode="decimal" min="0" step="1" value="" placeholder="—"></div>
+        <div><label for="c-o" data-i18n="calc.other">مصاريف أخرى</label>
+          <input id="c-o" type="number" inputmode="decimal" min="0" step="1" value="" placeholder="—"></div>
+      </div>
+      <div class="cout">
+        <div><span data-i18n="calc.net">صافي اليوم</span>
+          <output class="fig" id="c-net" aria-live="polite">—</output></div>
+        <div><span data-i18n="calc.hour">للساعة</span>
+          <output class="fig" id="c-hr" aria-live="polite">—</output></div>
+      </div>
+      <p class="cnote" data-i18n="calc.note">هذا حسابٌ من أرقامك أنت. زادقو لا تَعِد بأي مبلغ، ولا يوجد رقمٌ مبرمَج في هذه الحاسبة.</p>
+    </div>
+
+    <p class="lead" style="margin-top:26px" data-i18n="riders.langs">وبوّابتك بلغتك:</p>
+    <div class="langrow" id="langrow"></div>
+
     <div class="ctas">
       <a class="btn gold" href="/join/" data-i18n="riders.cta">انضم كابتناً الآن</a>
     </div>
   </div>
 </section>
 
-<!-- ═══════════ الأدلة ═══════════ -->
-<section class="dark" style="padding:44px 0">
-  <div class="wrap">
-    <h2 style="font-size:1.4rem" data-i18n="guides.h2">أدلة الاستخدام</h2>
-    <p class="lead" data-i18n="guides.lead">شرحٌ بلغة عامة، بلا مصطلحات.</p>
-    <div class="guides">
-      <a href="/guide/restaurant/"><span data-i18n="guides.rest">دليل المطعم</span></a>
-      <a href="/app/"><span data-i18n="nav.app">تطبيق المطعم</span></a>
-      <a href="#" data-feedback><span data-i18n="say.open">💡 اقترح علينا</span></a>
-      <a href="contact.html"><span data-i18n="nav.contact">التواصل والدعم</span></a>
-    </div>
-  </div>
-</section>
+</main>
 
 <footer>
   <div class="wrap">
-    <img src="images/zadgo-logo.png" alt="ZadGo">
-    <nav>
+    <a class="logo" href="/" aria-label="ZadGo"><img src="images/zadgo-logo-192.png" alt="ZadGo" width="192" height="60"></a>
+    <nav class="fgrid" aria-label="أدلة وروابط">
+      <a href="/guide/restaurant/" data-i18n="guides.rest">دليل المطعم</a>
+      <a href="/app/" data-i18n="nav.app">تطبيق المطعم</a>
+      <a href="#" data-feedback data-i18n="say.open">اقترح علينا</a>
+      <a href="contact.html" data-i18n="nav.contact">التواصل والدعم</a>
+    </nav>
+    <div class="legal">
       <a href="privacy-policy.html" data-i18n="nav.privacy">سياسة الخصوصية</a>
       <a href="terms.html" data-i18n="legal.terms">الشروط والأحكام</a>
       <a href="delete-account.html" data-i18n="legal.del">حذف الحساب</a>
-      <a href="contact.html" data-i18n="nav.contact">التواصل والدعم</a>
-    </nav>
+    </div>
     <div class="cr">© 2026 زادقو ZadGo — zadgo.co · <span dir="ltr">ZADIM Co.</span></div>
   </div>
 </footer>
 
-<script>
-// تبديل اللغة: القاموس مضمّن (لا نداءات شبكة — CSP تمنعها أصلاً)، والنصوص
-// ثوابت من المستودع لا إدخال مستخدم، فـinnerHTML هنا آمن. تعطيل جافاسكربت
-// يُبقي الصفحة العربية كاملة كما هي.
-const I18N = {"ar":{"nav.home":"الرئيسية","nav.why":"لماذا","nav.values":"قيمنا","nav.partners":"للمطاعم","nav.riders":"للمناديب","nav.contact":"التواصل والدعم","nav.privacy":"سياسة الخصوصية","legal.terms":"الشروط والأحكام","legal.del":"حذف الحساب","hero.h1":"مطاعمك… <span>أقرب لك</span>","hero.honest":"السعر اللي تشوفه هو اللي تدفعه<br><b>بلا رسوم خفية</b>","hero.sub":"منصة توصيل سعودية تجمع مطاعمك المفضلة في تطبيق واحد: توصيل سريع، وتتبع لحظي لطلبك من المطبخ حتى بابك.","hero.cta":"اطلب الآن من متصفحك","why.h2":"اطلب<br><span>بثلاث خطوات</span>","s1.t":"تصفّح واختر","s1.d":"مطاعمك المفضلة بصور حقيقية وأسعار كاملة أمامك.","s2.t":"تابع طلبك حيّاً","s2.d":"من قبول المطعم حتى انطلاق مندوبك — خطوة بخطوة على الخريطة.","s3.t":"استلم عند بابك","s3.d":"وادفع كما يناسبك: بطاقة، كاش، أو محفظتك.","feat.h2":"كل ما تتوقعه من تطبيق عالمي<br><span>بلمسة سعودية</span>","f1.t":"الدفع على راحتك","f1.d":"مدى وبطاقة، كاش عند الاستلام، أو محفظتك في التطبيق.","f2.t":"تتبع حيّ","f2.d":"موقع مندوبك أولاً بأول حتى باب بيتك.","f3.t":"كوبونات وعروض","f3.d":"خصومات حقيقية بلا شروط مخفية.","f4.t":"تقييمات موثوقة","f4.d":"من عملاء طلبوا فعلاً — لا مجاملات.","f5.t":"السعرات أمامك","f5.d":"لكل صنف قبل أن تطلب.","f6.t":"فاتورة مفصّلة","f6.d":"كل ريال واضح: الوجبة والتوصيل بلا دمج.","values.h2":"العميل <span>أولاً!</span>","v1":"<b>الصدق في السعر:</b> السعر الذي تراه هو الذي تدفعه — لا رسوم خفية في نهاية الطلب.","v2":"<b>الصدق في الصورة:</b> صور حقيقية للأطباق من مطابخ شركائنا — ما تراه هو ما يصلك.","v3":"<b>الصدق في الوقت:</b> تتبع مباشر من المطبخ حتى بابك، وتعرف أولاً بأول أين طلبك.","partners.h2":"لأصحاب المطاعم<br><span>كن شريكاً</span>","partners.sub":"<b>عملاء جدد يصلونك من اليوم الأول — بلا أي تكلفة تأسيس.</b> قائمة طعامك الرقمية بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها، وتقارير تُطلعك على كل ريال — ومستحقاتك بحساب مكشوف أمامك.","partners.cta":"ضمّ مطعمك الآن","riders.h2":"للمناديب<br><span>دخل مرن بشروط عادلة</span>","r1":"<b>أرباح واضحة:</b> نصيبك من كل توصيلة معروف قبل قبولها — ومحفظة ترصد كل ريال.","r2":"<b>حرية الوقت:</b> اتصل متى شئت، واستلم الطلبات القريبة منك.","r3":"<b>إنصاف التقييم:</b> نظام تقييم شفاف يحمي المجتهد.","riders.cta":"انضم كابتناً الآن","footer.launch":"ينطلق قريباً","footer.sub":"نبني المنصة بعناية لتصلك تجربة مكتملة من اليوم الأول.","footer.soon":"قريباً على","footer.soon2":"قريباً على","nav.order":"اطلب الآن","hero.note":"والتطبيق قادم قريباً","hero.trial":"نجرّب الخدمة الآن مع أوّل شركائنا — ونفتح للجميع قريباً","chip1.t":"سعر واضح قبل أن تطلب","chip1.d":"الوجبة + التوصيل أمامك قبل الدفع","chip3.t":"تعرف متى يصل","chip3.d":"وقتٌ متوقّع يتحدّث مع كل خطوة، لا وعدٌ ثابت","steps.lead":"لا حسابات ولا تعقيد — تتصفّح أولاً، ولا نطلب تسجيلك إلا عند الطلب.","values.lead":"ثلاثة وعود نقيس أنفسنا بها — ومكتوبةٌ في نظامنا لا في إعلاننا.","p1":"قائمة طعامك الرقمية بصورك وأسعارك","p2":"طلباتك تصل مطبخك لحظة وقوعها","p3":"مستحقاتك بحساب مكشوف أمامك سطراً سطراً","p4":"أي جوال أندرويد عندك يصير شاشة طلباتك","guides.h2":"أدلة الاستخدام","guides.lead":"شرحٌ بلغة عامة، بلا مصطلحات.","guides.rest":"دليل المطعم","doors.h2":"ادخل من <span>بابك</span>","doors.lead":"منصّةٌ واحدة وثلاثة أبواب: تطلب، أو تبيع، أو توصّل.","doors.c.t":"أنا عميل","doors.c.d":"اطلب من مطاعم مدينتك — بلا تطبيق يُحمَّل.","doors.r.t":"أنا مطعم","doors.r.d":"قائمتك الرقمية وطلباتك ومستحقاتك بحساب مكشوف.","doors.d.t":"أنا كابتن","doors.d.d":"دخلٌ مرن، ونصيبك من كل توصيلة معروف قبل قبولها.","doors.go":"ادخل","taste.h2":"من مطابخ <span>مدينتك</span>","taste.lead":"أصنافٌ تصلك ساخنة كما خرجت من المطبخ — اسحب لترى المزيد.","nav.app":"تطبيق المطعم","partners.app":"⬇️ حمّل تطبيق المطعم","say.open":"💡 اقترح علينا"},"en":{"nav.home":"Home","nav.why":"Why","nav.values":"Our values","nav.partners":"For restaurants","nav.riders":"For riders","nav.contact":"Contact & support","nav.privacy":"Privacy policy","legal.terms":"Terms & conditions","legal.del":"Delete account","hero.h1":"Your restaurants <span>closer to you</span>","hero.honest":"The price you see is the price you pay<br><b>No hidden fees</b>","hero.sub":"A Saudi delivery platform that brings your favorite restaurants into one app: fast delivery and live tracking from the kitchen to your door.","hero.cta":"Order now from your browser","why.h2":"Order in<br><span>three simple steps</span>","s1.t":"Browse & choose","s1.d":"Your favorite restaurants with real photos and full prices.","s2.t":"Track it live","s2.d":"From the kitchen to your rider — step by step on the map.","s3.t":"Receive at your door","s3.d":"Pay your way: card, cash, or your wallet.","feat.h2":"Everything you expect from a world-class app<br><span>with a Saudi touch</span>","f1.t":"Pay your way","f1.d":"mada & cards, cash on delivery, or your in-app wallet.","f2.t":"Live tracking","f2.d":"Follow your rider all the way to your door.","f3.t":"Coupons & offers","f3.d":"Real discounts with no fine print.","f4.t":"Trusted ratings","f4.d":"From customers who actually ordered.","f5.t":"Calories up front","f5.d":"For every item, before you order.","f6.t":"Itemized bill","f6.d":"Every riyal accounted for: food and delivery, never merged.","values.h2":"Customer <span>first!</span>","v1":"<b>Honest prices:</b> what you see is what you pay — no hidden fees at checkout.","v2":"<b>Honest photos:</b> real dishes from our partners' kitchens — what you see is what arrives.","v3":"<b>Honest time:</b> live tracking from the kitchen to your door.","partners.h2":"For restaurant owners<br><span>Become a partner</span>","partners.sub":"<b>New customers from day one — zero setup cost.</b> Your digital menu with your photos and prices, orders reaching your kitchen instantly, and reports that account for every riyal.","partners.cta":"List your restaurant","riders.h2":"For riders<br><span>Flexible income, fair terms</span>","r1":"<b>Clear earnings:</b> your share is known before you accept — and a wallet tracks every riyal.","r2":"<b>Your hours:</b> go online whenever you want, take orders near you.","r3":"<b>Fair ratings:</b> a transparent system that protects hard workers.","riders.cta":"Join as a captain","footer.launch":"Launching soon","footer.sub":"We are building it carefully so you get a complete experience from day one.","footer.soon":"Soon on","footer.soon2":"Soon on","nav.order":"Order now","hero.note":"and the app is coming soon","hero.trial":"Now in a limited trial with our first partners — opening to everyone soon","chip1.t":"A clear price before you order","chip1.d":"Food + delivery, shown before you pay","chip3.t":"Know when it arrives","chip3.d":"An estimate that updates at every step, not a fixed promise","steps.lead":"No accounts, no hassle — browse first; we only ask you to sign in when you order.","values.lead":"Three promises we hold ourselves to — built into our system, not just our ads.","p1":"Your digital menu with your own photos and prices","p2":"Orders reach your kitchen the moment they're placed","p3":"Your earnings itemized, line by line","p4":"Any Android phone becomes your orders screen","guides.h2":"User guides","guides.lead":"Plain language, no jargon.","guides.rest":"Restaurant guide","doors.h2":"Enter through <span>your door</span>","doors.lead":"One platform, three doors: order, sell, or deliver.","doors.c.t":"I'm a customer","doors.c.d":"Order from your city's restaurants — no app to install.","doors.r.t":"I'm a restaurant","doors.r.d":"Your digital menu, your orders, and your earnings in the open.","doors.d.t":"I'm a captain","doors.d.d":"Flexible income — your share is known before you accept.","doors.go":"Enter","taste.h2":"From your <span>city's kitchens</span>","taste.lead":"Dishes that arrive as hot as they left the kitchen — swipe for more.","nav.app":"Restaurant app","partners.app":"⬇️ Get the restaurant app","say.open":"💡 Send us a suggestion"},"bn":{"nav.home":"হোম","nav.why":"কেন","nav.values":"আমাদের মূল্যবোধ","nav.partners":"রেস্টুরেন্টের জন্য","nav.riders":"রাইডারদের জন্য","nav.contact":"যোগাযোগ ও সাপোর্ট","nav.privacy":"গোপনীয়তা নীতি","legal.terms":"শর্তাবলী","legal.del":"অ্যাকাউন্ট মুছুন","hero.h1":"আপনার রেস্টুরেন্ট <span>আরও কাছে</span>","hero.honest":"যে দাম দেখেন, সেটাই দেন<br><b>কোনো লুকানো ফি নেই</b>","hero.sub":"একটি সৌদি ডেলিভারি প্ল্যাটফর্ম — আপনার প্রিয় রেস্টুরেন্ট এক অ্যাপে: দ্রুত ডেলিভারি, রান্নাঘর থেকে দরজা পর্যন্ত লাইভ ট্র্যাকিং।","hero.cta":"ব্রাউজার থেকেই অর্ডার করুন","why.h2":"মাত্র তিন ধাপে<br><span>অর্ডার করুন</span>","s1.t":"দেখুন ও বেছে নিন","s1.d":"আসল ছবি ও সম্পূর্ণ দামসহ আপনার প্রিয় রেস্টুরেন্ট।","s2.t":"লাইভ ট্র্যাক করুন","s2.d":"রান্নাঘর থেকে রাইডার পর্যন্ত — ম্যাপে ধাপে ধাপে।","s3.t":"দরজায় বুঝে নিন","s3.d":"যেভাবে সুবিধা: কার্ড, ক্যাশ বা ওয়ালেট।","feat.h2":"বিশ্বমানের অ্যাপের সব সুবিধা<br><span>সৌদি ছোঁয়ায়</span>","f1.t":"পেমেন্ট আপনার মতো","f1.d":"কার্ড, ক্যাশ অন ডেলিভারি বা অ্যাপ ওয়ালেট।","f2.t":"লাইভ ট্র্যাকিং","f2.d":"রাইডারের অবস্থান দরজা পর্যন্ত দেখুন।","f3.t":"কুপন ও অফার","f3.d":"আসল ছাড়, কোনো গোপন শর্ত নেই।","f4.t":"নির্ভরযোগ্য রেটিং","f4.d":"যারা সত্যিই অর্ডার করেছেন তাদের কাছ থেকে।","f5.t":"ক্যালরি সামনে","f5.d":"অর্ডারের আগেই প্রতিটি আইটেমে।","f6.t":"বিস্তারিত বিল","f6.d":"প্রতিটি রিয়াল স্পষ্ট: খাবার ও ডেলিভারি আলাদা।","values.h2":"গ্রাহক <span>সবার আগে!</span>","v1":"<b>দামে সততা:</b> যা দেখবেন তাই দেবেন — চেকআউটে লুকানো ফি নেই।","v2":"<b>ছবিতে সততা:</b> পার্টনারদের রান্নাঘরের আসল খাবারের ছবি।","v3":"<b>সময়ে সততা:</b> রান্নাঘর থেকে দরজা পর্যন্ত লাইভ ট্র্যাকিং।","partners.h2":"রেস্টুরেন্ট মালিকদের জন্য<br><span>পার্টনার হোন</span>","partners.sub":"<b>প্রথম দিন থেকেই নতুন গ্রাহক — কোনো সেটআপ খরচ নেই।</b> আপনার ছবি ও দামে ডিজিটাল মেনু, অর্ডার সাথে সাথে রান্নাঘরে, আর প্রতিটি রিয়ালের হিসাবসহ রিপোর্ট।","partners.cta":"আপনার রেস্টুরেন্ট যুক্ত করুন","riders.h2":"রাইডারদের জন্য<br><span>ন্যায্য শর্তে নমনীয় আয়</span>","r1":"<b>স্পষ্ট আয়:</b> গ্রহণের আগেই প্রতিটি ডেলিভারির ভাগ জানা — ওয়ালেটে প্রতিটি রিয়ালের হিসাব।","r2":"<b>সময়ের স্বাধীনতা:</b> যখন খুশি অনলাইন হন, কাছের অর্ডার নিন।","r3":"<b>ন্যায্য রেটিং:</b> স্বচ্ছ ব্যবস্থা পরিশ্রমীকে রক্ষা করে।","riders.cta":"ক্যাপ্টেন হিসেবে যোগ দিন","footer.launch":"শীঘ্রই আসছে","footer.sub":"প্রথম দিন থেকেই পূর্ণাঙ্গ অভিজ্ঞতা দিতে আমরা যত্নে তৈরি করছি।","footer.soon":"শীঘ্রই","footer.soon2":"শীঘ্রই","nav.order":"এখনই অর্ডার","hero.note":"আর অ্যাপ শীঘ্রই আসছে","hero.trial":"এখন আমাদের প্রথম পার্টনারদের সাথে সীমিত ট্রায়ালে — শীঘ্রই সবার জন্য","chip1.t":"অর্ডারের আগেই স্পষ্ট দাম","chip1.d":"খাবার + ডেলিভারি, পেমেন্টের আগেই সামনে","chip3.t":"কখন পৌঁছাবে জানুন","chip3.d":"প্রতিটি ধাপে হালনাগাদ হওয়া আনুমানিক সময়, নির্দিষ্ট প্রতিশ্রুতি নয়","steps.lead":"কোনো ঝামেলা নেই — আগে দেখুন; অর্ডারের সময়ই কেবল সাইন ইন লাগবে।","values.lead":"তিনটি প্রতিশ্রুতি যা আমরা মেনে চলি — বিজ্ঞাপনে নয়, আমাদের সিস্টেমে লেখা।","p1":"আপনার নিজের ছবি ও দামে ডিজিটাল মেনু","p2":"অর্ডার সঙ্গে সঙ্গে আপনার রান্নাঘরে পৌঁছায়","p3":"আপনার প্রাপ্য টাকার হিসাব, লাইন ধরে স্পষ্ট","p4":"যেকোনো অ্যান্ড্রয়েড ফোনই আপনার অর্ডার স্ক্রিন","guides.h2":"ব্যবহারের নির্দেশিকা","guides.lead":"সহজ ভাষায়, কঠিন শব্দ ছাড়া।","guides.rest":"রেস্টুরেন্ট নির্দেশিকা","doors.h2":"আপনার <span>দরজা দিয়ে</span> ঢুকুন","doors.lead":"এক প্ল্যাটফর্ম, তিন দরজা: অর্ডার করুন, বিক্রি করুন, বা পৌঁছে দিন।","doors.c.t":"আমি গ্রাহক","doors.c.d":"আপনার শহরের রেস্টুরেন্ট থেকে অর্ডার করুন — অ্যাপ ইনস্টল ছাড়াই।","doors.r.t":"আমি রেস্টুরেন্ট","doors.r.d":"আপনার ডিজিটাল মেনু, অর্ডার আর প্রাপ্য — সবই খোলা হিসাবে।","doors.d.t":"আমি ক্যাপ্টেন","doors.d.d":"নমনীয় আয় — গ্রহণের আগেই আপনার ভাগ জানা।","doors.go":"প্রবেশ করুন","taste.h2":"আপনার <span>শহরের রান্নাঘর</span> থেকে","taste.lead":"রান্নাঘর থেকে যেমন গরম, তেমনই পৌঁছায় — আরও দেখতে সোয়াইপ করুন।","nav.app":"রেস্টুরেন্ট অ্যাপ","partners.app":"⬇️ রেস্টুরেন্ট অ্যাপ নিন","say.open":"💡 পরামর্শ দিন"},"ur":{"nav.home":"ہوم","nav.why":"کیوں","nav.values":"ہماری اقدار","nav.partners":"ریستورانوں کے لیے","nav.riders":"رائیڈرز کے لیے","nav.contact":"رابطہ اور مدد","nav.privacy":"رازداری کی پالیسی","legal.terms":"شرائط و ضوابط","legal.del":"اکاؤنٹ حذف کریں","hero.h1":"آپ کے ریستوران <span>اور قریب</span>","hero.honest":"جو قیمت دیکھیں وہی ادا کریں<br><b>کوئی چھپی فیس نہیں</b>","hero.sub":"ایک سعودی ڈیلیوری پلیٹ فارم — آپ کے پسندیدہ ریستوران ایک ایپ میں: تیز ڈیلیوری اور کچن سے دروازے تک لائیو ٹریکنگ۔","hero.cta":"اپنے براؤزر سے ابھی آرڈر کریں","why.h2":"صرف تین مراحل میں<br><span>آرڈر کریں</span>","s1.t":"دیکھیں اور چنیں","s1.d":"اصلی تصاویر اور مکمل قیمتوں کے ساتھ آپ کے پسندیدہ ریستوران۔","s2.t":"لائیو ٹریک کریں","s2.d":"کچن سے رائیڈر تک — نقشے پر قدم بہ قدم۔","s3.t":"دروازے پر وصول کریں","s3.d":"جیسے چاہیں ادائیگی: کارڈ، کیش یا والٹ۔","feat.h2":"عالمی معیار کی ایپ کی ہر سہولت<br><span>سعودی انداز میں</span>","f1.t":"ادائیگی آپ کی مرضی","f1.d":"کارڈ، کیش آن ڈیلیوری یا ایپ والٹ۔","f2.t":"لائیو ٹریکنگ","f2.d":"رائیڈر کا مقام دروازے تک دیکھیں۔","f3.t":"کوپن اور آفرز","f3.d":"حقیقی رعایت، کوئی چھپی شرط نہیں۔","f4.t":"قابلِ اعتماد ریٹنگ","f4.d":"صرف حقیقی آرڈر کرنے والوں سے۔","f5.t":"کیلوریز سامنے","f5.d":"آرڈر سے پہلے ہر آئٹم پر۔","f6.t":"تفصیلی بل","f6.d":"ہر ریال واضح: کھانا اور ڈیلیوری الگ الگ۔","values.h2":"گاہک <span>سب سے پہلے!</span>","v1":"<b>قیمت میں سچائی:</b> جو دیکھیں وہی ادا کریں — کوئی چھپی فیس نہیں۔","v2":"<b>تصویر میں سچائی:</b> پارٹنر کچن سے اصلی کھانوں کی تصاویر۔","v3":"<b>وقت میں سچائی:</b> کچن سے دروازے تک لائیو ٹریکنگ۔","partners.h2":"ریستوران مالکان کے لیے<br><span>پارٹنر بنیں</span>","partners.sub":"<b>پہلے دن سے نئے گاہک — کوئی سیٹ اپ خرچ نہیں۔</b> آپ کی تصاویر اور قیمتوں کے ساتھ ڈیجیٹل مینیو، آرڈر فوراً کچن میں، اور ہر ریال کے حساب کے ساتھ رپورٹس۔","partners.cta":"اپنا ریستوران شامل کریں","riders.h2":"رائیڈرز کے لیے<br><span>منصفانہ شرائط پر لچکدار آمدنی</span>","r1":"<b>واضح کمائی:</b> قبول کرنے سے پہلے ہر ڈیلیوری کا حصہ معلوم — والٹ میں ہر ریال کا حساب۔","r2":"<b>وقت کی آزادی:</b> جب چاہیں آن لائن ہوں، قریبی آرڈر لیں۔","r3":"<b>منصفانہ ریٹنگ:</b> شفاف نظام محنتی کی حفاظت کرتا ہے۔","riders.cta":"بطور کیپٹن شامل ہوں","footer.launch":"جلد آ رہا ہے","footer.sub":"پہلے دن سے مکمل تجربہ دینے کے لیے ہم اسے احتیاط سے بنا رہے ہیں۔","footer.soon":"جلد","footer.soon2":"جلد","nav.order":"ابھی آرڈر کریں","hero.note":"اور ایپ جلد آ رہی ہے","hero.trial":"ابھی اپنے پہلے شراکت داروں کے ساتھ محدود آزمائش میں — جلد سب کے لیے","chip1.t":"آرڈر سے پہلے واضح قیمت","chip1.d":"کھانا + ڈیلیوری، ادائیگی سے پہلے سامنے","chip3.t":"جانیں کب پہنچے گا","chip3.d":"ہر قدم پر اپ ڈیٹ ہوتا تخمینی وقت، کوئی پکا وعدہ نہیں","steps.lead":"نہ اکاؤنٹ کی جھنجھٹ نہ پیچیدگی — پہلے دیکھیں؛ سائن اِن صرف آرڈر کے وقت۔","values.lead":"تین وعدے جن پر ہم خود کو پرکھتے ہیں — اشتہار میں نہیں، ہمارے نظام میں لکھے ہوئے۔","p1":"آپ کی اپنی تصاویر اور قیمتوں کے ساتھ ڈیجیٹل مینیو","p2":"آرڈر فوراً آپ کے کچن میں پہنچتا ہے","p3":"آپ کی رقم کا حساب، سطر بہ سطر واضح","p4":"کوئی بھی اینڈرائیڈ فون آپ کی آرڈر اسکرین بن جائے","guides.h2":"استعمال کی رہنمائی","guides.lead":"آسان زبان میں، بغیر مشکل اصطلاحات کے۔","guides.rest":"ریستوران گائیڈ","doors.h2":"اپنے <span>دروازے</span> سے آئیں","doors.lead":"ایک پلیٹ فارم، تین دروازے: آرڈر کریں، بیچیں، یا پہنچائیں۔","doors.c.t":"میں گاہک ہوں","doors.c.d":"اپنے شہر کے ریستورانوں سے آرڈر کریں — کوئی ایپ انسٹال کیے بغیر۔","doors.r.t":"میں ریستوران ہوں","doors.r.d":"آپ کا ڈیجیٹل مینیو، آرڈرز اور رقم — سب کھلے حساب میں۔","doors.d.t":"میں کیپٹن ہوں","doors.d.d":"لچکدار آمدنی — قبول کرنے سے پہلے آپ کا حصہ معلوم۔","doors.go":"داخل ہوں","taste.h2":"آپ کے <span>شہر کے باورچی خانوں</span> سے","taste.lead":"جیسے باورچی خانے سے نکلے، ویسے ہی گرم پہنچتے ہیں — مزید دیکھنے کے لیے سوائپ کریں۔","nav.app":"ریستوران ایپ","partners.app":"⬇️ ریستوران ایپ حاصل کریں","say.open":"💡 تجویز بھیجیں"},"id":{"nav.home":"Beranda","nav.why":"Mengapa","nav.values":"Nilai kami","nav.partners":"Untuk restoran","nav.riders":"Untuk kurir","nav.contact":"Kontak & dukungan","nav.privacy":"Kebijakan privasi","legal.terms":"Syarat & ketentuan","legal.del":"Hapus akun","hero.h1":"Restoranmu <span>lebih dekat</span>","hero.honest":"Harga yang kamu lihat, itu yang kamu bayar<br><b>Tanpa biaya tersembunyi</b>","hero.sub":"Platform pengiriman Saudi — restoran favoritmu dalam satu aplikasi: antar cepat dan pelacakan langsung dari dapur ke pintumu.","hero.cta":"Pesan sekarang dari browser","why.h2":"Pesan dalam<br><span>tiga langkah mudah</span>","s1.t":"Jelajahi & pilih","s1.d":"Restoran favoritmu dengan foto asli dan harga lengkap.","s2.t":"Lacak langsung","s2.d":"Dari dapur sampai kurir — langkah demi langkah di peta.","s3.t":"Terima di pintu","s3.d":"Bayar sesukamu: kartu, tunai, atau dompet aplikasi.","feat.h2":"Semua fitur aplikasi kelas dunia<br><span>dengan sentuhan Saudi</span>","f1.t":"Bayar sesukamu","f1.d":"Kartu, tunai saat terima, atau dompet aplikasi.","f2.t":"Pelacakan langsung","f2.d":"Ikuti kurirmu sampai ke pintu.","f3.t":"Kupon & promo","f3.d":"Diskon nyata tanpa syarat tersembunyi.","f4.t":"Rating terpercaya","f4.d":"Dari pelanggan yang benar-benar memesan.","f5.t":"Kalori di depan","f5.d":"Untuk setiap item, sebelum memesan.","f6.t":"Tagihan rinci","f6.d":"Setiap riyal jelas: makanan dan antar terpisah.","values.h2":"Pelanggan <span>yang utama!</span>","v1":"<b>Jujur soal harga:</b> yang kamu lihat itu yang kamu bayar — tanpa biaya tersembunyi.","v2":"<b>Jujur soal foto:</b> hidangan asli dari dapur mitra kami.","v3":"<b>Jujur soal waktu:</b> pelacakan langsung dari dapur ke pintumu.","partners.h2":"Untuk pemilik restoran<br><span>Jadilah mitra</span>","partners.sub":"<b>Pelanggan baru sejak hari pertama — tanpa biaya pendirian.</b> Menu digital dengan foto dan hargamu, pesanan langsung ke dapur, dan laporan yang mencatat setiap riyal.","partners.cta":"Daftarkan restoranmu","riders.h2":"Untuk kurir<br><span>Penghasilan fleksibel, syarat adil</span>","r1":"<b>Penghasilan jelas:</b> bagianmu diketahui sebelum menerima — dompet mencatat setiap riyal.","r2":"<b>Waktu bebas:</b> online kapan saja, ambil pesanan terdekat.","r3":"<b>Rating adil:</b> sistem transparan yang melindungi pekerja keras.","riders.cta":"Gabung sebagai kurir","footer.launch":"Segera diluncurkan","footer.sub":"Kami membangunnya dengan cermat agar kamu mendapat pengalaman lengkap sejak hari pertama.","footer.soon":"Segera di","footer.soon2":"Segera di","nav.order":"Pesan sekarang","hero.note":"dan aplikasinya segera hadir","hero.trial":"Sedang uji coba terbatas bersama mitra pertama kami — segera untuk semua","chip1.t":"Harga jelas sebelum memesan","chip1.d":"Makanan + antar, terlihat sebelum bayar","chip3.t":"Tahu kapan tiba","chip3.d":"Perkiraan waktu yang diperbarui tiap langkah, bukan janji pasti","steps.lead":"Tanpa ribet — jelajahi dulu; masuk hanya saat kamu memesan.","values.lead":"Tiga janji yang kami pegang — tertulis dalam sistem kami, bukan di iklan.","p1":"Menu digital dengan foto dan hargamu sendiri","p2":"Pesanan masuk ke dapurmu seketika","p3":"Pendapatanmu dirinci baris per baris","p4":"Ponsel Android apa pun jadi layar pesananmu","guides.h2":"Panduan pengguna","guides.lead":"Bahasa sederhana, tanpa istilah rumit.","guides.rest":"Panduan restoran","doors.h2":"Masuk lewat <span>pintumu</span>","doors.lead":"Satu platform, tiga pintu: pesan, jual, atau antar.","doors.c.t":"Saya pelanggan","doors.c.d":"Pesan dari restoran di kotamu — tanpa unduh aplikasi.","doors.r.t":"Saya restoran","doors.r.d":"Menu digital, pesanan, dan pendapatanmu terbuka jelas.","doors.d.t":"Saya kurir","doors.d.d":"Penghasilan fleksibel — bagianmu diketahui sebelum menerima.","doors.go":"Masuk","taste.h2":"Dari <span>dapur kotamu</span>","taste.lead":"Hidangan yang tiba sepanas saat keluar dari dapur — geser untuk lihat lainnya.","nav.app":"Aplikasi restoran","partners.app":"⬇️ Unduh aplikasi restoran","say.open":"💡 Kirim saran"}};
-const RTL = { ar: 1, ur: 1 };
-const sel = document.getElementById('langSel');
-function setLang(l) {
-  const d = I18N[l]; if (!d) return;
-  document.querySelectorAll('[data-i18n]').forEach((el) => {
-    const v = d[el.dataset.i18n];
-    if (v != null) el.innerHTML = v;
-  });
-  document.documentElement.lang = l;
-  document.documentElement.dir = RTL[l] ? 'rtl' : 'ltr';
-  document.body.className = 'lang-' + l;
-  sel.value = l;
-  try { localStorage.setItem('zadgo-lang', l); } catch (e) {}
-}
-sel.addEventListener('change', () => setLang(sel.value));
-try { const saved = localStorage.getItem('zadgo-lang'); if (saved && saved !== 'ar') setLang(saved); } catch (e) {}
-
-/* ============================================================
-   وضع التجربة — مفتاحٌ واحد.
-   ------------------------------------------------------------
-   المنصّة اليوم في تجربة محدودة: مطعمٌ واحد وكابتنٌ واحد. ودعوة
-   الجمهور في هذه الحال مخاطرةٌ من نوعٍ واحد لكنه الأسوأ: عميلٌ يطلب
-   في وقتٍ لا مطعمَ مفتوحاً فيه ولا كابتنَ متصلاً، فينتظر ما لن يأتي
-   ويحكم على المنصّة كلها من تجربةٍ واحدة. وأولُ انطباعٍ لا يُشترى مرتين.
-   فتُخفى **مداخل العميل وحدها**:
-     • زرّ «اطلب الآن» في الترويسة
-     • زرّ البطل
-   ولا يُخفى شيءٌ آخر: `zadgo.co/order/` تبقى عاملةً بالرابط المباشر —
-   تجرّبها أنت وتدعو من تشاء بلا أن يعثر عليها عابر. وأبواب **العرض**
-   (الكباتن والمطاعم) تبقى مفتوحة، فالمنصّة تحتاج طاقةً قبل أن تحتاج طلباً.
-
-   **للفتح للجمهور: بدّل السطر التالي إلى false وادفع. لا شيء غيره.**
-   ============================================================ */
-/* دفعة الأسهم بمقدار بطاقةٍ وفجوة، والاتجاه يُقلب في العربية تلقائياً
-   لأن `scrollLeft` سالبٌ في RTL في المتصفحات الحديثة. */
-document.querySelectorAll('.navbtn').forEach((b) => {
-  b.addEventListener('click', () => {
-    const t = document.querySelector('.strip .track');
-    const card = t.querySelector('.dish');
-    const step = card ? card.getBoundingClientRect().width + 14 : 260;
-    const rtl = getComputedStyle(document.documentElement).direction === 'rtl';
-    t.scrollBy({ left: step * Number(b.dataset.slide) * (rtl ? -1 : 1), behavior: 'smooth' });
-  });
-});
-
-const TRIAL_MODE = true;
-if (TRIAL_MODE) {
-  document.querySelectorAll('.order-tab, .cta[href="/order/"]').forEach((el) => el.remove());
-  // تبديل المفتاح ثم إعادة تطبيق اللغة الحالية — فتُترجَم العبارة الجديدة
-  // في اللغات الخمس بلا نسخةٍ عربية مثبَّتة في الشيفرة.
-  const note = document.querySelector('.pill span[data-i18n="hero.note"]');
-  if (note) { note.dataset.i18n = 'hero.trial'; setLang(sel.value); }
-}
-</script>
+<script src="/home.js" defer></script>
 <script src="/feedback.js" defer></script>
 </body>
 </html>

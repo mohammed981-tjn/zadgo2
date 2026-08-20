@@ -111,9 +111,21 @@ function lum(rgb) {
             }
             if (invis.length) out.issues.push('غير مرئي وهو في الشاشة: ' + invis.slice(0, 5).join(','));
 
-            // أهداف لمس صغيرة
+            /* أهداف لمس صغيرة — مع استثناء المعيار نفسه.
+             * WCAG 2.5.8 يستثني **الرابط السطري داخل فقرة**: لا يُتوقّع من
+             * كلمةٍ موصولة وسط جملةٍ أن تكون ٤٤px، ورفع ارتفاعها يفكّك
+             * الفقرة. فيُستثنى ما كان داخل `p`/`li` ولم يكن وحده فيها —
+             * وإلا صار الفحص يُنذر على كل مقالٍ في الموقع فيُهمَل. */
+            const inlineInText = e => {
+              const par = e.closest('p,li,figcaption,td');
+              if (!par) return false;
+              const txt = (par.textContent || '').trim();
+              const own = (e.textContent || '').trim();
+              return txt.length > own.length + 3;   // حوله نصٌّ آخر = سطريّ
+            };
             const small = [...document.querySelectorAll('a,button,select,input,[role=button]')]
-              .filter(e => { const r = e.getBoundingClientRect(); return r.width && r.height && (r.height < 40 || r.width < 40); })
+              .filter(e => { const r = e.getBoundingClientRect();
+                return r.width && r.height && (r.height < 40 || r.width < 40) && !inlineInText(e); })
               .map(e => `${e.tagName}«${(e.textContent || '').trim().slice(0, 14)}»`);
             if (small.length) out.issues.push(`${small.length} هدف لمس <40px: ` + small.slice(0, 3).join(','));
 
