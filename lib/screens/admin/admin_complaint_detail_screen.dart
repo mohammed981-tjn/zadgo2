@@ -1,4 +1,5 @@
 // lib/screens/admin/admin_complaint_detail_screen.dart
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -445,6 +446,35 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                       const Text('تفاصيل الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       Text(c.description, style: const TextStyle(fontSize: 13.5)),
+                      // صورة الشكوى المرفقة (2026-08-20): تُعرض مصغّرة
+                      // وتُكبَّر بالضغط للفحص — «هل الصنف فعلاً خاطئ؟».
+                      if ((c.imageBlob ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Builder(builder: (ctx) {
+                          final bytes = base64Decode(c.imageBlob!);
+                          return GestureDetector(
+                            onTap: () => showDialog<void>(
+                              context: ctx,
+                              builder: (_) => Dialog(
+                                backgroundColor: Colors.black,
+                                child: InteractiveViewer(
+                                    child: Image.memory(bytes)),
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.memory(bytes,
+                                  height: 180,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover),
+                            ),
+                          );
+                        }),
+                        const SizedBox(height: 4),
+                        const Text('اضغط الصورة للتكبير',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.textGray)),
+                      ],
                     ]),
                   ),
                 ),

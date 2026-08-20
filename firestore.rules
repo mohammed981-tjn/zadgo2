@@ -265,15 +265,27 @@ service cloud.firestore {
       // الأسعار أو الاسم أو حالة الفتح من تطبيق العميل.
       // مدير المطعم يعدّل كل شيء عدا نسبة عمولته (العمولة المرنة): هي
       // شرط تعاقدي يضبطه المدير العام وحده — وإلا صفّر مطعمٌ عمولته بيده.
-      // قيد «تقييم واحد» (غنيمة من قواعد taxi-taiba، 2026-08-16): العدّاد
-      // يزيد ١ بالضبط، والمجموع (المتوسط×العدد) يتحرك ضمن نجمة 0-5 واحدة
-      // — قبلها كان عميلٌ يكتب rating=5,‏ ratingCount=10000 بضربة واحدة
-      // فيزيّف سمعة مطعم أو ينسفها. الهامش نسبي (0.06×مجموع العدّادين) لأن التطبيق يخزّن المتوسط مقرَّباً
-      // لخانة عشرية — هامش ثابت كان سيرفض تقييمات شرعية مع نمو العدّاد.
+      // قيد «تقييم واحد» — أصله غنيمة taxi-taiba (2026-08-16): العدّاد يزيد
+      // ١ بالضبط والمتوسط ضمن نجمة 0-5. لكن ذلك حدَّ كل **خطوة** ولم يربطها
+      // بطلب، فتطبيقٌ معدَّل كان يكرّر الزيادة بلا حدّ فيحرّك سمعة أي مطعم
+      // (ثغرة §٠، كُشفت من فحص تاكسي طيبة المتبادل).
+      //
+      // **الإصلاح المعماري (2026-08-20)**: زيادة العدّاد لا تُقبل إلا مقرونةً
+      // بإنشاء «علامة تقييم» لهذا الطلب `ratings/{ratingOrderId}` في الدفعة
+      // نفسها — لم تكن موجودة (`!exists`) وستوجد بعدها (`existsAfter`). فكل
+      // زيادةٍ مربوطةٌ بعلامةٍ تُنشأ لمرة واحدة (العلامة create فقط)، وقاعدةُ
+      // العلامة تشترط طلباً **مسلَّماً يملكه العميل** — فيُمنع التكرار (لا
+      // علامة مرتين) والتلفيق (لا طلب حقيقي = لا علامة) معاً. `existsAfter`
+      // يربط المستندين ذرّياً بلا Cloud Functions. الهامش النسبي (0.06×مجموع
+      // العدّادين) يبقى: التطبيق يخزّن المتوسط مقرَّباً لخانة عشرية.
       allow update: if isAdmin() ||
           (isRestaurantManagerOf(restaurantId) &&
               !changedKeys().hasAny(['commissionPercent'])) ||
-          (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']) &&
+          (isCustomer() &&
+              changedKeys().hasOnly(['rating', 'ratingCount', 'ratingOrderId']) &&
+              request.resource.data.get('ratingOrderId', '') != '' &&
+              !exists(/databases/$(database)/documents/restaurants/$(restaurantId)/ratings/$(request.resource.data.ratingOrderId)) &&
+              existsAfter(/databases/$(database)/documents/restaurants/$(restaurantId)/ratings/$(request.resource.data.ratingOrderId)) &&
               request.resource.data.get('rating', 0) >= 0 &&
               request.resource.data.get('rating', 0) <= 5 &&
               request.resource.data.get('ratingCount', 0) ==
@@ -290,6 +302,24 @@ service cloud.firestore {
                       resource.data.get('ratingCount', 0)) <=
                   5 + 0.06 * (request.resource.data.get('ratingCount', 0) +
                       resource.data.get('ratingCount', 0)));
+
+      // علامة تقييم لكل طلب — سجلٌّ خالد يمنع تكرار التقييم وتلفيقه (§٠).
+      // القراءة للإدارة/الدعم ومدير المطعم (من قيّم ومتى)؛ لا يقرؤها عميل.
+      // create فقط ومرة واحدة: طلبٌ موجود، مسلَّم، صاحبه هذا العميل، ويشير
+      // لهذا المطعم. لا update ولا delete — العلامة قفلٌ لا يُعاد فتحه.
+      match /ratings/{orderId} {
+        allow read: if isAdmin() || isSupport() ||
+            isRestaurantManagerOf(restaurantId);
+        allow create: if isCustomer() &&
+            request.resource.data.get('customerId', '') == currentUid() &&
+            request.resource.data.get('stars', -1) >= 0 &&
+            request.resource.data.get('stars', 6) <= 5 &&
+            exists(/databases/$(database)/documents/orders/$(orderId)) &&
+            get(/databases/$(database)/documents/orders/$(orderId)).data.get('customerId', '') == currentUid() &&
+            get(/databases/$(database)/documents/orders/$(orderId)).data.get('restaurantId', '') == restaurantId &&
+            get(/databases/$(database)/documents/orders/$(orderId)).data.get('status', '') == 'delivered';
+        allow update, delete: if false;
+      }
 
       match /categories/{categoryId} {
         allow read: if true;
@@ -500,9 +530,15 @@ service cloud.firestore {
             // حصرناه بالأدوار الثلاثة الفعلية فأُغلق باب المجهول دون كسر الإسناد.
             ((isDriver() || isAdmin() || hasRole('restaurantManager')) &&
                 changedKeys().hasOnly(['isAvailable'])) ||
-            // قيد «تقييم واحد» — نفس غنيمة قاعدة المطاعم أعلاه (توثيقها
-            // هناك): عدّاد +١ بالضبط ومجموعٌ ضمن نجمة واحدة.
-            (isCustomer() && changedKeys().hasOnly(['rating', 'ratingCount']) &&
+            // قيد «تقييم واحد» — نفس إصلاح §٠ في قاعدة المطاعم أعلاه
+            // (توثيقه هناك): الزيادة مربوطةٌ بعلامة تقييمٍ للطلب تُنشأ في
+            // الدفعة نفسها (`!exists` قبلها، `existsAfter` بعدها)، وقاعدةُ
+            // العلامة تشترط طلباً مسلَّماً كان **هذا السائق** موصِّله.
+            (isCustomer() &&
+                changedKeys().hasOnly(['rating', 'ratingCount', 'ratingOrderId']) &&
+                request.resource.data.get('ratingOrderId', '') != '' &&
+                !exists(/databases/$(database)/documents/drivers/$(driverId)/ratings/$(request.resource.data.ratingOrderId)) &&
+                existsAfter(/databases/$(database)/documents/drivers/$(driverId)/ratings/$(request.resource.data.ratingOrderId)) &&
                 request.resource.data.get('rating', 0) >= 0 &&
                 request.resource.data.get('rating', 0) <= 5 &&
                 request.resource.data.get('ratingCount', 0) ==
@@ -521,6 +557,21 @@ service cloud.firestore {
                         resource.data.get('ratingCount', 0)))
           );
       allow delete: if isAdmin();
+
+      // علامة تقييم لكل طلب على السائق — كنظير المطاعم (§٠): طلبٌ مسلَّم كان
+      // هذا السائق موصِّله وصاحبه العميل المقيِّم. create مرة واحدة، لا تعديل.
+      match /ratings/{orderId} {
+        allow read: if isAdmin() || isSupport();
+        allow create: if isCustomer() &&
+            request.resource.data.get('customerId', '') == currentUid() &&
+            request.resource.data.get('stars', -1) >= 0 &&
+            request.resource.data.get('stars', 6) <= 5 &&
+            exists(/databases/$(database)/documents/orders/$(orderId)) &&
+            get(/databases/$(database)/documents/orders/$(orderId)).data.get('customerId', '') == currentUid() &&
+            get(/databases/$(database)/documents/orders/$(orderId)).data.get('driverId', '') == driverId &&
+            get(/databases/$(database)/documents/orders/$(orderId)).data.get('status', '') == 'delivered';
+        allow update, delete: if false;
+      }
     }
 
     // ---------------------------------------------------------------------
@@ -600,7 +651,12 @@ service cloud.firestore {
             isRestaurantManagerOf(resource.data.restaurantId)
           );
       allow create: if isSignedIn() &&
-          request.resource.data.submittedByUid == currentUid();
+          request.resource.data.submittedByUid == currentUid() &&
+          // صورة الشكوى Blob داخل المستند (2026-08-20): تُحرَس حجماً كنمط
+          // order_proofs — <٤٠٠ك يبقي المستند دون حدّ فايرستور ويمنع
+          // إساءة التخزين. اختيارية: شكوى بلا صورة تمرّ كما كانت.
+          (!('imageBlob' in request.resource.data) ||
+              request.resource.data.imageBlob.size() < 400000);
       // دورة حياة الشكوى (2026-08-16): لمقدّمها وحده، ومن حالة «محلولة»
       // حصراً، تحوّلان اثنان لا ثالث لهما — «نعم حُلّت» (إغلاق) أو «لا
       // لم تُحل» (إرجاع موسوم بالارتداد). hasOnly تمنع مسّ أي حقل آخر
@@ -899,7 +955,12 @@ service cloud.firestore {
     // أي مسجَّل يُنشئ بعدّاد ١ أو يزيد +1 حصراً دون مسّ الاسم — نمط
     // عدّاد الكوبون نفسه، فلا يُصفّر أحدٌ طلبات مطعمٍ منافس ولا يضخّمها
     // إلا ضغطةً ضغطة (وسقف الإزعاج محدود بطبيعته: مستند لكل اسم).
-    // ---------------------------------------------------------------------
+    // suggestions — قاعدةٌ موحّدة أدناه (صندوق التطبيق + «قل لنا» في الموقع
+    // يكتبان المجموعة نفسها). كانت هنا قاعدةٌ ثانية لصندوق التطبيق فأُزيلت
+    // عند دمج 2026-08-20: قاعدتان لنفس المجموعة تُقيَّمان بدلالة OR فتُضعف
+    // الأدنى الأعلى. الموحَّدة تشترط التسجيل، وعميل التطبيق كُيِّف ليكتب
+    // `uid` و`status:'new'` فيمرّ منها (صندوق واردٍ واحدٌ للمدير).
+
     match /restaurant_requests/{slug} {
       allow get, list: if isAdmin();
       allow create: if isSignedIn() &&
