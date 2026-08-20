@@ -1283,6 +1283,37 @@ class RestaurantRequest {
       );
 }
 
+/// اقتراح/نصيحة من زائر أو مستخدم (2026-08-20، بطلب المالك): قناة صوتٍ
+/// عامة يفتحها الزائر بلا تسجيل — النصّ إلزامي، والاسم والهاتف اختياريان
+/// (ليتواصل المدير إن أراد). تُقرأ في لوحة الإدارة فقط.
+class Suggestion {
+  final String id;
+  final String text;
+  final String? name;
+  final String? phone;
+  final DateTime createdAt;
+
+  const Suggestion({
+    required this.id,
+    required this.text,
+    this.name,
+    this.phone,
+    required this.createdAt,
+  });
+
+  factory Suggestion.fromMap(Map<String, dynamic> map, String id) => Suggestion(
+        id: id,
+        text: map['text'] as String? ?? '',
+        name: (map['name'] as String?)?.trim().isEmpty ?? true
+            ? null
+            : map['name'] as String?,
+        phone: (map['phone'] as String?)?.trim().isEmpty ?? true
+            ? null
+            : map['phone'] as String?,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+}
+
 class IncentiveSettings {
   // ————— برنامج الإحالة —————
   final bool referralEnabled;

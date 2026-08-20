@@ -905,6 +905,23 @@ service cloud.firestore {
     // عدّاد الكوبون نفسه، فلا يُصفّر أحدٌ طلبات مطعمٍ منافس ولا يضخّمها
     // إلا ضغطةً ضغطة (وسقف الإزعاج محدود بطبيعته: مستند لكل اسم).
     // ---------------------------------------------------------------------
+    // suggestions — اقتراحات/نصائح عامة (2026-08-20، بطلب المالك): بابٌ
+    // مفتوح للزائر بلا تسجيل عمداً، مقيّدٌ بحدود صارمة تمنع إساءة التخزين:
+    // النصّ إلزامي ومحدود الطول، والحقول محصورة (hasOnly). القراءة والحذف
+    // للمدير حصراً. (App Check يقيّده لاحقاً للتطبيق الرسمي وحده.)
+    match /suggestions/{id} {
+      allow get, list: if isAdmin();
+      allow create: if
+          request.resource.data.keys().hasOnly(['text', 'name', 'phone', 'createdAt']) &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() >= 3 &&
+          request.resource.data.text.size() <= 1000 &&
+          request.resource.data.get('name', '').size() <= 100 &&
+          request.resource.data.get('phone', '').size() <= 30;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     match /restaurant_requests/{slug} {
       allow get, list: if isAdmin();
       allow create: if isSignedIn() &&

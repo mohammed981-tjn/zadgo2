@@ -11,6 +11,7 @@ import '../auth/login_screen.dart';
 import 'admin_restaurants_tab.dart';
 import 'admin_users_tab.dart';
 import 'admin_audit_screen.dart';
+import 'admin_suggestions_screen.dart';
 import 'order_tracking_tab.dart';
 import 'broadcast_tab.dart';
 import 'admin_complaints_screen.dart';
@@ -157,7 +158,7 @@ class _AdminHomeState extends State<AdminHome> {
               },
             ),
             // سجلّ الإدارة للمدير وحده (لا الدعم — والقاعدة تمنعه list):
-            // من فعل ماذا ومتى، من الجوّال أو الويب.
+            // من فعل ماذا ومتى, من الجوّال أو الويب.
             ListTile(
               leading: const Icon(Icons.history_outlined),
               title: const Text('سجلّ الإدارة'),
@@ -170,6 +171,21 @@ class _AdminHomeState extends State<AdminHome> {
                     MaterialPageRoute(
                         builder: (_) => const _DrawerScreen(
                             title: 'سجلّ الإدارة', child: AdminAuditScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.lightbulb_outline),
+              title: const Text('اقتراحات ونصائح'),
+              subtitle: const Text('صوت الزوّار والمستخدمين',
+                  style: TextStyle(fontSize: 11.5)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const _DrawerScreen(
+                            title: 'اقتراحات ونصائح',
+                            child: AdminSuggestionsScreen())));
               },
             ),
             ListTile(

@@ -23,6 +23,7 @@ import 'restaurant_detail_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
 import 'account_screen.dart';
+import 'suggestion_screen.dart';
 
 /// عتبة عدد الطلبات المُنجزة التي تُظهر شارة "الأكثر طلباً" على بطاقة
 /// المطعم — لا تتطلب حقلاً إضافياً في البيانات، تُحسب من [Restaurant.totalOrders].
@@ -47,6 +48,13 @@ class _CustomerHomeState extends State<CustomerHome> {
       appBar: AppBar(
         title: Text(isGuest ? 'مرحباً بك في ZadGo' : 'مرحباً ${auth.user?.name ?? ""}'),
         actions: [
+          // اقتراح/نصيحة — متاح للزائر أيضاً (قناة صوت عامة بلا تسجيل).
+          IconButton(
+            tooltip: 'اقتراح أو نصيحة',
+            icon: const Icon(Icons.lightbulb_outline),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SuggestionScreen())),
+          ),
           badges.Badge(showBadge: cart.itemCount > 0,
             badgeContent: Text('${cart.itemCount}', style: const TextStyle(color: Colors.white, fontSize: 10.5)),
             child: IconButton(icon: PhosphorIcon(PhosphorIcons.shoppingCartSimple()),

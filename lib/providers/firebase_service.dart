@@ -184,6 +184,35 @@ class FirebaseService {
         logAdminAction('restaurantRequest.done', 'مطعم مطلوب أُضيف: $id');
       });
 
+  CollectionReference<Map<String, dynamic>> get _suggestions =>
+      _db.collection('suggestions');
+
+  /// اقتراح/نصيحة عامة (2026-08-20): يكتبها الزائر بلا تسجيل — النصّ
+  /// إلزامي والاسم والهاتف اختياريان. القاعدة تحرس الحقول والأحجام،
+  /// والقراءة للمدير حصراً. لا أعلام auth: بابٌ عام مقصود.
+  Future<void> submitSuggestion(String text,
+      {String? name, String? phone}) async {
+    final t = text.trim();
+    if (t.length < 3) throw Exception('اكتب اقتراحك');
+    await _suggestions.add({
+      'text': t.length > 1000 ? t.substring(0, 1000) : t,
+      if ((name ?? '').trim().isNotEmpty) 'name': name!.trim(),
+      if ((phone ?? '').trim().isNotEmpty) 'phone': phone!.trim(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// أحدث ٢٠٠ اقتراح للمدير (ترتيب خادمي — createdAt وحده، لا فهرس مركّب).
+  Stream<List<models.Suggestion>> streamSuggestions() => _suggestions
+      .orderBy('createdAt', descending: true)
+      .limit(200)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => models.Suggestion.fromMap(d.data(), d.id))
+          .toList());
+
+  Future<void> deleteSuggestion(String id) => _suggestions.doc(id).delete();
+
   /// تبديل مطعم في مفضلة العميل (ح2) — arrayUnion/Remove ذرّيتان فلا
   /// يفسد سباقُ ضغطتين متتاليتين المصفوفةَ، والقاعدة القائمة تسمح بها
   /// (المستخدم يعدّل مستنده عدا الدور والتفعيل والرصيد صعوداً).
