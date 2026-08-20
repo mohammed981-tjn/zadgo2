@@ -299,13 +299,14 @@ header{position:sticky;top:0;z-index:50;background:var(--n900);
 /* ٥ — المدينة الليلية: **تملأ البطل**، وتذوب في السماء المرسومة أعلاها
    فلا يظهر لها حدٌّ مستقيم يفضح أنها صورة ملصوقة. */
 .heroshot{position:absolute;inset:0;z-index:-2;
-  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 26%,#000 100%);
-          mask-image:linear-gradient(180deg,transparent 0,#000 26%,#000 100%)}
+  -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 14%,#000 100%);
+          mask-image:linear-gradient(180deg,transparent 0,#000 14%,#000 100%)}
 .heroshot img{inline-size:100%;block-size:100%;object-fit:cover;
-  object-position:50% 18%;
-  /* خفضُ الإشباع والسطوع ليس تجميلاً: النصّ الأبيض فوق مصباحٍ برتقاليّ
-     ساطع يسقط تحت ٤٫٥:١ — والحجاب وحده لا يكفي فوق أعلى نقطةٍ ضوئية. */
-  filter:saturate(.86) brightness(.82) contrast(1.05)}
+  object-position:50% 30%;
+  /* الحدّة مخبوزةٌ في الملف نفسه (unsharp)، فلا يحتاج CSS إلا لمسةَ
+     تعديل. وكان هنا `brightness(.82)` يطفئ المدينة — ورُفع إلى .94:
+     التباين يضمنه الحجاب أسفلَ حيث النصّ، لا إطفاءُ الصورة كلّها. */
+  filter:saturate(1.04) brightness(.94) contrast(1.04)}
 
 /* ٦ — الحجاب: يضمن 4.5:1 للنصّ فوق **أي** بكسلٍ من الصورة، ويثبّت
    قاع البطل على الكحلي فينتقل إلى القسم التالي بلا حدّ. */
@@ -313,8 +314,8 @@ header{position:sticky;top:0;z-index:50;background:var(--n900);
   /* الظلمة حيث النصّ لا حيث المشهد: أعلى البطل يبقى مفتوحاً لتُرى
      المدينة، ويثقل التدرّج تحت العنوان فيبلغ النصّ ٤٫٥:١ فوق أي بكسل. */
   background:
-    linear-gradient(180deg,rgba(11,25,53,.30) 0%,rgba(11,25,53,.10) 26%,
-      rgba(11,25,53,.62) 56%,rgba(11,25,53,.93) 84%,#0B1935 100%),
+    linear-gradient(180deg,rgba(11,25,53,.26) 0%,rgba(11,25,53,.08) 18%,
+      rgba(11,25,53,.46) 34%,rgba(11,25,53,.74) 52%,rgba(11,25,53,.94) 84%,#0B1935 100%),
     radial-gradient(80% 46% at 50% 104%, rgba(255,193,7,.13), transparent 72%)}
 
 /* ٧ — ختم الزاي */
@@ -324,8 +325,14 @@ header{position:sticky;top:0;z-index:50;background:var(--n900);
 @media (max-width:400px){.zay-seal{inline-size:62px;block-size:62px;opacity:.13}}
 
 .heroin{position:relative;z-index:1}
-.eyebrow{display:flex;align-items:center;gap:9px;color:var(--on-navy-3);
-  font-size:var(--fs-meta);font-weight:700;margin-block-end:20px}
+/* الحاجب شريحةٌ لا سطرٌ عارٍ: هو أعلى نصٍّ في البطل، أي فوق أسطع بقعةٍ
+   في المدينة — والحجاب العامّ الذي يكفيه يُطفئ الأبراج معه. الشريحة
+   تُظلم ما تحتها وحده فيبلغ ٤٫٥:١، وتبقى المدينة على سطوعها. */
+.eyebrow{display:inline-flex;align-items:center;gap:9px;color:var(--on-navy-2);
+  font-size:var(--fs-meta);font-weight:700;margin-block-end:20px;
+  padding:7px 14px;border-radius:999px;background:rgba(11,25,53,.76);
+  border:1px solid rgba(255,255,255,.13);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
 .eyebrow .lamp{inline-size:8px;block-size:8px;border-radius:50%;flex:0 0 8px;
   background:var(--gold);box-shadow:var(--sh-gold)}   /* ظلٌّ ثابت، لا نبض */
 .hero h1{max-inline-size:13ch}
@@ -387,7 +394,7 @@ section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
    خلف تفاعلٍ لا يملكه الجهاز. */
 @media (hover:none){ .door .more{grid-template-rows:1fr} }
 
-/* ══════════════ مطبخ أوّل شركائنا ══════════════ */
+/* ══════════════ المطبخ — صورٌ حقيقية ══════════════ */
 /* على الجوّال **شريطٌ أفقي** لا رصفٌ رأسي: ثلاث صورٍ مربّعة فوق بعضها
    تعني ٣٫٤ شاشة من التمرير لقسمٍ واحد (مقيسة) — والزائر يترك الصفحة قبل
    أن يبلغ ما بعدها. والشريط يأخذ ارتفاع بطاقةٍ واحدة ويعرض الثلاث،
@@ -403,10 +410,6 @@ section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
 .kcard img{aspect-ratio:4/3;object-fit:cover;inline-size:100%}
 .kcard figcaption{padding:14px 16px;font-size:var(--fs-meta);color:var(--on-paper-2)}
 .kcard b{display:block;color:var(--on-paper-1);font-size:1rem;margin-block-end:3px}
-.knote{margin-block-start:22px;padding:14px 16px;border-inline-start:4px solid var(--gold);
-  background:var(--mist);border-radius:0 var(--r-sm) var(--r-sm) 0;
-  color:var(--on-paper-2);font-size:var(--fs-meta)}
-:root[dir=ltr] .knote{border-radius:var(--r-sm) 0 0 var(--r-sm)}
 
 /* ══════════════ الليل والطريق ══════════════ */
 .night{background:var(--n900)}
@@ -741,11 +744,11 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
 </section>
 <svg class="horizon" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
 
-<!-- ═══════════ ٣ · مطبخ أوّل شركائنا ═══════════ -->
+<!-- ═══════════ ٣ · المطبخ — صورٌ حقيقية ═══════════ -->
 <section class="light" id="kitchen" aria-labelledby="h-kitchen">
   <div class="wrap">
-    <h2 id="h-kitchen" data-i18n="kitchen.h2">من مطبخ <em>أوّل شركائنا</em></h2>
-    <p class="lead" data-i18n="kitchen.lead">هذه صورٌ حقيقية من مطعمٍ شريكٍ فعليّ — لا صور مخزون. ما تراه هو ما يصلك.</p>
+    <h2 id="h-kitchen" data-i18n="kitchen.h2">ما تراه <em>هو ما يصلك</em></h2>
+    <p class="lead" data-i18n="kitchen.lead">صورٌ حقيقية من مطابخ شركائنا وبأسعارهم هم — لا صور مخزون ولا سعرٌ يتغيّر عند الدفع.</p>
     <div class="kgrid">
       <figure class="kcard reveal" style="--i:0">
         <picture>
@@ -754,7 +757,7 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
           <img src="images/kitchen-1.jpg" alt="فطيرة بالعسل" width="720" height="720" loading="lazy" decoding="async">
         </picture>
         <figcaption><b data-i18n="kitchen.c1">فطير بالعسل</b>
-          <span data-i18n="kitchen.c1d">من فطير ستيشن — أوّل شركائنا في المدينة</span></figcaption>
+          <span data-i18n="kitchen.c1d">من مطبخ شريكنا فطير ستيشن</span></figcaption>
       </figure>
       <figure class="kcard reveal" style="--i:1">
         <picture>
@@ -763,7 +766,7 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
           <img src="images/kitchen-2.jpg" alt="فطيرة بالشيدر والعسل" width="720" height="720" loading="lazy" decoding="async">
         </picture>
         <figcaption><b data-i18n="kitchen.c2">شيدر وعسل</b>
-          <span data-i18n="kitchen.c2d">الصورة من المطعم نفسه، بسعره هو</span></figcaption>
+          <span data-i18n="kitchen.c2d">الصورة من المطعم نفسه وبسعره هو</span></figcaption>
       </figure>
       <figure class="kcard reveal" style="--i:2">
         <picture>
@@ -775,7 +778,6 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
           <span data-i18n="kitchen.c3d">ونعرض السعرات لكل صنف قبل أن تطلب</span></figcaption>
       </figure>
     </div>
-    <p class="knote" data-i18n="kitchen.note"><b>لماذا صورٌ من مطعمٍ واحد؟</b> لأننا ما زلنا في التجربة، ولا نملك تسعة مطابخ نصوّرها. وصورةٌ من مخزونٍ عالميّ تحت عنوان «من مطابخ مدينتك» كذبةٌ يكشفها القارئ في ثانية.</p>
   </div>
 </section>
 <svg class="horizon on-light" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
