@@ -28,7 +28,9 @@ import '../../utils/driver_proof_flow.dart';
 import 'pickup_docket_screen.dart';
 import 'captain_guide_screen.dart';
 import '../../utils/location_guard.dart';
+import '../../utils/battery_advice.dart';
 import '../../navigator_key.dart';
+import '../../widgets/osm_attribution.dart';
 
 class DriverHome extends StatefulWidget {
   const DriverHome({super.key});
@@ -696,6 +698,12 @@ class _MyOrdersTab extends StatelessWidget {
               ? 'أنت الآن متاح لاستقبال الطلبات — بالتوفيق! 🚀'
               : 'أصبحت غير متصل — لن تصلك طلبات جديدة');
     }
+    // نصيحة البطارية عند أول اتصال في عمر التثبيت — هنا لا عند فتح
+    // التطبيق: لحظة «متصل» هي اللحظة التي يصير فيها بقاء العملية حيّةً
+    // مصلحةً مباشرة للكابتن، فالنص يُقرأ لا يُمرَّر.
+    if (goOnline && context.mounted) {
+      await showBatteryAdviceOnce(context);
+    }
   }
 
   @override
@@ -974,6 +982,7 @@ class _DriverMapState extends State<_DriverMap> {
           ),
           if (lines.isNotEmpty) PolylineLayer(polylines: lines),
           MarkerLayer(markers: markers),
+          const OsmAttribution(),
         ],
       ),
       // فوق اللوح السفلي في وضعه الأدنى (18%) بهامش أمان.
