@@ -497,7 +497,9 @@ class FirebaseService {
     required String password,
     required String phone,
     String? nationalId,
-    models.UserRole? expectedRole,
+    // مجموعة لا دوراً واحداً: نكهة الإدارة تقبل كودَي «مدير عام»
+    // و«موظف دعم» معاً — المساواة الصارمة كانت سترفض كود الدعم فيها.
+    Set<models.UserRole>? allowedRoles,
     String? referredByCode,
   }) async {
     final ref = _registrationCodes.doc(code.trim().toUpperCase());
@@ -513,7 +515,7 @@ class FirebaseService {
     if (initial.isExpired) {
       throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
     }
-    if (expectedRole != null && initial.role != expectedRole) {
+    if (allowedRoles != null && !allowedRoles.contains(initial.role)) {
       throw Exception('هذا الكود غير مخصص لهذا التطبيق');
     }
 
@@ -533,7 +535,7 @@ class FirebaseService {
         if (current.isExpired) {
           throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
         }
-        if (expectedRole != null && current.role != expectedRole) {
+        if (allowedRoles != null && !allowedRoles.contains(current.role)) {
           throw Exception('هذا الكود غير مخصص لهذا التطبيق');
         }
         // ختم الكود باسم صاحبه **داخل المعاملة** لا بعد إنشاء المستخدم:

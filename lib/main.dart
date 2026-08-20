@@ -60,6 +60,9 @@ void main() async {
     switch (role) {
       case UserRole.admin:
         return const AdminHome();
+      case UserRole.support:
+        // الدعم يسكن لوحة الإدارة نفسها — وهي تنكمش له من الداخل.
+        return const AdminHome();
       case UserRole.customer:
         return const CustomerHome();
       case UserRole.driver:

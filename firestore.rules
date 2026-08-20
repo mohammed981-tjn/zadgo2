@@ -59,6 +59,14 @@ service cloud.firestore {
       return hasAdminClaim() || hasRole('admin');
     }
 
+    // موظف الدعم (roles-design، دفعة 2026-08-20): دورٌ يفتح جزءاً من
+    // اللوحة لا كلها — قراءة الطلبات والكباتن وبيانات التواصل، وإدارة
+    // الشكاوى نصاً وحالةً. **كل ما يمسّ مالاً أو صلاحية يبقى للمدير**:
+    // المحافظ، الصرف، العمولات، الإعدادات، الأكواد، الاعتماد، البثّ.
+    function isSupport() {
+      return hasRole('support');
+    }
+
     function isDriver() {
       return hasRole('driver');
     }
@@ -191,7 +199,10 @@ service cloud.firestore {
     // وهذه القواعد هي خط الدفاع الوحيد أمام الكتابة المباشرة.
     // ---------------------------------------------------------------------
     match /users/{userId} {
-      allow get: if isSignedIn() && (currentUid() == userId || isAdmin());
+      // الدعم يقرأ مستند مستخدمٍ بعينه (بيانات تواصل لشكوى بين يديه)
+      // ولا يسرد القائمة كلها — get لا list: وظيفته الاتصال لا الحصر.
+      allow get: if isSignedIn() &&
+          (currentUid() == userId || isAdmin() || isSupport());
       allow list: if isAdmin();
       // الإنشاء الذاتي يبدأ برصيد صفر إلزاماً، فلا يُنشئ أحد حسابه برصيد
       // جاهز. والدور: `customer` متاح للجميع، وما سواه بكود تسجيل مختوم
@@ -283,14 +294,17 @@ service cloud.firestore {
     // العميل نفسه بصفته customerId.
     // ---------------------------------------------------------------------
     match /orders/{orderId} {
+      // الدعم قارئٌ للطلبات (المتابعة الحية والسجلّ وسياق الشكوى) —
+      // قراءةً فقط: لا تعديل حالة ولا إسناد ولا مال؛ التحويل يمسّ
+      // العُهد والدفاتر فيبقى للمدير.
       allow get: if isSignedIn() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             resource.data.customerId == currentUid() ||
             resource.data.driverId == currentUid() ||
             isRestaurantManagerOf(resource.data.restaurantId)
           );
       allow list: if isSignedIn() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             resource.data.customerId == currentUid() ||
             resource.data.driverId == currentUid() ||
             isRestaurantManagerOf(resource.data.restaurantId)
@@ -400,7 +414,8 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /drivers/{driverId} {
       allow get: if isSignedIn();
-      allow list: if isAdmin() || isDriver() || hasRole('restaurantManager');
+      allow list: if isAdmin() || isSupport() || isDriver() ||
+          hasRole('restaurantManager');
       // إنشاء مستند السائق: يبدأ بأرصدة صفرية إلزاماً. بلا هذا القيد كان
       // سائقٌ مقبول (يملك كوداً) يُنشئ مستنده مباشرةً بـ balance/totalEarnings
       // مختلَقين بدل المرور بمسار التطبيق — مسارٌ بديل للسرقة يعمل حتى لو
@@ -514,7 +529,7 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /complaints/{complaintId} {
       allow get: if isSignedIn() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             resource.data.customerId == currentUid() ||
             resource.data.submittedByUid == currentUid() ||
             resource.data.againstUid == currentUid() ||
@@ -524,7 +539,7 @@ service cloud.firestore {
       // (شكاواه المقدَّمة أو المقدَّمة عليه، أو شكاوى مطعمه لمديره) — محرّك
       // القواعد يرفض أي استعلام قد يُرجع شكوى غيره.
       allow list: if isSignedIn() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             resource.data.submittedByUid == currentUid() ||
             resource.data.againstUid == currentUid() ||
             isRestaurantManagerOf(resource.data.restaurantId)
@@ -535,7 +550,15 @@ service cloud.firestore {
       // حصراً، تحوّلان اثنان لا ثالث لهما — «نعم حُلّت» (إغلاق) أو «لا
       // لم تُحل» (إرجاع موسوم بالارتداد). hasOnly تمنع مسّ أي حقل آخر
       // (القرار، الأطراف، النوع...) تحت غطاء التأكيد.
-      allow update: if isAdmin() || (
+      allow update: if isAdmin() ||
+          // الدعم يدير دورة الشكوى نصاً وحالةً حصراً — hasOnly تسدّ
+          // الباب على مسّ الأطراف أو النوع أو أي حقلٍ ماليٍّ مقترح تحت
+          // غطاء «تغيير الحالة». الاسترداد نفسه كتابة محفظة في users
+          // وممنوع عنه هناك أصلاً — «يقترحه ولا يختمه».
+          (isSupport() &&
+            request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'resolvedAt', 'reopenedBySubmitter',
+                        'adminNote', 'resolution'])) || (
             isSignedIn() &&
             resource.data.submittedByUid == currentUid() &&
             resource.data.status == 'resolved' &&
@@ -565,12 +588,12 @@ service cloud.firestore {
       }
 
       allow get, list: if isSignedIn() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             relatedComplaint().submittedByUid == currentUid()
           );
       allow create: if isSignedIn() &&
           request.resource.data.senderId == currentUid() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             relatedComplaintFromRequest().submittedByUid == currentUid()
           );
     }
@@ -588,12 +611,12 @@ service cloud.firestore {
       }
 
       allow get: if isSignedIn() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             relatedOrder().customerId == currentUid() ||
             relatedOrder().driverId == currentUid()
           );
       allow list: if isSignedIn() && (
-            isAdmin() ||
+            isAdmin() || isSupport() ||
             relatedOrder().customerId == currentUid() ||
             relatedOrder().driverId == currentUid()
           );
@@ -810,7 +833,7 @@ service cloud.firestore {
       // الذي مُنع لأجله التعديل والحذف. القراءة بـget الافتراضي (لا
       // وصول مباشر): حقل غائب في القواعد خطأ تقييم يُسقط الطلب كله لا
       // شرطاً يعود بـfalse — درس خطأ الكوبون.
-      allow create: if isAdmin() &&
+      allow create: if (isAdmin() || isSupport()) &&
           request.resource.data.get('by', '') == currentUid();
       allow update, delete: if false;
     }

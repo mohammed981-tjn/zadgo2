@@ -7,7 +7,11 @@ import 'package:flutter/material.dart';
 // helpers لا يستورد models، فلا دورة استيراد.
 import '../utils/helpers.dart' show Pricing;
 
-enum UserRole { admin, customer, driver, restaurantManager }
+// support (موظف الدعم، دفعة 2026-08-20): دورٌ خامس يفتح جزءاً من اللوحة
+// لا كلها — الشكاوى والمتابعة والتواصل بلا مالٍ ولا صلاحيات. القيد
+// الحقيقي في قواعد Firestore لا في الواجهة (roles-design.md)، فمن يبني
+// نسخة معدَّلة يتخطى أي إخفاء بصري ولا يتخطى القاعدة.
+enum UserRole { admin, customer, driver, restaurantManager, support }
 
 enum OrderStatus {
   created,
@@ -138,6 +142,7 @@ extension UserRoleExt on UserRole {
       UserRole.customer: 'عميل',
       UserRole.driver: 'سائق',
       UserRole.restaurantManager: 'مدير مطعم',
+      UserRole.support: 'موظف دعم',
     };
     return map[this] ?? '';
   }
@@ -312,7 +317,11 @@ extension ComplaintTypeScope on ComplaintType {
   /// أنواع الشكاوى المتاحة لدورٍ معيّن؛ المدير العام يرى كل الأنواع (لأنه قد
   /// يسجّل شكوى نيابةً عن أي طرف)، وأي دور غير مُعرَّف يسقط إلى [other] فقط.
   static List<ComplaintType> typesForRole(UserRole role) {
-    if (role == UserRole.admin) return ComplaintType.values;
+    // موظف الدعم كالمدير هنا: كلاهما قد يسجّل شكوى نيابةً عن أي طرف
+    // يتصل هاتفياً — حصره في «أخرى» كان سيدفعه لتصنيف كل شيء خطأً.
+    if (role == UserRole.admin || role == UserRole.support) {
+      return ComplaintType.values;
+    }
     return _byRole[role] ?? const [ComplaintType.other];
   }
 

@@ -223,6 +223,8 @@ class _ComplaintCard extends StatelessWidget {
         return Icons.delivery_dining_outlined;
       case UserRole.restaurantManager:
         return Icons.restaurant_outlined;
+      case UserRole.support:
+        return Icons.support_agent_outlined;
       case UserRole.admin:
       case null:
         return Icons.info_outline;

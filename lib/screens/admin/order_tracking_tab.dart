@@ -352,7 +352,11 @@ class _TrackedOrderCard extends StatelessWidget {
                     order.status == OrderStatus.pickedUp ||
                     order.status == OrderStatus.onTheWay) &&
                 order.driverId != null &&
-                order.driverId!.isNotEmpty)
+                order.driverId!.isNotEmpty &&
+                // التحويل يمسّ عُهدة السائقَين ودفترَيهما (مال) — للمدير
+                // وحده؛ الدعم يرصد المتعثر ويبلّغ. القاعدة ترفضه له أصلاً.
+                context.read<app_auth.AuthProvider>().user?.role !=
+                    UserRole.support)
               _pill(
                 icon: Icons.swap_horiz,
                 label: 'تحويل لسائق آخر',

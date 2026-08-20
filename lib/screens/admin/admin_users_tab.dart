@@ -35,6 +35,7 @@ class AdminUsersTab extends StatelessWidget {
           // طويلة مسطّحة، لتوفير المساحة وتسهيل تصفّح عدد كبير من الحسابات.
           const order = [
             UserRole.admin,
+            UserRole.support,
             UserRole.restaurantManager,
             UserRole.driver,
             UserRole.customer,
@@ -72,6 +73,7 @@ class AdminUsersTab extends StatelessWidget {
         UserRole.restaurantManager => Icons.storefront_outlined,
         UserRole.driver => Icons.delivery_dining_outlined,
         UserRole.customer => Icons.person_outline,
+        UserRole.support => Icons.support_agent_outlined,
       };
 
   void _showGenerateRegistrationCodeDialog(BuildContext context) {
@@ -91,6 +93,7 @@ class AdminUsersTab extends StatelessWidget {
           UserRole.driver => 'سائق',
           UserRole.admin => 'مدير عام',
           UserRole.customer => 'عميل',
+          UserRole.support => 'موظف دعم',
         };
 
     showDialog(
@@ -114,6 +117,9 @@ class AdminUsersTab extends StatelessWidget {
                     DropdownMenuItem(value: UserRole.restaurantManager, child: Text('مدير مطعم')),
                     DropdownMenuItem(value: UserRole.driver, child: Text('سائق')),
                     DropdownMenuItem(value: UserRole.admin, child: Text('مدير عام')),
+                    // كود «موظف دعم» يفتح لوحة إدارة منكمشة: شكاوى
+                    // ومتابعة بلا مالٍ ولا صلاحيات — القيد في القواعد.
+                    DropdownMenuItem(value: UserRole.support, child: Text('موظف دعم')),
                   ],
                   onChanged: (v) {
                     if (v == null) return;

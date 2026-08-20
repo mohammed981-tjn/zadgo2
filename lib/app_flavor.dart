@@ -32,6 +32,19 @@ class AppFlavorConfig {
   /// قيد (النكهة الكاملة فقط تسمح بكل الأدوار).
   static UserRole? restrictToRole;
 
+  /// أدوار إضافية تُقبل فوق [restrictToRole] في النكهة نفسها — نكهة
+  /// الإدارة تقبل موظف الدعم: يدخل اللوحة ذاتها فتنكمش له واجهتها
+  /// (شكاوى ومتابعة بلا مال). القيد الحقيقي في قواعد Firestore لا هنا.
+  static Set<UserRole> extraAllowedRoles = {};
+
+  /// هل يُقبل هذا الدور في النكهة الحالية؟ — الفحص الموحّد لبوابتي
+  /// الدخول والإقلاع، كي لا يفترق منطقاهما يوماً فيدخل دورٌ من باب
+  /// ويُطرد من الآخر.
+  static bool roleAllowed(UserRole role) =>
+      restrictToRole == null ||
+      role == restrictToRole ||
+      extraAllowedRoles.contains(role);
+
   /// رسالة الرفض حين يحاول حساب من دور آخر الدخول على نكهة مقيّدة بدور واحد.
   static String restrictedMessage = 'هذا التطبيق غير مخصص لهذا الحساب';
 

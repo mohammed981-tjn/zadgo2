@@ -207,7 +207,7 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     required String phone,
     String? nationalId,
-    UserRole? expectedRole,
+    Set<UserRole>? allowedRoles,
     String? referredByCode,
   }) async {
     _loading = true; _error = null; notifyListeners();
@@ -219,7 +219,7 @@ class AuthProvider extends ChangeNotifier {
         password: password.trim(),
         phone: phone.trim(),
         nationalId: nationalId?.trim(),
-        expectedRole: expectedRole,
+        allowedRoles: allowedRoles,
         referredByCode: referredByCode?.trim(),
       );
       _user = user; _loading = false; notifyListeners();
