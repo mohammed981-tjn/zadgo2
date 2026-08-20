@@ -1,13 +1,13 @@
 /* ZadGo — الصفحات النظامية (الخصوصية، الشروط، حذف الحساب، التواصل)
-   الهوية الرسمية: كحلي داكن + ذهبي #FFC107، خط Tajawal — مطابقة لصفحة الهبوط. */
+   الهوية الرسمية: كحلي داكن + ذهبي #D4A017، خط Tajawal — مطابقة لصفحة الهبوط. */
 
 :root {
-  --navy: #0b1631;
-  --navy-deep: #061024;
-  --gold: #FFC107;
+  --g700: #0B3D2E;
+  --g900: #04150F;
+  --gold: #D4A017;
   --paper: #f2f5fb;
-  --ink: #101a2e;
-  --muted: #5b6880;
+  --ink: #0B1F17;
+  --muted: #5C6B64;
   --line: #dfe5f0;
 }
 
@@ -21,11 +21,11 @@ body {
 }
 
 a { color: #12508f; }
-a:hover { color: var(--navy); }
+a:hover { color: var(--g700); }
 
 /* ترويسة */
 .site-header {
-  background: linear-gradient(135deg, var(--navy-deep), var(--navy));
+  background: linear-gradient(135deg, var(--g900), var(--g700));
   padding: 18px 20px;
 }
 .header-inner {
@@ -51,12 +51,12 @@ main {
   color: var(--muted);
   text-decoration: none;
 }
-.back-link:hover { color: var(--navy); }
+.back-link:hover { color: var(--g700); }
 
 h1 {
   font-size: 1.7rem;
   font-weight: 800;
-  color: var(--navy);
+  color: var(--g700);
   line-height: 1.5;
 }
 h1::after {
@@ -78,7 +78,7 @@ h1::after {
 h2 {
   font-size: 1.12rem;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--g700);
   margin: 28px 0 8px;
   padding-right: 12px;
   border-right: 4px solid var(--gold);
@@ -116,7 +116,7 @@ li { margin: 6px 0; }
 
 /* التذييل */
 .site-footer {
-  background: var(--navy-deep);
+  background: var(--g900);
   color: #9aa7bd;
   padding: 24px 20px;
   text-align: center;
