@@ -115,15 +115,49 @@ class _PriceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Text(item.emoji, style: const TextStyle(fontSize: 26)),
-      title: Text(item.name.trim().isEmpty ? '(بلا اسم)' : item.name),
-      subtitle: Text(formatCurrency(item.price),
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-      trailing: IconButton(
-        icon: const Icon(Icons.edit_outlined),
-        tooltip: 'تعديل السعر',
-        onPressed: () => _editPrice(context),
+      leading: Opacity(
+        opacity: item.isAvailable ? 1 : 0.35,
+        child: Text(item.emoji, style: const TextStyle(fontSize: 26)),
       ),
+      title: Text(item.name.trim().isEmpty ? '(بلا اسم)' : item.name,
+          style: item.isAvailable
+              ? null
+              : const TextStyle(
+                  color: AppColors.textGray,
+                  decoration: TextDecoration.lineThrough)),
+      subtitle: Text(
+          item.isAvailable
+              ? formatCurrency(item.price)
+              : '${formatCurrency(item.price)} — نفد مؤقتاً',
+          style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: item.isAvailable ? AppColors.primary : AppColors.error)),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        // «نفد الصنف» بيد المطعم (يوم المطعم 2026-08-20): صنفٌ ينفد في
+        // الذروة كان يبقى معروضاً فيُطلب ثم يُلغى أو يُستبدل هاتفياً —
+        // أول أسباب «الطلب الخاطئ». المفتاح يخفيه عن العميل فوراً
+        // ويعيده بضغطة حين يعود.
+        Switch(
+          value: item.isAvailable,
+          activeColor: AppColors.success,
+          onChanged: (v) async {
+            try {
+              await context
+                  .read<FirebaseService>()
+                  .updateMenuItem(item.copyWith(isAvailable: v));
+            } catch (_) {
+              if (context.mounted) {
+                showError(context, 'تعذّر التغيير — حاول مجدداً');
+              }
+            }
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.edit_outlined),
+          tooltip: 'تعديل السعر',
+          onPressed: () => _editPrice(context),
+        ),
+      ]),
     );
   }
 }

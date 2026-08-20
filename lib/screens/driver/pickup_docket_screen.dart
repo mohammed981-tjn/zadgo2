@@ -324,6 +324,24 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                   ),
                                 ]),
                           ],
+                          // دقائق التحضير (يوم المطعم): تُعرض ما دام الطلب
+                          // في المطبخ — فالكابتن يقرّر متى ينطلق بدلاً من
+                          // الانتظار واقفاً؛ وتختفي بعد «جاهز» لأنها انتهت.
+                          if (o.prepMinutes != null &&
+                              o.status.index <
+                                  OrderStatus.readyForPickup.index) ...[
+                            const Divider(),
+                            Row(children: [
+                              const Icon(Icons.timer_outlined,
+                                  size: 16, color: AppColors.primaryDark),
+                              const SizedBox(width: 6),
+                              Text(
+                                  'المطعم قدّر التحضير: نحو ${o.prepMinutes} دقيقة',
+                                  style: const TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600)),
+                            ]),
+                          ],
                         ]),
                   ),
                 ),

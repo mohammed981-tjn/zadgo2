@@ -125,10 +125,21 @@ class _LiveTrackingCard extends StatelessWidget {
         OrderStatus.created ||
         OrderStatus.restaurantPending =>
           ('أرسلنا طلبك للمطعم', 'ننتظر تأكيده — عادةً خلال دقائق'),
-        OrderStatus.restaurantAccepted =>
-          ('المطعم قَبِل طلبك', 'سيبدأ التحضير الآن'),
-        OrderStatus.preparing =>
-          ('طلبك قيد التحضير', 'رائحته تفوح من المطبخ 👨‍🍳'),
+        // دقائق التحضير (يوم المطعم): المطعم اختارها لحظة القبول، فتحلّ
+        // محلّ العبارة العامة — جوابٌ حقيقي على «كم بقي؟» في وقت المطبخ
+        // الذي كان أعمى قبل تحرّك الكابتن.
+        OrderStatus.restaurantAccepted => (
+            'المطعم قَبِل طلبك',
+            order.prepMinutes != null
+                ? 'التحضير يستغرق نحو ${order.prepMinutes} دقيقة'
+                : 'سيبدأ التحضير الآن'
+          ),
+        OrderStatus.preparing => (
+            'طلبك قيد التحضير',
+            order.prepMinutes != null
+                ? 'نحو ${order.prepMinutes} دقيقة في المطبخ 👨‍🍳'
+                : 'رائحته تفوح من المطبخ 👨‍🍳'
+          ),
         OrderStatus.readyForPickup ||
         OrderStatus.searchingDriver =>
           ('طلبك جاهز', 'نبحث عن كابتن قريب ليأخذه'),
@@ -756,6 +767,26 @@ class _OrderCard extends StatelessWidget {
                             style: const TextStyle(
                                 fontSize: 12.5, color: AppColors.textGray)),
                       ]),
+                    ),
+                  // ردّ المطعم على التقييم (يوم المطعم): يظهر تحت تقييم
+                  // صاحبه فقط — حوارٌ علني مصغّر يُشعر العميل أن تقييمه
+                  // قُرئ، وهو أرخص أدوات استرجاع عميلٍ غاضب.
+                  if (order.isRated &&
+                      (order.restaurantReply ?? '').trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                            'ردّ المطعم: ${order.restaurantReply!.trim()}',
+                            style: const TextStyle(
+                                fontSize: 12.5, color: AppColors.textDark)),
+                      ),
                     ),
                   if (order.status.isActive && !order.canCustomerCancel)
                     const Padding(
