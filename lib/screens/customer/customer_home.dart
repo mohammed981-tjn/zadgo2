@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+// ScrollDirection (لطيّ شريط البحث عند التمرير) لا تصدّره material — تُجلب صراحةً.
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:animations/animations.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
