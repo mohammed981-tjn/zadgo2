@@ -1502,6 +1502,53 @@ class FirebaseService {
     return (await _freeStuckDrivers(online)).length;
   }
 
+  /// بثّ مستند مطعم واحد — يحتاجه شريط تطبيق المطعم لعرض حالة الإيقاف
+  /// المؤقت حيّةً (زر يتلوّن ويحمل موعد الاستئناف).
+  Stream<models.Restaurant?> streamRestaurant(String restaurantId) =>
+      _restaurants.doc(restaurantId).snapshots().map((d) =>
+          d.exists && d.data() != null
+              ? models.Restaurant.fromMap(d.data()!, d.id)
+              : null);
+
+  /// إيقاف الاستقبال مؤقتاً / استئنافه — بيد مدير المطعم من تطبيقه
+  /// (يوم المطعم 2026-08-20). الاستئناف تلقائي بانقضاء الموعد: لا كتابة
+  /// ثانية تُنسى، وnull يعني «استأنف الآن».
+  Future<void> setRestaurantPaused(String restaurantId, DateTime? until) =>
+      _restaurants.doc(restaurantId).update({
+        'pausedUntil': until == null ? null : Timestamp.fromDate(until),
+      });
+
+  /// قبول المطعم للطلب **مع وقت تحضيره** بكتابة واحدة — نفس حارس
+  /// الانتقال في [updateOrderStatus]، والدقائق اختيارية (null = قبول
+  /// بلا تقدير، كما كان).
+  Future<void> acceptOrderWithPrep(String orderId, int? prepMinutes) async {
+    final ref = _orders.doc(orderId);
+    final doc = await ref.get();
+    if (!doc.exists || doc.data() == null) throw Exception('الطلب غير موجود');
+    final current = models.Order.fromMap(doc.data()!, doc.id);
+    if (!_isValidStatusTransition(
+        current.status, models.OrderStatus.restaurantAccepted)) {
+      throw Exception(
+          'انتقال حالة غير صالح: من ${current.status.name} إلى restaurantAccepted');
+    }
+    await ref.update({
+      'status': models.OrderStatus.restaurantAccepted.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+      if (prepMinutes != null && prepMinutes > 0) 'prepMinutes': prepMinutes,
+    });
+    NotifyRelay.orderEvent(orderId, OrderEvent.status);
+  }
+
+  /// ردّ المطعم على تقييم عميل — مرة واحدة لكل تقييم (الحوار لا يفتح
+  /// لمردودٍ عليه)، ويظهر للعميل تحت تقييمه في «طلباتي».
+  Future<void> replyToOrderReview(String orderId, String reply) =>
+      _orders.doc(orderId).update({
+        'restaurantReply': reply.trim(),
+        'restaurantRepliedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
   /// «تعذّر التسليم» — مخرج الكابتن على باب عميلٍ يرفض الاستلام أو لا
   /// يردّ (درع النقد 2026-08-20). **علمٌ لا إغلاق**: الحالة لا تتغير،
   /// فالإغلاق المالي (إلغاء بعكس العُهدة، أو إعادة محاولة) قرارُ مديرٍ

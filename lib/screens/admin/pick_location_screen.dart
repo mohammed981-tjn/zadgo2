@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../utils/theme.dart';
+import '../../widgets/osm_attribution.dart';
 
 class PickLocationScreen extends StatefulWidget {
   final LatLng? initialLocation;
@@ -58,6 +59,7 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                   child: const Icon(Icons.location_pin, color: AppColors.primary, size: 48),
                 ),
               ]),
+              const OsmAttribution(),
             ],
           ),
           Positioned(

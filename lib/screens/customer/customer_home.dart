@@ -13,6 +13,7 @@ import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
+import '../../utils/reorder.dart';
 import '../../widgets/promo_banner_carousel.dart';
 import '../../widgets/app_skeletons.dart';
 import '../../widgets/common_widgets.dart';
@@ -240,10 +241,14 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                   r.description.contains(_cuisine)))).toList();
     }
     if (_query.trim().isNotEmpty) {
-      final q = _query.trim();
+      // بحث مطبَّع عربياً (لمسات العميل): «البيك» تجد «البيك» بالهمزة،
+      // و«شاورما» تجد «شاورمه» — فلا يُعاقَب مَن لا يضبط الإملاء.
+      final q = normalizeArabic(_query);
       result = result.where((r) =>
-          r.name.contains(q) || r.branchName.contains(q) ||
-          r.description.contains(q) || r.address.contains(q)).toList();
+          normalizeArabic(r.name).contains(q) ||
+          normalizeArabic(r.branchName).contains(q) ||
+          normalizeArabic(r.description).contains(q) ||
+          normalizeArabic(r.address).contains(q)).toList();
     }
     // عوامل التصفية السريعة (ح9) — تُطبَّق معاً:
     if (_fNew) result = result.where((r) => r.isNewlyListed).toList();
@@ -556,6 +561,10 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
       // البنرات الترويجية — تختفي أثناء البحث حتى لا تزاحم النتائج، وتختفي
       // كلياً حين لا حملة فعّالة.
       if (_query.isEmpty) const PromoBannerCarousel(),
+      // شريحة «اطلب مجدداً» (لمسات العميل): أرخص ميزة تزيد تكرار الشراء —
+      // آخر طلبٍ مكتمل على بُعد ضغطة من الرئيسية، لا بعد تنقّلٍ إلى
+      // «طلباتي». تختفي أثناء البحث ولمن لا طلب مكتمل له.
+      if (_query.isEmpty) const _ReorderStrip(),
       Expanded(
         // ملاحظة مهمة: AppStreamBuilder يتوقّع دالة تُرجع Stream وليس Stream
         // جاهزاً، لذلك يُمرَّر اسم الدالة بلا أقواس (tear-off). إضافة أقواس
@@ -765,3 +774,88 @@ class _MetaChip extends StatelessWidget {
 /// خيارات فرز الرئيسة (ح8+ح9) — «الأعلى خصماً» محفوظة عمداً حتى تُبنى
 /// ميزة عروض المطاعم (قرار المالك 2026-08-14).
 enum _HomeSort { recommended, rating, nearest, deliveryTime }
+
+/// شريحة «اطلب مجدداً» لآخر طلبٍ مكتمل — تُجلب مرة عند بناء الشاشة (لا
+/// تدفّقاً دائماً: الرئيسية لا تحتاج تحديثاً حياً لطلبٍ سابق). تختفي
+/// تماماً لمن لا طلب مكتمل له، فلا تشغل حيزاً فارغاً للعميل الجديد.
+class _ReorderStrip extends StatefulWidget {
+  const _ReorderStrip();
+
+  @override
+  State<_ReorderStrip> createState() => _ReorderStripState();
+}
+
+class _ReorderStripState extends State<_ReorderStrip> {
+  Future<Order?>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = context.read<app_auth.AuthProvider>().user?.uid;
+    if (uid == null) return;
+    final service = context.read<FirebaseService>();
+    // أول لقطة من تدفّق طلبات العميل (مرتّبة تنازلياً) تكفي — نأخذ أحدث
+    // طلبٍ مكتمل منها. لا نُبقي التدفّق مفتوحاً.
+    _future = service.streamCustomerOrders(uid).first.then((orders) {
+      for (final o in orders) {
+        if (o.status == OrderStatus.delivered) return o;
+      }
+      return null;
+    }).catchError((_) => null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_future == null) return const SizedBox.shrink();
+    return FutureBuilder<Order?>(
+      future: _future,
+      builder: (ctx, snap) {
+        final order = snap.data;
+        if (order == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Material(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () async {
+                final ok = await reorderIntoCart(context, order);
+                if (ok && context.mounted) {
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const CartScreen()));
+                }
+              },
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(children: [
+                  const Icon(Icons.replay_rounded,
+                      size: 20, color: AppColors.primaryDark),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('اطلب مجدداً',
+                              style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700)),
+                          Text('${order.restaurantName} — طلبك السابق',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.textGray)),
+                        ]),
+                  ),
+                  const Icon(Icons.chevron_left_rounded,
+                      color: AppColors.textGray),
+                ]),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

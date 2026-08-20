@@ -82,4 +82,40 @@ void main() {
       expect(closed.isOpenNow, isFalse); // المفتاح اليدوي سيّد
     });
   });
+
+  group('الإيقاف المؤقت pausedUntil (يوم المطعم 2026-08-20)', () {
+    // الموعد يُبنى بعيداً عن «الآن» بيوم كامل فتبقى النتيجة حتمية مهما
+    // كانت لحظة تشغيل الاختبار — من دون حقن ساعة وهمية.
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+
+    Restaurant r({bool isOpen = true, DateTime? pausedUntil}) => Restaurant(
+        id: 'r', name: 'م', description: '', emoji: '🍽️', phone: '',
+        address: '', isOpen: isOpen, pausedUntil: pausedUntil);
+
+    test('موعد الاستئناف في المستقبل = موقوف الآن', () {
+      expect(r(pausedUntil: tomorrow).isPausedNow, isTrue);
+      expect(r(pausedUntil: tomorrow).isOpenNow, isFalse);
+    });
+
+    test('الاستئناف تلقائي: موعدٌ مضى لا يوقف شيئاً', () {
+      expect(r(pausedUntil: yesterday).isPausedNow, isFalse);
+      expect(r(pausedUntil: yesterday).isOpenNow, isTrue);
+    });
+
+    test('بلا موعد = لا إيقاف', () {
+      expect(r().isPausedNow, isFalse);
+    });
+
+    test('التسمية الصادقة: «مشغول مؤقتاً» بموعد الاستئناف لا «مغلق»', () {
+      final hh = tomorrow.hour.toString().padLeft(2, '0');
+      final mm = tomorrow.minute.toString().padLeft(2, '0');
+      expect(r(pausedUntil: tomorrow).openStatusLabel,
+          'مشغول مؤقتاً — يستأنف $hh:$mm');
+    });
+
+    test('المفتاح اليدوي أشد من الإيقاف: مغلقٌ يدوياً يبقى «مغلق»', () {
+      expect(r(isOpen: false, pausedUntil: tomorrow).openStatusLabel, 'مغلق');
+    });
+  });
 }

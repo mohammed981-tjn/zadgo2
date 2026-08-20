@@ -423,7 +423,11 @@ service cloud.firestore {
                     'statusChangedAt', 'rejectionReason',
                     'walletRefundPending', 'restaurantHandoverAt',
                     'driverId', 'driverName', 'driverPhone',
-                    'driverAcknowledged']) &&
+                    'driverAcknowledged',
+                    // يوم المطعم (2026-08-20): دقائق التحضير عند القبول،
+                    // وردّ المطعم على تقييم العميل — ثلاثتها غير مالية.
+                    'prepMinutes', 'restaurantReply',
+                    'restaurantRepliedAt']) &&
                 (!changedKeys().hasAny(['status']) ||
                     request.resource.data.status in ['restaurantAccepted',
                         'preparing', 'readyForPickup', 'searchingDriver',

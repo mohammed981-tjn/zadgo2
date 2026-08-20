@@ -10,6 +10,7 @@ import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/driver_proof_flow.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/osm_attribution.dart';
 
 class OrderMapScreen extends StatefulWidget {
   final Order order;
@@ -243,6 +244,7 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                         Polyline(points: polyPoints, strokeWidth: 4, color: AppColors.primary),
                       ]),
                     MarkerLayer(markers: points),
+                    const OsmAttribution(),
                   ],
                 ),
               ),
