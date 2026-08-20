@@ -57,7 +57,7 @@ void main() async {
 
   AppFlavorConfig.flavor = AppFlavor.customer;
   AppFlavorConfig.flavorLabel = 'العميل';
-  AppFlavorConfig.flavorColor = const Color(0xFFD4A017);
+  AppFlavorConfig.flavorColor = const Color(0xFFFFB903);
   AppFlavorConfig.flavorIcon = Icons.shopping_bag_rounded;
   AppFlavorConfig.flavorTagline = 'أشهى المطاعم توصلك أينما كنت';
   AppFlavorConfig.flavorLoginTitle = 'تسجيل دخول العميل';
