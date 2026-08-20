@@ -20,9 +20,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{
-  --g900:#04150F; --g800:#08211A; --g700:#0B3D2E; --g600:#14523E;
-  --gold:#D4A017; --gold-lt:#E8C547; --gold-dk:#B8860B;
-  --cream:#FBF8F1; --sand:#F3EFE4; --ink:#0B1F17; --muted:#6B7B73;
+  --g900:#050D1C; --g800:#08152C; --g700:#0B1E3D; --g600:#132C56;
+  --gold:#FFB903; --gold-lt:#FFD24A; --gold-dk:#D99400;
+  --cream:#FFFFFF; --sand:#F4F7FC; --ink:#0A1A33; --muted:#63728C;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(--ink)}
@@ -33,7 +33,7 @@ body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(-
   position:sticky;top:0;z-index:9}
 .bar img{height:30px}
 .bar .sp{flex:1 1 auto}
-.fld{display:flex;flex-direction:column;gap:4px;font-size:.74rem;color:#BFD6CB}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:.74rem;color:#B9C6DC}
 .fld select,.fld input{font-family:inherit;font-size:.9rem;font-weight:700;
   padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);
   background:rgba(255,255,255,.08);color:#fff;min-width:190px}
@@ -55,7 +55,7 @@ body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(-
    عرض الجوال بدل أن تُصغَّر بالتحويل — فينهار التخطيط الملّيمتري وتتداخل
    السطور، ويقيس `fit` عرضاً منكمشاً فيحسب تصغيراً = ١. */
 .sheet{width:210mm;flex:0 0 auto;min-height:297mm;background:#fff;position:relative;
-  overflow:hidden;box-shadow:0 18px 50px rgba(4,21,15,.22);
+  overflow:hidden;box-shadow:0 18px 50px rgba(5,13,28,.22);
   transform-origin:top center;transform:scale(var(--z,1))}
 
 /* ── تخطيط الملصق A4 ── */
@@ -65,7 +65,7 @@ body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(-
   background:linear-gradient(90deg,var(--gold-dk),var(--gold-lt),var(--gold-dk))}
 .head img{height:17mm;margin:0 auto 5mm;display:block}
 .head .kicker{display:inline-flex;align-items:center;gap:2mm;
-  border:1px solid rgba(212,160,23,.55);color:var(--gold-lt);
+  border:1px solid rgba(255,185,3,.55);color:var(--gold-lt);
   border-radius:99px;padding:1.6mm 5mm;font-size:4mm;font-weight:700}
 .body{padding:12mm 14mm 0;text-align:center}
 .lead{font-size:6mm;font-weight:700;color:var(--muted)}
@@ -91,7 +91,7 @@ body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(-
 
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;
   margin:9mm 14mm 0;text-align:center}
-.step{background:var(--cream);border:.4mm solid #EAE5D8;border-radius:5mm;
+.step{background:var(--cream);border:.4mm solid #E3E9F3;border-radius:5mm;
   padding:5mm 3mm}
 .step b{display:block;font-size:8mm;font-weight:900;color:var(--gold-dk);line-height:1}
 .step span{display:block;font-size:4.2mm;font-weight:700;color:var(--g700);margin-top:2mm}
@@ -112,7 +112,7 @@ body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(-
 /* ── تخطيط بطاقات الطاولة: أربعٌ في الورقة ── */
 .cards{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;
   width:210mm;height:297mm}
-.card{border:.3mm dashed #C9CFCB;text-align:center;display:flex;
+.card{border:.3mm dashed #C7CEDB;text-align:center;display:flex;
   flex-direction:column;align-items:stretch;overflow:hidden}
 .card .ch{background:linear-gradient(160deg,var(--g700),var(--g900));
   padding:5mm 4mm;border-bottom:1.2mm solid var(--gold)}
@@ -131,7 +131,7 @@ body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(-
   .stage{padding:0;display:block;height:auto !important}
   .sheet{width:210mm;height:297mm;box-shadow:none;transform:none}
   /* الألوان جزءٌ من الهوية لا زينة: بلا هذه القاعدة تطبع بعض المتصفحات
-     الترويسة الخضراء بيضاءَ فيخرج الملصق بلا رأس. */
+     الترويسة الكحلية بيضاءَ فيخرج الملصق بلا رأس. */
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#08211A">
+  <meta name="theme-color" content="#08152C">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'self'; connect-src 'none'">
   <link rel="icon" href="images/zadgo-logo-gold.png">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
@@ -55,24 +55,39 @@
   </script>
   <style>
 /* ══════════════════════════════════════════════════════════════
-   الهوية: الأخضر الداكن × الذهبي — **ألوان التطبيق نفسها**
-   (AppColors في lib/utils/theme.dart). كانت الصفحة كحلية بينما
-   التطبيق أخضر، فمن رأى الاثنين رأى علامتين لا علامة واحدة.
+   الهوية: **الكحلي × الذهبي × الأبيض** — عودةٌ إلى هوية زادقو
+   الأصلية بأمر المالك (2026-08-20).
+
+   ولماذا الكحلي تحديداً يخدمنا؟ لأن السوق كلّه مضيءٌ صارخ: هنقرستيشن
+   أصفر ساطع على أبيض، وكيتا وجاهز أحمر على أبيض. من يفتح ثلاثتها
+   لا يفرّق بينها إلا بالشعار. والكحلي في هذه الساحة **لا يملكه أحد** —
+   وهو فوق ذلك لون الوقت الذي يُطلَب فيه الطعام فعلاً: الليل. فالصفحة
+   ليلُ المدينة، والذهب ضوءُ المحلّ فيه.
+
+   الذهب مأخوذٌ من الشعار نفسه لا مخترعاً: #FFB903 هو لون «Go» فيه
+   حرفاً بحرف (قِيس من الملف)، فلا تفترق الصفحة عن العلامة درجةً.
+
+   والأبيض هو أرضية الأقسام الفاتحة صافياً، والبطاقات عليه بزرقةٍ
+   خفيفة (--mist) — لا رمليّاً كما كان: الرملي يخدم الأخضر ويُوحل
+   الكحلي.
 
    وبنيتها تمريرٌ متصل لا شرائح بملء الشاشة: الشريحة الواحدة كانت
    تُفرد شاشةً كاملة لسطرين، فيبدو كل قسمٍ خاوياً مهما جوّدنا نصّه.
+
+   ⚠️ التطبيق ما زال أخضر (AppColors في lib/utils/theme.dart) — رُفع
+   الأمر لمساعد التطبيق في `dev-docs/identity-navy-handoff.md`.
    ══════════════════════════════════════════════════════════════ */
 :root{
-  --g900:#04150F; --g800:#08211A; --g700:#0B3D2E; --g600:#14523E;
-  --gold:#D4A017; --gold-lt:#E8C547; --gold-dk:#B8860B;
-  --cream:#FBF8F1; --sand:#F3EFE4; --ink:#0B1F17;
-  --line:rgba(255,255,255,.12);
+  --n900:#050D1C; --n800:#08152C; --n700:#0B1E3D; --n600:#132C56;
+  --gold:#FFB903; --gold-lt:#FFD24A; --gold-dk:#D99400;
+  --paper:#FFFFFF; --mist:#F4F7FC; --ink:#0A1A33;
+  --line:rgba(255,255,255,.13); --line-l:#E3E9F3;
   --r-lg:26px; --r-md:20px;
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html{scroll-behavior:smooth}
 body,button,select{font-family:'Tajawal',Tahoma,sans-serif}
-body{background:var(--cream);color:var(--ink);line-height:1.75;
+body{background:var(--mist);color:var(--ink);line-height:1.75;
   overflow-x:hidden;-webkit-text-size-adjust:100%}
 /* لكل لغة حرفها: البنغالية والأردية لا تُرسمان بحروف تجوال */
 body.lang-bn,body.lang-bn button,body.lang-bn select{font-family:'Noto Sans Bengali','Tajawal',sans-serif}
@@ -86,22 +101,22 @@ a{text-decoration:none}
 .wrap{max-width:1060px;margin:0 auto;padding:0 20px}
 
 /* ───────── الترويسة ───────── */
-header{position:sticky;top:0;z-index:50;background:rgba(4,21,15,.86);
+header{position:sticky;top:0;z-index:50;background:rgba(5,13,28,.88);
   backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .hrow{display:flex;align-items:center;gap:10px;padding:12px 0}
 .hrow .logo{height:26px;width:auto}
 .hrow nav{margin-inline-start:auto;display:flex;align-items:center;gap:7px}
 #langSel{background:rgba(255,255,255,.08);color:#fff;border:1px solid var(--line);
   border-radius:999px;padding:7px 11px;font-size:.8rem;font-weight:700;cursor:pointer}
-#langSel option{background:#0B3D2E;color:#fff}
+#langSel option{background:#0B1E3D;color:#fff}
 .btn{display:inline-block;border-radius:999px;padding:11px 22px;font-weight:800;
   font-size:.94rem;border:0;cursor:pointer;transition:transform .18s ease}
 .btn:active{transform:scale(.97)}
-.btn.gold{background:linear-gradient(160deg,var(--gold-lt),var(--gold));color:var(--g900);
-  box-shadow:0 8px 22px rgba(212,160,23,.32)}
+.btn.gold{background:linear-gradient(160deg,var(--gold-lt),var(--gold));color:var(--n900);
+  box-shadow:0 8px 22px rgba(255,185,3,.34)}
 .btn.ghost{background:rgba(255,255,255,.07);color:#fff;border:1px solid var(--line)}
 .btn.sm{padding:8px 15px;font-size:.82rem}
-.btn.light{background:#fff;color:var(--g700);border:1px solid #EAE5D8}
+.btn.light{background:#fff;color:var(--n700);border:1px solid var(--line-l)}
 
 /* ───────── البطل ───────── */
 /* صورتان لا واحدة: الأصل **عرضية** (16:9) ووسطها خالٍ عمداً، فبطلٌ طويل
@@ -111,24 +126,24 @@ header{position:sticky;top:0;z-index:50;background:rgba(4,21,15,.86);
  * والحجاب أخفّ في أعلاه: كان يبتلع ما بقي من الصورة. */
 .hero{position:relative;color:#fff;padding:56px 0 0;overflow:hidden;
   background-image:
-    radial-gradient(120% 80% at 78% -8%, rgba(23,96,74,.45) 0%, transparent 58%),
-    linear-gradient(180deg, rgba(4,21,15,.34) 0%, rgba(4,21,15,.80) 46%, var(--g900) 92%),
+    radial-gradient(120% 80% at 78% -8%, rgba(19,44,86,.62) 0%, transparent 58%),
+    linear-gradient(180deg, rgba(5,13,28,.40) 0%, rgba(5,13,28,.84) 46%, var(--n900) 92%),
     url('images/bg-table-portrait.jpg');
   background-size:cover;background-position:50% 0;background-repeat:no-repeat}
 .hero::before{content:'';position:absolute;inset:0;opacity:.35;pointer-events:none;
-  background-image:radial-gradient(rgba(212,160,23,.16) 1px, transparent 1px);
+  background-image:radial-gradient(rgba(255,185,3,.18) 1px, transparent 1px);
   background-size:26px 26px}
 .hero .wrap{position:relative}
-.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(212,160,23,.14);
-  border:1px solid rgba(212,160,23,.4);color:var(--gold-lt);border-radius:999px;
+.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,185,3,.13);
+  border:1px solid rgba(255,185,3,.42);color:var(--gold-lt);border-radius:999px;
   padding:6px 14px;font-size:.79rem;font-weight:800;margin-bottom:18px}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);flex:0 0 7px;
-  box-shadow:0 0 0 0 rgba(212,160,23,.6);animation:p 2.2s infinite}
-@keyframes p{70%{box-shadow:0 0 0 9px rgba(212,160,23,0)}100%{box-shadow:0 0 0 0 rgba(212,160,23,0)}}
+  box-shadow:0 0 0 0 rgba(255,185,3,.6);animation:p 2.2s infinite}
+@keyframes p{70%{box-shadow:0 0 0 9px rgba(255,185,3,0)}100%{box-shadow:0 0 0 0 rgba(255,185,3,0)}}
 h1{font-size:clamp(2.05rem,8.5vw,3.5rem);font-weight:900;line-height:1.22;letter-spacing:-.5px}
 h1 span{color:var(--gold)}
 .honest{margin-top:18px;font-size:clamp(.95rem,3.6vw,1.1rem);font-weight:700;
-  color:#EAF3EE;border-inline-start:4px solid var(--gold);padding-inline-start:13px}
+  color:#E7EEFA;border-inline-start:4px solid var(--gold);padding-inline-start:13px}
 .hero p.sub{margin-top:16px;color:rgba(255,255,255,.74);font-size:1rem;max-width:34em}
 .ctas{display:flex;gap:11px;flex-wrap:wrap;margin-top:26px}
 
@@ -142,48 +157,50 @@ h1 span{color:var(--gold)}
   border-radius:var(--r-md);padding:14px 16px;backdrop-filter:blur(10px);
   display:flex;align-items:center;gap:13px}
 .gc .ic{width:44px;height:44px;border-radius:14px;flex:0 0 44px;display:grid;
-  place-items:center;font-size:1.3rem;background:rgba(212,160,23,.16);
-  border:1px solid rgba(212,160,23,.34)}
+  place-items:center;font-size:1.3rem;background:rgba(255,185,3,.15);
+  border:1px solid rgba(255,185,3,.36)}
 .gc b{display:block;font-size:.97rem}
 .gc span{color:rgba(255,255,255,.68);font-size:.83rem;display:block}
 
 /* شريط الثقة */
-.trust{background:var(--g900);border-top:1px solid var(--line);padding:16px 0}
+.trust{background:var(--n900);border-top:1px solid var(--line);padding:16px 0}
 .trust .wrap{display:grid;grid-template-columns:1fr;gap:11px}
-.t-item{display:flex;gap:9px;align-items:flex-start;color:#DDE9E3;font-size:.82rem;
+.t-item{display:flex;gap:9px;align-items:flex-start;color:#DAE3F2;font-size:.82rem;
   font-weight:600;line-height:1.6}
 .t-item i{font-style:normal;font-size:1.05rem;color:var(--gold);flex:0 0 auto}
 
 /* ───────── الأقسام ───────── */
 section.light{padding:56px 0}
-section.dark{background:linear-gradient(170deg,var(--g700),var(--g900));color:#fff;
+section.dark{background:linear-gradient(170deg,var(--n700),var(--n900));color:#fff;
   padding:56px 0;position:relative;overflow:hidden}
 section.dark.amb{background-image:
-  linear-gradient(180deg, rgba(11,61,46,.93), rgba(4,21,15,.97)), url('images/bg-dining.jpg');
+  linear-gradient(180deg, rgba(11,30,61,.90), rgba(5,13,28,.97)), url('images/bg-dining.jpg');
   background-size:cover;background-position:center}
-h2{font-size:clamp(1.6rem,6vw,2.35rem);font-weight:900;line-height:1.3;color:var(--g700)}
+h2{font-size:clamp(1.6rem,6vw,2.35rem);font-weight:900;line-height:1.3;color:var(--n700)}
 h2 span{color:var(--gold-dk)}
 section.dark h2{color:#fff}
 section.dark h2 span{color:var(--gold)}
-.lead{color:#5C6B64;margin-top:10px;font-size:.98rem;max-width:38em}
+.lead{color:#5A6A85;margin-top:10px;font-size:.98rem;max-width:38em}
 section.dark .lead{color:rgba(255,255,255,.72)}
 
 /* خطوات */
 .steps{margin-top:30px;display:grid;gap:14px}
-.step{background:#fff;border:1px solid #EAE5D8;border-radius:var(--r-lg);padding:20px;
+.step{background:var(--paper);border:1px solid var(--line-l);
+  box-shadow:0 2px 12px rgba(11,30,61,.05);border-radius:var(--r-lg);padding:20px;
   position:relative;overflow:hidden}
-.step .n{font-size:3.4rem;font-weight:900;color:var(--sand);line-height:1;
+.step .n{font-size:3.4rem;font-weight:900;color:var(--mist);line-height:1;
   position:absolute;top:6px;inset-inline-end:16px}
-.step b{display:block;font-size:1.08rem;color:var(--g700);position:relative}
-.step p{color:#5C6B64;font-size:.92rem;margin-top:5px;position:relative}
+.step b{display:block;font-size:1.08rem;color:var(--n700);position:relative}
+.step p{color:#5A6A85;font-size:.92rem;margin-top:5px;position:relative}
 
 /* ميزات */
 .feats{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.feat{background:#fff;border:1px solid #EAE5D8;border-radius:var(--r-md);padding:16px}
-.feat .ic{width:42px;height:42px;border-radius:13px;background:var(--sand);
+.feat{background:var(--paper);border:1px solid var(--line-l);border-radius:var(--r-md);
+  padding:16px;box-shadow:0 2px 12px rgba(11,30,61,.05)}
+.feat .ic{width:42px;height:42px;border-radius:13px;background:var(--mist);border:1px solid var(--line-l);
   display:grid;place-items:center;font-size:1.25rem;margin-bottom:10px}
-.feat b{display:block;font-size:.95rem;color:var(--g700)}
-.feat p{color:#6B7A73;font-size:.83rem;margin-top:3px;line-height:1.6}
+.feat b{display:block;font-size:.95rem;color:var(--n700)}
+.feat p{color:#63728C;font-size:.83rem;margin-top:3px;line-height:1.6}
 .feat.wide{grid-column:1 / -1}
 .feat.wide p{font-size:.88rem}
 
@@ -200,10 +217,10 @@ section.dark .lead{color:rgba(255,255,255,.72)}
   box-shadow:0 18px 44px rgba(0,0,0,.28)}
 .pcard img{height:180px;width:100%;object-fit:cover}
 .pcard .in{padding:20px}
-.pcard .in > p{color:#5C6B64;font-size:.92rem}
-.pcard .in > p b{color:var(--g700)}
+.pcard .in > p{color:#5A6A85;font-size:.92rem}
+.pcard .in > p b{color:var(--n700)}
 .pcard ul{list-style:none;margin:14px 0 16px}
-.pcard li{color:#5C6B64;font-size:.9rem;padding:5px 0;display:flex;gap:8px;align-items:flex-start}
+.pcard li{color:#5A6A85;font-size:.9rem;padding:5px 0;display:flex;gap:8px;align-items:flex-start}
 .pcard li::before{content:'✓';color:var(--gold-dk);font-weight:900;flex:0 0 auto}
 
 /* أدلة */
@@ -212,7 +229,7 @@ section.dark .lead{color:rgba(255,255,255,.72)}
   border-radius:999px;padding:10px 17px;font-size:.86rem;font-weight:700}
 
 /* التذييل */
-footer{background:var(--g900);color:rgba(255,255,255,.6);padding:38px 0 46px;
+footer{background:var(--n900);color:rgba(255,255,255,.6);padding:38px 0 46px;
   text-align:center;border-top:1px solid var(--line)}
 footer img{height:30px;margin:0 auto 14px}
 footer nav{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
@@ -233,9 +250,10 @@ footer .cr{font-size:.8rem}
       كما في الشعار المطبوع.
    ══════════════════════════════════════════ */
 .tear{display:block;width:100%;height:22px;margin-bottom:-1px}
-section.dark .tear path{fill:var(--g700)}
+section.dark .tear path{fill:var(--n700)}
+.doors .tear{margin-bottom:-44px}
 
-.streak{height:14px;overflow:hidden;position:relative;background:var(--cream)}
+.streak{height:14px;overflow:hidden;position:relative;background:var(--mist)}
 .streak::before{content:'';position:absolute;inset:0;opacity:.5;
   background:repeating-linear-gradient(112deg,
     var(--gold) 0 3px, transparent 3px 9px,
@@ -244,7 +262,7 @@ section.dark .tear path{fill:var(--g700)}
 /* الذهب المتدرّج — على الداكن وحده: على الكريمي يخفت التباين، فيبقى
  * هناك الذهبُ الغامق المصمت. */
 .hero h1 span, section.dark h2 span{
-  background:linear-gradient(100deg,var(--gold-lt) 0%,var(--gold) 55%,#F3DE9A 100%);
+  background:linear-gradient(100deg,var(--gold-lt) 0%,var(--gold) 52%,#FFE9A8 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent}
 
 /* ظهورٌ بالتمرير — مدعوم في المتصفحات الحديثة، وما لا يدعمه يعرض
@@ -260,19 +278,78 @@ section.dark .tear path{fill:var(--g700)}
 .step,.feat,.value,.gc{transition:transform .22s ease, border-color .22s ease,
   box-shadow .22s ease}
 .step:hover,.feat:hover{transform:translateY(-3px);border-color:var(--gold);
-  box-shadow:0 10px 26px rgba(212,160,23,.16)}
-.value:hover,.gc:hover{border-color:rgba(212,160,23,.55)}
+  box-shadow:0 10px 26px rgba(11,30,61,.14)}
+.value:hover,.gc:hover{border-color:rgba(255,185,3,.55)}
 
 /* أرقام الخطوات ذهبيةً شفافة بدل الرملي الباهت — ورقمٌ ضخم خلف النص
  * يعطي القسم إيقاعاً بصرياً كما في صفحات المنصّات الكبرى. */
-.step .n{background:linear-gradient(160deg,var(--gold) 0%,rgba(212,160,23,.15) 85%);
+.step .n{background:linear-gradient(160deg,var(--gold) 0%,rgba(255,185,3,.14) 85%);
   -webkit-background-clip:text;background-clip:text;color:transparent;opacity:.5}
+
+
+/* ══════════════ ثلاثُ لمساتٍ تميّزنا عن الساحة ══════════════
+   الساحة كلّها صفحةٌ بيضاء بلونٍ صارخ واحد وشعاراتِ متاجر التطبيقات.
+   وهذه ثلاثةٌ لا يفعلها أحدهم:
+   ══════════════════════════════════════════════════════════ */
+
+/* ١) **الخيط الذهبي** — خطٌّ رفيع على حافة القراءة (يمين في العربية)
+ *    يمتلئ ذهباً بمقدار ما قرأتَ من الصفحة. الفكرة من العلامة نفسها:
+ *    زادقو تنقل شيئاً من نقطةٍ إلى نقطة، فليكن التمرير نفسه طريقاً
+ *    يُقطع. ولا سكربت فيه إطلاقاً — CSS خالص مربوطٌ بشريط التمرير،
+ *    فلا يكلّف إطاراً واحداً من الأداء.
+ *    ويختفي كلياً حيث لا يُدعم: خيطٌ ذهبيٌّ ممتلئ أبداً كذبةٌ بصرية. */
+.rail{display:none}
+@supports (animation-timeline: scroll()){
+  .rail{display:block;position:fixed;inset-block:0;inset-inline-start:0;width:3px;
+    z-index:60;background:rgba(255,185,3,.13);pointer-events:none}
+  .rail i{display:block;width:100%;height:100%;transform-origin:top;transform:scaleY(0);
+    background:linear-gradient(180deg,var(--gold-lt),var(--gold) 55%,var(--gold-dk));
+    animation:railfill linear both;animation-timeline:scroll(root)}
+  @keyframes railfill{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+}
+
+/* ٢) **خطٌّ يُرسم تحت الكلمة الذهبية** — لا يظهر جاهزاً بل يُمدّ من
+ *    جهة القراءة، فتتحرّك الصفحة أول ثانية بلا صورةٍ ثقيلة ولا فيديو. */
+.hero h1 span{position:relative;display:inline-block}
+.hero h1 span::after{content:'';position:absolute;inset-inline:0;bottom:-.14em;
+  height:.075em;border-radius:99px;transform:scaleX(0);transform-origin:right;
+  background:linear-gradient(90deg,var(--gold-dk),var(--gold-lt));
+  animation:draw .85s .4s cubic-bezier(.22,.9,.3,1) forwards}
+:root[dir="ltr"] .hero h1 span::after{transform-origin:left}
+@keyframes draw{to{transform:scaleX(1)}}
+
+/* ٣) **الأبواب الثلاثة** — صفحاتُ المنافسين للعميل وحده، ودخولُ المطعم
+ *    والكابتن سطرٌ في التذييل. ونحن منصّةُ ثلاثة أطراف فعلاً، فيصير
+ *    الاختيار عنصراً أولَ في الصفحة لا حاشية: من فتح الصفحة يعرف في
+ *    ثانيةٍ أين بابُه. */
+.doors{background:var(--n800);color:#fff;padding:40px 0 44px;position:relative}
+.doors::before{content:'';position:absolute;inset-inline:0;top:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);opacity:.7}
+.doors h2{color:#fff;font-size:clamp(1.35rem,5vw,1.9rem)}
+.doors h2 span{color:var(--gold)}
+.dgrid{display:grid;gap:12px;margin-top:20px}
+.door{display:flex;gap:13px;align-items:flex-start;padding:16px 18px;
+  border-radius:var(--r-md);background:rgba(255,255,255,.05);
+  border:1px solid var(--line);transition:transform .22s ease,border-color .22s ease}
+.door:hover{transform:translateY(-3px);border-color:rgba(255,185,3,.5)}
+.door .k{width:46px;height:46px;flex:0 0 46px;border-radius:14px;display:grid;
+  place-items:center;font-size:1.35rem;background:rgba(255,185,3,.14);
+  border:1px solid rgba(255,185,3,.34)}
+.door b{display:block;font-size:1rem;color:#fff}
+.door p{color:rgba(255,255,255,.7);font-size:.85rem;margin-top:4px;line-height:1.65}
+.door em{font-style:normal;display:inline-block;margin-top:9px;color:var(--gold);
+  font-size:.83rem;font-weight:800}
+.door em::after{content:'←';margin-inline-start:6px;display:inline-block;
+  transition:transform .22s ease}
+:root[dir="ltr"] .door em::after{content:'→'}
+.door:hover em::after{transform:translateX(-4px)}
+:root[dir="ltr"] .door:hover em::after{transform:translateX(4px)}
 
 @media(min-width:760px){
   .hero{padding-top:64px;
     background-image:
       radial-gradient(120% 80% at 78% -8%, rgba(23,96,74,.45) 0%, transparent 58%),
-      linear-gradient(180deg, rgba(4,21,15,.40) 0%, rgba(4,21,15,.82) 55%, var(--g900) 100%),
+      linear-gradient(180deg, rgba(5,13,28,.44) 0%, rgba(5,13,28,.86) 55%, var(--n900) 100%),
       url('images/bg-table.jpg');
     background-position:50% 12%}
   .hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center}
@@ -281,6 +358,9 @@ section.dark .tear path{fill:var(--g700)}
   .steps{grid-template-columns:repeat(3,1fr)}
   .feats{grid-template-columns:repeat(3,1fr)}
   .values{grid-template-columns:repeat(3,1fr)}
+  /* auto-fit لا 3 ثابتة: وضع التجربة يحذف باب العميل، فتتوزّع
+     البقيّة على العرض بدل أن تترك فجوةً ثالثة فارغة. */
+  .dgrid{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
   .pcard{display:grid;grid-template-columns:.9fr 1.1fr}
   .pcard img{height:100%}
 }
@@ -288,6 +368,8 @@ section.dark .tear path{fill:var(--g700)}
   </style>
 </head>
 <body>
+
+<div class="rail" aria-hidden="true"><i></i></div>
 
 <header>
   <div class="wrap hrow">
@@ -343,7 +425,35 @@ section.dark .tear path{fill:var(--g700)}
       <div class="t-item"><i>⭐</i><span data-i18n="f4.d">من عملاء طلبوا فعلاً — لا مجاملات.</span></div>
     </div>
   </div>
-<svg class="tear" viewBox="0 0 1200 22" preserveAspectRatio="none" aria-hidden="true"><path d="M0 22 L0 13 L0.0 13 L40.0 2 L80.0 13 L120.0 2 L160.0 13 L200.0 2 L240.0 13 L280.0 2 L320.0 13 L360.0 2 L400.0 13 L440.0 2 L480.0 13 L520.0 2 L560.0 13 L600.0 2 L640.0 13 L680.0 2 L720.0 13 L760.0 2 L800.0 13 L840.0 2 L880.0 13 L920.0 2 L960.0 13 L1000.0 2 L1040.0 13 L1080.0 2 L1120.0 13 L1160.0 2 L1200.0 13 L1200 22 Z" fill="var(--cream)"/></svg>
+</section>
+
+
+<!-- ═══════════ الأبواب الثلاثة ═══════════ -->
+<section class="doors" id="doors">
+  <div class="wrap">
+    <h2 data-i18n="doors.h2">ادخل من <span>بابك</span></h2>
+    <p class="lead" data-i18n="doors.lead">منصّةٌ واحدة وثلاثة أبواب: تطلب، أو تبيع، أو توصّل.</p>
+    <div class="dgrid">
+      <!-- باب العميل يحمل `order-tab` فيُحذف في وضع التجربة مع بقيّة
+           مداخل الطلب — بابٌ يقود إلى صفحةٍ أخفيناها عمداً تناقضٌ ظاهر. -->
+      <a class="door order-tab" href="/order/">
+        <span class="k">🍽️</span>
+        <span><b data-i18n="doors.c.t">أنا عميل</b>
+          <p data-i18n="doors.c.d">اطلب من مطاعم مدينتك — بلا تطبيق يُحمَّل.</p>
+          <em data-i18n="doors.go">ادخل</em></span></a>
+      <a class="door" href="/partner/">
+        <span class="k">🏪</span>
+        <span><b data-i18n="doors.r.t">أنا مطعم</b>
+          <p data-i18n="doors.r.d">قائمتك الرقمية وطلباتك ومستحقاتك بحساب مكشوف.</p>
+          <em data-i18n="doors.go">ادخل</em></span></a>
+      <a class="door" href="/join/">
+        <span class="k">🛵</span>
+        <span><b data-i18n="doors.d.t">أنا كابتن</b>
+          <p data-i18n="doors.d.d">دخلٌ مرن، ونصيبك من كل توصيلة معروف قبل قبولها.</p>
+          <em data-i18n="doors.go">ادخل</em></span></a>
+    </div>
+  </div>
+<svg class="tear" viewBox="0 0 1200 22" preserveAspectRatio="none" aria-hidden="true"><path d="M0 22 L0 13 L0.0 13 L40.0 2 L80.0 13 L120.0 2 L160.0 13 L200.0 2 L240.0 13 L280.0 2 L320.0 13 L360.0 2 L400.0 13 L440.0 2 L480.0 13 L520.0 2 L560.0 13 L600.0 2 L640.0 13 L680.0 2 L720.0 13 L760.0 2 L800.0 13 L840.0 2 L880.0 13 L920.0 2 L960.0 13 L1000.0 2 L1040.0 13 L1080.0 2 L1120.0 13 L1160.0 2 L1200.0 13 L1200 22 Z" fill="var(--mist)"/></svg>
 </section>
 
 <!-- ═══════════ الخطوات ═══════════ -->
@@ -470,7 +580,7 @@ section.dark .tear path{fill:var(--g700)}
 // تبديل اللغة: القاموس مضمّن (لا نداءات شبكة — CSP تمنعها أصلاً)، والنصوص
 // ثوابت من المستودع لا إدخال مستخدم، فـinnerHTML هنا آمن. تعطيل جافاسكربت
 // يُبقي الصفحة العربية كاملة كما هي.
-const I18N = {"ar":{"nav.home":"الرئيسية","nav.why":"لماذا","nav.values":"قيمنا","nav.partners":"للمطاعم","nav.riders":"للمناديب","nav.contact":"التواصل والدعم","nav.privacy":"سياسة الخصوصية","legal.terms":"الشروط والأحكام","legal.del":"حذف الحساب","hero.h1":"كل احتياجاتك<br><span>نوصّلها لك</span>","hero.honest":"السعر اللي تشوفه هو اللي تدفعه<br><b>بلا رسوم خفية</b>","hero.sub":"منصة توصيل سعودية تجمع مطاعمك المفضلة في تطبيق واحد: توصيل سريع، وتتبع لحظي لطلبك من المطبخ حتى بابك.","hero.cta":"اطلب الآن من متصفحك","why.h2":"اطلب<br><span>بثلاث خطوات</span>","s1.t":"تصفّح واختر","s1.d":"مطاعمك المفضلة بصور حقيقية وأسعار كاملة أمامك.","s2.t":"تابع طلبك حيّاً","s2.d":"من قبول المطعم حتى انطلاق مندوبك — خطوة بخطوة على الخريطة.","s3.t":"استلم عند بابك","s3.d":"وادفع كما يناسبك: بطاقة، كاش، أو محفظتك.","feat.h2":"كل ما تتوقعه من تطبيق عالمي<br><span>بلمسة سعودية</span>","f1.t":"الدفع على راحتك","f1.d":"مدى وبطاقة، كاش عند الاستلام، أو محفظتك في التطبيق.","f2.t":"تتبع حيّ","f2.d":"موقع مندوبك أولاً بأول حتى باب بيتك.","f3.t":"كوبونات وعروض","f3.d":"خصومات حقيقية بلا شروط مخفية.","f4.t":"تقييمات موثوقة","f4.d":"من عملاء طلبوا فعلاً — لا مجاملات.","f5.t":"السعرات أمامك","f5.d":"لكل صنف قبل أن تطلب.","f6.t":"فاتورة مفصّلة","f6.d":"كل ريال واضح: الوجبة والتوصيل بلا دمج.","values.h2":"العميل <span>أولاً!</span>","v1":"<b>الصدق في السعر:</b> السعر الذي تراه هو الذي تدفعه — لا رسوم خفية في نهاية الطلب.","v2":"<b>الصدق في الصورة:</b> صور حقيقية للأطباق من مطابخ شركائنا — ما تراه هو ما يصلك.","v3":"<b>الصدق في الوقت:</b> تتبع مباشر من المطبخ حتى بابك، وتعرف أولاً بأول أين طلبك.","partners.h2":"لأصحاب المطاعم<br><span>كن شريكاً</span>","partners.sub":"<b>عملاء جدد يصلونك من اليوم الأول — بلا أي تكلفة تأسيس.</b> قائمة طعامك الرقمية بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها، وتقارير تُطلعك على كل ريال — ومستحقاتك بحساب مكشوف أمامك.","partners.cta":"ضمّ مطعمك الآن","riders.h2":"للمناديب<br><span>دخل مرن بشروط عادلة</span>","r1":"<b>أرباح واضحة:</b> نصيبك من كل توصيلة معروف قبل قبولها — ومحفظة ترصد كل ريال.","r2":"<b>حرية الوقت:</b> اتصل متى شئت، واستلم الطلبات القريبة منك.","r3":"<b>إنصاف التقييم:</b> نظام تقييم شفاف يحمي المجتهد.","riders.cta":"انضم كابتناً الآن","footer.launch":"ينطلق قريباً","footer.sub":"نبني المنصة بعناية لتصلك تجربة مكتملة من اليوم الأول.","footer.soon":"قريباً على","footer.soon2":"قريباً على","nav.order":"اطلب الآن","hero.note":"والتطبيق قادم قريباً","riders.guide":"اقرأ دليل الكابتن أولاً ←","hero.trial":"نجرّب الخدمة الآن مع أوّل شركائنا — ونفتح للجميع قريباً","chip1.t":"سعرٌ واضح قبل أن تطلب","chip1.d":"تعرف ما ستدفعه كاملاً — الوجبة والتوصيل — قبل أن تؤكّد","chip3.t":"تعرف متى يصل","chip3.d":"وقتٌ متوقّع يتحدّث مع كل خطوة، لا وعدٌ ثابت","steps.lead":"لا حسابات ولا تعقيد — تتصفّح أولاً، ولا نطلب تسجيلك إلا عند الطلب.","values.lead":"ثلاثة وعود نقيس أنفسنا بها — ومكتوبةٌ في نظامنا لا في إعلاننا.","p1":"قائمة طعامك الرقمية بصورك وأسعارك","p2":"طلباتك تصل مطبخك لحظة وقوعها","p3":"مستحقاتك بحساب مكشوف أمامك سطراً سطراً","p4":"أي جوال أندرويد عندك يصير شاشة طلباتك","guides.h2":"أدلة الاستخدام","guides.lead":"شرحٌ بلغة عامة، بلا مصطلحات.","guides.rest":"دليل المطعم","guides.drv":"دليل الكابتن"},"en":{"nav.home":"Home","nav.why":"Why","nav.values":"Our values","nav.partners":"For restaurants","nav.riders":"For riders","nav.contact":"Contact & support","nav.privacy":"Privacy policy","legal.terms":"Terms & conditions","legal.del":"Delete account","hero.h1":"Everything you need<br><span>delivered to you</span>","hero.honest":"The price you see is the price you pay<br><b>No hidden fees</b>","hero.sub":"A Saudi delivery platform that brings your favorite restaurants into one app: fast delivery and live tracking from the kitchen to your door.","hero.cta":"Order now from your browser","why.h2":"Order in<br><span>three simple steps</span>","s1.t":"Browse & choose","s1.d":"Your favorite restaurants with real photos and full prices.","s2.t":"Track it live","s2.d":"From the kitchen to your rider — step by step on the map.","s3.t":"Receive at your door","s3.d":"Pay your way: card, cash, or your wallet.","feat.h2":"Everything you expect from a world-class app<br><span>with a Saudi touch</span>","f1.t":"Pay your way","f1.d":"mada & cards, cash on delivery, or your in-app wallet.","f2.t":"Live tracking","f2.d":"Follow your rider all the way to your door.","f3.t":"Coupons & offers","f3.d":"Real discounts with no fine print.","f4.t":"Trusted ratings","f4.d":"From customers who actually ordered.","f5.t":"Calories up front","f5.d":"For every item, before you order.","f6.t":"Itemized bill","f6.d":"Every riyal accounted for: food and delivery, never merged.","values.h2":"Customer <span>first!</span>","v1":"<b>Honest prices:</b> what you see is what you pay — no hidden fees at checkout.","v2":"<b>Honest photos:</b> real dishes from our partners' kitchens — what you see is what arrives.","v3":"<b>Honest time:</b> live tracking from the kitchen to your door.","partners.h2":"For restaurant owners<br><span>Become a partner</span>","partners.sub":"<b>New customers from day one — zero setup cost.</b> Your digital menu with your photos and prices, orders reaching your kitchen instantly, and reports that account for every riyal.","partners.cta":"List your restaurant","riders.h2":"For riders<br><span>Flexible income, fair terms</span>","r1":"<b>Clear earnings:</b> your share is known before you accept — and a wallet tracks every riyal.","r2":"<b>Your hours:</b> go online whenever you want, take orders near you.","r3":"<b>Fair ratings:</b> a transparent system that protects hard workers.","riders.cta":"Join as a captain","footer.launch":"Launching soon","footer.sub":"We are building it carefully so you get a complete experience from day one.","footer.soon":"Soon on","footer.soon2":"Soon on","nav.order":"Order now","hero.note":"and the app is coming soon","riders.guide":"Read the captain guide first →","hero.trial":"Now in a limited trial with our first partners — opening to everyone soon","chip1.t":"A clear price before you order","chip1.d":"See exactly what you'll pay — food and delivery — before you confirm","chip3.t":"Know when it arrives","chip3.d":"An estimate that updates at every step, not a fixed promise","steps.lead":"No accounts, no hassle — browse first; we only ask you to sign in when you order.","values.lead":"Three promises we hold ourselves to — built into our system, not just our ads.","p1":"Your digital menu with your own photos and prices","p2":"Orders reach your kitchen the moment they're placed","p3":"Your earnings itemized, line by line","p4":"Any Android phone becomes your orders screen","guides.h2":"User guides","guides.lead":"Plain language, no jargon.","guides.rest":"Restaurant guide","guides.drv":"Captain guide"},"bn":{"nav.home":"হোম","nav.why":"কেন","nav.values":"আমাদের মূল্যবোধ","nav.partners":"রেস্টুরেন্টের জন্য","nav.riders":"রাইডারদের জন্য","nav.contact":"যোগাযোগ ও সাপোর্ট","nav.privacy":"গোপনীয়তা নীতি","legal.terms":"শর্তাবলী","legal.del":"অ্যাকাউন্ট মুছুন","hero.h1":"আপনার সব প্রয়োজন<br><span>আমরা পৌঁছে দিই</span>","hero.honest":"যে দাম দেখেন, সেটাই দেন<br><b>কোনো লুকানো ফি নেই</b>","hero.sub":"একটি সৌদি ডেলিভারি প্ল্যাটফর্ম — আপনার প্রিয় রেস্টুরেন্ট এক অ্যাপে: দ্রুত ডেলিভারি, রান্নাঘর থেকে দরজা পর্যন্ত লাইভ ট্র্যাকিং।","hero.cta":"ব্রাউজার থেকেই অর্ডার করুন","why.h2":"মাত্র তিন ধাপে<br><span>অর্ডার করুন</span>","s1.t":"দেখুন ও বেছে নিন","s1.d":"আসল ছবি ও সম্পূর্ণ দামসহ আপনার প্রিয় রেস্টুরেন্ট।","s2.t":"লাইভ ট্র্যাক করুন","s2.d":"রান্নাঘর থেকে রাইডার পর্যন্ত — ম্যাপে ধাপে ধাপে।","s3.t":"দরজায় বুঝে নিন","s3.d":"যেভাবে সুবিধা: কার্ড, ক্যাশ বা ওয়ালেট।","feat.h2":"বিশ্বমানের অ্যাপের সব সুবিধা<br><span>সৌদি ছোঁয়ায়</span>","f1.t":"পেমেন্ট আপনার মতো","f1.d":"কার্ড, ক্যাশ অন ডেলিভারি বা অ্যাপ ওয়ালেট।","f2.t":"লাইভ ট্র্যাকিং","f2.d":"রাইডারের অবস্থান দরজা পর্যন্ত দেখুন।","f3.t":"কুপন ও অফার","f3.d":"আসল ছাড়, কোনো গোপন শর্ত নেই।","f4.t":"নির্ভরযোগ্য রেটিং","f4.d":"যারা সত্যিই অর্ডার করেছেন তাদের কাছ থেকে।","f5.t":"ক্যালরি সামনে","f5.d":"অর্ডারের আগেই প্রতিটি আইটেমে।","f6.t":"বিস্তারিত বিল","f6.d":"প্রতিটি রিয়াল স্পষ্ট: খাবার ও ডেলিভারি আলাদা।","values.h2":"গ্রাহক <span>সবার আগে!</span>","v1":"<b>দামে সততা:</b> যা দেখবেন তাই দেবেন — চেকআউটে লুকানো ফি নেই।","v2":"<b>ছবিতে সততা:</b> পার্টনারদের রান্নাঘরের আসল খাবারের ছবি।","v3":"<b>সময়ে সততা:</b> রান্নাঘর থেকে দরজা পর্যন্ত লাইভ ট্র্যাকিং।","partners.h2":"রেস্টুরেন্ট মালিকদের জন্য<br><span>পার্টনার হোন</span>","partners.sub":"<b>প্রথম দিন থেকেই নতুন গ্রাহক — কোনো সেটআপ খরচ নেই।</b> আপনার ছবি ও দামে ডিজিটাল মেনু, অর্ডার সাথে সাথে রান্নাঘরে, আর প্রতিটি রিয়ালের হিসাবসহ রিপোর্ট।","partners.cta":"আপনার রেস্টুরেন্ট যুক্ত করুন","riders.h2":"রাইডারদের জন্য<br><span>ন্যায্য শর্তে নমনীয় আয়</span>","r1":"<b>স্পষ্ট আয়:</b> গ্রহণের আগেই প্রতিটি ডেলিভারির ভাগ জানা — ওয়ালেটে প্রতিটি রিয়ালের হিসাব।","r2":"<b>সময়ের স্বাধীনতা:</b> যখন খুশি অনলাইন হন, কাছের অর্ডার নিন।","r3":"<b>ন্যায্য রেটিং:</b> স্বচ্ছ ব্যবস্থা পরিশ্রমীকে রক্ষা করে।","riders.cta":"ক্যাপ্টেন হিসেবে যোগ দিন","footer.launch":"শীঘ্রই আসছে","footer.sub":"প্রথম দিন থেকেই পূর্ণাঙ্গ অভিজ্ঞতা দিতে আমরা যত্নে তৈরি করছি।","footer.soon":"শীঘ্রই","footer.soon2":"শীঘ্রই","nav.order":"এখনই অর্ডার","hero.note":"আর অ্যাপ শীঘ্রই আসছে","riders.guide":"আগে ক্যাপ্টেন গাইড পড়ুন →","hero.trial":"এখন আমাদের প্রথম পার্টনারদের সাথে সীমিত ট্রায়ালে — শীঘ্রই সবার জন্য","chip1.t":"অর্ডারের আগেই স্পষ্ট দাম","chip1.d":"নিশ্চিত করার আগেই দেখুন কত দিতে হবে — খাবার ও ডেলিভারি সহ","chip3.t":"কখন পৌঁছাবে জানুন","chip3.d":"প্রতিটি ধাপে হালনাগাদ হওয়া আনুমানিক সময়, নির্দিষ্ট প্রতিশ্রুতি নয়","steps.lead":"কোনো ঝামেলা নেই — আগে দেখুন; অর্ডারের সময়ই কেবল সাইন ইন লাগবে।","values.lead":"তিনটি প্রতিশ্রুতি যা আমরা মেনে চলি — বিজ্ঞাপনে নয়, আমাদের সিস্টেমে লেখা।","p1":"আপনার নিজের ছবি ও দামে ডিজিটাল মেনু","p2":"অর্ডার সঙ্গে সঙ্গে আপনার রান্নাঘরে পৌঁছায়","p3":"আপনার প্রাপ্য টাকার হিসাব, লাইন ধরে স্পষ্ট","p4":"যেকোনো অ্যান্ড্রয়েড ফোনই আপনার অর্ডার স্ক্রিন","guides.h2":"ব্যবহারের নির্দেশিকা","guides.lead":"সহজ ভাষায়, কঠিন শব্দ ছাড়া।","guides.rest":"রেস্টুরেন্ট নির্দেশিকা","guides.drv":"ক্যাপ্টেন নির্দেশিকা"},"ur":{"nav.home":"ہوم","nav.why":"کیوں","nav.values":"ہماری اقدار","nav.partners":"ریستورانوں کے لیے","nav.riders":"رائیڈرز کے لیے","nav.contact":"رابطہ اور مدد","nav.privacy":"رازداری کی پالیسی","legal.terms":"شرائط و ضوابط","legal.del":"اکاؤنٹ حذف کریں","hero.h1":"آپ کی ہر ضرورت<br><span>ہم پہنچائیں گے</span>","hero.honest":"جو قیمت دیکھیں وہی ادا کریں<br><b>کوئی چھپی فیس نہیں</b>","hero.sub":"ایک سعودی ڈیلیوری پلیٹ فارم — آپ کے پسندیدہ ریستوران ایک ایپ میں: تیز ڈیلیوری اور کچن سے دروازے تک لائیو ٹریکنگ۔","hero.cta":"اپنے براؤزر سے ابھی آرڈر کریں","why.h2":"صرف تین مراحل میں<br><span>آرڈر کریں</span>","s1.t":"دیکھیں اور چنیں","s1.d":"اصلی تصاویر اور مکمل قیمتوں کے ساتھ آپ کے پسندیدہ ریستوران۔","s2.t":"لائیو ٹریک کریں","s2.d":"کچن سے رائیڈر تک — نقشے پر قدم بہ قدم۔","s3.t":"دروازے پر وصول کریں","s3.d":"جیسے چاہیں ادائیگی: کارڈ، کیش یا والٹ۔","feat.h2":"عالمی معیار کی ایپ کی ہر سہولت<br><span>سعودی انداز میں</span>","f1.t":"ادائیگی آپ کی مرضی","f1.d":"کارڈ، کیش آن ڈیلیوری یا ایپ والٹ۔","f2.t":"لائیو ٹریکنگ","f2.d":"رائیڈر کا مقام دروازے تک دیکھیں۔","f3.t":"کوپن اور آفرز","f3.d":"حقیقی رعایت، کوئی چھپی شرط نہیں۔","f4.t":"قابلِ اعتماد ریٹنگ","f4.d":"صرف حقیقی آرڈر کرنے والوں سے۔","f5.t":"کیلوریز سامنے","f5.d":"آرڈر سے پہلے ہر آئٹم پر۔","f6.t":"تفصیلی بل","f6.d":"ہر ریال واضح: کھانا اور ڈیلیوری الگ الگ۔","values.h2":"گاہک <span>سب سے پہلے!</span>","v1":"<b>قیمت میں سچائی:</b> جو دیکھیں وہی ادا کریں — کوئی چھپی فیس نہیں۔","v2":"<b>تصویر میں سچائی:</b> پارٹنر کچن سے اصلی کھانوں کی تصاویر۔","v3":"<b>وقت میں سچائی:</b> کچن سے دروازے تک لائیو ٹریکنگ۔","partners.h2":"ریستوران مالکان کے لیے<br><span>پارٹنر بنیں</span>","partners.sub":"<b>پہلے دن سے نئے گاہک — کوئی سیٹ اپ خرچ نہیں۔</b> آپ کی تصاویر اور قیمتوں کے ساتھ ڈیجیٹل مینیو، آرڈر فوراً کچن میں، اور ہر ریال کے حساب کے ساتھ رپورٹس۔","partners.cta":"اپنا ریستوران شامل کریں","riders.h2":"رائیڈرز کے لیے<br><span>منصفانہ شرائط پر لچکدار آمدنی</span>","r1":"<b>واضح کمائی:</b> قبول کرنے سے پہلے ہر ڈیلیوری کا حصہ معلوم — والٹ میں ہر ریال کا حساب۔","r2":"<b>وقت کی آزادی:</b> جب چاہیں آن لائن ہوں، قریبی آرڈر لیں۔","r3":"<b>منصفانہ ریٹنگ:</b> شفاف نظام محنتی کی حفاظت کرتا ہے۔","riders.cta":"بطور کیپٹن شامل ہوں","footer.launch":"جلد آ رہا ہے","footer.sub":"پہلے دن سے مکمل تجربہ دینے کے لیے ہم اسے احتیاط سے بنا رہے ہیں۔","footer.soon":"جلد","footer.soon2":"جلد","nav.order":"ابھی آرڈر کریں","hero.note":"اور ایپ جلد آ رہی ہے","riders.guide":"پہلے کیپٹن گائیڈ پڑھیں ←","hero.trial":"ابھی اپنے پہلے شراکت داروں کے ساتھ محدود آزمائش میں — جلد سب کے لیے","chip1.t":"آرڈر سے پہلے واضح قیمت","chip1.d":"تصدیق سے پہلے جانیں کتنا دینا ہے — کھانا اور ڈیلیوری سمیت","chip3.t":"جانیں کب پہنچے گا","chip3.d":"ہر قدم پر اپ ڈیٹ ہوتا تخمینی وقت، کوئی پکا وعدہ نہیں","steps.lead":"نہ اکاؤنٹ کی جھنجھٹ نہ پیچیدگی — پہلے دیکھیں؛ سائن اِن صرف آرڈر کے وقت۔","values.lead":"تین وعدے جن پر ہم خود کو پرکھتے ہیں — اشتہار میں نہیں، ہمارے نظام میں لکھے ہوئے۔","p1":"آپ کی اپنی تصاویر اور قیمتوں کے ساتھ ڈیجیٹل مینیو","p2":"آرڈر فوراً آپ کے کچن میں پہنچتا ہے","p3":"آپ کی رقم کا حساب، سطر بہ سطر واضح","p4":"کوئی بھی اینڈرائیڈ فون آپ کی آرڈر اسکرین بن جائے","guides.h2":"استعمال کی رہنمائی","guides.lead":"آسان زبان میں، بغیر مشکل اصطلاحات کے۔","guides.rest":"ریستوران گائیڈ","guides.drv":"کیپٹن گائیڈ"},"id":{"nav.home":"Beranda","nav.why":"Mengapa","nav.values":"Nilai kami","nav.partners":"Untuk restoran","nav.riders":"Untuk kurir","nav.contact":"Kontak & dukungan","nav.privacy":"Kebijakan privasi","legal.terms":"Syarat & ketentuan","legal.del":"Hapus akun","hero.h1":"Semua kebutuhanmu<br><span>kami antar</span>","hero.honest":"Harga yang kamu lihat, itu yang kamu bayar<br><b>Tanpa biaya tersembunyi</b>","hero.sub":"Platform pengiriman Saudi — restoran favoritmu dalam satu aplikasi: antar cepat dan pelacakan langsung dari dapur ke pintumu.","hero.cta":"Pesan sekarang dari browser","why.h2":"Pesan dalam<br><span>tiga langkah mudah</span>","s1.t":"Jelajahi & pilih","s1.d":"Restoran favoritmu dengan foto asli dan harga lengkap.","s2.t":"Lacak langsung","s2.d":"Dari dapur sampai kurir — langkah demi langkah di peta.","s3.t":"Terima di pintu","s3.d":"Bayar sesukamu: kartu, tunai, atau dompet aplikasi.","feat.h2":"Semua fitur aplikasi kelas dunia<br><span>dengan sentuhan Saudi</span>","f1.t":"Bayar sesukamu","f1.d":"Kartu, tunai saat terima, atau dompet aplikasi.","f2.t":"Pelacakan langsung","f2.d":"Ikuti kurirmu sampai ke pintu.","f3.t":"Kupon & promo","f3.d":"Diskon nyata tanpa syarat tersembunyi.","f4.t":"Rating terpercaya","f4.d":"Dari pelanggan yang benar-benar memesan.","f5.t":"Kalori di depan","f5.d":"Untuk setiap item, sebelum memesan.","f6.t":"Tagihan rinci","f6.d":"Setiap riyal jelas: makanan dan antar terpisah.","values.h2":"Pelanggan <span>yang utama!</span>","v1":"<b>Jujur soal harga:</b> yang kamu lihat itu yang kamu bayar — tanpa biaya tersembunyi.","v2":"<b>Jujur soal foto:</b> hidangan asli dari dapur mitra kami.","v3":"<b>Jujur soal waktu:</b> pelacakan langsung dari dapur ke pintumu.","partners.h2":"Untuk pemilik restoran<br><span>Jadilah mitra</span>","partners.sub":"<b>Pelanggan baru sejak hari pertama — tanpa biaya pendirian.</b> Menu digital dengan foto dan hargamu, pesanan langsung ke dapur, dan laporan yang mencatat setiap riyal.","partners.cta":"Daftarkan restoranmu","riders.h2":"Untuk kurir<br><span>Penghasilan fleksibel, syarat adil</span>","r1":"<b>Penghasilan jelas:</b> bagianmu diketahui sebelum menerima — dompet mencatat setiap riyal.","r2":"<b>Waktu bebas:</b> online kapan saja, ambil pesanan terdekat.","r3":"<b>Rating adil:</b> sistem transparan yang melindungi pekerja keras.","riders.cta":"Gabung sebagai kurir","footer.launch":"Segera diluncurkan","footer.sub":"Kami membangunnya dengan cermat agar kamu mendapat pengalaman lengkap sejak hari pertama.","footer.soon":"Segera di","footer.soon2":"Segera di","nav.order":"Pesan sekarang","hero.note":"dan aplikasinya segera hadir","riders.guide":"Baca panduan kurir dulu →","hero.trial":"Sedang uji coba terbatas bersama mitra pertama kami — segera untuk semua","chip1.t":"Harga jelas sebelum memesan","chip1.d":"Lihat total yang kamu bayar — makanan dan antar — sebelum konfirmasi","chip3.t":"Tahu kapan tiba","chip3.d":"Perkiraan waktu yang diperbarui tiap langkah, bukan janji pasti","steps.lead":"Tanpa ribet — jelajahi dulu; masuk hanya saat kamu memesan.","values.lead":"Tiga janji yang kami pegang — tertulis dalam sistem kami, bukan di iklan.","p1":"Menu digital dengan foto dan hargamu sendiri","p2":"Pesanan masuk ke dapurmu seketika","p3":"Pendapatanmu dirinci baris per baris","p4":"Ponsel Android apa pun jadi layar pesananmu","guides.h2":"Panduan pengguna","guides.lead":"Bahasa sederhana, tanpa istilah rumit.","guides.rest":"Panduan restoran","guides.drv":"Panduan kurir"}};
+const I18N = {"ar":{"nav.home":"الرئيسية","nav.why":"لماذا","nav.values":"قيمنا","nav.partners":"للمطاعم","nav.riders":"للمناديب","nav.contact":"التواصل والدعم","nav.privacy":"سياسة الخصوصية","legal.terms":"الشروط والأحكام","legal.del":"حذف الحساب","hero.h1":"كل احتياجاتك<br><span>نوصّلها لك</span>","hero.honest":"السعر اللي تشوفه هو اللي تدفعه<br><b>بلا رسوم خفية</b>","hero.sub":"منصة توصيل سعودية تجمع مطاعمك المفضلة في تطبيق واحد: توصيل سريع، وتتبع لحظي لطلبك من المطبخ حتى بابك.","hero.cta":"اطلب الآن من متصفحك","why.h2":"اطلب<br><span>بثلاث خطوات</span>","s1.t":"تصفّح واختر","s1.d":"مطاعمك المفضلة بصور حقيقية وأسعار كاملة أمامك.","s2.t":"تابع طلبك حيّاً","s2.d":"من قبول المطعم حتى انطلاق مندوبك — خطوة بخطوة على الخريطة.","s3.t":"استلم عند بابك","s3.d":"وادفع كما يناسبك: بطاقة، كاش، أو محفظتك.","feat.h2":"كل ما تتوقعه من تطبيق عالمي<br><span>بلمسة سعودية</span>","f1.t":"الدفع على راحتك","f1.d":"مدى وبطاقة، كاش عند الاستلام، أو محفظتك في التطبيق.","f2.t":"تتبع حيّ","f2.d":"موقع مندوبك أولاً بأول حتى باب بيتك.","f3.t":"كوبونات وعروض","f3.d":"خصومات حقيقية بلا شروط مخفية.","f4.t":"تقييمات موثوقة","f4.d":"من عملاء طلبوا فعلاً — لا مجاملات.","f5.t":"السعرات أمامك","f5.d":"لكل صنف قبل أن تطلب.","f6.t":"فاتورة مفصّلة","f6.d":"كل ريال واضح: الوجبة والتوصيل بلا دمج.","values.h2":"العميل <span>أولاً!</span>","v1":"<b>الصدق في السعر:</b> السعر الذي تراه هو الذي تدفعه — لا رسوم خفية في نهاية الطلب.","v2":"<b>الصدق في الصورة:</b> صور حقيقية للأطباق من مطابخ شركائنا — ما تراه هو ما يصلك.","v3":"<b>الصدق في الوقت:</b> تتبع مباشر من المطبخ حتى بابك، وتعرف أولاً بأول أين طلبك.","partners.h2":"لأصحاب المطاعم<br><span>كن شريكاً</span>","partners.sub":"<b>عملاء جدد يصلونك من اليوم الأول — بلا أي تكلفة تأسيس.</b> قائمة طعامك الرقمية بصورك وأسعارك، وطلباتك تصل مطبخك لحظة وقوعها، وتقارير تُطلعك على كل ريال — ومستحقاتك بحساب مكشوف أمامك.","partners.cta":"ضمّ مطعمك الآن","riders.h2":"للمناديب<br><span>دخل مرن بشروط عادلة</span>","r1":"<b>أرباح واضحة:</b> نصيبك من كل توصيلة معروف قبل قبولها — ومحفظة ترصد كل ريال.","r2":"<b>حرية الوقت:</b> اتصل متى شئت، واستلم الطلبات القريبة منك.","r3":"<b>إنصاف التقييم:</b> نظام تقييم شفاف يحمي المجتهد.","riders.cta":"انضم كابتناً الآن","footer.launch":"ينطلق قريباً","footer.sub":"نبني المنصة بعناية لتصلك تجربة مكتملة من اليوم الأول.","footer.soon":"قريباً على","footer.soon2":"قريباً على","nav.order":"اطلب الآن","hero.note":"والتطبيق قادم قريباً","riders.guide":"اقرأ دليل الكابتن أولاً ←","hero.trial":"نجرّب الخدمة الآن مع أوّل شركائنا — ونفتح للجميع قريباً","chip1.t":"سعرٌ واضح قبل أن تطلب","chip1.d":"تعرف ما ستدفعه كاملاً — الوجبة والتوصيل — قبل أن تؤكّد","chip3.t":"تعرف متى يصل","chip3.d":"وقتٌ متوقّع يتحدّث مع كل خطوة، لا وعدٌ ثابت","steps.lead":"لا حسابات ولا تعقيد — تتصفّح أولاً، ولا نطلب تسجيلك إلا عند الطلب.","values.lead":"ثلاثة وعود نقيس أنفسنا بها — ومكتوبةٌ في نظامنا لا في إعلاننا.","p1":"قائمة طعامك الرقمية بصورك وأسعارك","p2":"طلباتك تصل مطبخك لحظة وقوعها","p3":"مستحقاتك بحساب مكشوف أمامك سطراً سطراً","p4":"أي جوال أندرويد عندك يصير شاشة طلباتك","guides.h2":"أدلة الاستخدام","guides.lead":"شرحٌ بلغة عامة، بلا مصطلحات.","guides.rest":"دليل المطعم","guides.drv":"دليل الكابتن","doors.h2":"ادخل من <span>بابك</span>","doors.lead":"منصّةٌ واحدة وثلاثة أبواب: تطلب، أو تبيع، أو توصّل.","doors.c.t":"أنا عميل","doors.c.d":"اطلب من مطاعم مدينتك — بلا تطبيق يُحمَّل.","doors.r.t":"أنا مطعم","doors.r.d":"قائمتك الرقمية وطلباتك ومستحقاتك بحساب مكشوف.","doors.d.t":"أنا كابتن","doors.d.d":"دخلٌ مرن، ونصيبك من كل توصيلة معروف قبل قبولها.","doors.go":"ادخل"},"en":{"nav.home":"Home","nav.why":"Why","nav.values":"Our values","nav.partners":"For restaurants","nav.riders":"For riders","nav.contact":"Contact & support","nav.privacy":"Privacy policy","legal.terms":"Terms & conditions","legal.del":"Delete account","hero.h1":"Everything you need<br><span>delivered to you</span>","hero.honest":"The price you see is the price you pay<br><b>No hidden fees</b>","hero.sub":"A Saudi delivery platform that brings your favorite restaurants into one app: fast delivery and live tracking from the kitchen to your door.","hero.cta":"Order now from your browser","why.h2":"Order in<br><span>three simple steps</span>","s1.t":"Browse & choose","s1.d":"Your favorite restaurants with real photos and full prices.","s2.t":"Track it live","s2.d":"From the kitchen to your rider — step by step on the map.","s3.t":"Receive at your door","s3.d":"Pay your way: card, cash, or your wallet.","feat.h2":"Everything you expect from a world-class app<br><span>with a Saudi touch</span>","f1.t":"Pay your way","f1.d":"mada & cards, cash on delivery, or your in-app wallet.","f2.t":"Live tracking","f2.d":"Follow your rider all the way to your door.","f3.t":"Coupons & offers","f3.d":"Real discounts with no fine print.","f4.t":"Trusted ratings","f4.d":"From customers who actually ordered.","f5.t":"Calories up front","f5.d":"For every item, before you order.","f6.t":"Itemized bill","f6.d":"Every riyal accounted for: food and delivery, never merged.","values.h2":"Customer <span>first!</span>","v1":"<b>Honest prices:</b> what you see is what you pay — no hidden fees at checkout.","v2":"<b>Honest photos:</b> real dishes from our partners' kitchens — what you see is what arrives.","v3":"<b>Honest time:</b> live tracking from the kitchen to your door.","partners.h2":"For restaurant owners<br><span>Become a partner</span>","partners.sub":"<b>New customers from day one — zero setup cost.</b> Your digital menu with your photos and prices, orders reaching your kitchen instantly, and reports that account for every riyal.","partners.cta":"List your restaurant","riders.h2":"For riders<br><span>Flexible income, fair terms</span>","r1":"<b>Clear earnings:</b> your share is known before you accept — and a wallet tracks every riyal.","r2":"<b>Your hours:</b> go online whenever you want, take orders near you.","r3":"<b>Fair ratings:</b> a transparent system that protects hard workers.","riders.cta":"Join as a captain","footer.launch":"Launching soon","footer.sub":"We are building it carefully so you get a complete experience from day one.","footer.soon":"Soon on","footer.soon2":"Soon on","nav.order":"Order now","hero.note":"and the app is coming soon","riders.guide":"Read the captain guide first →","hero.trial":"Now in a limited trial with our first partners — opening to everyone soon","chip1.t":"A clear price before you order","chip1.d":"See exactly what you'll pay — food and delivery — before you confirm","chip3.t":"Know when it arrives","chip3.d":"An estimate that updates at every step, not a fixed promise","steps.lead":"No accounts, no hassle — browse first; we only ask you to sign in when you order.","values.lead":"Three promises we hold ourselves to — built into our system, not just our ads.","p1":"Your digital menu with your own photos and prices","p2":"Orders reach your kitchen the moment they're placed","p3":"Your earnings itemized, line by line","p4":"Any Android phone becomes your orders screen","guides.h2":"User guides","guides.lead":"Plain language, no jargon.","guides.rest":"Restaurant guide","guides.drv":"Captain guide","doors.h2":"Enter through <span>your door</span>","doors.lead":"One platform, three doors: order, sell, or deliver.","doors.c.t":"I'm a customer","doors.c.d":"Order from your city's restaurants — no app to install.","doors.r.t":"I'm a restaurant","doors.r.d":"Your digital menu, your orders, and your earnings in the open.","doors.d.t":"I'm a captain","doors.d.d":"Flexible income — your share is known before you accept.","doors.go":"Enter"},"bn":{"nav.home":"হোম","nav.why":"কেন","nav.values":"আমাদের মূল্যবোধ","nav.partners":"রেস্টুরেন্টের জন্য","nav.riders":"রাইডারদের জন্য","nav.contact":"যোগাযোগ ও সাপোর্ট","nav.privacy":"গোপনীয়তা নীতি","legal.terms":"শর্তাবলী","legal.del":"অ্যাকাউন্ট মুছুন","hero.h1":"আপনার সব প্রয়োজন<br><span>আমরা পৌঁছে দিই</span>","hero.honest":"যে দাম দেখেন, সেটাই দেন<br><b>কোনো লুকানো ফি নেই</b>","hero.sub":"একটি সৌদি ডেলিভারি প্ল্যাটফর্ম — আপনার প্রিয় রেস্টুরেন্ট এক অ্যাপে: দ্রুত ডেলিভারি, রান্নাঘর থেকে দরজা পর্যন্ত লাইভ ট্র্যাকিং।","hero.cta":"ব্রাউজার থেকেই অর্ডার করুন","why.h2":"মাত্র তিন ধাপে<br><span>অর্ডার করুন</span>","s1.t":"দেখুন ও বেছে নিন","s1.d":"আসল ছবি ও সম্পূর্ণ দামসহ আপনার প্রিয় রেস্টুরেন্ট।","s2.t":"লাইভ ট্র্যাক করুন","s2.d":"রান্নাঘর থেকে রাইডার পর্যন্ত — ম্যাপে ধাপে ধাপে।","s3.t":"দরজায় বুঝে নিন","s3.d":"যেভাবে সুবিধা: কার্ড, ক্যাশ বা ওয়ালেট।","feat.h2":"বিশ্বমানের অ্যাপের সব সুবিধা<br><span>সৌদি ছোঁয়ায়</span>","f1.t":"পেমেন্ট আপনার মতো","f1.d":"কার্ড, ক্যাশ অন ডেলিভারি বা অ্যাপ ওয়ালেট।","f2.t":"লাইভ ট্র্যাকিং","f2.d":"রাইডারের অবস্থান দরজা পর্যন্ত দেখুন।","f3.t":"কুপন ও অফার","f3.d":"আসল ছাড়, কোনো গোপন শর্ত নেই।","f4.t":"নির্ভরযোগ্য রেটিং","f4.d":"যারা সত্যিই অর্ডার করেছেন তাদের কাছ থেকে।","f5.t":"ক্যালরি সামনে","f5.d":"অর্ডারের আগেই প্রতিটি আইটেমে।","f6.t":"বিস্তারিত বিল","f6.d":"প্রতিটি রিয়াল স্পষ্ট: খাবার ও ডেলিভারি আলাদা।","values.h2":"গ্রাহক <span>সবার আগে!</span>","v1":"<b>দামে সততা:</b> যা দেখবেন তাই দেবেন — চেকআউটে লুকানো ফি নেই।","v2":"<b>ছবিতে সততা:</b> পার্টনারদের রান্নাঘরের আসল খাবারের ছবি।","v3":"<b>সময়ে সততা:</b> রান্নাঘর থেকে দরজা পর্যন্ত লাইভ ট্র্যাকিং।","partners.h2":"রেস্টুরেন্ট মালিকদের জন্য<br><span>পার্টনার হোন</span>","partners.sub":"<b>প্রথম দিন থেকেই নতুন গ্রাহক — কোনো সেটআপ খরচ নেই।</b> আপনার ছবি ও দামে ডিজিটাল মেনু, অর্ডার সাথে সাথে রান্নাঘরে, আর প্রতিটি রিয়ালের হিসাবসহ রিপোর্ট।","partners.cta":"আপনার রেস্টুরেন্ট যুক্ত করুন","riders.h2":"রাইডারদের জন্য<br><span>ন্যায্য শর্তে নমনীয় আয়</span>","r1":"<b>স্পষ্ট আয়:</b> গ্রহণের আগেই প্রতিটি ডেলিভারির ভাগ জানা — ওয়ালেটে প্রতিটি রিয়ালের হিসাব।","r2":"<b>সময়ের স্বাধীনতা:</b> যখন খুশি অনলাইন হন, কাছের অর্ডার নিন।","r3":"<b>ন্যায্য রেটিং:</b> স্বচ্ছ ব্যবস্থা পরিশ্রমীকে রক্ষা করে।","riders.cta":"ক্যাপ্টেন হিসেবে যোগ দিন","footer.launch":"শীঘ্রই আসছে","footer.sub":"প্রথম দিন থেকেই পূর্ণাঙ্গ অভিজ্ঞতা দিতে আমরা যত্নে তৈরি করছি।","footer.soon":"শীঘ্রই","footer.soon2":"শীঘ্রই","nav.order":"এখনই অর্ডার","hero.note":"আর অ্যাপ শীঘ্রই আসছে","riders.guide":"আগে ক্যাপ্টেন গাইড পড়ুন →","hero.trial":"এখন আমাদের প্রথম পার্টনারদের সাথে সীমিত ট্রায়ালে — শীঘ্রই সবার জন্য","chip1.t":"অর্ডারের আগেই স্পষ্ট দাম","chip1.d":"নিশ্চিত করার আগেই দেখুন কত দিতে হবে — খাবার ও ডেলিভারি সহ","chip3.t":"কখন পৌঁছাবে জানুন","chip3.d":"প্রতিটি ধাপে হালনাগাদ হওয়া আনুমানিক সময়, নির্দিষ্ট প্রতিশ্রুতি নয়","steps.lead":"কোনো ঝামেলা নেই — আগে দেখুন; অর্ডারের সময়ই কেবল সাইন ইন লাগবে।","values.lead":"তিনটি প্রতিশ্রুতি যা আমরা মেনে চলি — বিজ্ঞাপনে নয়, আমাদের সিস্টেমে লেখা।","p1":"আপনার নিজের ছবি ও দামে ডিজিটাল মেনু","p2":"অর্ডার সঙ্গে সঙ্গে আপনার রান্নাঘরে পৌঁছায়","p3":"আপনার প্রাপ্য টাকার হিসাব, লাইন ধরে স্পষ্ট","p4":"যেকোনো অ্যান্ড্রয়েড ফোনই আপনার অর্ডার স্ক্রিন","guides.h2":"ব্যবহারের নির্দেশিকা","guides.lead":"সহজ ভাষায়, কঠিন শব্দ ছাড়া।","guides.rest":"রেস্টুরেন্ট নির্দেশিকা","guides.drv":"ক্যাপ্টেন নির্দেশিকা","doors.h2":"আপনার <span>দরজা দিয়ে</span> ঢুকুন","doors.lead":"এক প্ল্যাটফর্ম, তিন দরজা: অর্ডার করুন, বিক্রি করুন, বা পৌঁছে দিন।","doors.c.t":"আমি গ্রাহক","doors.c.d":"আপনার শহরের রেস্টুরেন্ট থেকে অর্ডার করুন — অ্যাপ ইনস্টল ছাড়াই।","doors.r.t":"আমি রেস্টুরেন্ট","doors.r.d":"আপনার ডিজিটাল মেনু, অর্ডার আর প্রাপ্য — সবই খোলা হিসাবে।","doors.d.t":"আমি ক্যাপ্টেন","doors.d.d":"নমনীয় আয় — গ্রহণের আগেই আপনার ভাগ জানা।","doors.go":"প্রবেশ করুন"},"ur":{"nav.home":"ہوم","nav.why":"کیوں","nav.values":"ہماری اقدار","nav.partners":"ریستورانوں کے لیے","nav.riders":"رائیڈرز کے لیے","nav.contact":"رابطہ اور مدد","nav.privacy":"رازداری کی پالیسی","legal.terms":"شرائط و ضوابط","legal.del":"اکاؤنٹ حذف کریں","hero.h1":"آپ کی ہر ضرورت<br><span>ہم پہنچائیں گے</span>","hero.honest":"جو قیمت دیکھیں وہی ادا کریں<br><b>کوئی چھپی فیس نہیں</b>","hero.sub":"ایک سعودی ڈیلیوری پلیٹ فارم — آپ کے پسندیدہ ریستوران ایک ایپ میں: تیز ڈیلیوری اور کچن سے دروازے تک لائیو ٹریکنگ۔","hero.cta":"اپنے براؤزر سے ابھی آرڈر کریں","why.h2":"صرف تین مراحل میں<br><span>آرڈر کریں</span>","s1.t":"دیکھیں اور چنیں","s1.d":"اصلی تصاویر اور مکمل قیمتوں کے ساتھ آپ کے پسندیدہ ریستوران۔","s2.t":"لائیو ٹریک کریں","s2.d":"کچن سے رائیڈر تک — نقشے پر قدم بہ قدم۔","s3.t":"دروازے پر وصول کریں","s3.d":"جیسے چاہیں ادائیگی: کارڈ، کیش یا والٹ۔","feat.h2":"عالمی معیار کی ایپ کی ہر سہولت<br><span>سعودی انداز میں</span>","f1.t":"ادائیگی آپ کی مرضی","f1.d":"کارڈ، کیش آن ڈیلیوری یا ایپ والٹ۔","f2.t":"لائیو ٹریکنگ","f2.d":"رائیڈر کا مقام دروازے تک دیکھیں۔","f3.t":"کوپن اور آفرز","f3.d":"حقیقی رعایت، کوئی چھپی شرط نہیں۔","f4.t":"قابلِ اعتماد ریٹنگ","f4.d":"صرف حقیقی آرڈر کرنے والوں سے۔","f5.t":"کیلوریز سامنے","f5.d":"آرڈر سے پہلے ہر آئٹم پر۔","f6.t":"تفصیلی بل","f6.d":"ہر ریال واضح: کھانا اور ڈیلیوری الگ الگ۔","values.h2":"گاہک <span>سب سے پہلے!</span>","v1":"<b>قیمت میں سچائی:</b> جو دیکھیں وہی ادا کریں — کوئی چھپی فیس نہیں۔","v2":"<b>تصویر میں سچائی:</b> پارٹنر کچن سے اصلی کھانوں کی تصاویر۔","v3":"<b>وقت میں سچائی:</b> کچن سے دروازے تک لائیو ٹریکنگ۔","partners.h2":"ریستوران مالکان کے لیے<br><span>پارٹنر بنیں</span>","partners.sub":"<b>پہلے دن سے نئے گاہک — کوئی سیٹ اپ خرچ نہیں۔</b> آپ کی تصاویر اور قیمتوں کے ساتھ ڈیجیٹل مینیو، آرڈر فوراً کچن میں، اور ہر ریال کے حساب کے ساتھ رپورٹس۔","partners.cta":"اپنا ریستوران شامل کریں","riders.h2":"رائیڈرز کے لیے<br><span>منصفانہ شرائط پر لچکدار آمدنی</span>","r1":"<b>واضح کمائی:</b> قبول کرنے سے پہلے ہر ڈیلیوری کا حصہ معلوم — والٹ میں ہر ریال کا حساب۔","r2":"<b>وقت کی آزادی:</b> جب چاہیں آن لائن ہوں، قریبی آرڈر لیں۔","r3":"<b>منصفانہ ریٹنگ:</b> شفاف نظام محنتی کی حفاظت کرتا ہے۔","riders.cta":"بطور کیپٹن شامل ہوں","footer.launch":"جلد آ رہا ہے","footer.sub":"پہلے دن سے مکمل تجربہ دینے کے لیے ہم اسے احتیاط سے بنا رہے ہیں۔","footer.soon":"جلد","footer.soon2":"جلد","nav.order":"ابھی آرڈر کریں","hero.note":"اور ایپ جلد آ رہی ہے","riders.guide":"پہلے کیپٹن گائیڈ پڑھیں ←","hero.trial":"ابھی اپنے پہلے شراکت داروں کے ساتھ محدود آزمائش میں — جلد سب کے لیے","chip1.t":"آرڈر سے پہلے واضح قیمت","chip1.d":"تصدیق سے پہلے جانیں کتنا دینا ہے — کھانا اور ڈیلیوری سمیت","chip3.t":"جانیں کب پہنچے گا","chip3.d":"ہر قدم پر اپ ڈیٹ ہوتا تخمینی وقت، کوئی پکا وعدہ نہیں","steps.lead":"نہ اکاؤنٹ کی جھنجھٹ نہ پیچیدگی — پہلے دیکھیں؛ سائن اِن صرف آرڈر کے وقت۔","values.lead":"تین وعدے جن پر ہم خود کو پرکھتے ہیں — اشتہار میں نہیں، ہمارے نظام میں لکھے ہوئے۔","p1":"آپ کی اپنی تصاویر اور قیمتوں کے ساتھ ڈیجیٹل مینیو","p2":"آرڈر فوراً آپ کے کچن میں پہنچتا ہے","p3":"آپ کی رقم کا حساب، سطر بہ سطر واضح","p4":"کوئی بھی اینڈرائیڈ فون آپ کی آرڈر اسکرین بن جائے","guides.h2":"استعمال کی رہنمائی","guides.lead":"آسان زبان میں، بغیر مشکل اصطلاحات کے۔","guides.rest":"ریستوران گائیڈ","guides.drv":"کیپٹن گائیڈ","doors.h2":"اپنے <span>دروازے</span> سے آئیں","doors.lead":"ایک پلیٹ فارم، تین دروازے: آرڈر کریں، بیچیں، یا پہنچائیں۔","doors.c.t":"میں گاہک ہوں","doors.c.d":"اپنے شہر کے ریستورانوں سے آرڈر کریں — کوئی ایپ انسٹال کیے بغیر۔","doors.r.t":"میں ریستوران ہوں","doors.r.d":"آپ کا ڈیجیٹل مینیو، آرڈرز اور رقم — سب کھلے حساب میں۔","doors.d.t":"میں کیپٹن ہوں","doors.d.d":"لچکدار آمدنی — قبول کرنے سے پہلے آپ کا حصہ معلوم۔","doors.go":"داخل ہوں"},"id":{"nav.home":"Beranda","nav.why":"Mengapa","nav.values":"Nilai kami","nav.partners":"Untuk restoran","nav.riders":"Untuk kurir","nav.contact":"Kontak & dukungan","nav.privacy":"Kebijakan privasi","legal.terms":"Syarat & ketentuan","legal.del":"Hapus akun","hero.h1":"Semua kebutuhanmu<br><span>kami antar</span>","hero.honest":"Harga yang kamu lihat, itu yang kamu bayar<br><b>Tanpa biaya tersembunyi</b>","hero.sub":"Platform pengiriman Saudi — restoran favoritmu dalam satu aplikasi: antar cepat dan pelacakan langsung dari dapur ke pintumu.","hero.cta":"Pesan sekarang dari browser","why.h2":"Pesan dalam<br><span>tiga langkah mudah</span>","s1.t":"Jelajahi & pilih","s1.d":"Restoran favoritmu dengan foto asli dan harga lengkap.","s2.t":"Lacak langsung","s2.d":"Dari dapur sampai kurir — langkah demi langkah di peta.","s3.t":"Terima di pintu","s3.d":"Bayar sesukamu: kartu, tunai, atau dompet aplikasi.","feat.h2":"Semua fitur aplikasi kelas dunia<br><span>dengan sentuhan Saudi</span>","f1.t":"Bayar sesukamu","f1.d":"Kartu, tunai saat terima, atau dompet aplikasi.","f2.t":"Pelacakan langsung","f2.d":"Ikuti kurirmu sampai ke pintu.","f3.t":"Kupon & promo","f3.d":"Diskon nyata tanpa syarat tersembunyi.","f4.t":"Rating terpercaya","f4.d":"Dari pelanggan yang benar-benar memesan.","f5.t":"Kalori di depan","f5.d":"Untuk setiap item, sebelum memesan.","f6.t":"Tagihan rinci","f6.d":"Setiap riyal jelas: makanan dan antar terpisah.","values.h2":"Pelanggan <span>yang utama!</span>","v1":"<b>Jujur soal harga:</b> yang kamu lihat itu yang kamu bayar — tanpa biaya tersembunyi.","v2":"<b>Jujur soal foto:</b> hidangan asli dari dapur mitra kami.","v3":"<b>Jujur soal waktu:</b> pelacakan langsung dari dapur ke pintumu.","partners.h2":"Untuk pemilik restoran<br><span>Jadilah mitra</span>","partners.sub":"<b>Pelanggan baru sejak hari pertama — tanpa biaya pendirian.</b> Menu digital dengan foto dan hargamu, pesanan langsung ke dapur, dan laporan yang mencatat setiap riyal.","partners.cta":"Daftarkan restoranmu","riders.h2":"Untuk kurir<br><span>Penghasilan fleksibel, syarat adil</span>","r1":"<b>Penghasilan jelas:</b> bagianmu diketahui sebelum menerima — dompet mencatat setiap riyal.","r2":"<b>Waktu bebas:</b> online kapan saja, ambil pesanan terdekat.","r3":"<b>Rating adil:</b> sistem transparan yang melindungi pekerja keras.","riders.cta":"Gabung sebagai kurir","footer.launch":"Segera diluncurkan","footer.sub":"Kami membangunnya dengan cermat agar kamu mendapat pengalaman lengkap sejak hari pertama.","footer.soon":"Segera di","footer.soon2":"Segera di","nav.order":"Pesan sekarang","hero.note":"dan aplikasinya segera hadir","riders.guide":"Baca panduan kurir dulu →","hero.trial":"Sedang uji coba terbatas bersama mitra pertama kami — segera untuk semua","chip1.t":"Harga jelas sebelum memesan","chip1.d":"Lihat total yang kamu bayar — makanan dan antar — sebelum konfirmasi","chip3.t":"Tahu kapan tiba","chip3.d":"Perkiraan waktu yang diperbarui tiap langkah, bukan janji pasti","steps.lead":"Tanpa ribet — jelajahi dulu; masuk hanya saat kamu memesan.","values.lead":"Tiga janji yang kami pegang — tertulis dalam sistem kami, bukan di iklan.","p1":"Menu digital dengan foto dan hargamu sendiri","p2":"Pesanan masuk ke dapurmu seketika","p3":"Pendapatanmu dirinci baris per baris","p4":"Ponsel Android apa pun jadi layar pesananmu","guides.h2":"Panduan pengguna","guides.lead":"Bahasa sederhana, tanpa istilah rumit.","guides.rest":"Panduan restoran","guides.drv":"Panduan kurir","doors.h2":"Masuk lewat <span>pintumu</span>","doors.lead":"Satu platform, tiga pintu: pesan, jual, atau antar.","doors.c.t":"Saya pelanggan","doors.c.d":"Pesan dari restoran di kotamu — tanpa unduh aplikasi.","doors.r.t":"Saya restoran","doors.r.d":"Menu digital, pesanan, dan pendapatanmu terbuka jelas.","doors.d.t":"Saya kurir","doors.d.d":"Penghasilan fleksibel — bagianmu diketahui sebelum menerima.","doors.go":"Masuk"}};
 const RTL = { ar: 1, ur: 1 };
 const sel = document.getElementById('langSel');
 function setLang(l) {
