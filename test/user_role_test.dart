@@ -31,7 +31,7 @@ void main() {
     });
 
     test('يقدّم شكوى بكل الأنواع كالمدير — يسجّلها نيابةً عن المتصلين', () {
-      expect(Complaint.typesForRole(UserRole.support),
+      expect(ComplaintTypeScope.typesForRole(UserRole.support),
           ComplaintType.values);
     });
   });
