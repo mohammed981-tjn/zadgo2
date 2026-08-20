@@ -22,16 +22,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const String _batteryAdviceKey = 'captain_battery_advice_shown';
 
+/// حارس تزامن: نقرتا اتصال متسارعتان قبل أول ختم تكدّسان حوارين.
+bool _showing = false;
+
 /// تُستدعى عند تحوّل الكابتن إلى «متصل» — تعرض النصيحة في المرة الأولى
 /// فقط ثم تصمت للأبد.
 Future<void> showBatteryAdviceOnce(BuildContext context) async {
   if (defaultTargetPlatform != TargetPlatform.android) return;
+  if (_showing) return;
 
   final prefs = await SharedPreferences.getInstance();
   if (prefs.getBool(_batteryAdviceKey) ?? false) return;
-  await prefs.setBool(_batteryAdviceKey, true);
 
+  // الختم **بعد** الإغلاق لا قبل العرض (خلافاً لأصل الغنيمة — كشفه فاحص
+  // الموثوقية): ختمٌ قبل العرض يعني أن فكّ الشاشة في الفجوة يحرق النصيحة
+  // الوحيدة-في-عمر-التثبيت دون أن تُرى. أسوأ حالات الختم المتأخر أنها
+  // تُعرض مرتين — وأسوأ حالات المبكر أنها لا تُعرض أبداً.
   if (!context.mounted) return;
+  _showing = true;
   await showDialog<void>(
     context: context,
     builder: (dCtx) => AlertDialog(
@@ -79,4 +87,6 @@ Future<void> showBatteryAdviceOnce(BuildContext context) async {
       ],
     ),
   );
+  _showing = false;
+  await prefs.setBool(_batteryAdviceKey, true);
 }
