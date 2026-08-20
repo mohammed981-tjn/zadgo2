@@ -6,9 +6,9 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/route_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
-import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/reorder.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/app_skeletons.dart';
 import '../../widgets/complaint_window.dart';
@@ -853,86 +853,12 @@ class _OrderCard extends StatelessWidget {
       );
 
   Future<void> _reorder(BuildContext context) async {
-    final service = context.read<FirebaseService>();
-    final cart = context.read<CartProvider>();
-
-    // سلة فيها أصناف من مطعم آخر ستُفرَّغ (قاعدة «مطعم واحد للسلة») —
-    // بموافقة صريحة لا بمسح صامت.
-    if (!cart.isEmpty && cart.restaurantId != order.restaurantId) {
-      final ok = await showConfirmDialog(
-        context,
-        title: 'استبدال السلة؟',
-        content:
-            'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} — '
-            'ستُستبدل بأصناف هذا الطلب.',
-        confirmLabel: 'استبدال',
-      );
-      if (ok != true || !context.mounted) return;
-    }
-
-    try {
-      final restaurant = await service.getRestaurantOnce(order.restaurantId);
-      if (restaurant == null) {
-        if (context.mounted) showError(context, 'هذا المطعم لم يعد متوفراً');
-        return;
-      }
-      if (!restaurant.isOpenNow) {
-        if (context.mounted) {
-          showError(context, '${restaurant.name} مغلق حالياً — جرّب لاحقاً');
-        }
-        return;
-      }
-
-      final menu = await service.getMenuItemsOnce(order.restaurantId);
-      final byId = {for (final m in menu) m.id: m};
-
-      var added = 0, skipped = 0;
-      for (final oi in order.items) {
-        final current = byId[oi.menuItemId];
-        if (current == null || !current.isAvailable) {
-          skipped++;
-          continue;
-        }
-        // استرجاع خيارات الطلب القديم بأسمائها من القائمة الحالية؛ الخيار
-        // الذي حُذف من القائمة يسقط، والمجموعة الإلزامية بلا اختيار مسترجَع
-        // تأخذ خيارها الأول — فلا يدخل السلة صنفُ خياراتٍ ناقصُ إلزامي.
-        final oldNames = (oi.extras ?? '')
-            .split(' • ')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toSet();
-        final selections = <ItemOption>[];
-        for (final group in current.optionGroups) {
-          final matched =
-              group.options.where((o) => oldNames.contains(o.name)).toList();
-          if (group.multiSelect) {
-            selections.addAll(matched);
-          } else if (group.options.isNotEmpty) {
-            selections.add(matched.isNotEmpty ? matched.first : group.options.first);
-          }
-        }
-        for (var q = 0; q < oi.quantity; q++) {
-          cart.add(current, restaurant.id, restaurant.name, restaurant.emoji,
-              restaurant.driverShareFee, restaurant.appShareFee, selections);
-        }
-        added++;
-      }
-
-      if (!context.mounted) return;
-      if (added == 0) {
-        showError(context, 'أصناف هذا الطلب لم تعد متوفرة في القائمة');
-        return;
-      }
-      if (skipped > 0) {
-        showSuccess(context,
-            'أُضيف $added من الأصناف — و$skipped لم يعد متوفراً فتُرك');
-      }
+    // المنطق مشترك مع شريحة «اطلب مجدداً» في الرئيسية (utils/reorder.dart) —
+    // ينجح فينقلنا للسلة، ويفشل بعد أن يعرض سببه بنفسه.
+    final ok = await reorderIntoCart(context, order);
+    if (ok && context.mounted) {
       Navigator.push(
           context, MaterialPageRoute(builder: (_) => const CartScreen()));
-    } catch (_) {
-      if (context.mounted) {
-        showError(context, 'تعذّر تجهيز السلة — تحقق من اتصالك وحاول مجدداً');
-      }
     }
   }
 

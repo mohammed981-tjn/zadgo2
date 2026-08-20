@@ -173,6 +173,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void dispose() {
     _addrCtrl.dispose();
     _couponCtrl.dispose();
+    _noteCtrl.dispose();
     super.dispose();
   }
 
@@ -213,6 +214,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Coupon? _coupon;
   final _couponCtrl = TextEditingController();
   bool _checkingCoupon = false;
+
+  /// ملاحظة العميل على الطلب (لمسات العميل 2026-08-20): «بلا بصل»،
+  /// «اتركه عند الباب»، «اتصل قبل الوصول» — تظهر للمطعم في بطاقة الطلب
+  /// وللكابتن في مذكرة الاستلام. الحقل كان في النموذج ويُعرض لهما أصلاً
+  /// لكن بلا مُدخلٍ يملؤه — فبقي فارغاً دائماً.
+  final _noteCtrl = TextEditingController();
 
   /// قيمة خصم الكوبون على قيمة الوجبات (لا على التوصيل) — التوصيل حق
   /// السائق ولا يُخصم منه، والخصم تتحمّله المنصّة من حصّتها.
@@ -521,6 +528,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       customerName: user.name,
       customerPhone: user.phone,
       deliveryAddress: _addrCtrl.text.trim(),
+      // ملاحظة العميل تُختم على الطلب إن كتبها — null لا نص فارغ كي لا
+      // يظهر سطر «ملاحظة:» خاوياً للمطعم والكابتن.
+      notes: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
       items: cart.toOrderItems(),
       paymentMethod: _payment,
       // السداد المسبق يثبت بمعرّف عملية حقيقي من البوابة فقط، لا بمجرّد اختيار
@@ -663,6 +673,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             decoration: InputDecoration(
               hintText: 'عنوان التوصيل بالتفصيل',
               prefixIcon: PhosphorIcon(PhosphorIcons.mapPin(), size: 20),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // ملاحظة الطلب (لمسات العميل): اختيارية، بحدّ ٢٠٠ حرف — تكفي
+          // «بلا بصل» أو «اتركه عند الباب» ولا تتحوّل رسالةً.
+          TextField(
+            controller: _noteCtrl,
+            maxLines: 2,
+            maxLength: 200,
+            decoration: const InputDecoration(
+              hintText: 'ملاحظة للمطعم أو الكابتن (اختياري) — مثل: بلا بصل',
+              prefixIcon: Icon(Icons.sticky_note_2_outlined, size: 20),
+              counterText: '',
             ),
           ),
           const SizedBox(height: 10),
