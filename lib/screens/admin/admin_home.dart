@@ -331,7 +331,39 @@ class _StatsTabState extends State<_StatsTab> {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     final fc = context.flavorColors;
-    return AppStreamBuilder<List<Order>>(stream: service.streamAllOrders, builder: (ctx, allOrders) {
+    // تدفقان مقصودان لا واحد: التنبيهات (متأخر/بلا سائق) تقرأ **النشط
+    // كله** دائماً — طلبٌ عالق من أمس أولى بالظهور لا أن تخفيه فلترة
+    // «اليوم». والمالُ والعدّادات تقرأ **مدى الفترة كاملاً** من القاعدة
+    // بدل الفلترة بعد نافذة الـ٥٠٠ التي كانت تقصّ الأرقام بصمت.
+    return AppStreamBuilder<List<Order>>(
+        stream: service.streamActiveOrders,
+        builder: (ctxA, activeAll) {
+      final nowA = DateTime.now();
+      final lateOrders = activeAll
+          .where((o) =>
+              o.status.isActive &&
+              nowA.difference(o.createdAt) > _lateThreshold)
+          .toList();
+      final driverless = activeAll
+          .where((o) =>
+              (o.status == OrderStatus.searchingDriver ||
+                  o.status == OrderStatus.noDriverFound) &&
+              (o.driverId == null || o.driverId!.isEmpty))
+          .length;
+
+      return AppStreamBuilder<List<Order>>(
+        key: ValueKey(_periodDays),
+        stream: () {
+          final days = _periodDays;
+          if (days == null) return service.streamAllOrders();
+          final now = DateTime.now();
+          final since = days == 0
+              ? DateTime(now.year, now.month, now.day)
+              : now.subtract(Duration(days: days));
+          return service.streamOrdersSince(since);
+        },
+        builder: (ctx, allOrders) {
+      final windowCapped = _periodDays == null && allOrders.length >= 500;
       final orders = allOrders.where(_inPeriod).toList();
       final deliveredOrders =
           orders.where((o) => o.status == OrderStatus.delivered).toList();
@@ -350,21 +382,6 @@ class _StatsTabState extends State<_StatsTab> {
           deliveredOrders.fold(0.0, (s, o) => s + o.platformNet);
       final restaurantsNet =
           deliveredOrders.fold(0.0, (s, o) => s + o.restaurantNet);
-
-      // التنبيهات تُحسب على كل النشط بغض النظر عن الفترة — طلب متأخر من
-      // أمس أولى بالانتباه لا أن تخفيه فلترة «اليوم».
-      final now = DateTime.now();
-      final lateOrders = allOrders
-          .where((o) =>
-              o.status.isActive &&
-              now.difference(o.createdAt) > _lateThreshold)
-          .toList();
-      final driverless = allOrders
-          .where((o) =>
-              (o.status == OrderStatus.searchingDriver ||
-                  o.status == OrderStatus.noDriverFound) &&
-              (o.driverId == null || o.driverId!.isEmpty))
-          .length;
 
       return ListView(padding: const EdgeInsets.all(16), children: [
         // مبدّل الفترة
@@ -407,6 +424,81 @@ class _StatsTabState extends State<_StatsTab> {
           ]),
         ),
         const SizedBox(height: 12),
+
+        // صدق نافذة «الكل»: أرقامها من أحدث ٥٠٠ طلب لا التاريخ كله —
+        // يُصارَح المدير بذلك بدل عناوين تدّعي الكمال.
+        if (windowCapped)
+          const WindowCapNotice(margin: EdgeInsets.only(bottom: 12)),
+
+        // بطاقة نقطة التعادل — «الطلبات المكتملة اليوم مقابل التعادل»:
+        // الرقم الوحيد الذي أوصت الدراسة المالية بمراقبته ولم تعرضه أي
+        // شاشة. تظهر في عرض «اليوم» وحده (مصدرها طلبات اليوم كاملةً من
+        // الاستعلام الزمني)، والهدف يضبطه المدير من شاشة الحوافز (ج١):
+        // صفر يخفيها ويُظهر تلميح الضبط بدلها.
+        if (_periodDays == 0)
+          AppStreamBuilder<IncentiveSettings>(
+            stream: service.streamIncentiveSettings,
+            loading: const SizedBox.shrink(),
+            builder: (ctxT, settings) {
+              final target = settings.dailyOrdersTarget;
+              if (target <= 0) {
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: Text(
+                      'حدّد «نقطة التعادل اليومية» من شاشة الحوافز ليظهر '
+                      'قياس يومك عليها هنا.',
+                      style:
+                          TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                );
+              }
+              final done = deliveredOrders.length;
+              final reached = done >= target;
+              final color = reached ? AppColors.success : fc.primary;
+              return Container(
+                padding: const EdgeInsets.all(14),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: color.withOpacity(0.35)),
+                ),
+                child:
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(reached ? Icons.flag_rounded : Icons.flag_outlined,
+                        color: color, size: 18),
+                    const SizedBox(width: 6),
+                    const Text('نقطة التعادل اليومية',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13.5)),
+                    const Spacer(),
+                    Text('$done / $target',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14.5,
+                            color: color)),
+                  ]),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: (done / target).clamp(0.0, 1.0),
+                      minHeight: 7,
+                      backgroundColor: color.withOpacity(0.12),
+                      valueColor: AlwaysStoppedAnimation(color),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                      reached
+                          ? 'بلغتَ التعادل اليوم — كل طلب بعده ربح صافٍ ✓'
+                          : 'تبقّى ${target - done} طلباً مكتملاً لبلوغ التعادل',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textGray)),
+                ]),
+              );
+            },
+          ),
 
         // تنبيهات تشغيلية — تظهر فقط حين يوجد ما يستحق التدخل
         if (lateOrders.isNotEmpty || driverless > 0)
@@ -524,6 +616,7 @@ class _StatsTabState extends State<_StatsTab> {
           label: const Text('التقرير المالي الكامل (رسوم وأكثر الأصناف مبيعاً)'),
         ),
       ]);
+    });
     });
   }
 

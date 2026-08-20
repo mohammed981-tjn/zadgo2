@@ -592,3 +592,45 @@ class _TimelineStep {
   final IconData icon;
   const _TimelineStep(this.label, this.icon);
 }
+/// تنبيه صدق النافذة — يظهر حين تعرض شاشةٌ ماليةٌ «الكل» من نافذة مقصوصة
+/// (أحدث ٥٠٠ طلب): كانت العناوين تدّعي «منذ البداية» فوق أرقام ناقصة،
+/// والمدير لا يملك وسيلة لاكتشاف القصّ. التنبيه يصارحه ويدلّه على البديل
+/// الكامل (نطاق زمني محدد يُجلب من القاعدة بلا سقف).
+class WindowCapNotice extends StatelessWidget {
+  /// العدد الحقيقي الكامل من استعلام العدّ الخادمي — قد يتأخر لحظة فيُعرض
+  /// التنبيه بلا الرقم ثم يكتمل.
+  final int? trueTotal;
+
+  /// الافتراضي لموضع «فوق قائمة بلا حواف» (التقارير)؛ الشاشات ذات الحواف
+  /// (الرئيسة) تمرّر هامشها كي لا تتضاعف الحواف.
+  final EdgeInsetsGeometry margin;
+
+  const WindowCapNotice({
+    super.key,
+    this.trueTotal,
+    this.margin = const EdgeInsets.fromLTRB(16, 10, 16, 0),
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: margin,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.warning.withOpacity(0.45)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.crop_rounded, size: 18, color: AppColors.warning),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'يغطي هذا العرض أحدث ٥٠٠ طلب'
+              '${trueTotal != null ? ' من أصل $trueTotal' : ''}'
+              ' — اختر نطاقاً زمنياً محدداً لأرقام كاملة.',
+              style: const TextStyle(fontSize: 12, color: AppColors.textDark),
+            ),
+          ),
+        ]),
+      );
+}

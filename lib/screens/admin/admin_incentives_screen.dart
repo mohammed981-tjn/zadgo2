@@ -34,7 +34,19 @@ class AdminIncentivesScreen extends StatelessWidget {
       builder: (ctx, settings) => AppStreamBuilder<List<Driver>>(
         stream: service.streamDrivers,
         builder: (ctx2, drivers) => AppStreamBuilder<List<Order>>(
-          stream: service.streamAllOrders,
+          // نافذة زمنية كاملة لا «أحدث ٥٠٠»: الإحالة تُحسب على توصيلات
+          // المدعوّ خلال نافذتها والتحدي على توصيلات أيامه — والصرف
+          // التلقائي يمسح هذه القائمة نفسها، فنافذةٌ مقصوصة عند ازدحام
+          // الطلبات كانت ستُنقص عدّ الكابتن **فتبخس مكافأته** بصمت.
+          // مدى التاريخ يضمن العدّ الكامل (نافذة الإحالة أطول النافذتين،
+          // ويوم هامش للمناطق الزمنية وطلبٍ يكتمل بعد منتصف الليل).
+          key: ValueKey(settings.referralWindowDays),
+          stream: () => service.streamOrdersSince(DateTime.now().subtract(
+              Duration(
+                  days: (settings.referralWindowDays < 7
+                          ? 7
+                          : settings.referralWindowDays) +
+                      1))),
           builder: (ctx3, orders) => _Body(
             settings: settings,
             drivers: drivers,
@@ -266,6 +278,13 @@ class _SettingsCard extends StatelessWidget {
           ...s.tiers.map((t) => _row('  ${t.deliveries} توصيلة',
               formatCurrency(t.bonus))),
           const Divider(height: 18),
+          _row(
+              'نقطة التعادل اليومية',
+              s.dailyOrdersTarget > 0
+                  ? '${s.dailyOrdersTarget} طلباً/يوم'
+                  : 'غير محددة — البطاقة مخفية',
+              highlight: s.dailyOrdersTarget == 0),
+          const Divider(height: 18),
           _row('الصرف التلقائي',
               s.autoPay ? 'مفعّل — يصرف فور تحقّق الشرط' : 'يدوي بضغطة'),
           if (s.autoPay)
@@ -308,7 +327,7 @@ class _SettingsFormState extends State<_SettingsForm> {
   late bool _referralOn, _challengeOn;
   late final TextEditingController _referrer, _referee, _deliveries,
       _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions,
-      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist;
+      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget;
   late bool _autoPay;
   late List<int> _days;
   late List<({TextEditingController d, TextEditingController b})> _tiers;
@@ -340,6 +359,7 @@ class _SettingsFormState extends State<_SettingsForm> {
         TextEditingController(text: s.deliveryAppCut.toStringAsFixed(0));
     _maxDist =
         TextEditingController(text: s.maxDeliveryDistanceKm.toStringAsFixed(0));
+    _dailyTarget = TextEditingController(text: '${s.dailyOrdersTarget}');
     _autoPay = s.autoPay;
     _days = [...s.challengeWeekdays];
     _tiers = s.tiers
@@ -355,7 +375,7 @@ class _SettingsFormState extends State<_SettingsForm> {
     for (final c in [
       _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
       _maxLoad, _stackKm, _compPct, _tipOptions,
-      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist,
+      _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget,
     ]) {
       c.dispose();
     }
@@ -421,6 +441,9 @@ class _SettingsFormState extends State<_SettingsForm> {
                   .clamp(0.0, 500.0),
               maxDeliveryDistanceKm: (double.tryParse(_maxDist.text.trim()) ?? 25)
                   .clamp(1.0, 500.0),
+              // صفر مقصود = إخفاء بطاقة التعادل، فلا حارس أدنى فوقه.
+              dailyOrdersTarget:
+                  (int.tryParse(_dailyTarget.text.trim()) ?? 0).clamp(0, 100000),
             ),
           );
       if (mounted) {
@@ -578,6 +601,18 @@ class _SettingsFormState extends State<_SettingsForm> {
                 'مثال: ٩ ر.س لأول ٧ كم + ١ لكل كم إضافي، ورسم منصّة ثابت ٣. '
                 'تُطبَّق على كل السائقين بالتساوي — لتمييز سائقٍ مميّز استخدم '
                 'الحوافز لا أجرة أساس مختلفة. تسري على الطلبات الجديدة فقط.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+          ),
+
+          const Divider(height: 26),
+          _num(_dailyTarget, 'نقطة التعادل اليومية (طلبات/يوم)'),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'من الدراسة المالية — عدد الطلبات المكتملة يومياً الذي يغطي '
+                'مصاريف التشغيل. يظهر قياسه بطاقةً في رئيسة الإدارة (عرض '
+                '«اليوم»). صفر = إخفاء البطاقة. حدِّثه مع كل تغيير على '
+                'العمولة أو الرسم الثابت.',
                 style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ),
 

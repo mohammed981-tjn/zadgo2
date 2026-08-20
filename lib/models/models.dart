@@ -1336,6 +1336,14 @@ class IncentiveSettings {
   /// التطبيق يتطلّب Firebase Storage الموقوف على ترقية Blaze.
   final String joinUrl;
 
+  /// نقطة التعادل اليومية (طلبات/يوم) من الدراسة المالية — الرقم الوحيد
+  /// الذي طُلب من المالك مراقبته أسبوعياً. يضبطه المدير من اللوحة لا من
+  /// الكود (ج١) لأنه يتغيّر مع كل تعديل على العمولة أو الرسم الثابت.
+  /// صفر = إخفاء بطاقة التعادل من الرئيسة. مكانه هنا (لا في config) قرارٌ
+  /// مقصود: هدفُ طلباتٍ ليس سراً (منشور في دراسة PDF أصلاً)، ومحرّر
+  /// الحوافز القائم يغنينا عن شاشة إعدادات ثانية لحقل واحد.
+  final int dailyOrdersTarget;
+
   const IncentiveSettings({
     this.referralEnabled = true,
     this.referrerBonus = 50,
@@ -1360,6 +1368,7 @@ class IncentiveSettings {
     this.autoPay = false,
     this.tipOptions = const [2, 5, 10],
     this.joinUrl = 'https://zadgo.co/join',
+    this.dailyOrdersTarget = 0,
   });
 
   /// خيارات الإكرامية المعروضة للعميل (ح3) — بالريال، من لوحة المدير
@@ -1422,6 +1431,8 @@ class IncentiveSettings {
       joinUrl: (map['joinUrl'] as String?)?.trim().isNotEmpty == true
           ? (map['joinUrl'] as String).trim()
           : d.joinUrl,
+      dailyOrdersTarget:
+          (map['dailyOrdersTarget'] as num?)?.toInt() ?? d.dailyOrdersTarget,
     );
   }
 
@@ -1447,6 +1458,7 @@ class IncentiveSettings {
         'autoPay': autoPay,
         'tipOptions': tipOptions,
         'joinUrl': joinUrl,
+        'dailyOrdersTarget': dailyOrdersTarget,
       };
 
   IncentiveSettings copyWith({
@@ -1470,6 +1482,7 @@ class IncentiveSettings {
     bool? autoPay,
     List<double>? tipOptions,
     String? joinUrl,
+    int? dailyOrdersTarget,
   }) =>
       IncentiveSettings(
         referralEnabled: referralEnabled ?? this.referralEnabled,
@@ -1495,6 +1508,7 @@ class IncentiveSettings {
         autoPay: autoPay ?? this.autoPay,
         tipOptions: tipOptions ?? this.tipOptions,
         joinUrl: joinUrl ?? this.joinUrl,
+        dailyOrdersTarget: dailyOrdersTarget ?? this.dailyOrdersTarget,
       );
 
   /// أعلى مستوى بلغه سائق أنجز [count] توصيلة — `null` إن لم يبلغ أدناها.
