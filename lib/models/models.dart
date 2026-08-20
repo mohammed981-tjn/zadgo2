@@ -3354,6 +3354,13 @@ class PromoBanner {
   final int sortOrder;
   final DateTime createdAt;
 
+  /// نافذة العرض المجدولة (دفعة «الإعلانات الذكية» 2026-08-20، شكوى المالك
+  /// «الإعلان يستمر بلا نهاية»): كلاهما اختياري. `startsAt` يؤجّل الظهور
+  /// حتى تاريخه، و`endsAt` يُخفيه بعده تلقائياً — فلا إعلانٌ خالد. الفلترة
+  /// الزمنية في العميل (البثّ يفلتر isActive فقط، والمدى المزدوج يحتاج فهرساً).
+  final DateTime? startsAt;
+  final DateTime? endsAt;
+
   const PromoBanner({
     required this.id,
     required this.imageUrl,
@@ -3362,7 +3369,16 @@ class PromoBanner {
     this.isActive = true,
     this.sortOrder = 0,
     required this.createdAt,
+    this.startsAt,
+    this.endsAt,
   });
+
+  /// هل البنر ضمن نافذته الزمنية الآن؟ (خارج البحث عن انتهاء/بداية.)
+  bool isLiveAt(DateTime now) =>
+      (startsAt == null || !now.isBefore(startsAt!)) &&
+      (endsAt == null || now.isBefore(endsAt!));
+
+  bool get isExpired => endsAt != null && DateTime.now().isAfter(endsAt!);
 
   factory PromoBanner.fromMap(Map<String, dynamic> map, String id) => PromoBanner(
         id: id,
@@ -3372,6 +3388,8 @@ class PromoBanner {
         isActive: map['isActive'] as bool? ?? true,
         sortOrder: (map['sortOrder'] as num?)?.toInt() ?? 0,
         createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        startsAt: (map['startsAt'] as Timestamp?)?.toDate(),
+        endsAt: (map['endsAt'] as Timestamp?)?.toDate(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -3381,5 +3399,8 @@ class PromoBanner {
         'isActive': isActive,
         'sortOrder': sortOrder,
         'createdAt': Timestamp.fromDate(createdAt),
+        // تُكتب null صراحةً لتُمحى القيمة القديمة إن أزال المدير التاريخ.
+        'startsAt': startsAt == null ? null : Timestamp.fromDate(startsAt!),
+        'endsAt': endsAt == null ? null : Timestamp.fromDate(endsAt!),
       };
 }

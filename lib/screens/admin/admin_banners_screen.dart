@@ -24,24 +24,52 @@ class AdminBannersScreen extends StatelessWidget {
         icon: const Icon(Icons.add_photo_alternate_outlined),
         label: const Text('بنر جديد'),
       ),
-      body: AppStreamBuilder<List<PromoBanner>>(
-        stream: service.streamAllBanners,
-        builder: (context, banners) {
-          if (banners.isEmpty) {
-            return const AppEmpty(
-              emoji: '🖼️',
-              title: 'لا بنرات بعد',
-              subtitle:
-                  'أضف بنر عروض أو مطعم جديد — يظهر فوراً أعلى شاشة العميل',
+      body: Column(children: [
+        // مفتاح البنر الافتراضي (دفعة «الإعلانات الذكية»): حين لا حملة فعّالة
+        // يظهر بنرٌ تعريفيّ مدمج — وقد يريد المدير شاشةً بلا إعلان، فيطفئه هنا.
+        StreamBuilder<bool>(
+          stream: service.streamShowDefaultBanner(),
+          builder: (ctx, s) {
+            final show = s.data ?? true;
+            return Card(
+              margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: SwitchListTile(
+                value: show,
+                activeColor: AppColors.success,
+                onChanged: (v) => service.setShowDefaultBanner(v),
+                title: const Text('البنر الافتراضي',
+                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                    show
+                        ? 'يظهر بنرٌ تعريفيّ حين لا يوجد إعلان فعّال'
+                        : 'الشاشة بلا إعلان حين لا يوجد إعلان فعّال',
+                    style: const TextStyle(fontSize: 11.5)),
+                secondary: const Icon(Icons.auto_awesome_outlined),
+              ),
             );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
-            itemCount: banners.length,
-            itemBuilder: (_, i) => _BannerCard(banner: banners[i]),
-          );
-        },
-      ),
+          },
+        ),
+        Expanded(
+          child: AppStreamBuilder<List<PromoBanner>>(
+            stream: service.streamAllBanners,
+            builder: (context, banners) {
+              if (banners.isEmpty) {
+                return const AppEmpty(
+                  emoji: '🖼️',
+                  title: 'لا بنرات بعد',
+                  subtitle:
+                      'أضف بنر عروض أو مطعم جديد — يظهر فوراً أعلى شاشة العميل',
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+                itemCount: banners.length,
+                itemBuilder: (_, i) => _BannerCard(banner: banners[i]),
+              );
+            },
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -71,12 +99,14 @@ class _BannerCard extends StatelessWidget {
                     style: TextStyle(fontSize: 12.5, color: AppColors.error)),
               ),
             ),
-            if (!b.isActive)
+            // طبقةٌ سوداء ونصّ الحالة: «مُوقَف» يدوياً، أو «منتهٍ» زمنياً —
+            // كلاهما يعني «لا يظهر للعميل الآن» فيُبرَز للمدير بوضوح.
+            if (!b.isActive || b.isExpired)
               Container(
                 color: Colors.black45,
                 alignment: Alignment.center,
-                child: const Text('مُوقَف',
-                    style: TextStyle(
+                child: Text(b.isExpired ? 'منتهٍ' : 'مُوقَف',
+                    style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 17)),
@@ -100,6 +130,37 @@ class _BannerCard extends StatelessWidget {
                     const TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ]),
         ),
+        // سطر الجدولة: يظهر فقط إن حُدّدت نافذة — يصارح المدير بحالة البنر
+        // الزمنية (منتهٍ/ينتهي/يبدأ) فلا يتساءل «لماذا لا يظهر؟».
+        if (b.startsAt != null || b.endsAt != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: Row(children: [
+              Icon(
+                  b.isExpired
+                      ? Icons.event_busy
+                      : Icons.schedule,
+                  size: 13,
+                  color: b.isExpired ? AppColors.error : AppColors.textGray),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  b.isExpired
+                      ? 'انتهى في ${_fmtDate(b.endsAt!)}'
+                      : [
+                          if (b.startsAt != null &&
+                              b.startsAt!.isAfter(DateTime.now()))
+                            'يبدأ ${_fmtDate(b.startsAt!)}',
+                          if (b.endsAt != null) 'ينتهي ${_fmtDate(b.endsAt!)}',
+                        ].join(' • '),
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      color: b.isExpired ? AppColors.error : AppColors.textGray,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ]),
+          ),
         Row(children: [
           const SizedBox(width: 4),
           Switch(
@@ -141,6 +202,9 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
   final orderCtrl =
       TextEditingController(text: (existing?.sortOrder ?? 0).toString());
   String? restaurantId = existing?.restaurantId;
+  // نافذة العرض المجدولة (دفعة «الإعلانات الذكية»): كلاهما اختياري.
+  DateTime? startsAt = existing?.startsAt;
+  DateTime? endsAt = existing?.endsAt;
   final form = GlobalKey<FormState>();
 
   return showModalBottomSheet(
@@ -225,10 +289,92 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                     onChanged: (v) => setSheetState(() => restaurantId = v),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
+                // نافذة العرض المجدولة (دفعة «الإعلانات الذكية»): «ينتهي في»
+                // يُخفي البنر وحده — علاجاً لشكوى «الإعلان يستمر بلا نهاية».
+                const Text('نافذة العرض (اختيارية)',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textDark)),
+                const SizedBox(height: 2),
+                const Text(
+                    'اتركها فارغة ليظهر دائماً، أو حدّد «ينتهي في» فيختفي وحده.',
+                    style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.event_outlined, size: 16),
+                      label: Text(
+                          startsAt == null
+                              ? 'يبدأ: الآن'
+                              : 'يبدأ: ${_fmtDate(startsAt!)}',
+                          style: const TextStyle(fontSize: 12.5),
+                          overflow: TextOverflow.ellipsis),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: startsAt ?? DateTime.now(),
+                          firstDate:
+                              DateTime.now().subtract(const Duration(days: 1)),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (d != null) setSheetState(() => startsAt = d);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.event_busy_outlined, size: 16),
+                      label: Text(
+                          endsAt == null
+                              ? 'ينتهي: بلا حدّ'
+                              : 'ينتهي: ${_fmtDate(endsAt!)}',
+                          style: const TextStyle(fontSize: 12.5),
+                          overflow: TextOverflow.ellipsis),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: endsAt ?? DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
+                        );
+                        // آخر اللحظة من اليوم المختار كي يشمل يومه كاملاً.
+                        if (d != null) {
+                          setSheetState(() => endsAt = DateTime(
+                              d.year, d.month, d.day, 23, 59, 59));
+                        }
+                      },
+                    ),
+                  ),
+                ]),
+                if (startsAt != null || endsAt != null)
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.clear, size: 15),
+                      label: const Text('مسح التواريخ',
+                          style: TextStyle(fontSize: 12)),
+                      onPressed: () =>
+                          setSheetState(() { startsAt = null; endsAt = null; }),
+                    ),
+                  ),
+                const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () async {
                     if (!form.currentState!.validate()) return;
+                    // منعُ نافذةٍ مقلوبة (ينتهي قبل يبدأ) — خطأٌ صامت يُخفي
+                    // البنر أبداً؛ نصارح المدير بدل حفظٍ لا يظهر.
+                    if (startsAt != null &&
+                        endsAt != null &&
+                        !endsAt!.isAfter(startsAt!)) {
+                      showError(ctx, 'تاريخ الانتهاء يجب أن يكون بعد البداية');
+                      return;
+                    }
                     final banner = PromoBanner(
                       id: existing?.id ?? const Uuid().v4(),
                       imageUrl: urlCtrl.text.trim(),
@@ -237,6 +383,8 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                       isActive: existing?.isActive ?? true,
                       sortOrder: int.tryParse(orderCtrl.text.trim()) ?? 0,
                       createdAt: existing?.createdAt ?? DateTime.now(),
+                      startsAt: startsAt,
+                      endsAt: endsAt,
                     );
                     await service.saveBanner(banner);
                     if (sheetCtx.mounted) Navigator.pop(sheetCtx);
@@ -252,3 +400,7 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
     ),
   );
 }
+
+/// تاريخٌ مختصر (سنة/شهر/يوم) لأزرار الجدولة وبطاقة البنر.
+String _fmtDate(DateTime d) =>
+    '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
