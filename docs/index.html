@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#08152C">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'self'; connect-src 'none'">
+  <!-- سياسة المحتوى: `form-action 'none'` لأن الصفحة بلا نموذج أصلاً — فأي
+       نموذج يظهر فيها يوماً هو نموذجٌ لم نكتبه نحن، ومنعُه قبل وجوده أرخص
+       من اكتشافه بعده. و`frame-ancestors` مذكور للتوثيق (لا أثر له في وسم
+       meta) — والصفحة عامّة تسويقية لا فعل فيها يُختطف بالتأطير. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; connect-src 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta name="referrer" content="no-referrer">
   <link rel="icon" href="images/zadgo-logo-gold.png">
   <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
   <!-- بطاقة المشاركة: أول ما يراه من تصله وصلة الموقع في واتساب — وهو قناة

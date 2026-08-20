@@ -28,8 +28,13 @@ jobs:
       - name: Determine flavors to build
         id: set
         shell: bash
+        # عبر `env` لا `${{ }}` داخل السكربت: المدخل هنا من نوع choice فقيمه
+        # محصورة، لكن النمط نفسه هو ما فتح ثغرة حقنٍ في admin-claim.yml —
+        # فيُوحَّد المسار الآمن كي لا يُنسخ الخطأ حين يُضاف مدخلٌ حرّ يوماً.
+        env:
+          FLAVOR_INPUT: ${{ github.event.inputs.flavor }}
         run: |
-          selected="${{ github.event.inputs.flavor }}"
+          selected="$FLAVOR_INPUT"
           if [ -z "$selected" ] || [ "$selected" = "all" ]; then
             echo 'flavors=["customer","driver","restaurant","admin"]' >> "$GITHUB_OUTPUT"
           else

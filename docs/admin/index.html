@@ -195,12 +195,31 @@
     background: var(--green-dark); color: #fff; border-radius: 999px; padding: 11px 22px; font-size: .9rem;
     z-index: 70; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
 </style>
+<style id="frameGuard">html{display:none !important}</style>
 <script>
-/* منع التأطير — `frame-ancestors` في وسم meta تتجاهله المتصفحات (تعمل في
- * ترويسة HTTP وحدها، وGitHub Pages لا تسمح بترويسات مخصصة). فلو أطّر أحدٌ
- * هذه الصفحة داخل موقعه لأمكنه خداع المدير على النقر فيما لا يقصده. هذا
- * السطر يكسر الإطار: الصفحة تُخرج نفسها إلى الأعلى إن وجدت نفسها بداخله. */
-if (window.top !== window.self) { window.top.location = window.self.location; }
+/* منع التأطير — على مرحلتين، والأولى هي الحاسمة.
+ *
+ * `frame-ancestors` في وسم meta تتجاهله المتصفحات (تعمل في ترويسة HTTP
+ * وحدها، وGitHub Pages لا تسمح بترويسات مخصصة). وكان هنا سطرٌ واحد يكسر
+ * الإطار بالانتقال إلى الأعلى — وهو **يُهزَم**: من يؤطّر الصفحة بـ
+ * `<iframe sandbox="allow-scripts">` يمنع المتصفحُ فيه الانتقال إلى
+ * الأعلى، فيفشل الكسر بصمت وتبقى الصفحة معروضةً داخل إطار المهاجم،
+ * يضع فوقها ما يشاء ويقودها إلى نقراتٍ لا يقصدها صاحبها.
+ *
+ * فالصفحة تبدأ **مخفيّة** (السطر أعلاه) ولا تُكشف إلا بعد التيقّن أنها
+ * في الأعلى. الإخفاء لا يحتاج إذناً من أحد ولا يُمنع بصندوقٍ رملي.
+ * ومحاولة الكسر تبقى بعده لمن أطّرها بلا sandbox: خروجٌ إلى الأعلى
+ * أفضل من صفحةٍ بيضاء. */
+(function () {
+  var framed = true;
+  try { framed = window.top !== window.self; } catch (e) { framed = true; }
+  if (!framed) {
+    var g = document.getElementById('frameGuard');
+    if (g) g.remove();
+    return;
+  }
+  try { window.top.location = window.self.location; } catch (e) {}
+})();
 </script>
 </head>
 <body>
@@ -959,7 +978,7 @@ function renderDashboard() {
 /* ================= الطلبات ================= */
 function orderCard(o) {
   const [lbl, color] = STATUS_AR[o.status] || [o.status, '#7f8c8d'];
-  return `<div class="card click" data-order="${o.id}">
+  return `<div class="card click" data-order="${esc(o.id)}">
     <div class="row1">
       <span class="title">#${esc(o.orderNumber || o.id.slice(0, 6))} — ${esc(o.restaurantName || '')}</span>
       ${badge(lbl, color)}
@@ -1617,9 +1636,9 @@ function renderRestaurantsPage() {
       <div class="row1">
         <span class="title">${esc(r.emoji || '🍽️')} ${esc(restName(r))}</span>
         <span>
-          <button class="toggle-btn ${r.isOpen ? 'on' : 'off'}" data-rtoggle="${r.id}" data-open="${r.isOpen ? 1 : 0}">
+          <button class="toggle-btn ${r.isOpen ? 'on' : 'off'}" data-rtoggle="${esc(r.id)}" data-open="${r.isOpen ? 1 : 0}">
             ${r.isOpen ? 'مفتوح ✓' : 'مغلق ✕'}</button>
-          <button class="toggle-btn" data-redit="${r.id}">تعديل ✎</button>
+          <button class="toggle-btn" data-redit="${esc(r.id)}">تعديل ✎</button>
         </span>
       </div>
       <div class="meta">
@@ -1878,10 +1897,10 @@ function renderDriversPage() {
           ${legacy > 0 && d.balance == null ? '<br><span style="color:var(--orange)">⚠️ رصيد نظام قديم (مستحقات): ' + fmtMoney(legacy) + ' ' + SAR + ' — سيُرحَّل مع النسخة الجديدة</span>' : ''}
         </div>
         <div class="row1" style="margin-top:8px;gap:6px">
-          <button class="toggle-btn on" data-wallet="deposit" data-did="${d.id}">📥 إيداع نقدي</button>
-          <button class="toggle-btn" data-wallet="payout" data-did="${d.id}">📤 صرف</button>
-          <button class="toggle-btn" data-wallet="adjustment" data-did="${d.id}">⚖️ تسوية</button>
-          <button class="toggle-btn" data-txns="${d.id}">📒 سجل الحركات</button>
+          <button class="toggle-btn on" data-wallet="deposit" data-did="${esc(d.id)}">📥 إيداع نقدي</button>
+          <button class="toggle-btn" data-wallet="payout" data-did="${esc(d.id)}">📤 صرف</button>
+          <button class="toggle-btn" data-wallet="adjustment" data-did="${esc(d.id)}">⚖️ تسوية</button>
+          <button class="toggle-btn" data-txns="${esc(d.id)}">📒 سجل الحركات</button>
         </div>
       </div>`;
     }).join('') || '<div class="empty">لا يوجد سائقون بعد</div>'}`;
@@ -2130,8 +2149,12 @@ document.getElementById('viewer').addEventListener('click', (e) => {
       const bin = atob(vUrl.split(',')[1]);
       const u8 = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-      window.open(URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })), '_blank');
-    } else window.open(vUrl, '_blank');
+      window.open(URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })), '_blank', 'noopener');
+    // `noopener` لازم: الرابط يأتي من مستند طلبٍ يكتبه المتقدّم، فصفحةٌ
+    // خارجية تُفتح بلا هذا تملك `window.opener` وتستطيع أن **تنقل تبويب
+    // اللوحة نفسه** إلى نسخةٍ مزوّرة تطلب كلمة مرور المدير، وهو لا يرى
+    // إلا أن تبويبه القديم «أعاد التحميل». (اختطاف التبويب العكسي.)
+    } else window.open(vUrl, '_blank', 'noopener');
     return;
   }
   applyView();
@@ -2214,7 +2237,7 @@ function renderUsersPage() {
           ${u.restaurantName ? '<br>🍽️ ' + esc(u.restaurantName) : ''}
           ${u.createdAt ? '<br>انضم: ' + esc(fmtTime(u.createdAt)) : ''}</div>
         ${u.role !== 'admin' ? `<div class="row1" style="margin-top:8px">
-          <button class="toggle-btn ${u.isActive === false ? 'off' : 'on'}" data-utoggle="${u.id}"
+          <button class="toggle-btn ${u.isActive === false ? 'off' : 'on'}" data-utoggle="${esc(u.id)}"
             data-active="${u.isActive === false ? 0 : 1}">
             ${u.isActive === false ? 'تفعيل الحساب' : 'إيقاف الحساب'}</button>
           ${u.email ? `<button class="toggle-btn" data-ureset="${esc(u.email)}">🔑 رابط استعادة كلمة المرور</button>` : ''}
@@ -2280,12 +2303,12 @@ function renderComplaintsPage() {
         ${c.adminNote ? '<br>📝 ملاحظة الإدارة: ' + esc(c.adminNote) : ''}
       </div>
       <div class="row1" style="margin-top:8px">
-        <select class="inline-sel" data-cstatus="${c.id}">
+        <select class="inline-sel" data-cstatus="${esc(c.id)}">
           ${Object.entries(COMPLAINT_STATUS_AR).map(([k, v]) =>
             `<option value="${k}" ${k === c.status ? 'selected' : ''}>${v}</option>`).join('')}
         </select>
-        <button class="toggle-btn" data-cchat="${c.id}">💬 المحادثة</button>
-        <button class="toggle-btn" data-cnote="${c.id}">📝 ملاحظة</button>
+        <button class="toggle-btn" data-cchat="${esc(c.id)}">💬 المحادثة</button>
+        <button class="toggle-btn" data-cnote="${esc(c.id)}">📝 ملاحظة</button>
       </div>
     </div>`;
   }).join('') || '<div class="empty">لا توجد شكاوى 🎉</div>';

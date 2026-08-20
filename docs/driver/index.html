@@ -153,11 +153,31 @@ footer.f { text-align: center; color: var(--muted); font-size: .82rem;
 footer.f a { color: var(--blue-dark); text-decoration: none; }
 footer.f nav { display: flex; gap: 13px; justify-content: center; flex-wrap: wrap; margin-bottom: 8px; }
 </style>
+<style id="frameGuard">html{display:none !important}</style>
 <script>
-/* منع التأطير — `frame-ancestors` في وسم meta تتجاهله المتصفحات (تعمل في
- * ترويسة HTTP وحدها، وGitHub Pages لا تسمح بترويسات مخصصة). فلو أطّر أحدٌ
- * هذه الصفحة داخل موقعه لأمكنه خداع الكابتن على النقر فيما لا يقصده. */
-if (window.top !== window.self) { window.top.location = window.self.location; }
+/* منع التأطير — على مرحلتين، والأولى هي الحاسمة.
+ *
+ * `frame-ancestors` في وسم meta تتجاهله المتصفحات (تعمل في ترويسة HTTP
+ * وحدها، وGitHub Pages لا تسمح بترويسات مخصصة). وكان هنا سطرٌ واحد يكسر
+ * الإطار بالانتقال إلى الأعلى — وهو **يُهزَم**: من يؤطّر الصفحة بـ
+ * `<iframe sandbox="allow-scripts">` يمنع المتصفحُ فيه الانتقال إلى
+ * الأعلى، فيفشل الكسر بصمت وتبقى الصفحة معروضةً داخل إطار المهاجم،
+ * يضع فوقها ما يشاء ويقودها إلى نقراتٍ لا يقصدها صاحبها.
+ *
+ * فالصفحة تبدأ **مخفيّة** (السطر أعلاه) ولا تُكشف إلا بعد التيقّن أنها
+ * في الأعلى. الإخفاء لا يحتاج إذناً من أحد ولا يُمنع بصندوقٍ رملي.
+ * ومحاولة الكسر تبقى بعده لمن أطّرها بلا sandbox: خروجٌ إلى الأعلى
+ * أفضل من صفحةٍ بيضاء. */
+(function () {
+  var framed = true;
+  try { framed = window.top !== window.self; } catch (e) { framed = true; }
+  if (!framed) {
+    var g = document.getElementById('frameGuard');
+    if (g) g.remove();
+    return;
+  }
+  try { window.top.location = window.self.location; } catch (e) {}
+})();
 </script>
 </head>
 <body>

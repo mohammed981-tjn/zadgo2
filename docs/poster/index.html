@@ -135,6 +135,17 @@ body{font-family:Tajawal,system-ui,sans-serif;background:var(--sand);color:var(-
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
+<style id="frameGuard">html{display:none !important}</style>
+<script>
+/* حارس الإطار — كصفحات اللوحة: الصفحة تبدأ مخفيّة ولا تُكشف إلا في الأعلى.
+ * أداةٌ داخلية تعرض أسماء شركائنا وتطبع، فلا تُعرض داخل إطار أحد. */
+(function () {
+  var framed = true;
+  try { framed = window.top !== window.self; } catch (e) { framed = true; }
+  if (!framed) { var g = document.getElementById('frameGuard'); if (g) g.remove(); return; }
+  try { window.top.location = window.self.location; } catch (e) {}
+})();
+</script>
 </head>
 <body>
 
