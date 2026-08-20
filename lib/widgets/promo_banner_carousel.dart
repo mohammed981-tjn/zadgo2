@@ -66,22 +66,21 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
     return StreamBuilder<List<PromoBanner>>(
       stream: service.streamActiveBanners(),
       builder: (context, snap) {
-        final banners = snap.data ?? [];
+        // فلترة النافذة الزمنية (دفعة «الإعلانات الذكية»): البثّ يفلتر
+        // isActive فقط، وهنا نُسقط المجدول مستقبلاً والمنتهي — فلا يظهر
+        // إعلانٌ خارج مدّته (شكوى المالك «الإعلان يستمر بلا نهاية»).
+        final now = DateTime.now();
+        final banners =
+            (snap.data ?? []).where((b) => b.isLiveAt(now)).toList();
         _count = banners.length;
-        // حين لا بنرات من الإدارة يظهر البنر الافتراضي المدمج في التطبيق
-        // (عرض الطلب الأول) — فلا تفقد الشاشة مساحتها الترويجية أبداً.
+        // حين لا بنرات فعّالة الآن يظهر البنر الافتراضي المدمج — **إلا إن
+        // أطفأه المدير** من لوحته (تحكّم كامل: قد يريد شاشةً بلا إعلان).
         if (banners.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.asset(
-                'assets/images/banner_promo_1.jpg',
-                height: 150,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
+          return StreamBuilder<bool>(
+            stream: service.streamShowDefaultBanner(),
+            builder: (ctx, s) => s.data == false
+                ? const SizedBox.shrink()
+                : const _DefaultPromoBanner(),
           );
         }
 
@@ -178,6 +177,89 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
           const SizedBox(height: 8),
         ]);
       },
+    );
+  }
+}
+
+/// البنر الافتراضي — يُعرض حين لا حملة فعّالة (وأذِن المدير). أُعيد تصميمه
+/// (دفعة «الإعلانات الذكية» 2026-08-20، شكوى المالك «بلا تصميم إبداعي»):
+/// بطاقة تدرّجٍ مرسومة بالكود لا صورةٌ ثابتة — أنظف وأخفّ وبلا وعدٍ كاذب
+/// (رسالةٌ تعريفية بالخدمة لا خصمٌ لا يسنده كوبون).
+class _DefaultPromoBanner extends StatelessWidget {
+  const _DefaultPromoBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+      child: Container(
+        height: 132,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [AppColors.primary, AppColors.secondary],
+          ),
+          boxShadow: [
+            BoxShadow(
+                color: AppColors.primary.withOpacity(0.28),
+                blurRadius: 14,
+                offset: const Offset(0, 5)),
+          ],
+        ),
+        child: Stack(children: [
+          // دائرتان زخرفيتان خفيفتان تكسران السطح المصمت.
+          Positioned(
+            right: -24,
+            top: -24,
+            child: CircleAvatar(
+                radius: 58, backgroundColor: Colors.white.withOpacity(0.08)),
+          ),
+          Positioned(
+            left: -18,
+            bottom: -30,
+            child: CircleAvatar(
+                radius: 42, backgroundColor: Colors.white.withOpacity(0.06)),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Row(children: [
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('زادقو يوصّلك أشهى المطاعم 🍽️',
+                        maxLines: 2,
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3)),
+                    SizedBox(height: 6),
+                    Text('اطلب الآن — ويصلك سريعاً إلى بابك',
+                        style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delivery_dining_rounded,
+                    color: Colors.white, size: 34),
+              ),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
 }

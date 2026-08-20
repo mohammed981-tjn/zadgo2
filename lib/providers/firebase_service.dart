@@ -1178,6 +1178,18 @@ class FirebaseService {
 
   Future<void> deleteBanner(String id) => _banners.doc(id).delete();
 
+  /// إظهار/إخفاء البنر الافتراضي المدمج (دفعة «الإعلانات الذكية»): يُخزَّن في
+  /// `delivery_settings/banners` (قراءةٌ عامة كي يراه الزائر). الافتراضي
+  /// true — فالسلوك القديم يبقى حتى يطفئه المدير من لوحته.
+  Stream<bool> streamShowDefaultBanner() => _deliverySettings
+      .doc('banners')
+      .snapshots()
+      .map((d) => (d.data()?['showDefault'] as bool?) ?? true);
+
+  Future<void> setShowDefaultBanner(bool show) => _deliverySettings
+      .doc('banners')
+      .set({'showDefault': show}, SetOptions(merge: true));
+
   /// تسجيل وصول السائق إلى المطعم: طابع زمني على الطلب (يقرؤه الجميع في
   /// نزاع «من أخّر؟») + الإحداثيات في وثيقة الإثبات.
   Future<void> recordArrivalAtRestaurant({
