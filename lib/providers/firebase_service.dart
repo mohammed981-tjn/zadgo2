@@ -1541,7 +1541,7 @@ class FirebaseService {
         final offerAge = now.difference(o.updatedAt ?? o.createdAt);
 
         if (o.status == models.OrderStatus.searchingDriver &&
-            o.hasPendingOffer &&
+            o.needsDriverAcknowledgement &&
             offerAge > const Duration(minutes: 3)) {
           try {
             final deadDriverId = o.driverId!;
