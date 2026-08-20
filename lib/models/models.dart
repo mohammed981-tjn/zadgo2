@@ -2722,6 +2722,11 @@ class Complaint {
   final String? againstUid;
   final UserRole? againstRole;
 
+  /// صورة مرفقة بالشكوى (base64 داخل المستند — نمط Blob، لا Storage حتى
+  /// Blaze): شكوى جودةٍ أو صنفٍ خاطئ بلا صورة نصفُ دليل. تُلتقط مضغوطة
+  /// (<٤٠٠ك، تحرسه القاعدة) وتظهر للمدير في تفاصيل الشكوى.
+  final String? imageBlob;
+
   /// مهلة الرد المعلنة لمقدّم الشكوى — تُعرض «نردّ خلال 24 ساعة» ويُحسب
   /// منها الموعد المتوقع. التزام خدمة لا قيد تقني.
   static const Duration responseSla = Duration(hours: 24);
@@ -2775,6 +2780,7 @@ class Complaint {
     UserRole? submittedByRole,
     this.againstUid,
     this.againstRole,
+    this.imageBlob,
   })  : submittedByUid = submittedByUid ?? customerId,
         submittedByName = submittedByName ?? customerName,
         submittedByRole = submittedByRole ?? UserRole.customer;
@@ -2807,6 +2813,7 @@ class Complaint {
       againstRole: map['againstRole'] != null
           ? _userRoleFromString(map['againstRole'] as String?)
           : null,
+      imageBlob: map['imageBlob'] as String?,
     );
   }
 
@@ -2830,6 +2837,7 @@ class Complaint {
         'submittedByRole': submittedByRole.name,
         if (againstUid != null) 'againstUid': againstUid,
         if (againstRole != null) 'againstRole': againstRole!.name,
+        if (imageBlob != null) 'imageBlob': imageBlob,
       };
 }
 

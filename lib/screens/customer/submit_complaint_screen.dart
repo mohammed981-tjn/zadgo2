@@ -1,4 +1,6 @@
 // lib/screens/customer/submit_complaint_screen.dart
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -6,6 +8,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../widgets/doc_capture_field.dart';
 
 class SubmitComplaintScreen extends StatefulWidget {
   final Order order;
@@ -35,6 +38,9 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
   UserRole? _selectedAgainstRole;
   final _descriptionCtrl = TextEditingController();
   bool _submitting = false;
+
+  /// صورة اختيارية مرفقة (bytes مضغوطة، تُحوَّل base64 عند الإرسال).
+  Uint8List? _imageBytes;
 
   @override
   void initState() {
@@ -124,6 +130,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
         submittedByRole: widget.submittedByRole,
         againstUid: _selectedAgainstUid,
         againstRole: _selectedAgainstRole,
+        imageBlob:
+            _imageBytes != null ? base64Encode(_imageBytes!) : null,
       );
       await service.submitComplaint(complaint);
       if (mounted) {
@@ -212,6 +220,17 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
               hintText: 'اشرح المشكلة بالتفصيل...',
               border: OutlineInputBorder(),
             ),
+          ),
+          const SizedBox(height: 12),
+          // صورة اختيارية (2026-08-20): شكوى جودةٍ أو صنفٍ خاطئ بلا صورة
+          // نصفُ دليل. DocCaptureField نفسه الذي يلتقط مستندات التقديم.
+          const Text('أرفق صورة (اختياري)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          const SizedBox(height: 8),
+          DocCaptureField(
+            label: 'صورة توضّح المشكلة — الصنف أو الحالة',
+            value: _imageBytes,
+            onChanged: (b) => setState(() => _imageBytes = b),
           ),
           const SizedBox(height: 24),
           SizedBox(

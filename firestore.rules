@@ -600,7 +600,12 @@ service cloud.firestore {
             isRestaurantManagerOf(resource.data.restaurantId)
           );
       allow create: if isSignedIn() &&
-          request.resource.data.submittedByUid == currentUid();
+          request.resource.data.submittedByUid == currentUid() &&
+          // صورة الشكوى Blob داخل المستند (2026-08-20): تُحرَس حجماً كنمط
+          // order_proofs — <٤٠٠ك يبقي المستند دون حدّ فايرستور ويمنع
+          // إساءة التخزين. اختيارية: شكوى بلا صورة تمرّ كما كانت.
+          (!('imageBlob' in request.resource.data) ||
+              request.resource.data.imageBlob.size() < 400000);
       // دورة حياة الشكوى (2026-08-16): لمقدّمها وحده، ومن حالة «محلولة»
       // حصراً، تحوّلان اثنان لا ثالث لهما — «نعم حُلّت» (إغلاق) أو «لا
       // لم تُحل» (إرجاع موسوم بالارتداد). hasOnly تمنع مسّ أي حقل آخر
