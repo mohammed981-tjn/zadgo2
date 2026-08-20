@@ -108,8 +108,7 @@ class _SplashScreenState extends State<SplashScreen>
       _go(AppFlavorConfig.buildLoginScreen());
       return;
     }
-    final restrict = AppFlavorConfig.restrictToRole;
-    if (restrict != null && auth.user!.role != restrict) {
+    if (!AppFlavorConfig.roleAllowed(auth.user!.role)) {
       // حساب «عميل» في نكهة مقيّدة = متقدّم انضمام في الطريق (أنشأ حسابه
       // من زر «انضم من هنا») — يعود لبوابة التقديم/الانتظار لا للطرد،
       // فإغلاق التطبيق وفتحه لا يضيّع طلبه. (نكهتا الكابتن والمطعم فقط.)

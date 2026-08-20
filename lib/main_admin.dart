@@ -71,7 +71,10 @@ void main() async {
   AppFlavorConfig.flavorTagline = 'غرفة التحكم الكاملة لمنصتك';
   AppFlavorConfig.flavorLoginTitle = 'دخول المدير العام';
   AppFlavorConfig.restrictToRole = UserRole.admin;
-  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات المدير العام فقط';
+  // موظف الدعم يدخل تطبيق الإدارة نفسه (لا تطبيق سادس): اللوحة تنكمش
+  // له إلى الشكاوى والمتابعة وسجلّ الطلبات، والقواعد تحرس الباقي.
+  AppFlavorConfig.extraAllowedRoles = {UserRole.support};
+  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات الإدارة والدعم فقط';
   AppFlavorConfig.allowGuestBrowsing = false;
   AppFlavorConfig.buildHomeForRole = (role) => const AdminHome();
   AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => const LoginScreen();

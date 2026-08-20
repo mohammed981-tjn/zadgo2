@@ -3,21 +3,21 @@ import 'package:flutter/material.dart';
 /// ألوان النكهة الكاملة (full) والافتراضية — تبقى كما كانت دون أي تغيير،
 /// وهي أيضاً القيم الافتراضية المستخدمة إن لم تُحدَّد نكهة أخرى صراحة.
 class AppColors {
-  static const primary = Color(0xFFD4A017);         // ذهبي/عنبري فاخر
-  static const primaryDark = Color(0xFFB8860B);      // ذهبي أغمق للتدرجات والظلال
-  static const primaryLight = Color(0xFFE8C547);     // ذهبي أفتح للمس الخفيفة
-  static const dark = Color(0xFF0B3D2E);             // أخضر داكن (اللون الأساسي الجديد للهوية)
-  static const secondary = Color(0xFF14523E);        // أخضر داكن أفتح قليلاً للتدرجات
+  static const primary = Color(0xFFFFB903);         // ذهبي العلامة — مقيس من حرفَي «Go» في الشعار نفسه
+  static const primaryDark = Color(0xFFD99400);      // ذهبي أغمق للتدرجات والظلال
+  static const primaryLight = Color(0xFFFFD24A);     // ذهبي أفتح للمس الخفيفة
+  static const dark = Color(0xFF0B1E3D);             // كحلي العلامة (عودة الهوية الأصلية 2026-08-20)
+  static const secondary = Color(0xFF132C56);        // كحلي أفتح قليلاً للتدرجات
   static const silver = Color(0xFFC7CFD6);           // فضي/سحابي للمس الثانوية والخلفيات الفاتحة
   static const success = Color(0xFF00D084);
   static const successLight = Color(0xFFE8F9F1);
   static const warning = Color(0xFFFFB020);
   static const error = Color(0xFFE53935);
   static const errorLight = Color(0xFFFDECEA);
-  static const surface = Color(0xFFF3F5F4);
-  static const textDark = Color(0xFF0B3D2E);
+  static const surface = Color(0xFFF4F7FC);
+  static const textDark = Color(0xFF0A1A33);
   static const textGray = Color(0xFF8A8A8E);
-  static const divider = Color(0xFFEAEAEC);
+  static const divider = Color(0xFFE3E9F3);
   static const cardShadow = Color(0x14000000);
 }
 
@@ -82,8 +82,8 @@ class FlavorPalette {
     required this.primaryDark,
     required this.primaryLight,
     this.onPrimary = Colors.white,
-    this.bgDark = const Color(0xFF08211A),
-    this.bgDarker = const Color(0xFF04120D),
+    this.bgDark = const Color(0xFF08152C),
+    this.bgDarker = const Color(0xFF050D1C),
   });
 
   /// الهوية الافتراضية — مطابقة تماماً لألوان AppColors الأصلية (النكهة
@@ -95,15 +95,16 @@ class FlavorPalette {
     onPrimary: AppColors.dark,
   );
 
-  /// هوية تطبيق العميل: الذهبي الفاخر × الأخضر الملكي — هوية العلامة
-  /// الأساسية التي يراها الجمهور.
+  /// هوية تطبيق العميل: الذهبي × الكحلي — هوية العلامة الأصلية (عادت
+  /// بأمر المالك 2026-08-20 بعد فترة خضراء)، مطابقةً للموقع والشعار
+  /// وسبلاش العميل الذي بقي كحلياً طوال الوقت.
   static const customer = FlavorPalette(
     primary: AppColors.primary,
     primaryDark: AppColors.primaryDark,
     primaryLight: AppColors.primaryLight,
     onPrimary: AppColors.dark,
-    bgDark: Color(0xFF08211A),
-    bgDarker: Color(0xFF04120D),
+    bgDark: Color(0xFF08152C),
+    bgDarker: Color(0xFF050D1C),
   );
 
   /// هوية تطبيق السائق: أزرق "كابتن" — لون الطرق والحركة، مختلف تماماً عن
@@ -381,8 +382,8 @@ class FlavorColorsExtension extends ThemeExtension<FlavorColorsExtension> {
     required this.primaryDark,
     required this.primaryLight,
     this.onPrimary = Colors.white,
-    this.bgDark = const Color(0xFF08211A),
-    this.bgDarker = const Color(0xFF04120D),
+    this.bgDark = const Color(0xFF08152C),
+    this.bgDarker = const Color(0xFF050D1C),
   });
 
   @override

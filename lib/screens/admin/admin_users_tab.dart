@@ -35,6 +35,7 @@ class AdminUsersTab extends StatelessWidget {
           // طويلة مسطّحة، لتوفير المساحة وتسهيل تصفّح عدد كبير من الحسابات.
           const order = [
             UserRole.admin,
+            UserRole.support,
             UserRole.restaurantManager,
             UserRole.driver,
             UserRole.customer,
@@ -72,6 +73,7 @@ class AdminUsersTab extends StatelessWidget {
         UserRole.restaurantManager => Icons.storefront_outlined,
         UserRole.driver => Icons.delivery_dining_outlined,
         UserRole.customer => Icons.person_outline,
+        UserRole.support => Icons.support_agent_outlined,
       };
 
   void _showGenerateRegistrationCodeDialog(BuildContext context) {
@@ -91,6 +93,7 @@ class AdminUsersTab extends StatelessWidget {
           UserRole.driver => 'سائق',
           UserRole.admin => 'مدير عام',
           UserRole.customer => 'عميل',
+          UserRole.support => 'موظف دعم',
         };
 
     showDialog(
@@ -114,6 +117,9 @@ class AdminUsersTab extends StatelessWidget {
                     DropdownMenuItem(value: UserRole.restaurantManager, child: Text('مدير مطعم')),
                     DropdownMenuItem(value: UserRole.driver, child: Text('سائق')),
                     DropdownMenuItem(value: UserRole.admin, child: Text('مدير عام')),
+                    // كود «موظف دعم» يفتح لوحة إدارة منكمشة: شكاوى
+                    // ومتابعة بلا مالٍ ولا صلاحيات — القيد في القواعد.
+                    DropdownMenuItem(value: UserRole.support, child: Text('موظف دعم')),
                   ],
                   onChanged: (v) {
                     if (v == null) return;
@@ -308,6 +314,12 @@ class _UserTile extends StatelessWidget {
       ),
       isThreeLine: u.nationalId != null && u.nationalId!.isNotEmpty,
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        // شارة حظر النقدي (درع النقد): يرفعها الكنس تلقائياً عند تكرار
+        // رفض الاستلام — والمدير يرفعها من قائمة النقاط حين يقتنع بالعذر.
+        if (u.cashBlocked) ...[
+          const StatusBadge(label: 'نقدي محظور 🚫', color: AppColors.error),
+          const SizedBox(width: 4),
+        ],
         StatusBadge(
             label: u.isActive ? 'مفعّل' : 'معطّل',
             color: u.isActive ? AppColors.success : AppColors.error),
@@ -315,6 +327,12 @@ class _UserTile extends StatelessWidget {
           onSelected: (v) async {
             if (v == 'toggle') {
               await service.setUserActive(u.uid, !u.isActive);
+            } else if (v == 'cash_unblock') {
+              await service.setCashBlocked(u.uid, false);
+              if (context.mounted) {
+                showSuccess(context,
+                    'رُفع حظر النقدي عن ${u.name} وصُفّر عدّاد الرفض');
+              }
             } else if (v == 'reset_password') {
               try {
                 await service.sendPasswordReset(u.email);
@@ -348,6 +366,9 @@ class _UserTile extends StatelessWidget {
           },
           itemBuilder: (_) => [
             PopupMenuItem(value: 'toggle', child: Text(u.isActive ? 'تعطيل' : 'تفعيل')),
+            if (u.cashBlocked)
+              const PopupMenuItem(
+                  value: 'cash_unblock', child: Text('رفع حظر الدفع النقدي')),
             const PopupMenuItem(value: 'reset_password', child: Text('إعادة تعيين كلمة المرور')),
             const PopupMenuItem(value: 'delete', child: Text('حذف')),
           ],

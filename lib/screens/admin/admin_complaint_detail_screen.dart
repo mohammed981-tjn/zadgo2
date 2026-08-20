@@ -583,9 +583,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   child: ElevatedButton.icon(
                     // التذكرة العامة تُحل بنص قرار فقط (لا استرداد ولا إنذار
                     // طرف — لا طلب أصلاً)؛ شكوى الطلب تحتاج الطلب حاضراً.
+                    // موظف الدعم يحلّ بنص القرار وحده (حوار التذكرة) —
+                    // الاسترداد المالي والإنذار وإعادة الإسناد يختمها
+                    // المدير: «يقترحه ولا يختمه» (roles-design)، وقواعد
+                    // Firestore ترفض له مسّ المحافظ أصلاً فلا نعرض له
+                    // حواراً كل أزراره سترتد.
                     onPressed: _resolving
                         ? null
-                        : c.isGeneralTicket
+                        : (c.isGeneralTicket ||
+                                context.read<app_auth.AuthProvider>().user?.role ==
+                                    UserRole.support)
                             ? () => _showResolveTicketDialog(context)
                             : (order == null
                                 ? null

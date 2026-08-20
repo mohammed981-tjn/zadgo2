@@ -53,8 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // المرور (Google وغيره) لعرض «حفظ كلمة المرور؟» — بدونه كان السائق
       // يعيد كتابتها في كل مرة (شكوى المالك ٢٠٢٦-٠٨-١١).
       TextInput.finishAutofillContext();
-      final restrict = AppFlavorConfig.restrictToRole;
-      if (restrict != null && auth.user!.role != restrict) {
+      if (!AppFlavorConfig.roleAllowed(auth.user!.role)) {
         // حساب «عميل» في نكهة مقيّدة متقدّمٌ في الطريق لا دخيل: إلى بوابة
         // التقديم/الانتظار (يكمل نموذجه أو يتابع حالة طلبه) بدل الطرد.
         if (AppFlavorConfig.buildApplicantGate != null &&
