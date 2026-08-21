@@ -149,7 +149,7 @@ service cloud.firestore {
     /// طلبه أصلاً (لا مجرد رفض الخصم). ولوحة الويب طرف كاتب ثانٍ لا نضمن
     /// تطابق حقوله، فالتساهل مع الحقل الغائب شرط تشغيلي لا تجميل.
     /// والكود المحذوف يعطي isActive الافتراضية false فيُرفض بنظافة.
-    function couponGrantsDiscount(code, amount, restaurantId) {
+    function couponGrantsDiscount(code, amount, restaurantId, itemsTotal) {
       let path = /databases/$(database)/documents/coupons/$(code);
       let c = exists(path) ? get(path).data : {};
       // حدّ «مرة واحدة لكل عميل» يُفرض هنا لا في التطبيق وحده (فحص مساعد
@@ -171,6 +171,13 @@ service cloud.firestore {
           // الفارغ = كوبون عام يسري على الجميع (get بقيمة افتراضية '' يمرّره).
           (c.get('restaurantId', '') == '' ||
               c.get('restaurantId', '') == restaurantId) &&
+          // الحد الأدنى للطلب (ثغرة H8): كوبونٌ حدّه ١٠٠ لا يسري على طلبٍ أرخص.
+          // itemsTotal يمرّره الطلب (تعذّر جمع الأصناف في القاعدة — تضخيمه لا
+          // مكسب فيه، يرفع فقط ما يدفعه العميل).
+          itemsTotal >= c.get('minOrderTotal', 0) &&
+          // منع الخصم السالب (ثغرة H8): الخصم لا يتجاوز قيمة الوجبات، فيبقى
+          // payableTotal (= الوجبات + التوصيل − الخصم) موجباً ولا تدفع المنصّة للعميل.
+          amount <= itemsTotal &&
           (c.get('expiresAt', null) == null ||
               request.time < c.get('expiresAt', null)) &&
           // الثابت مسقوف بقيمته، والنسبة مسقوفة بـ maxDiscount **الإلزامي**:
@@ -239,6 +246,38 @@ service cloud.firestore {
       let od = get(/databases/$(database)/documents/drivers/$(currentUid())).data.get('operatorDriverShare', 0);
       let raw = ds - od;
       return raw < 0 ? 0 : (raw > ds ? ds : raw);
+    }
+
+    /// ربط رصيد الكابتن بدفتره (دفعة ٠-ب، ثغرتا C1/H2): أي تغيير في balance
+    /// من جهاز الكابتن لا يُقبل إلا مقروناً بحركة دفتر (driver_transactions)
+    /// تُنشأ في نفس الدفعة، يشير إليها بحقل lastLedgerTxId على مستنده، ويطابق
+    /// مبلغُها فرقَ الرصيد بالضبط. والزيادة (إيداع أجرة) مربوطةٌ حصراً بلحظة
+    /// تحوّل الطلب إلى «مُسلَّم» في هذه الدفعة (onTheWay→delivered لطلبٍ يخصّه)
+    /// ومسقوفةٌ بأجرته+إكراميته — فلا يسكّ رصيداً من عدم، ولا يُكرّر قبض طلبٍ
+    /// سُلّم (طلبٌ سُلّم سابقاً حالتُه delivered مُلتزَمة فيسقط شرط get==onTheWay).
+    /// النقص (قيد عُهدة) لا مكسبَ فيه فيكفيه تطابق المبلغ. المدير يتخطّى هذا كله
+    /// (فرع isAdmin غير المقيَّد) فإيداعاته وصرفه وتسوياته تبقى بلا orderId.
+    function ledgerBackedBalance(driverId) {
+      let L = request.resource.data.get('lastLedgerTxId', '');
+      let txPath = /databases/$(database)/documents/driver_transactions/$(L);
+      let tx = existsAfter(txPath) ? getAfter(txPath).data : {};
+      let d = request.resource.data.get('balance', 0) - resource.data.get('balance', 0);
+      let oid = tx.get('orderId', '');
+      let orderPath = /databases/$(database)/documents/orders/$(oid);
+      return L != '' && existsAfter(txPath) &&
+          tx.get('driverId', '') == driverId &&
+          tx.get('type', '') in ['orderCustody', 'deliveryCash', 'deliveryOnline'] &&
+          d - tx.get('amount', 999999) <= 0.001 &&
+          tx.get('amount', -999999) - d <= 0.001 &&
+          (d <= 0.001 ||
+              (tx.get('type', '') == 'deliveryOnline' &&
+                  oid != '' &&
+                  existsAfter(orderPath) &&
+                  get(orderPath).data.get('status', '') == 'onTheWay' &&
+                  getAfter(orderPath).data.get('status', '') == 'delivered' &&
+                  getAfter(orderPath).data.get('driverId', '') == driverId &&
+                  d <= getAfter(orderPath).data.get('driverShare', 0) +
+                      getAfter(orderPath).data.get('driverTip', 0) + 0.001));
     }
 
     // ---------------------------------------------------------------------
@@ -425,7 +464,19 @@ service cloud.firestore {
                       request.resource.data.get('total', 0) <= firstCashCap()))) &&
           (request.resource.data.get('paymentId', '') == '' ||
               (exists(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)) &&
-               get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid())) &&
+               get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid() &&
+               // مطابقة المبلغ (ثغرة C3): الدفعة الموثَّقة تغطّي ما شُحن على
+               // البطاقة فعلاً — fail-closed: طلب بطاقة بلا cardAmountHalalas
+               // يُرفض (الافتراضي هائل)، فلا يمرّ طلب ٥٠٠ خلف دفعة ريال.
+               get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('amountHalalas', 0) >=
+                   request.resource.data.get('cardAmountHalalas', 999999999) &&
+               // منع إعادة استخدام الدفعة (ثغرة C3): ختم استهلاكٍ لمرّة واحدة
+               // بمعرّف الدفعة يُنشأ في نفس الدفعة ولم يكن موجوداً قبلها —
+               // فدفعةٌ واحدة تسند طلباً واحداً لا طلبات بلا حدّ.
+               !exists(/databases/$(database)/documents/payment_consumptions/$(request.resource.data.paymentId)) &&
+               existsAfter(/databases/$(database)/documents/payment_consumptions/$(request.resource.data.paymentId)) &&
+               getAfter(/databases/$(database)/documents/payment_consumptions/$(request.resource.data.paymentId)).data.get('orderId', '') == orderId &&
+               getAfter(/databases/$(database)/documents/payment_consumptions/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid())) &&
           // «مدفوع» عند الإنشاء يستلزم سنداً (فحص مساعد الويب، البند C):
           // ختم بطاقة موثَّق أو دفعاً من المحفظة. الطلب النقدي الخالص يبدأ
           // غير مدفوع حتماً — نسخةٌ معدَّلة كانت تنشئه isPaid:true فتوهم
@@ -456,7 +507,17 @@ service cloud.firestore {
              request.resource.data.couponCode != '' &&
              couponGrantsDiscount(request.resource.data.couponCode,
                  request.resource.data.discountAmount,
-                 request.resource.data.restaurantId)));
+                 request.resource.data.restaurantId,
+                 request.resource.data.get('itemsTotal', 0)) &&
+             // تقييد الاستهلاك ذرّياً (ثغرة H6): الخصم لا يمرّ إلا مع علامة
+             // استخدامٍ تُنشأ في نفس الدفعة تشير لهذا الطلب، وزيادةِ العدّاد
+             // العام بواحدٍ بالضبط — فنسخةٌ معدَّلة لا تكتب العلامة لا تنال خصماً،
+             // ولا يُتجاوز السقف العام (زيادة العدّاد ترفضها قاعدة الكوبون عند السقف).
+             existsAfter(/databases/$(database)/documents/coupon_usages/$(request.resource.data.couponCode + '_' + currentUid())) &&
+             getAfter(/databases/$(database)/documents/coupon_usages/$(request.resource.data.couponCode + '_' + currentUid())).data.get('lastOrderId', '') == orderId &&
+             getAfter(/databases/$(database)/documents/coupons/$(request.resource.data.couponCode)).data.get('usedCount', 0) ==
+                 (exists(/databases/$(database)/documents/coupons/$(request.resource.data.couponCode)) ?
+                     get(/databases/$(database)/documents/coupons/$(request.resource.data.couponCode)).data.get('usedCount', 0) : 0) + 1));
       // بعد الإنشاء، لا يعدّل أحدٌ الحقول المالية (قيمة الأصناف، أجرة السائق،
       // حصّة التطبيق، حالة السداد...) إلا المدير العام — باستثناء واحد مقصود:
       // السائق المُسنَد يضبط isPaid و platformCommission لحظة تأكيد التوصيل،
@@ -464,7 +525,13 @@ service cloud.firestore {
       //
       // بدون هذا القيد كان بإمكان العميل تحديث طلبه وضبط isPaid على true بلا
       // دفع، أو تصفير عمولة التطبيق وأجرة السائق.
-      allow update: if isSignedIn() && (
+      allow update: if isSignedIn() &&
+          // ختم إرجاع الكوبون لا يُنكَس (ثغرة H7): غير المدير لا يُعيد
+          // couponReleased من true إلى false ثم يكرّر الإنقاص — فيبقى الإرجاع
+          // مرّةً واحدة. المدير يصحّحه عند الحاجة.
+          (isAdmin() ||
+              resource.data.get('couponReleased', false) != true ||
+              request.resource.data.get('couponReleased', false) == true) && (
             isAdmin() ||
             // فرع العميل، وله استثناء واحد دقيق: كتابة الإلغاء الذاتي التي
             // ترفع علم ردّ الرصيد — بشكلها الحرفي فقط (من حالةٍ يجوز
@@ -638,7 +705,12 @@ service cloud.firestore {
                      'lastChallengeWindow',
                      // تبعيّة المشغّل وحصّته يضبطهما المدير وحده (بند ج١/د١):
                      // لا يدّعي كابتنٌ تبعيةً لمشغّل أو يفكّها أو يرفع حصّته.
-                     'operatorId', 'operatorDriverShare'])) ||
+                     'operatorId', 'operatorDriverShare']) &&
+                // رصيد الكابتن (دفعة ٠-ب، C1/H2): لم يعد مكشوفاً — أي تغيير في
+                // balance يستلزم حركة دفتر مطابقة تُنشأ في نفس الدفعة (انظر
+                // ledgerBackedBalance). فلا يصفّر دَينه ولا يضخّم مستحقّه.
+                (!changedKeys().hasAny(['balance']) ||
+                    ledgerBackedBalance(driverId))) ||
             // قلب توفّر السائق: يفعله جهازُ المطعم أثناء الإسناد التلقائي
             // (لا خادم بعد)، والسائق نفسه، والمدير. كان الشرط `!isCustomer()`
             // يسمح به لأي مصادَقٍ بلا دور «عميل» — بمن فيهم المصادَق مجهولاً
@@ -725,10 +797,16 @@ service cloud.firestore {
       // زوّره على مستنده. المكافآت والإيداع والصرف والتسوية للمدير وحده.
       allow create: if isSignedIn() && (
             isAdmin() ||
+            // دفعة ٠-ب (H2): حركة الكابتن يجب أن تُشير لطلبٍ يخصّه يُكتب في نفس
+            // الدفعة (استلام/تسليم) — فلا يسكّ حركةً وهمية بلا طلب تلوّث دفتره
+            // أو يمرّرها عبرها إلى رصيد منتفخ. custodyReversal حُذف: يُنشئه
+            // المدير وحده (إلغاء/إعادة إسناد)، لا الكابتن.
             (isDriver() && request.resource.data.driverId == currentUid() &&
                 request.resource.data.type in
-                    ['orderCustody', 'custodyReversal',
-                     'deliveryCash', 'deliveryOnline'])
+                    ['orderCustody', 'deliveryCash', 'deliveryOnline'] &&
+                request.resource.data.get('orderId', '') != '' &&
+                existsAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
+                getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.get('driverId', '') == currentUid())
           );
       allow update, delete: if false;
     }
@@ -1074,6 +1152,23 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // ---------------------------------------------------------------------
+    // payment_consumptions — ختم استهلاك دفعة البطاقة (دفعة ٠-ب، C3): مستند
+    // معرّفه paymentId يُنشأ **مرة واحدة** مع الطلب الذي استهلك الدفعة، فتمنع
+    // قاعدةُ إنشاء الطلب إعادة استخدام نفس الدفعة لطلبٍ ثانٍ (!exists قبله).
+    // يُنشئه العميل بمعرّفه ومعرّف طلبه، ولا يُعدَّل ولا يُحذف — والإنشاء
+    // ثانيةً على نفس المعرّف تحديثٌ يرفضه المنع، فالدفعة تُستهلك مرّة لا غير.
+    // ---------------------------------------------------------------------
+    match /payment_consumptions/{paymentId} {
+      allow get: if isSignedIn() &&
+          (isAdmin() || resource.data.get('uid', '') == currentUid());
+      allow list: if isAdmin();
+      allow create: if isCustomer() &&
+          request.resource.data.get('uid', '') == currentUid() &&
+          request.resource.data.get('orderId', '') != '';
+      allow update, delete: if false;
+    }
+
     match /admin_audit/{entryId} {
       allow get, list: if isAdmin();
       // النسبة مختومة: القيد يُنسب لكاتبه الفعلي حصراً — سجلٌّ يستطيع
@@ -1198,10 +1293,16 @@ service cloud.firestore {
     // استخدام المستخدم نفسه يشير لطلبٍ **ملغى فعلاً** بهذا الكود وباسمه.
     function couponReleaseJustified(code) {
       let usage = get(/databases/$(database)/documents/coupon_usages/$(code + '_' + currentUid())).data;
-      let order = get(/databases/$(database)/documents/orders/$(usage.lastOrderId)).data;
+      let orderPath = /databases/$(database)/documents/orders/$(usage.lastOrderId);
+      let order = get(orderPath).data;
       return order.customerId == currentUid() &&
              order.couponCode == code &&
-             (order.status == 'cancelled' || order.status == 'refunded');
+             (order.status == 'cancelled' || order.status == 'refunded') &&
+             // إرجاعٌ لمرّة واحدة (دفعة ٠-ب، H7): لم يُرجَع بعد (ملتزَم false)،
+             // ويُرفع ختمه couponReleased في هذه الدفعة نفسها — فمحاولةٌ ثانية
+             // ترى الختم ملتزَماً true فتُرفض، فلا يُعاد فتح كوبونٍ مستنفَد بالتكرار.
+             order.get('couponReleased', false) != true &&
+             getAfter(orderPath).data.get('couponReleased', false) == true;
     }
 
     match /coupons/{code} {

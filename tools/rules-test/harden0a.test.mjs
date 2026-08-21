@@ -9,7 +9,7 @@
  * مطعمه + سقفه العام (H8/H6). لكل تحصين: هجوم محجوب + كتابة شرعية تمرّ.
  */
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, writeBatch, increment } from 'firebase/firestore';
 import fs from 'fs';
 
 const env = await initializeTestEnvironment({
@@ -27,8 +27,17 @@ const t = async (name, fn) => {
 const baseOrder = (uid, over = {}) => ({
   customerId: uid, restaurantId: 'R1', paymentMethod: 'card', paymentId: '',
   isPaid: false, discountAmount: 0, walletUsed: 0, driverTip: 0,
-  status: 'restaurantPending', ...over,
+  itemsTotal: 40, status: 'restaurantPending', ...over,
 });
+// دفعة إنشاء طلب خصم مع علامتَي الكوبون الذرّيتين (كما يفعل التطبيق في ٠-ب).
+const couponOrder = (db, oid, code, over = {}) => {
+  const b = writeBatch(db);
+  b.set(doc(db, 'orders/' + oid), baseOrder('cust1', { couponCode: code, discountAmount: 10, ...over }));
+  b.set(doc(db, 'coupon_usages/' + code + '_cust1'),
+      { code, userId: 'cust1', count: increment(1), lastOrderId: oid }, { merge: true });
+  b.update(doc(db, 'coupons/' + code), { usedCount: increment(1) });
+  return b.commit();
+};
 
 await env.withSecurityRulesDisabled(async (ctx) => {
   const db = ctx.firestore();
@@ -159,17 +168,13 @@ await t('طلب بلا محفظة (walletUsed=0) يمرّ عادياً', () => a
 // ---------- E: قصر الكوبون على مطعمه + سقفه العام (H8/H6) ----------
 console.log('\nقصر الكوبون على مطعمه + سقفه العام (H8/H6):');
 await t('كوبون عام صالح يمرّ', () => assertSucceeds(
-  setDoc(doc(cust1, 'orders/cpn_global'),
-      baseOrder('cust1', { restaurantId: 'R1', couponCode: 'GLOBAL10', discountAmount: 10 }))));
+  couponOrder(cust1, 'cpn_global', 'GLOBAL10', { restaurantId: 'R1' })));
 await t('كوبون مطعم R1 على طلب R1 يمرّ', () => assertSucceeds(
-  setDoc(doc(cust1, 'orders/cpn_r1'),
-      baseOrder('cust1', { restaurantId: 'R1', couponCode: 'R1ONLY', discountAmount: 10 }))));
+  couponOrder(cust1, 'cpn_r1', 'R1ONLY', { restaurantId: 'R1' })));
 await t('كوبون مطعم R1 على طلب R2 يُرفض', () => assertFails(
-  setDoc(doc(cust1, 'orders/cpn_wrong'),
-      baseOrder('cust1', { restaurantId: 'R2', couponCode: 'R1ONLY', discountAmount: 10 }))));
+  couponOrder(cust1, 'cpn_wrong', 'R1ONLY', { restaurantId: 'R2' })));
 await t('كوبون مستنفَد عالمياً (usedCount==usageLimit) يُرفض', () => assertFails(
-  setDoc(doc(cust1, 'orders/cpn_maxed'),
-      baseOrder('cust1', { restaurantId: 'R1', couponCode: 'MAXED', discountAmount: 10 }))));
+  couponOrder(cust1, 'cpn_maxed', 'MAXED', { restaurantId: 'R1' })));
 
 console.log(`\nالنتيجة: ${pass} ✅  ${fail} ❌`);
 await env.cleanup();

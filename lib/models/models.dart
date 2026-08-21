@@ -2403,6 +2403,15 @@ class Order {
   final String? couponCode;
   final double discountAmount;
 
+  /// المبلغ المشحون على البطاقة بالهللات (دفعة ٠-ب، C3) — يُكتب للطلبات
+  /// المدفوعة بالبطاقة فقط، وتطابقه القاعدة مع ختم verify.php (amountHalalas)
+  /// فلا يُنشأ طلبٌ بقيمة ٥٠٠ خلف دفعة ريال واحد.
+  final int? cardAmountHalalas;
+
+  /// ختم «أُرجع كوبون هذا الطلب» (دفعة ٠-ب، H7) — يُرفع مرة واحدة مع إنقاص
+  /// عدّاد الكوبون عند الإلغاء، فلا يتكرّر الإنقاص على الطلب نفسه.
+  final bool couponReleased;
+
   const Order({
     required this.id,
     required this.restaurantId,
@@ -2455,6 +2464,8 @@ class Order {
     this.commissionPercent,
     this.couponCode,
     this.discountAmount = 0,
+    this.cardAmountHalalas,
+    this.couponReleased = false,
   });
 
   /// عُهدة الطلب النقدي على السائق لحظة استلامه: قيمة الوجبات (للمطعم)
@@ -2587,6 +2598,8 @@ class Order {
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
         rejectionReason: map['rejectionReason'] as String?,
         paymentId: map['paymentId'] as String?,
+        cardAmountHalalas: (map['cardAmountHalalas'] as num?)?.toInt(),
+        couponReleased: map['couponReleased'] as bool? ?? false,
         walletUsed: (map['walletUsed'] as num?)?.toDouble() ?? 0,
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
         deliveryFailed: map['deliveryFailed'] as bool? ?? false,
@@ -2671,6 +2684,12 @@ class Order {
           'commissionPercent': commissionPercent,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
+        if (cardAmountHalalas != null) 'cardAmountHalalas': cardAmountHalalas,
+        'couponReleased': couponReleased,
+        // إجمالي الوجبات محسوباً (دفعة ٠-ب): تقرؤه القاعدة لفحص حدّ الكوبون
+        // الأدنى ومنع الخصم السالب — القواعد لا تجمع مصفوفة الأصناف بنفسها.
+        // التطبيق يعيد حسابه من items عند القراءة فلا يُعتمد المخزَّن.
+        'itemsTotal': itemsTotal,
       };
 
   Order copyWith({
@@ -2743,6 +2762,8 @@ class Order {
         commissionPercent: commissionPercent,
         couponCode: couponCode,
         discountAmount: discountAmount,
+        cardAmountHalalas: cardAmountHalalas,
+        couponReleased: couponReleased,
       );
 }
 
