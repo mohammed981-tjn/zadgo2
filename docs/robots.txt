@@ -19,7 +19,9 @@
 #   ٢. احذف وسم noindex من docs/order/index.html، واحذف المعامل السادس من
 #      أمر دليل العميل في tools/build-guides.sh ثم أعد تشغيل الملف
 #      (وسم noindex في الدليل يولّده المولِّد، فحذفه باليد يعود عند التوليد)
-#   ٣. اضبط TRIAL_MODE = false في docs/index.html
+#   ٣. اضبط TRIAL_MODE = false في docs/home.js (انتقل إليه من index.html
+#      يوم إعادة بناء الرئيسية — وهو المفتاح الذي يعيد رابط الطلب إلى
+#      باب العميل والسهم الذهبي مكان شارة «قريباً»)
 # وأضف الصفحتين إلى sitemap.xml.
 
 User-agent: *
