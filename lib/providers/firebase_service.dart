@@ -3904,4 +3904,12 @@ class FirebaseService {
     await _broadcasts.doc(message.id).set(message.toMap());
     logAdminAction('broadcast.send', 'رسالة جماعية: ${message.title}');
   }
+
+  /// حذف رسالة بثٍّ (المدير وحده — تحرسه القاعدة): البثّ يبقى ظاهراً للعملاء
+  /// حتى يُحذف (لا مدّة انتهاء)، فبلا الحذف كانت الرسالة تبقى على شاشاتهم
+  /// أبداً بلا سبيل لإزالتها.
+  Future<void> deleteBroadcast(models.BroadcastMessage message) async {
+    await _broadcasts.doc(message.id).delete();
+    logAdminAction('broadcast.delete', 'حذف رسالة جماعية: ${message.title}');
+  }
 }

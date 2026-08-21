@@ -108,6 +108,21 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
     }
   }
 
+  Future<void> _delete(BroadcastMessage m) async {
+    final ok = await showConfirmDialog(context,
+        title: 'حذف الرسالة',
+        content: 'سيختفي هذا البثّ عن كل من وُجّه إليهم. متأكد؟',
+        confirmLabel: 'حذف',
+        confirmColor: AppColors.error);
+    if (ok != true || !mounted) return;
+    try {
+      await context.read<FirebaseService>().deleteBroadcast(m);
+      if (mounted) showSuccess(context, 'حُذفت الرسالة');
+    } catch (_) {
+      if (mounted) showError(context, 'تعذّر الحذف — حاول مجدداً');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
@@ -163,10 +178,20 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
                     child: ListTile(
                       title: Text(m.title, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(m.body),
-                      trailing: Text(
-                        '${m.createdAt.day}/${m.createdAt.month} ${m.createdAt.hour}:${m.createdAt.minute.toString().padLeft(2, '0')}',
-                        style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
-                      ),
+                      // زرّ حذف لكل رسالة: البثّ بلا مدّة انتهاء، فيبقى على شاشات
+                      // العملاء حتى تُزيله الإدارة. الأحدث هو ما يظهر للعميل،
+                      // فحذفه يُزيل الشريط أو يُظهر ما قبله.
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(
+                          '${m.createdAt.day}/${m.createdAt.month} ${m.createdAt.hour}:${m.createdAt.minute.toString().padLeft(2, '0')}',
+                          style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, color: AppColors.error),
+                          tooltip: 'حذف',
+                          onPressed: () => _delete(m),
+                        ),
+                      ]),
                     ),
                   );
                 },
