@@ -439,6 +439,18 @@ section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
 .kcard figcaption{padding:14px 16px;font-size:var(--fs-meta);color:var(--on-paper-2)}
 .kcard b{display:block;color:var(--on-paper-1);font-size:1rem;margin-block-end:3px}
 
+/* ══════════════ الطريق والطرد ══════════════ */
+.roadband{background:var(--n900);padding-block:var(--pad-sec)}
+/* عرضٌ محدود لا ارتفاعٌ محدود: الـviewBox يعطي النسبة، فلو مُدّ الصندوق
+   عرضاً بقي الرسم صغيراً في وسط فراغٍ واسع. */
+.road{display:block;inline-size:min(100% - var(--gutter)*2,232px);
+  block-size:auto;margin-inline:auto}
+@media(min-width:760px){.road{inline-size:min(100%,300px)}}
+.road .lane{fill:none;stroke:rgba(255,255,255,.16);stroke-width:2;stroke-dasharray:10 12}
+.road .path{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-linecap:round;
+  stroke-dasharray:1;stroke-dashoffset:0}     /* الأساس = مرسومٌ كاملاً */
+.courier{fill:var(--gold-lt);offset-distance:100%}   /* الأساس = وَصَل */
+
 /* ══════════════ الفاتورة المكشوفة ══════════════ */
 .bill{display:grid;gap:18px;margin-block-start:26px;
   grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
@@ -578,6 +590,12 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
   @media (prefers-reduced-motion:no-preference){
     .lamps{animation:driftY linear both;animation-timeline:scroll(root);animation-range:0 60vh}
     @keyframes driftY{to{transform:translate3d(0,var(--dy),0)}}
+    .road .path{animation:drawRoad linear both;animation-timeline:view();
+      animation-range:entry 15% cover 85%}
+    @keyframes drawRoad{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+    .courier{animation:ride linear both;animation-timeline:view();
+      animation-range:entry 15% cover 85%}
+    @keyframes ride{from{offset-distance:0%}to{offset-distance:100%}}
     .slip::before{animation:audit linear both;animation-timeline:view();
       animation-range:entry 20% cover 55%}
     @keyframes audit{from{transform:scaleY(.06)}to{transform:scaleY(1)}}
@@ -603,6 +621,7 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
   html{scroll-behavior:auto!important}
   .lamps{animation:none!important;transform:none!important}
   .door .more{grid-template-rows:1fr}
+  .courier{display:none}
 }
 
 @media(min-width:760px){
@@ -858,6 +877,27 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
   </div>
 </section>
 
+
+<svg class="horizon on-light" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
+
+<!-- ═══════════ ٣ب · الطريق ═══════════
+     شريطٌ بلا كلمة: الطريق يُرسَم والطرد يسير مع تمرير القارئ. أبقاه
+     المالك حين حُذف نصّ قسم الليل («لا تحذف الطريق والطرد المتحرّك —
+     هذا جميل»)، فصار بيتاً لنفسه. و`div` لا `section` عمداً: قسمٌ بلا
+     عنوانٍ يُربك قارئ الشاشة، وهذا زخرفةٌ خالصة تُعلَن كذلك. -->
+<div class="roadband" aria-hidden="true">
+  <!-- الطريق والطرد في **نفس الـSVG** فيتجاوب الطرد مجّاناً مع كل عرض.
+       `offset-path` بإحداثيات ثابتة خارجه يطير الطرد خارج الخطّ. -->
+  <svg class="road" viewBox="0 0 320 360" fill="none" preserveAspectRatio="xMidYMid meet">
+    <path class="lane" d="M40 348 C 40 250, 280 230, 280 140 S 120 60, 160 12"/>
+    <path class="path" id="rp" pathLength="1" d="M40 348 C 40 250, 280 230, 280 140 S 120 60, 160 12"/>
+    <g class="courier" style="offset-path:path('M40 348 C 40 250, 280 230, 280 140 S 120 60, 160 12')">
+      <rect x="-9" y="-9" width="18" height="18" rx="4"/>
+      <path d="M-9 -2h18" stroke="#0B1935" stroke-width="2"/>
+    </g>
+  </svg>
+</div>
+<svg class="horizon" viewBox="0 0 1200 40" preserveAspectRatio="none" aria-hidden="true"><use href="#horizon"/></svg>
 
 <!-- ═══════════ ٤ · إلى أين يذهب ريالك ═══════════ -->
 <section class="light" id="bill" aria-labelledby="h-bill">
