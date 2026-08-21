@@ -1301,8 +1301,11 @@ class FirebaseService {
               .toList()
             ..sort((a, b) => b.totalDeliveries.compareTo(a.totalDeliveries)));
 
-  /// طلبات مشغّلٍ المسلَّمة — لجمع مستحقّاته (مجموع operatorShare). محدود
-  /// بأحدث ٢٠٠ كنظائره في الدفتر، والجمع محلياً فلا فهرس مركّب.
+  /// طلبات مشغّلٍ المسلَّمة — لجمع مستحقّاته (مجموع operatorShare)، والجمع
+  /// محلياً فلا فهرس مركّب. **قيد معروف (دفعة ٢):** السقف ٤٠٠ يبتر المستحق
+  /// المتراكم على المدى الطويل (نفس عائلة عطب دفتر المطعم) — الحلّ الجذري
+  /// بلا خادم هو علم `operatorSettled` على الطلب يرفعه المدير عند التسوية،
+  /// فيُجمَع غيرُ المسوَّى وحده (مؤجَّل حتى تفعيل المشغّلين — الميزة خامدة).
   Stream<List<models.Order>> streamOperatorOrders(String operatorId) =>
       _orders
           .where('operatorId', isEqualTo: operatorId)
@@ -1312,11 +1315,27 @@ class FirebaseService {
               s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   /// المدير يسجّل دفعةً للمشغّل: تُنقص من رصيده (كتسوية دفتر الكابتن).
-  Future<void> recordOperatorPayout(String operatorId, double amount) =>
-      _fleetOperators
-          .doc(operatorId)
-          .set({'balance': FieldValue.increment(-amount.abs())},
-              SetOptions(merge: true));
+  Future<void> recordOperatorPayout(String operatorId, double amount) async {
+    await _fleetOperators.doc(operatorId).set(
+        {'balance': FieldValue.increment(-amount.abs())}, SetOptions(merge: true));
+    // تسجيل التدقيق (دفعة ٢): كل حركة مال للمشغّل تُقيَّد في admin_audit
+    // كنظائرها (صرف السائق/تسوية المطعم) — لم تكن تُسجَّل فيغيب أثرها.
+    logAdminAction('operator.payout',
+        'صرف ${amount.abs().toStringAsFixed(2)} ر.س لمشغّل الأسطول',
+        extra: {'operatorId': operatorId});
+  }
+
+  /// المدير يُحصّل الرسم الشهري من المشغّل (دفعة ٢): كان `monthlyFee` يُضبط
+  /// ولا يُحصَّل بأي مسار — ميّتاً وظيفياً. تحصيلُه يُنقص صافي دفتره (كالدفعة:
+  /// كلاهما يقلّل ما يُستحقّ للمشغّل) ويُسجَّل في التدقيق باسمه المميَّز.
+  Future<void> chargeOperatorMonthlyFee(String operatorId, double amount) async {
+    if (amount <= 0) return;
+    await _fleetOperators.doc(operatorId).set(
+        {'balance': FieldValue.increment(-amount.abs())}, SetOptions(merge: true));
+    logAdminAction('operator.fee',
+        'تحصيل رسم شهري ${amount.abs().toStringAsFixed(2)} ر.س من مشغّل الأسطول',
+        extra: {'operatorId': operatorId});
+  }
 
   /// إظهار/إخفاء البنر الافتراضي المدمج (دفعة «الإعلانات الذكية»): يُخزَّن في
   /// `delivery_settings/banners` (قراءةٌ عامة كي يراه الزائر). الافتراضي
