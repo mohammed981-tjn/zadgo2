@@ -1139,64 +1139,80 @@ class FirebaseService {
   /// بلا قيد ولا قيد بلا استلام.
   Future<void> markPickedUpBySelf(String orderId) async {
     final ref = _orders.doc(orderId);
-    final doc = await ref.get();
-    if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
-    }
+    // معاملة ذرّية (دفعة ١، عطل السباق ٣): كان الفحص قراءةً منفصلة ثم batch،
+    // فضغطتان متزامنتان (بطاقة السائق + شاشة الخريطة تستدعيان الاستلام) تقرآن
+    // «جاهز للاستلام» قبل ثبوت أولاهما فتمرّان معاً — قيدُ عُهدةٍ **مرّتين**
+    // على الكابتن. الآن القراءة والفحص والقيد في معاملة واحدة: الثانية تقرأ
+    // «في الطريق» داخل معاملتها فتخرج بلا أثر (حصانة تكرار)، وقراءة رصيد
+    // السائق داخل المعاملة قبل أي كتابة (شرط فايرستور: القراءات قبل الكتابات).
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists || snap.data() == null) {
+        throw Exception('الطلب غير موجود');
+      }
+      final current = models.Order.fromMap(snap.data()!, snap.id);
+      // حصانة التكرار: استُلم فعلاً (في الطريق أو أبعد) أو أُنهي — لا قيد ثانٍ.
+      if (current.status == models.OrderStatus.onTheWay ||
+          current.status == models.OrderStatus.delivered ||
+          current.status == models.OrderStatus.cancelled ||
+          current.status == models.OrderStatus.refunded) {
+        return;
+      }
+      if (current.status != models.OrderStatus.readyForPickup &&
+          current.status != models.OrderStatus.searchingDriver &&
+          current.status != models.OrderStatus.driverAssigned &&
+          current.status != models.OrderStatus.pickedUp) {
+        throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
+      }
 
-    final current = models.Order.fromMap(doc.data()!, doc.id);
-    if (current.status != models.OrderStatus.readyForPickup &&
-        current.status != models.OrderStatus.searchingDriver &&
-        current.status != models.OrderStatus.driverAssigned &&
-        current.status != models.OrderStatus.pickedUp) {
-      throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
-    }
+      final driverId = current.driverId ?? '';
+      final needsCustody = current.paymentMethod == models.PaymentMethod.cash &&
+          !current.custodyDebited &&
+          driverId.isNotEmpty;
 
-    final driverId = current.driverId ?? '';
-    final needsCustody = current.paymentMethod == models.PaymentMethod.cash &&
-        !current.custodyDebited &&
-        driverId.isNotEmpty;
+      // قراءة رصيد السائق داخل المعاملة (قبل الكتابة) لحساب balanceAfter.
+      double balance = 0;
+      if (needsCustody && current.custodyAmount != 0) {
+        final driverSnap = await tx.get(_drivers.doc(driverId));
+        balance = driverSnap.exists && driverSnap.data() != null
+            ? models.Driver.fromMap(driverSnap.data()!, driverSnap.id).balance
+            : 0.0;
+      }
 
-    final batch = _db.batch();
-    batch.update(ref, {
-      'status': models.OrderStatus.onTheWay.name,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'statusChangedAt': FieldValue.serverTimestamp(),
-      if (needsCustody) 'custodyDebited': true,
-    });
-
-    // عُهدة صفرية (محفظة العميل غطّت حصّتَي المطعم والمنصّة بالضبط) لا
-    // تستحق قيداً — يبقى custodyDebited=true فلا يُعاد القيد عند التسليم.
-    if (needsCustody && current.custodyAmount != 0) {
-      final custody = current.custodyAmount;
-      final driverDoc = await _drivers.doc(driverId).get();
-      final balance = driverDoc.exists && driverDoc.data() != null
-          ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
-          : 0.0;
-      final txRef = _driverTransactions.doc();
-      batch.update(_drivers.doc(driverId), {
-        'balance': FieldValue.increment(-custody),
-        // دفعة ٠-ب (C1/H2): مؤشّر لحركة الدفتر المرافقة في نفس الدفعة —
-        // القاعدة ترفض أي تغيير رصيد بلا حركةٍ مطابقةٍ يشير إليها هذا الحقل.
-        'lastLedgerTxId': txRef.id,
+      tx.update(ref, {
+        'status': models.OrderStatus.onTheWay.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'statusChangedAt': FieldValue.serverTimestamp(),
+        if (needsCustody) 'custodyDebited': true,
       });
-      batch.set(
-        txRef,
-        models.DriverTransaction(
-          id: txRef.id,
-          driverId: driverId,
-          type: models.DriverTransactionType.orderCustody,
-          amount: -custody,
-          balanceAfter: balance - custody,
-          orderId: orderId,
-          orderNumber: current.orderNumber,
-          performedBy: _auth.currentUser?.uid ?? driverId,
-          createdAt: DateTime.now(),
-        ).toMap(),
-      );
-    }
 
-    await batch.commit();
+      // عُهدة صفرية (محفظة العميل غطّت حصّتَي المطعم والمنصّة بالضبط) لا
+      // تستحق قيداً — يبقى custodyDebited=true فلا يُعاد القيد عند التسليم.
+      if (needsCustody && current.custodyAmount != 0) {
+        final custody = current.custodyAmount;
+        final txRef = _driverTransactions.doc();
+        tx.update(_drivers.doc(driverId), {
+          'balance': FieldValue.increment(-custody),
+          // دفعة ٠-ب (C1/H2): مؤشّر لحركة الدفتر المرافقة في نفس المعاملة —
+          // القاعدة ترفض أي تغيير رصيد بلا حركةٍ مطابقةٍ يشير إليها هذا الحقل.
+          'lastLedgerTxId': txRef.id,
+        });
+        tx.set(
+          txRef,
+          models.DriverTransaction(
+            id: txRef.id,
+            driverId: driverId,
+            type: models.DriverTransactionType.orderCustody,
+            amount: -custody,
+            balanceAfter: balance - custody,
+            orderId: orderId,
+            orderNumber: current.orderNumber,
+            performedBy: _auth.currentUser?.uid ?? driverId,
+            createdAt: DateTime.now(),
+          ).toMap(),
+        );
+      }
+    });
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
@@ -1595,22 +1611,41 @@ class FirebaseService {
           dispatchScore(acceptanceRate: d.acceptanceRate, rating: d.rating);
       return score(b).compareTo(score(a));
     });
-    final chosen = pool.first;
-
-    final batch = _db.batch();
-    batch.update(_orders.doc(order.id), {
-      'driverId': chosen.id,
-      'driverName': chosen.name,
-      'driverPhone': chosen.phone,
-      'updatedAt': FieldValue.serverTimestamp(),
-      // عرض حقيقي لا إسناد صامت: كان يُكتب true هنا فيتجاوز المسارُ الأكثر
-      // شيوعاً (الإسناد التلقائي) موافقةَ السائق كلياً — لا قبول ولا رفض ولا
-      // حتى علمٌ مؤكَّد. الآن يظهر له عرض بالأجرة والمسافتين وعدّاد، وانقضاء
-      // المهلة أو الرفض يمرّران الطلب لغيره.
-      'driverAcknowledged': false,
+    // الإسناد النهائي في معاملة ذرّية (دفعة ١، عطل السباق ١): كان batch يقرأ
+    // المرشَّح متاحاً (قراءةٌ سابقة على المعاملة) ثم يُسنده، فطلبان يُسنَدان
+    // متزامنين يقرآن نفس السائق متاحاً فيُسنَد لكليهما (خرق سقف الحمولة). الآن
+    // نعيد قراءة مرشَّحي المجموعة (مرتَّبين سلفاً) **داخل المعاملة** ونُسند أوّل
+    // من يبقى متاحاً فعلاً؛ وطلبٌ أُسنِد من مسارٍ آخر لا يُدهَس (driverId موجود).
+    final assignedId = await _db.runTransaction<String?>((tx) async {
+      final orderSnap = await tx.get(_orders.doc(order.id));
+      if (!orderSnap.exists || orderSnap.data() == null) return null;
+      final existing = (orderSnap.data()!['driverId'] as String?) ?? '';
+      if (existing.isNotEmpty) return null; // أُسنِد بالفعل — لا ازدواج
+      models.Driver? pick;
+      for (final cand in pool) {
+        final ds = await tx.get(_drivers.doc(cand.id));
+        if (ds.exists &&
+            ds.data() != null &&
+            (ds.data()!['isAvailable'] as bool? ?? false)) {
+          pick = models.Driver.fromMap(ds.data()!, ds.id);
+          break;
+        }
+      }
+      if (pick == null) return null; // سُبِق كل المرشَّحين — يُعاد لاحقاً
+      tx.update(_orders.doc(order.id), {
+        'driverId': pick.id,
+        'driverName': pick.name,
+        'driverPhone': pick.phone,
+        'updatedAt': FieldValue.serverTimestamp(),
+        // عرض حقيقي لا إسناد صامت: كان يُكتب true هنا فيتجاوز المسارُ الأكثر
+        // شيوعاً (الإسناد التلقائي) موافقةَ السائق كلياً. الآن يظهر له عرض
+        // بالأجرة والمسافتين وعدّاد، وانقضاء المهلة أو الرفض يمرّران الطلب لغيره.
+        'driverAcknowledged': false,
+      });
+      tx.update(_drivers.doc(pick.id), {'isAvailable': false});
+      return pick.id;
     });
-    batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
-    await batch.commit();
+    if (assignedId == null) return false;
     // إشعار السائق المرشَّح — تطبيقه قد يكون بالخلفية لحظة العرض.
     NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
     return true;
@@ -1631,12 +1666,20 @@ class FirebaseService {
       List<models.Driver> online) async {
     try {
       final busy = <String>{};
+      // كل الطلبات النشطة لا «آخر ٣٠٠» (دفعة ١، عطل السباق ٦): النافذة ذات
+      // الحدّ الثابت تُسقط طلباً نشطاً أقدم منها في يومٍ مزدحم، فيُحرَّر سائقٌ
+      // مشغولٌ فعلاً ويتلقّى عرضاً وهو يوصّل (خرق سقف الحمولة). الحالات النشطة
+      // تسعٌ (≤10) فتصلح لاستعلام whereIn المفهرَس تلقائياً بلا فهرس مركّب.
+      final activeStatuses = models.OrderStatus.values
+          .where((s) => s.isActive)
+          .map((s) => s.name)
+          .toList();
       final snap =
-          await _orders.orderBy('createdAt', descending: true).limit(300).get();
+          await _orders.where('status', whereIn: activeStatuses).get();
       for (final doc in snap.docs) {
         final o = models.Order.fromMap(doc.data(), doc.id);
         final id = o.driverId ?? '';
-        if (id.isNotEmpty && o.status.isActive) busy.add(id);
+        if (id.isNotEmpty) busy.add(id);
       }
       final stuck = online
           .where((d) =>
