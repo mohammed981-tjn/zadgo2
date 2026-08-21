@@ -127,9 +127,13 @@ class _AdminHomeState extends State<AdminHome> {
                 ],
               ),
             ),
-            // سجلّ الطلبات قبل التقارير المالية: هو الوجهة الأكثر طلباً عند
-            // المراجعة اليومية («أين ذهب الطلب الملغى؟») بينما التقارير
-            // شهرية الإيقاع.
+            // الدرج مقسَّمٌ إلى مجموعات دلاليّة (§٧): كان قائمةً مسطّحة من ١٨
+            // وجهة بترتيبٍ متناقض (تغيير كلمة المرور وسط طلبات الانضمام،
+            // والمال مبعثرٌ بين التسويق). الأقسام تجعل المدير يجد وجهته بالمعنى
+            // لا بالمسح البصري لكل السطور.
+
+            // — السجلّات والمتابعة — (سجلّ الطلبات يظهر للدعم أيضاً)
+            const _DrawerSection('السجلّات'),
             ListTile(
               leading: const Icon(Icons.history_rounded),
               title: const Text('سجلّ الطلبات'),
@@ -148,6 +152,25 @@ class _AdminHomeState extends State<AdminHome> {
             // بقية الدرج إدارةٌ خالصة (مال وصلاحيات وبثّ) — تُطوى عن
             // الدعم؛ ولو ظهرت له لرفضتها القواعد طلباً طلباً.
             if (!isSupport) ...[
+            // سجلّ الإدارة للمدير وحده (لا الدعم — والقاعدة تمنعه list):
+            // من فعل ماذا ومتى, من الجوّال أو الويب.
+            ListTile(
+              leading: const Icon(Icons.history_outlined),
+              title: const Text('سجلّ الإدارة'),
+              subtitle: const Text('كل فعلٍ إداري حسّاس — من فعله ومتى',
+                  style: TextStyle(fontSize: 11.5)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const _DrawerScreen(
+                            title: 'سجلّ الإدارة', child: AdminAuditScreen())));
+              },
+            ),
+
+            // — المال —
+            const _DrawerSection('المال'),
             ListTile(
               leading: const Icon(Icons.insights_outlined),
               title: const Text('التقارير المالية'),
@@ -158,12 +181,78 @@ class _AdminHomeState extends State<AdminHome> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.emoji_events_outlined),
+              title: const Text('الحوافز والإحالات'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'الحوافز والإحالات', child: AdminIncentivesScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_offer_outlined),
+              title: const Text('أكواد الخصم'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد الخصم', child: AdminCouponsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.savings_outlined),
+              title: const Text('طلبات سحب السائقين'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات سحب السائقين', child: AdminPayoutRequestsScreen())));
+              },
+            ),
+
+            // — المستخدمون والانضمام —
+            const _DrawerSection('المستخدمون والانضمام'),
+            ListTile(
               leading: const Icon(Icons.people_outline),
               title: const Text('المستخدمون'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'المستخدمون', child: AdminUsersTab())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.assignment_ind_outlined),
+              title: const Text('طلبات انضمام الكباتن'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات انضمام الكباتن', child: AdminDriverApplicationsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: const Text('طلبات انضمام المطاعم'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات انضمام المطاعم', child: AdminRestaurantApplicationsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_business_outlined),
+              title: const Text('طلبات المطاعم'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات المطاعم — خريطة مبيعاتك', child: AdminRestaurantRequestsScreen())));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.vpn_key_outlined),
+              title: const Text('أكواد التسجيل'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد التسجيل', child: AdminRegistrationCodesScreen())));
               },
             ),
             // مشغّلو الأسطول (دفعة «ابدأ المشغل»): ملفاتهم ونسبهم وإسناد كباتنهم.
@@ -182,37 +271,9 @@ class _AdminHomeState extends State<AdminHome> {
                             child: AdminOperatorsScreen())));
               },
             ),
-            // سجلّ الإدارة للمدير وحده (لا الدعم — والقاعدة تمنعه list):
-            // من فعل ماذا ومتى, من الجوّال أو الويب.
-            ListTile(
-              leading: const Icon(Icons.history_outlined),
-              title: const Text('سجلّ الإدارة'),
-              subtitle: const Text('كل فعلٍ إداري حسّاس — من فعله ومتى',
-                  style: TextStyle(fontSize: 11.5)),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const _DrawerScreen(
-                            title: 'سجلّ الإدارة', child: AdminAuditScreen())));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.lightbulb_outline),
-              title: const Text('اقتراحات ونصائح'),
-              subtitle: const Text('صوت الزوّار والمستخدمين',
-                  style: TextStyle(fontSize: 11.5)),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const _DrawerScreen(
-                            title: 'اقتراحات ونصائح',
-                            child: AdminSuggestionsScreen())));
-              },
-            ),
+
+            // — التسويق والتواصل —
+            const _DrawerSection('التسويق والتواصل'),
             ListTile(
               leading: const Icon(Icons.auto_awesome_outlined),
               title: const Text('الإعلانات ✨'),
@@ -237,23 +298,32 @@ class _AdminHomeState extends State<AdminHome> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.vpn_key_outlined),
-              title: const Text('أكواد التسجيل'),
+              leading: const Icon(Icons.campaign_outlined),
+              title: const Text('بث جماعي'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد التسجيل', child: AdminRegistrationCodesScreen())));
+                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'بث جماعي', child: BroadcastTab())));
               },
             ),
             ListTile(
-              leading: const Icon(Icons.add_business_outlined),
-              title: const Text('طلبات المطاعم'),
+              leading: const Icon(Icons.lightbulb_outline),
+              title: const Text('اقتراحات ونصائح'),
+              subtitle: const Text('صوت الزوّار والمستخدمين',
+                  style: TextStyle(fontSize: 11.5)),
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات المطاعم — خريطة مبيعاتك', child: AdminRestaurantRequestsScreen())));
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const _DrawerScreen(
+                            title: 'اقتراحات ونصائح',
+                            child: AdminSuggestionsScreen())));
               },
             ),
+
+            // — النظام —
+            const _DrawerSection('النظام'),
             ListTile(
               leading: const Icon(Icons.lock_outline),
               title: const Text('تغيير كلمة المرور'),
@@ -261,51 +331,6 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.local_offer_outlined),
-              title: const Text('أكواد الخصم'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'أكواد الخصم', child: AdminCouponsScreen())));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.savings_outlined),
-              title: const Text('طلبات سحب السائقين'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات سحب السائقين', child: AdminPayoutRequestsScreen())));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.assignment_ind_outlined),
-              title: const Text('طلبات انضمام الكباتن'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات انضمام الكباتن', child: AdminDriverApplicationsScreen())));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.storefront_outlined),
-              title: const Text('طلبات انضمام المطاعم'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'طلبات انضمام المطاعم', child: AdminRestaurantApplicationsScreen())));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.emoji_events_outlined),
-              title: const Text('الحوافز والإحالات'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'الحوافز والإحالات', child: AdminIncentivesScreen())));
               },
             ),
             // التشخيص آخر القائمة عمداً: لا يُفتح في التشغيل العادي، بل
@@ -321,15 +346,6 @@ class _AdminHomeState extends State<AdminHome> {
                         builder: (_) => const _DrawerScreen(
                             title: 'التشخيص',
                             child: AdminDiagnosticsScreen())));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.campaign_outlined),
-              title: const Text('بث جماعي'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'بث جماعي', child: BroadcastTab())));
               },
             ),
             ],
@@ -382,6 +398,24 @@ class _DrawerScreen extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text(title)),
         body: child,
+      );
+}
+
+/// عنوان قسمٍ في درج الإدارة — يجمع الوجهات الثماني عشرة تحت مجموعاتٍ
+/// دلاليّة (مال/مستخدمون/تسويق/نظام) بدل قائمةٍ مسطّحة متناقضة الترتيب
+/// دُفن فيها «تغيير كلمة المرور» وسط طلبات الانضمام.
+class _DrawerSection extends StatelessWidget {
+  final String title;
+  const _DrawerSection(this.title);
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+        child: Text(title,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.3,
+                color: context.flavorColors.primary)),
       );
 }
 

@@ -685,16 +685,18 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                 ),
             ]);
           }
-          // البنر و«اطلب مجدداً» عنصرا رأسٍ يمرّان مع القائمة (لا مثبّتان
-          // فوقها) كي تأخذ المطاعم كامل الارتفاع — يظهران خارج البحث فقط.
+          // ترتيب الرأس على معيار DoorDash 2025 (§٧): «اطلب مجدداً» أولاً
+          // (أعلى نيّة — تكرار المعتاد)، ثم بشير «مطعمك المطلوب وصل»، ثم البنر
+          // الترويجي، ثم القائمة. سابقاً كان البنر يتصدّر فيدفن «اطلب مجدداً»
+          // تحته — عكس المعيار. الثلاثة عناصر رأسٍ تمرّ مع القائمة (لا مثبّتة)
+          // كي تأخذ المطاعم كامل الارتفاع، وتظهر خارج البحث فقط.
           final headers = <Widget>[
-            if (_query.isEmpty) const PromoBannerCarousel(),
             if (_query.isEmpty) const _ReorderStrip(),
+            if (_query.isEmpty) _RequestedArrivedBanner(restaurants: list),
+            if (_query.isEmpty) const PromoBannerCarousel(),
           ];
           final h = headers.length;
           return Column(children: [
-            // بشير «مطعمك المطلوب وصل» فوق القائمة (لا أثناء البحث).
-            if (_query.isEmpty) _RequestedArrivedBanner(restaurants: list),
             Expanded(
           child: ListView.builder(
               controller: _restScroll,
