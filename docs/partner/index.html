@@ -156,6 +156,18 @@ footer a { text-decoration: none; }
     <div class="field"><label for="f_name" data-i18n="p.rest">اسم المطعم</label>
       <input type="text" id="f_name" placeholder="مثال: فطير ستيشن" autocomplete="organization"></div>
 
+    <!-- عدد المطاعم: قائمةٌ لا حقل رقم — تُملأ بلمسةٍ واحدة على الجوّال،
+         وتصل الإدارة بقيمٍ موحّدة بدل «٢» و«اثنين» و«فرعين». وصيغة
+         المثنّى صحيحة («مطعمان» لا «٢ مطعم») — بند و٢. -->
+    <div class="field"><label for="f_count" data-i18n="p.count">كم مطعماً تملك؟</label>
+      <select id="f_count">
+        <option value="" data-i18n="p.choose">اختر…</option>
+        <option value="مطعم واحد" data-i18n="p.c1">مطعم واحد</option>
+        <option value="مطعمان" data-i18n="p.c2">مطعمان</option>
+        <option value="٣ – ٥ مطاعم" data-i18n="p.c3">٣ – ٥ مطاعم</option>
+        <option value="أكثر من ٥" data-i18n="p.c4">أكثر من ٥</option>
+      </select></div>
+
     <div class="field"><label for="f_branch"><span data-i18n="p.branch">الحي أو الفرع</span> <i data-i18n="p.opt">(اختياري)</i></label>
       <input type="text" id="f_branch" placeholder="مثال: العزيزية"></div>
 
@@ -175,7 +187,7 @@ footer a { text-decoration: none; }
         <option value="مأكولات شعبية" data-i18n="p.k1">مأكولات شعبية</option>
         <option value="مشاوي ولحوم" data-i18n="p.k2">مشاوي ولحوم</option>
         <option value="فطائر ومعجّنات" data-i18n="p.k3">فطائر ومعجّنات</option>
-        <option value="وجبات سريعة وبرغر" data-i18n="p.k4">وجبات سريعة وبرغر</option>
+        <option value="وجبات سريعة" data-i18n="p.k4">وجبات سريعة</option>
         <option value="دجاج وبروست" data-i18n="p.k5">دجاج وبروست</option>
         <option value="مأكولات بحرية" data-i18n="p.k6">مأكولات بحرية</option>
         <option value="حلويات ومخبوزات" data-i18n="p.k7">حلويات ومخبوزات</option>
@@ -251,6 +263,7 @@ footer a { text-decoration: none; }
     if ($('f_branch').value.trim()) L.push('الحي/الفرع: ' + $('f_branch').value.trim());
     L.push('المسؤول: ' + $('f_person').value.trim());
     L.push('الجوال: ' + $('f_phone').value.trim());
+    L.push('عدد المطاعم: ' + ($('f_count').value || 'غير محدّد'));
     L.push('نوع المطبخ: ' + ($('f_kind').value || 'غير محدّد'));
     if ($('f_items').value) L.push('عدد الأصناف: ' + $('f_items').value);
     if ($('f_note').value.trim()) { L.push(''); L.push('ملاحظة: ' + $('f_note').value.trim()); }
@@ -265,6 +278,7 @@ footer a { text-decoration: none; }
     if ($('f_person').value.trim().length < 2) { showErr('اكتب اسم المسؤول الذي نتواصل معه.'); return null; }
     if (!/^0\d{9}$/.test($('f_phone').value.trim())) {
       showErr('رقم الجوال عشرة أرقام يبدأ بصفر — مثال: 0501234567'); return null; }
+    if (!$('f_count').value) { showErr('اختر عدد مطاعمك.'); return null; }
     if (!$('f_kind').value) { showErr('اختر نوع المطبخ.'); return null; }
     return compose();
   }
