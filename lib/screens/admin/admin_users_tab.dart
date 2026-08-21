@@ -36,6 +36,7 @@ class AdminUsersTab extends StatelessWidget {
           const order = [
             UserRole.admin,
             UserRole.support,
+            UserRole.fleetOperator,
             UserRole.restaurantManager,
             UserRole.driver,
             UserRole.customer,
@@ -74,6 +75,7 @@ class AdminUsersTab extends StatelessWidget {
         UserRole.driver => Icons.delivery_dining_outlined,
         UserRole.customer => Icons.person_outline,
         UserRole.support => Icons.support_agent_outlined,
+        UserRole.fleetOperator => Icons.groups_2_outlined,
       };
 
   void _showGenerateRegistrationCodeDialog(BuildContext context) {
@@ -94,6 +96,7 @@ class AdminUsersTab extends StatelessWidget {
           UserRole.admin => 'مدير عام',
           UserRole.customer => 'عميل',
           UserRole.support => 'موظف دعم',
+          UserRole.fleetOperator => 'مشغّل الأسطول',
         };
 
     showDialog(
@@ -120,6 +123,11 @@ class AdminUsersTab extends StatelessWidget {
                     // كود «موظف دعم» يفتح لوحة إدارة منكمشة: شكاوى
                     // ومتابعة بلا مالٍ ولا صلاحيات — القيد في القواعد.
                     DropdownMenuItem(value: UserRole.support, child: Text('موظف دعم')),
+                    // كود «مشغّل الأسطول» يفتح شاشة كباتنه ودفتره فقط —
+                    // جهةٌ تأتي بكباتنها وتقتسم أجرة التوصيل (بند القواعد).
+                    DropdownMenuItem(
+                        value: UserRole.fleetOperator,
+                        child: Text('مشغّل الأسطول')),
                   ],
                   onChanged: (v) {
                     if (v == null) return;
