@@ -823,25 +823,56 @@ class FirebaseService {
   // معاً — والقواعد ترفض أي زيادةٍ بلا علامة، فلا يعمل المسار المباشر أصلاً.
 
   Future<String> placeOrder(models.Order order) async {
-    await _orders.doc(order.id).set({
+    // دفعة ٠-ب: الإنشاء وختمُ استهلاك الدفعة وتقييدُ الكوبون في **دفعة ذرّية
+    // واحدة** — لم يعد التقييد لاحقاً «غير حرج»، بل تشترطه القاعدة في نفس
+    // اللحظة (existsAfter): الخصم لا يُقبل بلا علامة استخدامٍ تُنشأ معه، ودفعة
+    // البطاقة لا تُقبل بلا ختم استهلاكٍ يمنع إعادة استخدامها. فإمّا أن يقع
+    // الكل أو لا يقع الطلب — لا خصمٌ بلا تقييد ولا دفعةٌ قابلة لإعادة الاستخدام.
+    final batch = _db.batch();
+    batch.set(_orders.doc(order.id), {
       ...order.toMap(),
-      if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
+      if (order.statusChangedAt == null)
+        'statusChangedAt': FieldValue.serverTimestamp(),
     });
-    // تقييد استخدام الكوبون بعد ثبوت الطلب لا قبله — فلا يُستهلك كودٌ على
-    // طلب لم يُنشأ. وفشل التقييد لا يُسقط الطلب: الخصم محفوظ داخله أصلاً.
-    final code = order.couponCode;
-    if (code != null && code.isNotEmpty && order.discountAmount > 0) {
-      try {
-        await _recordCouponUse(
-            code: code, userId: order.customerId, orderId: order.id);
-      } catch (e) {
-        debugPrint('⚠️ تعذّر تقييد استخدام الكوبون $code: $e');
-      }
-    }
+    _stampPaymentConsumption(batch, order);
+    _stampCouponUse(batch, order);
+    await batch.commit();
     // إشعار فوري لمديري المطعم بالطلب الجديد عبر الخادم المرافق — بدونه لا
     // يعلم المطعم بالطلب إلا حين يكون تطبيقه مفتوحاً على الشاشة.
     NotifyRelay.orderEvent(order.id, OrderEvent.created);
     return order.id;
+  }
+
+  /// ختم استهلاك دفعة البطاقة داخل دفعة الطلب (C3): مستند بمعرّف الدفعة
+  /// يُنشأ مرة واحدة — القاعدة تشترط وجوده (existsAfter) وتمنع إعادة إنشائه،
+  /// فلا تُستخدم دفعةٌ واحدة لطلبات كثيرة. للطلبات المدفوعة بالبطاقة فقط.
+  void _stampPaymentConsumption(WriteBatch batch, models.Order order) {
+    final pid = order.paymentId;
+    if (pid == null || pid.isEmpty) return;
+    batch.set(_paymentConsumptions.doc(pid), {
+      'uid': order.customerId,
+      'orderId': order.id,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// تقييد استهلاك الكوبون داخل دفعة الطلب (H6): عدّاد كلّي + عدّاد لكل مستخدم
+  /// يُكتبان ذرّياً مع الطلب — القاعدة تربط الخصم بوجودهما فلا خصمَ بلا تقييد.
+  void _stampCouponUse(WriteBatch batch, models.Order order) {
+    final code = order.couponCode;
+    if (code == null || code.isEmpty || order.discountAmount <= 0) return;
+    batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(1)});
+    batch.set(
+      _couponUsages.doc(_usageId(code, order.customerId)),
+      {
+        'code': code,
+        'userId': order.customerId,
+        'count': FieldValue.increment(1),
+        'lastOrderId': order.id,
+        'lastUsedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 
   /// إنشاء الطلب وخصم المحفظة في **معاملة ذرّية واحدة**.
@@ -887,19 +918,35 @@ class FirebaseService {
         if (order.statusChangedAt == null)
           'statusChangedAt': FieldValue.serverTimestamp(),
       });
+      // ختم الدفعة وتقييد الكوبون داخل نفس المعاملة (C3/H6) — كتاباتٌ بلا
+      // قراءات إضافية فلا تخرق قاعدة «القراءات قبل الكتابات». تشترطهما
+      // القاعدة ذرّياً مع إنشاء الطلب.
+      final pid = order.paymentId;
+      if (pid != null && pid.isNotEmpty) {
+        transaction.set(_paymentConsumptions.doc(pid), {
+          'uid': order.customerId,
+          'orderId': order.id,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      final code = order.couponCode;
+      if (code != null && code.isNotEmpty && order.discountAmount > 0) {
+        transaction.update(
+            _coupons.doc(code), {'usedCount': FieldValue.increment(1)});
+        transaction.set(
+          _couponUsages.doc(_usageId(code, order.customerId)),
+          {
+            'code': code,
+            'userId': order.customerId,
+            'count': FieldValue.increment(1),
+            'lastOrderId': order.id,
+            'lastUsedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
     });
 
-    // بعد ثبوت الطلب والخصم معاً: تقييد الكوبون (غير حرج، لا يُسقط الطلب)
-    // ثم إشعار المطعم — كما في `placeOrder` تماماً.
-    final code = order.couponCode;
-    if (code != null && code.isNotEmpty && order.discountAmount > 0) {
-      try {
-        await _recordCouponUse(
-            code: code, userId: order.customerId, orderId: order.id);
-      } catch (e) {
-        debugPrint('⚠️ تعذّر تقييد استخدام الكوبون $code: $e');
-      }
-    }
     NotifyRelay.orderEvent(order.id, OrderEvent.created);
     return order.id;
   }
@@ -1129,6 +1176,9 @@ class FirebaseService {
       final txRef = _driverTransactions.doc();
       batch.update(_drivers.doc(driverId), {
         'balance': FieldValue.increment(-custody),
+        // دفعة ٠-ب (C1/H2): مؤشّر لحركة الدفتر المرافقة في نفس الدفعة —
+        // القاعدة ترفض أي تغيير رصيد بلا حركةٍ مطابقةٍ يشير إليها هذا الحقل.
+        'lastLedgerTxId': txRef.id,
       });
       batch.set(
         txRef,
@@ -2132,6 +2182,9 @@ class FirebaseService {
       tx.update(_drivers.doc(driverId), {
         'totalDeliveries': FieldValue.increment(1),
         if (effectiveDelta != 0) 'balance': FieldValue.increment(effectiveDelta),
+        // دفعة ٠-ب (C1/H2): مؤشّر لحركة التسليم — يُكتب حصراً حين يتغيّر الرصيد
+        // (نفس شرط السطر أعلاه) فتراه القاعدة مقروناً بالحركة والطلب المُسلَّم.
+        if (effectiveDelta != 0) 'lastLedgerTxId': txRef.id,
         'isAvailable': true,
       });
       // الحركة في نفس المعاملة، فلا يتغيّر رصيد دون سجلّ يفسّره. وحين لا
@@ -2362,6 +2415,11 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _couponUsages =>
       _db.collection('coupon_usages');
 
+  /// ختوم استهلاك دفعات البطاقة (دفعة ٠-ب، C3): مستند لكل paymentId يمنع
+  /// إعادة استخدام دفعةٍ واحدة لطلبات كثيرة.
+  CollectionReference<Map<String, dynamic>> get _paymentConsumptions =>
+      _db.collection('payment_consumptions');
+
   String _usageId(String code, String uid) => '${code}_$uid';
 
   /// التحقق من كود خصم قبل تطبيقه. يرمي رسالة عربية مفهومة عند كل سبب رفض،
@@ -2409,29 +2467,10 @@ class FirebaseService {
     return coupon;
   }
 
-  /// تقييد استخدام الكوبون بعد نجاح الطلب — عدّاد كلي + عدّاد لكل مستخدم.
-  /// يُستدعى بعد [placeOrder]؛ فشله لا يُلغي الطلب (الخصم مسجَّل في الطلب
-  /// نفسه) لكنه يُسجَّل في السجلّ.
-  Future<void> _recordCouponUse({
-    required String code,
-    required String userId,
-    required String orderId,
-  }) async {
-    final batch = _db.batch();
-    batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(1)});
-    batch.set(
-      _couponUsages.doc(_usageId(code, userId)),
-      {
-        'code': code,
-        'userId': userId,
-        'count': FieldValue.increment(1),
-        'lastOrderId': orderId,
-        'lastUsedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-    await batch.commit();
-  }
+  // أُزيلت _recordCouponUse: صار تقييد الكوبون يقع **ذرّياً داخل دفعة إنشاء
+  // الطلب** (_stampCouponUse في placeOrder، ومباشرةً في معاملة
+  // placeOrderWithWallet) لا بعده — فالقاعدة تربط الخصم بوجود العلامة في نفس
+  // اللحظة (existsAfter)، ولا يبقى مسارٌ لاحقٌ يفشل فيمرّ الخصم بلا تقييد.
 
   Stream<List<models.Coupon>> streamCoupons() =>
       _coupons.limit(200).snapshots().map((s) {
@@ -2683,11 +2722,18 @@ class FirebaseService {
   Future<void> _releaseCouponOnCancel(models.Order order) async {
     final code = order.couponCode;
     if (code == null || code.isEmpty || order.discountAmount <= 0) return;
+    // لا يُعاد الإنقاص لطلبٍ سبق إرجاع كوبونه (دفعة ٠-ب، H7): الختم
+    // couponReleased يحرس من التكرار في القاعدة، ونتخطّاه هنا مبكراً فلا
+    // دفعةً مرفوضة بلا داعٍ.
+    if (order.couponReleased) return;
     try {
       final batch = _db.batch();
       batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(-1)});
       batch.update(_couponUsages.doc(_usageId(code, order.customerId)),
           {'count': FieldValue.increment(-1)});
+      // ختم «أُرجع» على الطلب في نفس الدفعة — القاعدة تشترط رفعَه ذرّياً مع
+      // الإنقاص (getAfter) فيصير الإرجاع لمرّة واحدة لا يتكرّر.
+      batch.update(_orders.doc(order.id), {'couponReleased': true});
       await batch.commit();
     } catch (e) {
       debugPrint('⚠️ تعذّر إرجاع الكوبون $code: $e');

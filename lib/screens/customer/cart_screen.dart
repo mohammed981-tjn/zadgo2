@@ -538,6 +538,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // الطلب مدفوع مسبقاً إن شُحنت البطاقة أو غطّى الرصيد كامل المبلغ.
       isPaid: paymentId != null || amountDue <= 0,
       paymentId: paymentId,
+      // المبلغ المشحون على البطاقة بالهللات (دفعة ٠-ب، C3): تطابقه القاعدة
+      // مع ختم verify.php فلا يمرّ طلبٌ بقيمة كبيرة خلف دفعةٍ صغيرة. يُكتب
+      // للطلبات المدفوعة بالبطاقة فقط (amountDue هو ما شُحن فعلاً).
+      cardAmountHalalas:
+          paymentId != null ? (amountDue * 100).round() : null,
       walletUsed: walletApplied,
       // قيمة الخصم تُعاد كتابتها من الكوبون نفسه هنا (لا من نص على الشاشة)،
       // وتُحفظ محسوبةً فتبقى الفاتورة صحيحة لو عُدّل الكوبون أو حُذف.
