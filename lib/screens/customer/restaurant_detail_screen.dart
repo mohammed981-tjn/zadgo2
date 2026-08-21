@@ -99,10 +99,12 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
           child: TextField(
             controller: _menuSearchCtrl,
             onChanged: (v) => setState(() => _menuQuery = v),
+            // بلا isDense: يوحّد ارتفاع حقل البحث مع بقيّة حقول البحث في
+            // التطبيق (بحث المطاعم في الرئيسية وبحث الصنف) على ارتفاع الثيم
+            // الموحّد — كان هذا الحقل وحده مضغوطاً فيبدو دخيلاً (§٧).
             decoration: InputDecoration(
               hintText: 'ابحث في المنيو…',
               prefixIcon: const Icon(Icons.search, size: 20),
-              isDense: true,
               suffixIcon: _menuQuery.isEmpty
                   ? null
                   : IconButton(

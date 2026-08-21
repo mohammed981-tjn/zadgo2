@@ -93,6 +93,8 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
             autofocus: true,
             textInputAction: TextInputAction.search,
             onChanged: (v) => setState(() => _query = v),
+            // بلا تجاوز للحشو/الحافة: يرث حقل البحث ارتفاع الثيم وحوافه
+            // الموحّدة (نصف قطر ١٦) كبقيّة حقول البحث، فلا ارتفاعٌ ثالث مختلف.
             decoration: InputDecoration(
               hintText: 'شاورما، برجر، كبسة…',
               prefixIcon: const Icon(Icons.search_rounded),
@@ -105,12 +107,6 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
                         setState(() => _query = '');
                       },
                     ),
-              filled: true,
-              fillColor: AppColors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
         ),
