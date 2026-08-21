@@ -289,18 +289,21 @@ class _WalletCard extends StatelessWidget {
             colors: [AppColors.primary, AppColors.primaryDark]),
         borderRadius: BorderRadius.circular(16),
       ),
+      // النصّ كحليّ داكن على تدرّج ذهبي — الأبيض على الذهبي يعطي تبايناً ~١٫٨:١
+      // (أقل من عتبة WCAG AA) فيصعب قراءة الرصيد؛ الكحليّ يرفعه فوق ٨:١.
       child: Row(children: [
         const Icon(Icons.account_balance_wallet_rounded,
-            color: Colors.white70, size: 34),
+            color: AppColors.dark, size: 34),
         const SizedBox(width: 14),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('رصيد المحفظة',
-                style: TextStyle(color: Colors.white70, fontSize: 13.5)),
+            Text('رصيد المحفظة',
+                style: TextStyle(
+                    color: AppColors.dark.withOpacity(0.75), fontSize: 13.5)),
             Text(formatCurrency(balance),
                 style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.dark,
                     fontSize: 26,
                     fontWeight: FontWeight.bold)),
           ],

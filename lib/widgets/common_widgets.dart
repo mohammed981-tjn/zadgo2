@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import '../utils/theme.dart';
 
@@ -461,34 +462,96 @@ class PriceRow extends StatelessWidget {
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 4),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
       Text(label, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-      Text(value, style: TextStyle(fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-          color: bold ? AppColors.primary : AppColors.textDark)),
+      // إجمالي السلة كحليّ لا ذهبيّ (دفعة ٤): الذهبي على خلفية السطر النهائي
+      // الذهبية ~1.6:1 — أهمّ رقم في السلة لا يُقرأ. الكحلي على الفاتح ~15:1
+      // ويحترم قرار الثيم (onPrimary=كحلي). حجمٌ أكبر قليلاً للسطر النهائي.
+      Text(value, style: TextStyle(
+          fontWeight: bold ? FontWeight.w800 : FontWeight.normal,
+          fontSize: bold ? 16 : null,
+          color: bold ? AppColors.dark : AppColors.textDark)),
     ]));
 }
 
 /// شريط الرسائل الجماعية (البث) أعلى الشاشة الرئيسية.
-class BroadcastBanner extends StatelessWidget {
+///
+/// قابلٌ للإخفاء مع تذكّر آخر رسالة أُخفيت (§7): سابقاً كان الشريط يلتصق
+/// أعلى القائمة بلا زرّ إغلاق، فرسالةٌ طويلة تلتهم أعلى الشاشة في كل فتح
+/// ولا سبيل لإزاحتها. الآن يحفظ الجهاز مُعرِّف آخر رسالة أخفاها صاحبه، فلا
+/// تعود إلا حين تصل رسالةٌ **أحدث** بمعرّفٍ مختلف — تماماً كأشرطة الإشعار في
+/// التطبيقات العالمية. (حدُّه: جهازٌ واحد، وهو المناسب لتنبيهٍ محلّي.)
+class BroadcastBanner extends StatefulWidget {
+  final String id;
   final String title;
   final String body;
-  const BroadcastBanner({super.key, required this.title, required this.body});
+  const BroadcastBanner(
+      {super.key, required this.id, required this.title, required this.body});
+
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: AppColors.primary.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-    ),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Icon(Icons.campaign_outlined, color: AppColors.primary),
-      const SizedBox(width: 10),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        Text(body, style: const TextStyle(fontSize: 13.5)),
-      ])),
-    ]),
-  );
+  State<BroadcastBanner> createState() => _BroadcastBannerState();
+}
+
+class _BroadcastBannerState extends State<BroadcastBanner> {
+  static const _kDismissedKey = 'broadcast_dismissed_id';
+  // null = لم نقرأ التفضيل بعد؛ نُخفي الشريط ريثما نعرف حتى لا «يومض» ظاهراً
+  // ثم يختفي إن كان مُخفىً أصلاً.
+  bool? _dismissed;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(BroadcastBanner old) {
+    super.didUpdateWidget(old);
+    // رسالةٌ جديدة (معرّفٌ مختلف) تُعيد تقييم حالة الإخفاء من جديد.
+    if (old.id != widget.id) _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dismissedId = prefs.getString(_kDismissedKey);
+    if (!mounted) return;
+    setState(() => _dismissed = dismissedId == widget.id);
+  }
+
+  Future<void> _dismiss() async {
+    setState(() => _dismissed = true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kDismissedKey, widget.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissed != false) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Icon(Icons.campaign_outlined, color: AppColors.primary),
+        const SizedBox(width: 10),
+        Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(widget.title,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(widget.body, style: const TextStyle(fontSize: 13.5)),
+        ])),
+        // زرّ إغلاق صريح: أوضح من الإزاحة بالسحب لمستخدمٍ لا يتوقّعها.
+        IconButton(
+          icon: const Icon(Icons.close_rounded, size: 18),
+          color: AppColors.textGray,
+          tooltip: 'إخفاء',
+          onPressed: _dismiss,
+        ),
+      ]),
+    );
+  }
 }
 
 /// خط تتبع الطلب (Stepper) بشكل نقاط متصلة بخط يوضح أين وصل الطلب ضمن

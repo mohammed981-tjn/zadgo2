@@ -380,8 +380,16 @@ class _DriverHomeState extends State<DriverHome> {
             actions: [
               if (driver != null)
                 Row(children: [
+                  // تباين حالة الاتصال (دفعة ٤): كان «غير متصل» بـwhite54 غيرَ
+                  // مرئيّ على الشريط، و«متصل» بأخضر نيون خارج الهوية (~1.3:1).
+                  // ألوان الهوية: أخضر النجاح للمتصل، والرماديّ المقروء لغيره.
                   Text(driver.isOnline ? 'متصل' : 'غير متصل',
-                      style: TextStyle(color: driver.isOnline ? Colors.greenAccent : Colors.white54, fontSize: 12.5)),
+                      style: TextStyle(
+                          color: driver.isOnline
+                              ? AppColors.success
+                              : AppColors.textGray,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700)),
                   Switch(value: driver.isOnline, onChanged: (v) async {
                       await service.setDriverOnline(driverId, v);
                       if (context.mounted) {
@@ -392,7 +400,7 @@ class _DriverHomeState extends State<DriverHome> {
                                 : 'أصبحت غير متصل — لن تصلك طلبات جديدة');
                       }
                     },
-                      activeColor: Colors.greenAccent),
+                      activeColor: AppColors.success),
                 ]),
               IconButton(
                 tooltip: 'دليل الكابتن',
@@ -415,6 +423,14 @@ class _DriverHomeState extends State<DriverHome> {
                 ),
               ),
               IconButton(icon: const Icon(Icons.logout), onPressed: () async {
+                // تأكيد قبل الخروج (كما في شاشة العميل): زرّ الخروج كان يُنفَّذ
+                // بلمسة واحدة بلا سؤال، ولمسةٌ خاطئة تُخرج الكابتن وسط جولة.
+                final ok = await showConfirmDialog(context,
+                    title: 'تسجيل الخروج',
+                    content: 'هل تريد تسجيل الخروج من حسابك؟',
+                    confirmLabel: 'خروج',
+                    confirmColor: AppColors.error);
+                if (ok != true || !mounted) return;
                 if (driver != null) await service.setDriverOnline(driverId, false);
                 // إيقافٌ صريح لا اتّكالاً على تدفّق المستند: الخروج
                 // يهدم الشاشة فوراً، فقد لا تصل قراءةُ الحالة الجديدة
@@ -438,7 +454,7 @@ class _DriverHomeState extends State<DriverHome> {
                 final list = snap.data;
                 if (list == null || list.isEmpty) return const SizedBox.shrink();
                 final latest = list.first;
-                return BroadcastBanner(title: latest.title, body: latest.body);
+                return BroadcastBanner(id: latest.id, title: latest.title, body: latest.body);
               },
             ),
             Expanded(

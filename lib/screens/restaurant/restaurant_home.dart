@@ -310,6 +310,14 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
+              // تأكيد قبل الخروج (موحّد مع بقيّة النكهات): لمسةٌ خاطئة على
+              // أيقونة الخروج كانت تُنهي جلسة المطعم بلا سؤال.
+              final ok = await showConfirmDialog(context,
+                  title: 'تسجيل الخروج',
+                  content: 'هل تريد تسجيل الخروج من حساب المطعم؟',
+                  confirmLabel: 'خروج',
+                  confirmColor: AppColors.error);
+              if (ok != true || !context.mounted) return;
               await auth.logout();
               if (context.mounted) {
                 Navigator.pushAndRemoveUntil(context,

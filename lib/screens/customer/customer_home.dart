@@ -69,6 +69,14 @@ class _CustomerHomeState extends State<CustomerHome> {
             )
           else
             IconButton(icon: PhosphorIcon(PhosphorIcons.signOut()), onPressed: () async {
+              // تأكيد قبل الخروج (موحّد مع بقيّة النكهات): أيقونة الخروج في
+              // الشريط العلوي كانت تُخرج العميل بلمسة واحدة بلا سؤال.
+              final ok = await showConfirmDialog(context,
+                  title: 'تسجيل الخروج',
+                  content: 'هل تريد تسجيل الخروج من حسابك؟',
+                  confirmLabel: 'خروج',
+                  confirmColor: AppColors.error);
+              if (ok != true || !mounted) return;
               await auth.logout();
               if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
             }),
@@ -87,7 +95,7 @@ class _CustomerHomeState extends State<CustomerHome> {
             final list = snap.data;
             if (list == null || list.isEmpty) return const SizedBox.shrink();
             final latest = list.first;
-            return BroadcastBanner(title: latest.title, body: latest.body);
+            return BroadcastBanner(id: latest.id, title: latest.title, body: latest.body);
           },
         ),
         Expanded(
@@ -809,7 +817,27 @@ class _RestaurantCard extends StatelessWidget {
                           'التوصيل من ${deliveryFromFee!.toStringAsFixed(0)} ر.س',
                       color: AppColors.textGray),
                 if (isPopular)
-                  const _MetaChip(icon: Icons.local_fire_department_rounded, label: 'الأكثر طلباً', color: AppColors.primary),
+                  // شارة «الأكثر طلباً» كحبّة ممتلئة بدل نصٍّ ذهبي على أبيض
+                  // (تباين ~١٫٧:١ غير مقروء): الخلفية الذهبية بنصٍّ كحلي ترفع
+                  // التباين وتجعل الإشارة الإيجابية تبرز كما في التطبيقات
+                  // العالمية بدل أن تذوب.
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.local_fire_department_rounded,
+                          size: 13, color: AppColors.dark),
+                      SizedBox(width: 3),
+                      Text('الأكثر طلباً',
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              color: AppColors.dark,
+                              fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
               ]),
             ])),
           ]),

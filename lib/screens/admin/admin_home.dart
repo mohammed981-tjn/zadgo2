@@ -85,6 +85,14 @@ class _AdminHomeState extends State<AdminHome> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
+              // تأكيد قبل الخروج (موحّد مع بقيّة النكهات): لمسةٌ خاطئة على
+              // أيقونة الخروج كانت تُنهي جلسة المدير بلا سؤال.
+              final ok = await showConfirmDialog(context,
+                  title: 'تسجيل الخروج',
+                  content: 'هل تريد تسجيل الخروج من لوحة الإدارة؟',
+                  confirmLabel: 'خروج',
+                  confirmColor: AppColors.error);
+              if (ok != true || !mounted) return;
               await auth.logout();
               if (mounted) {
                 Navigator.pushAndRemoveUntil(context,
