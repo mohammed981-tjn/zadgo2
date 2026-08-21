@@ -22,6 +22,7 @@ import '../auth/edit_profile_screen.dart';
 import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
 import 'help_center_screen.dart';
+import 'customer_referral_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -98,6 +99,27 @@ class AccountScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const ChangePasswordScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // ادعُ أصدقاءك (دفعة ٥): مدخل إحالة العميل — يشارك كوده فيربح
+            // الطرفان رصيداً حين ينجز المدعوّ الشرط.
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.card_giftcard_rounded,
+                    color: AppColors.primary),
+                title: const Text('ادعُ أصدقاءك',
+                    style:
+                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
+                subtitle: const Text('شارك كودك واربحا معاً',
+                    style: TextStyle(fontSize: 12.5)),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => CustomerReferralScreen(user: user)),
                 ),
               ),
             ),

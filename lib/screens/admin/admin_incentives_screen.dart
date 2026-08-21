@@ -47,10 +47,15 @@ class AdminIncentivesScreen extends StatelessWidget {
                           ? 7
                           : settings.referralWindowDays) +
                       1))),
-          builder: (ctx3, orders) => _Body(
-            settings: settings,
-            drivers: drivers,
-            orders: orders,
+          builder: (ctx3, orders) => AppStreamBuilder<List<AppUser>>(
+            stream: service.streamUsers,
+            builder: (ctx4, users) => _Body(
+              settings: settings,
+              drivers: drivers,
+              orders: orders,
+              customers:
+                  users.where((u) => u.role == UserRole.customer).toList(),
+            ),
           ),
         ),
       ),
@@ -62,11 +67,13 @@ class _Body extends StatefulWidget {
   final IncentiveSettings settings;
   final List<Driver> drivers;
   final List<Order> orders;
+  final List<AppUser> customers;
 
   const _Body({
     required this.settings,
     required this.drivers,
     required this.orders,
+    required this.customers,
   });
 
   @override
@@ -103,6 +110,12 @@ class _BodyState extends State<_Body> {
           settings: widget.settings,
           drivers: widget.drivers,
           delivered: delivered),
+      const SizedBox(height: 14),
+      _CustomerGrowthSection(
+          settings: widget.settings,
+          customers: widget.customers,
+          delivered: delivered,
+          onPaySweep: () => _sweep(delivered)),
       const SizedBox(height: 24),
     ]);
   }
@@ -155,6 +168,48 @@ class _BodyState extends State<_Body> {
           }
         }
       }
+      // إحالة العميل (دفعة ٥): نفس مبدأ إحالة السائق — ختمٌ ذرّي يمنع
+      // الصرف المزدوج، وtry لكل مستحقّ.
+      if (s.customerReferralEnabled &&
+          (s.customerReferrerBonus > 0 || s.customerRefereeBonus > 0)) {
+        for (final r
+            in eligibleCustomerReferrals(s, widget.customers, delivered)) {
+          try {
+            await service.payCustomerReferralBonus(
+              referrer: r.referrer,
+              referee: r.referee,
+              referrerAmount: s.customerReferrerBonus,
+              refereeAmount: s.customerRefereeBonus,
+            );
+            paid++;
+          } catch (_) {}
+        }
+      }
+
+      // كاش باك (دفعة ٥): يُجلب فهرس المصروف مرّة، ثم يُصرف عن كل طلبٍ مسلَّم
+      // لم يُصرف بعد. العلامة الذرّية تمنع التكرار حتى لو تخطّى الفهرسُ صرفاً
+      // لتوّه.
+      if (s.cashbackPercent > 0) {
+        final paidIds = await service.fetchCashbackPaidOrderIds();
+        for (final o in delivered) {
+          if (paidIds.contains(o.id)) continue;
+          var credit = o.itemsTotal * s.cashbackPercent / 100;
+          if (s.cashbackMaxPerOrder > 0 && credit > s.cashbackMaxPerOrder) {
+            credit = s.cashbackMaxPerOrder;
+          }
+          if (credit <= 0) continue;
+          try {
+            await service.accrueCashback(
+              customerId: o.customerId,
+              orderId: o.id,
+              orderNumber: o.orderNumber,
+              amount: double.parse(credit.toStringAsFixed(2)),
+            );
+            paid++;
+          } catch (_) {}
+        }
+      }
+
       if (paid > 0 && mounted) {
         showSuccess(context, 'صُرفت $paid مكافأة تلقائياً');
       }
@@ -206,6 +261,139 @@ List<_ReferralRow> eligibleReferrals(
     referralRows(s, drivers, delivered)
         .where((r) => !r.expired && r.count >= s.referralDeliveries)
         .toList();
+
+// ————— إحالة العميل (دفعة ٥) — نظير دوال السائق تماماً، لكن على العملاء
+// وطلباتهم (customerId) بدل السائقين (driverId). قائمة واحدة للعرض والمسح
+// فلا يختلف ما يراه المدير عمّا يُصرف آلياً.
+
+class _CustomerReferralRow {
+  final AppUser referrer;
+  final AppUser referee;
+  final int count;
+  final bool expired;
+  const _CustomerReferralRow(
+      {required this.referrer,
+      required this.referee,
+      required this.count,
+      required this.expired});
+}
+
+List<_CustomerReferralRow> customerReferralRows(
+    IncentiveSettings s, List<AppUser> customers, List<Order> delivered) {
+  final byCode = {for (final c in customers) c.referralCode: c};
+  final now = DateTime.now();
+  final rows = <_CustomerReferralRow>[];
+
+  for (final referee in customers
+      .where((c) => c.referredByCode.isNotEmpty && !c.referralRewarded)) {
+    final referrer = byCode[referee.referredByCode];
+    if (referrer == null || referrer.uid == referee.uid) continue;
+
+    final joined = referee.createdAt;
+    final deadline = joined.add(Duration(days: s.customerReferralWindowDays));
+    final count = delivered
+        .where((o) =>
+            o.customerId == referee.uid &&
+            !o.createdAt.isBefore(joined) &&
+            !o.createdAt.isAfter(deadline))
+        .length;
+
+    rows.add(_CustomerReferralRow(
+      referrer: referrer,
+      referee: referee,
+      count: count,
+      expired: now.isAfter(deadline),
+    ));
+  }
+  rows.sort((a, b) => b.count.compareTo(a.count));
+  return rows;
+}
+
+List<_CustomerReferralRow> eligibleCustomerReferrals(
+        IncentiveSettings s, List<AppUser> customers, List<Order> delivered) =>
+    customerReferralRows(s, customers, delivered)
+        .where((r) =>
+            !r.expired &&
+            s.customerReferralOrders > 0 &&
+            r.count >= s.customerReferralOrders)
+        .toList();
+
+/// قسم نموّ العميل في لوحة الحوافز — حالة الإحالة والكاش باك وعدد المستحقّين،
+/// وزرّ صرفٍ يدوي (يستدعي الكنس نفسه) لمن أوقف الصرف التلقائي.
+class _CustomerGrowthSection extends StatelessWidget {
+  final IncentiveSettings settings;
+  final List<AppUser> customers;
+  final List<Order> delivered;
+  final VoidCallback onPaySweep;
+  const _CustomerGrowthSection({
+    required this.settings,
+    required this.customers,
+    required this.delivered,
+    required this.onPaySweep,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final s = settings;
+    final referralOn = s.customerReferralEnabled &&
+        (s.customerReferrerBonus > 0 || s.customerRefereeBonus > 0);
+    final cashbackOn = s.cashbackPercent > 0;
+    if (!referralOn && !cashbackOn) return const SizedBox.shrink();
+
+    final pendingReferrals =
+        referralOn ? eligibleCustomerReferrals(s, customers, delivered).length : 0;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Row(children: [
+            Icon(Icons.volunteer_activism_rounded,
+                color: AppColors.primary, size: 20),
+            SizedBox(width: 8),
+            Text('نموّ العميل',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 10),
+          if (referralOn)
+            Text(
+                pendingReferrals == 0
+                    ? 'لا إحالات عميل مستحقّة الآن'
+                    : '$pendingReferrals إحالة عميل مستحقّة الصرف',
+                style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: pendingReferrals == 0
+                        ? AppColors.textGray
+                        : AppColors.dark)),
+          if (cashbackOn)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                  'الكاش باك ${s.cashbackPercent.toStringAsFixed(1)}٪ يُصرف عن '
+                  'كل طلبٍ مسلَّم عند الكنس',
+                  style: const TextStyle(
+                      fontSize: 12.5, color: AppColors.textGray)),
+            ),
+          const SizedBox(height: 12),
+          if (!s.autoPay)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.payments_outlined, size: 18),
+                label: const Text('صرف المستحقّين الآن'),
+                onPressed: onPaySweep,
+              ),
+            ),
+          if (s.autoPay)
+            const Text('الصرف التلقائي مفعّل — يُصرف ما دامت اللوحة مفتوحة',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+        ]),
+      ),
+    );
+  }
+}
 
 List<({Driver driver, int count, ChallengeTier tier})> challengeAchievers(
   IncentiveSettings s,
@@ -295,6 +483,20 @@ class _SettingsCard extends StatelessWidget {
                   : 'غير محددة — البطاقة مخفية',
               highlight: s.dailyOrdersTarget == 0),
           const Divider(height: 18),
+          _row('إحالة العميل',
+              s.customerReferralEnabled && s.customerReferrerBonus > 0
+                  ? 'داعٍ ${formatCurrency(s.customerReferrerBonus)} · '
+                      'مدعوّ ${formatCurrency(s.customerRefereeBonus)} · '
+                      '${s.customerReferralOrders} طلب'
+                  : 'معطّلة',
+              highlight: !s.customerReferralEnabled),
+          _row('الكاش باك',
+              s.cashbackPercent > 0
+                  ? '${s.cashbackPercent.toStringAsFixed(1)}٪'
+                      '${s.cashbackMaxPerOrder > 0 ? ' · سقف ${formatCurrency(s.cashbackMaxPerOrder)}' : ''}'
+                  : 'معطّل',
+              highlight: s.cashbackPercent == 0),
+          const Divider(height: 18),
           _row('الصرف التلقائي',
               s.autoPay ? 'مفعّل — يصرف فور تحقّق الشرط' : 'يدوي بضغطة'),
           if (s.autoPay)
@@ -334,11 +536,13 @@ class _SettingsForm extends StatefulWidget {
 }
 
 class _SettingsFormState extends State<_SettingsForm> {
-  late bool _referralOn, _challengeOn;
+  late bool _referralOn, _challengeOn, _custRefOn;
   late final TextEditingController _referrer, _referee, _deliveries,
       _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions,
       _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget,
-      _cashCap, _cashConcurrent, _noShowLimit;
+      _cashCap, _cashConcurrent, _noShowLimit,
+      _custReferrer, _custReferee, _custRefOrders, _custRefWindow,
+      _cashbackPct, _cashbackMax;
   late bool _autoPay;
   late List<int> _days;
   late List<({TextEditingController d, TextEditingController b})> _tiers;
@@ -376,6 +580,19 @@ class _SettingsFormState extends State<_SettingsForm> {
     _cashConcurrent =
         TextEditingController(text: '${s.maxConcurrentCashOrders}');
     _noShowLimit = TextEditingController(text: '${s.cashNoShowLimit}');
+    _custRefOn = s.customerReferralEnabled;
+    _custReferrer =
+        TextEditingController(text: s.customerReferrerBonus.toStringAsFixed(0));
+    _custReferee =
+        TextEditingController(text: s.customerRefereeBonus.toStringAsFixed(0));
+    _custRefOrders =
+        TextEditingController(text: '${s.customerReferralOrders}');
+    _custRefWindow =
+        TextEditingController(text: '${s.customerReferralWindowDays}');
+    _cashbackPct =
+        TextEditingController(text: s.cashbackPercent.toStringAsFixed(1));
+    _cashbackMax =
+        TextEditingController(text: s.cashbackMaxPerOrder.toStringAsFixed(0));
     _autoPay = s.autoPay;
     _days = [...s.challengeWeekdays];
     _tiers = s.tiers
@@ -393,6 +610,8 @@ class _SettingsFormState extends State<_SettingsForm> {
       _maxLoad, _stackKm, _compPct, _tipOptions,
       _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget,
       _cashCap, _cashConcurrent, _noShowLimit,
+      _custReferrer, _custReferee, _custRefOrders, _custRefWindow,
+      _cashbackPct, _cashbackMax,
     ]) {
       c.dispose();
     }
@@ -468,6 +687,25 @@ class _SettingsFormState extends State<_SettingsForm> {
                   (int.tryParse(_cashConcurrent.text.trim()) ?? 0).clamp(0, 20),
               cashNoShowLimit:
                   (int.tryParse(_noShowLimit.text.trim()) ?? 0).clamp(0, 50),
+              // نموّ العميل (دفعة ٥) — صفر/تعطيل يوقفه (ج١)، وحرّاس مدى:
+              // نسبة الكاش باك ٠..٥٠٪ (فوقها خطأ إدخال يستنزف)، والسقف ≥ صفر.
+              customerReferralEnabled: _custRefOn,
+              customerReferrerBonus:
+                  (double.tryParse(_custReferrer.text.trim()) ?? 0)
+                      .clamp(0.0, 10000.0),
+              customerRefereeBonus:
+                  (double.tryParse(_custReferee.text.trim()) ?? 0)
+                      .clamp(0.0, 10000.0),
+              customerReferralOrders:
+                  (int.tryParse(_custRefOrders.text.trim()) ?? 0).clamp(0, 100),
+              customerReferralWindowDays:
+                  (int.tryParse(_custRefWindow.text.trim()) ?? 30).clamp(1, 365),
+              cashbackPercent:
+                  (double.tryParse(_cashbackPct.text.trim()) ?? 0)
+                      .clamp(0.0, 50.0),
+              cashbackMaxPerOrder:
+                  (double.tryParse(_cashbackMax.text.trim()) ?? 0)
+                      .clamp(0.0, 10000.0),
             ),
           );
       if (mounted) {
@@ -536,6 +774,55 @@ class _SettingsFormState extends State<_SettingsForm> {
               isDense: true,
               border: OutlineInputBorder(),
             ),
+          ),
+
+          const Divider(height: 26),
+          // نموّ العميل (دفعة ٥): إحالة العميل + الكاش باك. كل رقمٍ من هنا،
+          // وتعطيلها/تصفيرها يوقفها (ج١)، والصرف بيد المدير (كنس اللوحة) لأن
+          // القواعد تمنع العميل من زيادة رصيده.
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _custRefOn,
+            onChanged: (v) => setState(() => _custRefOn = v),
+            title: const Text('إحالة العميل',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+          ),
+          Row(children: [
+            Expanded(child: _num(_custReferrer, 'مكافأة الداعي (ر.س)')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_custReferee, 'مكافأة المدعوّ (ر.س)')),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _num(_custRefOrders, 'طلبات المدعوّ المطلوبة')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_custRefWindow, 'خلال (يوم)')),
+          ]),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'المدعوّ يكتب كود الداعي عند التسجيل. حين يُكمل عدد الطلبات '
+                'المسلَّمة خلال المدّة، تُضاف المكافأتان لمحفظتَيهما.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+          ),
+          const SizedBox(height: 14),
+          const Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text('الكاش باك',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(child: _num(_cashbackPct, 'نسبة الكاش باك (٪)')),
+            const SizedBox(width: 10),
+            Expanded(child: _num(_cashbackMax, 'سقف للطلب (ر.س، صفر=بلا)')),
+          ]),
+          const Padding(
+            padding: EdgeInsets.only(top: 6),
+            child: Text(
+                'نسبةٌ من قيمة كل طلبٍ مسلَّم تُضاف لمحفظة العميل (تُخصم من '
+                'طلبه القادم). صفر = معطّل.',
+                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),

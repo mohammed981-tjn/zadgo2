@@ -308,6 +308,11 @@ service cloud.firestore {
           request.resource.data.get('cashTrusted', false) == false &&
           request.resource.data.get('cashBlocked', false) == false &&
           request.resource.data.get('cashNoShowCount', 0) == 0 &&
+          // ختم مكافأة الإحالة يولد آمناً (دفعة ٥): حسابٌ يُنشأ «مكافأته
+          // مصروفة» يمنع أي صرفٍ مستقبليّ خطأً، لكن الأهمّ منع عكسه — لا
+          // يُنشئ أحدٌ حسابه بـ true ثم لا شيء؛ نُلزم false عند الإنشاء.
+          // (كود الداعي يُترك حرّاً هنا: الإنشاء هو مكان التقاطه الشرعيّ.)
+          request.resource.data.get('referralRewarded', false) == false &&
           (
             isAdmin() ||
             (currentUid() == userId && (
@@ -323,8 +328,12 @@ service cloud.firestore {
             // منيوه وأسعاره وطلباته وتسوياته المالية — تصعيدٌ أفقي من مطعم
             // إلى كل المطاعم. الدور مثبَّت لكن معرّف المطعم كان ثغرته.
             (currentUid() == userId &&
+                // إحالة العميل (دفعة ٥): كود الداعي مجمَّد بعد الإنشاء فلا
+                // يُدّعى داعٍ بأثر رجعي بعد الطلب، وختم المكافأة مجمَّد +
+                // للمدير وحده فلا يُعاد ضبطه ليُصرف مرتين.
                 !changedKeys().hasAny(['role', 'isActive', 'restaurantId',
-                    'cashTrusted', 'cashBlocked', 'cashNoShowCount']) &&
+                    'cashTrusted', 'cashBlocked', 'cashNoShowCount',
+                    'referredByCode', 'referralRewarded']) &&
                 // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
                 // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
                 // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
@@ -839,9 +848,30 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
             isAdmin() || resource.data.userId == currentUid()
           );
+      // العميل يُنشئ حركاته السالبة فقط (خصمٌ عند الدفع من محفظته). أي حركة
+      // موجبة (استرداد/تسوية/كاش باك/إحالة) للمدير وحده — نظير حماية الرصيد
+      // نفسه (زيادته للمدير فقط). بلا قيد الإشارة كان بوسع عميلٍ معدَّل سكّ
+      // حركةٍ موجبة في الدفتر لا تمسّ رصيده لكنها تُضلّل تسوية المدير اليدوية.
       allow create: if isSignedIn() && (
-            isAdmin() || request.resource.data.userId == currentUid()
+            isAdmin() ||
+            (request.resource.data.userId == currentUid() &&
+                request.resource.data.get('amount', 0) <= 0)
           );
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // cashback_grants — علامة «صُرف الكاش باك عن هذا الطلب» (دفعة ٥):
+    // مستندٌ معرّفه معرّف الطلب، ينشئه المدير عند صرف الكاش باك في كنس
+    // اللوحة، فلا يُصرف الطلب الواحد مرتين. للمدير الإنشاء وحده (الصرف عمليةٌ
+    // موثوقة — العميل لا يزيد رصيده أصلاً)، والقراءة له وللعميل صاحب الطلب،
+    // والتعديل/الحذف ممنوعان (سجلّ لا يُعاد كتابته ليُصرف ثانية).
+    // ---------------------------------------------------------------------
+    match /cashback_grants/{orderId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.get('customerId', '') == currentUid()
+          );
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
 

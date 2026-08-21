@@ -464,6 +464,19 @@ class AppUser {
   /// فارغ لحسابات العملاء — دور العميل لا يحتاج كوداً.
   final String registrationCode;
 
+  /// إحالة العميل (دفعة ٥) — نظير حقول السائق تماماً:
+  /// [referredByCode] كود الداعي، يُلتقط **مرّة عند التسجيل** ويُجمَّد بعدها
+  /// في القواعد فلا يدّعي أحدٌ داعياً بأثر رجعي بعد أن طلب.
+  /// [referralRewarded] ختم «صُرفت مكافأة داعي هذا العميل» — يمنع الصرف
+  /// المزدوج، يكتبه المدير حصراً ومجمَّد على العميل.
+  final String referredByCode;
+  final bool referralRewarded;
+
+  /// كود إحالة العميل الذي يشاركه — مشتقّ من معرّفه لا مخزَّن (نظير السائق):
+  /// لا مجموعة جديدة ولا تعارض، وثابت مدى الحياة.
+  String get referralCode =>
+      uid.length >= 6 ? uid.substring(0, 6).toUpperCase() : uid.toUpperCase();
+
   const AppUser({
     required this.uid,
     required this.name,
@@ -483,6 +496,8 @@ class AppUser {
     this.cashTrusted = false,
     this.cashBlocked = false,
     this.cashNoShowCount = 0,
+    this.referredByCode = '',
+    this.referralRewarded = false,
   });
 
   factory AppUser.fromMap(Map<String, dynamic> map, String uid) => AppUser(
@@ -508,6 +523,8 @@ class AppUser {
         cashTrusted: map['cashTrusted'] as bool? ?? false,
         cashBlocked: map['cashBlocked'] as bool? ?? false,
         cashNoShowCount: (map['cashNoShowCount'] as num?)?.toInt() ?? 0,
+        referredByCode: map['referredByCode'] as String? ?? '',
+        referralRewarded: map['referralRewarded'] as bool? ?? false,
       );
 
   Map<String, dynamic> toMap() => {
@@ -525,6 +542,10 @@ class AppUser {
         'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
         'favoriteRestaurantIds': favoriteRestaurantIds,
         'registrationCode': registrationCode,
+        // كود الداعي يُكتب لحظة الإنشاء ويُجمَّد بعدها (القاعدة). لا يُضاف
+        // `referralRewarded` هنا عمداً: ختمٌ يكتبه المدير حصراً — كأعلام درع
+        // النقد — فلا تمسّه كتابةُ العميل نفسه.
+        'referredByCode': referredByCode,
       };
 
   AppUser copyWith({
@@ -555,6 +576,10 @@ class AppUser {
         savedAddresses: savedAddresses ?? this.savedAddresses,
         favoriteRestaurantIds:
             favoriteRestaurantIds ?? this.favoriteRestaurantIds,
+        // حفظ حقول الإحالة عبر النسخ: بلا تمريرها يعيدها المُنشئ إلى الافتراض
+        // فيضيع كود الداعي أو ينفكّ الختم عند أي تعديل ملفٍ يمرّ بـ copyWith.
+        referredByCode: referredByCode,
+        referralRewarded: referralRewarded,
       );
 }
 
@@ -1515,6 +1540,33 @@ class IncentiveSettings {
   /// الحوافز القائم يغنينا عن شاشة إعدادات ثانية لحقل واحد.
   final int dailyOrdersTarget;
 
+  // ————— نموّ العميل (دفعة ٥): كاش باك + إحالة العميل —————
+  //
+  // كلها من اللوحة وصفرها/تعطيلها يوقفها (ج١) — لا رقم مبرمَج. افتراضها
+  // **معطّل/صفر** عمداً: ميزةٌ مالية جديدة يجب ألا تصرف قرشاً قبل أن يضبطها
+  // المدير صراحةً، فلا تسريب قبل قرار. والحقول محميّة في القواعد (د١): رصيد
+  // العميل لا يرتفع إلا بيد المدير (نفس حارس المحفظة)، والأختام مجمَّدة على
+  // مستند العميل فلا يعيد أحدٌ ضبطها ليُصرف مرتين.
+
+  /// تفعيل إحالة العميل. صفر البونص أيضاً يعطّل الصرف.
+  final bool customerReferralEnabled;
+
+  /// مكافأة العميل الداعي (تُضاف لمحفظته) بعد أن يُكمل المدعوّ شرط الطلبات.
+  final double customerReferrerBonus;
+
+  /// مكافأة ترحيب للعميل المدعوّ (تُضاف لمحفظته) بنفس الشرط.
+  final double customerRefereeBonus;
+
+  /// عدد الطلبات المسلَّمة المطلوب من المدعوّ خلال [customerReferralWindowDays].
+  final int customerReferralOrders;
+  final int customerReferralWindowDays;
+
+  /// نسبة الكاش باك على كل طلبٍ مسلَّم — تُضاف لمحفظة العميل. صفر = معطّل.
+  final double cashbackPercent;
+
+  /// سقف الكاش باك للطلب الواحد (بالريال). صفر = بلا سقف.
+  final double cashbackMaxPerOrder;
+
   const IncentiveSettings({
     this.referralEnabled = true,
     this.referrerBonus = 50,
@@ -1543,6 +1595,13 @@ class IncentiveSettings {
     this.firstCashOrderCap = 0,
     this.maxConcurrentCashOrders = 0,
     this.cashNoShowLimit = 0,
+    this.customerReferralEnabled = false,
+    this.customerReferrerBonus = 0,
+    this.customerRefereeBonus = 0,
+    this.customerReferralOrders = 0,
+    this.customerReferralWindowDays = 30,
+    this.cashbackPercent = 0,
+    this.cashbackMaxPerOrder = 0,
   });
 
   /// خيارات الإكرامية المعروضة للعميل (ح3) — بالريال، من لوحة المدير
@@ -1614,6 +1673,21 @@ class IncentiveSettings {
               d.maxConcurrentCashOrders,
       cashNoShowLimit:
           (map['cashNoShowLimit'] as num?)?.toInt() ?? d.cashNoShowLimit,
+      customerReferralEnabled:
+          map['customerReferralEnabled'] as bool? ?? d.customerReferralEnabled,
+      customerReferrerBonus: (map['customerReferrerBonus'] as num?)?.toDouble() ??
+          d.customerReferrerBonus,
+      customerRefereeBonus: (map['customerRefereeBonus'] as num?)?.toDouble() ??
+          d.customerRefereeBonus,
+      customerReferralOrders: (map['customerReferralOrders'] as num?)?.toInt() ??
+          d.customerReferralOrders,
+      customerReferralWindowDays:
+          (map['customerReferralWindowDays'] as num?)?.toInt() ??
+              d.customerReferralWindowDays,
+      cashbackPercent:
+          (map['cashbackPercent'] as num?)?.toDouble() ?? d.cashbackPercent,
+      cashbackMaxPerOrder: (map['cashbackMaxPerOrder'] as num?)?.toDouble() ??
+          d.cashbackMaxPerOrder,
     );
   }
 
@@ -1643,6 +1717,13 @@ class IncentiveSettings {
         'firstCashOrderCap': firstCashOrderCap,
         'maxConcurrentCashOrders': maxConcurrentCashOrders,
         'cashNoShowLimit': cashNoShowLimit,
+        'customerReferralEnabled': customerReferralEnabled,
+        'customerReferrerBonus': customerReferrerBonus,
+        'customerRefereeBonus': customerRefereeBonus,
+        'customerReferralOrders': customerReferralOrders,
+        'customerReferralWindowDays': customerReferralWindowDays,
+        'cashbackPercent': cashbackPercent,
+        'cashbackMaxPerOrder': cashbackMaxPerOrder,
       };
 
   IncentiveSettings copyWith({
@@ -1670,6 +1751,13 @@ class IncentiveSettings {
     double? firstCashOrderCap,
     int? maxConcurrentCashOrders,
     int? cashNoShowLimit,
+    bool? customerReferralEnabled,
+    double? customerReferrerBonus,
+    double? customerRefereeBonus,
+    int? customerReferralOrders,
+    int? customerReferralWindowDays,
+    double? cashbackPercent,
+    double? cashbackMaxPerOrder,
   }) =>
       IncentiveSettings(
         referralEnabled: referralEnabled ?? this.referralEnabled,
@@ -1700,6 +1788,17 @@ class IncentiveSettings {
         maxConcurrentCashOrders:
             maxConcurrentCashOrders ?? this.maxConcurrentCashOrders,
         cashNoShowLimit: cashNoShowLimit ?? this.cashNoShowLimit,
+        customerReferralEnabled:
+            customerReferralEnabled ?? this.customerReferralEnabled,
+        customerReferrerBonus:
+            customerReferrerBonus ?? this.customerReferrerBonus,
+        customerRefereeBonus: customerRefereeBonus ?? this.customerRefereeBonus,
+        customerReferralOrders:
+            customerReferralOrders ?? this.customerReferralOrders,
+        customerReferralWindowDays:
+            customerReferralWindowDays ?? this.customerReferralWindowDays,
+        cashbackPercent: cashbackPercent ?? this.cashbackPercent,
+        cashbackMaxPerOrder: cashbackMaxPerOrder ?? this.cashbackMaxPerOrder,
       );
 
   /// أعلى مستوى بلغه سائق أنجز [count] توصيلة — `null` إن لم يبلغ أدناها.
@@ -2017,6 +2116,12 @@ enum WalletTransactionType {
 
   /// تسوية يدوية من الإدارة.
   adjustment,
+
+  /// كاش باك عن طلبٍ مسلَّم (دفعة ٥).
+  cashback,
+
+  /// مكافأة إحالة عميل — داعياً أو مدعوّاً (دفعة ٥).
+  referral,
 }
 
 WalletTransactionType _walletTxTypeFromString(String? raw) =>
@@ -2034,6 +2139,8 @@ extension WalletTransactionTypeExt on WalletTransactionType {
       WalletTransactionType.orderPayment: 'دفع طلب',
       WalletTransactionType.orderReversal: 'إعادة رصيد طلب ملغى',
       WalletTransactionType.adjustment: 'تسوية',
+      WalletTransactionType.cashback: 'كاش باك',
+      WalletTransactionType.referral: 'مكافأة إحالة',
     };
     return map[this] ?? '';
   }
@@ -2044,6 +2151,8 @@ extension WalletTransactionTypeExt on WalletTransactionType {
       WalletTransactionType.orderPayment: Icons.shopping_bag_outlined,
       WalletTransactionType.orderReversal: Icons.undo_rounded,
       WalletTransactionType.adjustment: Icons.tune_rounded,
+      WalletTransactionType.cashback: Icons.savings_rounded,
+      WalletTransactionType.referral: Icons.card_giftcard_rounded,
     };
     return map[this] ?? Icons.account_balance_wallet_outlined;
   }

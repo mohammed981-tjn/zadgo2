@@ -39,6 +39,8 @@ class FirebaseService {
       _db.collection('driver_transactions');
   CollectionReference<Map<String, dynamic>> get _walletTransactions =>
       _db.collection('wallet_transactions');
+  CollectionReference<Map<String, dynamic>> get _cashbackGrants =>
+      _db.collection('cashback_grants');
 
   bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
     if (from == to) return true;
@@ -3411,6 +3413,89 @@ class FirebaseService {
         note: 'مكافأة ترحيب — دعوة ${referrer.name}',
       );
     }
+  }
+
+  /// صرف مكافأة إحالة عميل (دفعة ٥) — نظير إحالة السائق تماماً: ختمُ
+  /// `referralRewarded` على العميل المُحال ذرّياً أولاً (يمنع الصرف المزدوج
+  /// من جهازَي مدير)، ثم إضافة رصيد لمحفظة الداعي والمدعوّ. الختم قبل الصرف
+  /// عمداً: ختمٌ بلا صرف يظهر مستحقّاً فيُصلَح يدوياً، وصرفٌ بلا ختم يتكرّر.
+  ///
+  /// عملية مدير حصراً: زيادة رصيد العميل في القواعد للمدير وحده، فلا يصرفها
+  /// عميلٌ لنفسه.
+  Future<void> payCustomerReferralBonus({
+    required models.AppUser referrer,
+    required models.AppUser referee,
+    required double referrerAmount,
+    required double refereeAmount,
+  }) async {
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(_users.doc(referee.uid));
+      if (snap.data()?['referralRewarded'] as bool? ?? false) {
+        throw Exception('صُرفت مكافأة هذه الإحالة مسبقاً');
+      }
+      tx.update(_users.doc(referee.uid), {'referralRewarded': true});
+    });
+    if (referrerAmount > 0) {
+      await addWalletCredit(
+        referrer.uid,
+        referrerAmount,
+        type: models.WalletTransactionType.referral,
+        note: 'مكافأة إحالة — ${referee.name}',
+      );
+    }
+    if (refereeAmount > 0) {
+      await addWalletCredit(
+        referee.uid,
+        refereeAmount,
+        type: models.WalletTransactionType.referral,
+        note: 'مكافأة ترحيب — دعوة ${referrer.name}',
+      );
+    }
+    logAdminAction('customer.referral.pay',
+        'إحالة عميل: ${referrer.name} ← ${referee.name}');
+  }
+
+  /// صرف كاش باك عن طلبٍ مسلَّم (دفعة ٥) — مرة واحدة لكل طلب.
+  ///
+  /// علامة `cashback_grants/{orderId}` تُنشأ **قبل** الإضافة داخل معاملة
+  /// (تفشل إن كانت موجودة): تمنع صرف الطلب الواحد مرتين حتى من جهازَي مدير
+  /// أو مسحَين متوازيين. العلامة قبل الصرف عمداً — نفس عقيدة الإحالة.
+  ///
+  /// عملية مدير حصراً (القاعدة: إنشاء العلامة وزيادة الرصيد للمدير وحده).
+  Future<void> accrueCashback({
+    required String customerId,
+    required String orderId,
+    required String orderNumber,
+    required double amount,
+  }) async {
+    if (amount <= 0) return;
+    final ref = _cashbackGrants.doc(orderId);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (snap.exists) {
+        throw Exception('صُرف الكاش باك عن هذا الطلب مسبقاً');
+      }
+      tx.set(ref, {
+        'customerId': customerId,
+        'orderId': orderId,
+        'amount': amount,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    });
+    await addWalletCredit(
+      customerId,
+      amount,
+      type: models.WalletTransactionType.cashback,
+      orderId: orderId,
+      orderNumber: orderNumber,
+      note: 'كاش باك — طلب #$orderNumber',
+    );
+  }
+
+  /// معرّفات الطلبات التي صُرف عنها كاش باك — لكنسِ اللوحة كي يتخطّاها.
+  Future<Set<String>> fetchCashbackPaidOrderIds() async {
+    final snap = await _cashbackGrants.get();
+    return snap.docs.map((d) => d.id).toSet();
   }
 
   /// صرف مكافأة تحدٍّ — مرة واحدة لكل سائق في كل نافذة.
