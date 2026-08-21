@@ -482,6 +482,36 @@ class FirebaseService {
     }
   }
 
+  CollectionReference<Map<String, dynamic>> get _aiFeedback =>
+      _db.collection('ai_feedback');
+
+  /// التقاط تقييم اقتراح الذكاء (دفعة ٣): «منجم بيانات التدريب» الذي كان
+  /// غير محقَّق صفراً — يُسجَّل عند نقطة الاستخدام: نصّ الاقتراح، والنصّ
+  /// النهائي الذي أرسله المدير، والنتيجة (accepted/edited/rejected). لا
+  /// يُرسَل شيءٌ للنموذج تلقائياً؛ هذه بيانات تحسينٍ لاحقٍ (تأصيل/ضبط/تقييم
+  /// الطراز). غير حرجة: فشلها لا يُعطّل حلّ الشكوى.
+  Future<void> recordAiFeedback({
+    required String feature,
+    required String suggestion,
+    required String finalText,
+    required String outcome,
+    String? context,
+  }) async {
+    try {
+      await _aiFeedback.add({
+        'feature': feature,
+        'suggestion': suggestion,
+        'finalText': finalText,
+        'outcome': outcome,
+        if (context != null) 'context': context,
+        'by': _auth.currentUser?.uid ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('ai feedback write failed: $feature $e');
+    }
+  }
+
   /// سجلّ التدقيق الإداري للعرض (نواقص لا-Blaze 2026-08-20): كان يُكتب
   /// من الجوّال والويب (٣١+١٤ موضعاً) ولا شاشة تقرؤه — سجلٌّ لا يُرى لا
   /// يردع. أحدث ٢٠٠ قيد بترتيب خادمي (createdAt وحده — لا فهرس مركّب).
