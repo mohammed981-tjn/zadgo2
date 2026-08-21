@@ -22,6 +22,7 @@ import '../../widgets/app_skeletons.dart';
 import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'restaurant_detail_screen.dart';
+import 'item_search_screen.dart';
 import 'cart_screen.dart';
 import 'my_orders_screen.dart';
 import 'account_screen.dart';
@@ -543,6 +544,20 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           children: [
+            // بحث الصنف (دفعة ٥): أوّل الشريط لأنّ «ماذا أشتهي» سؤالٌ أشيع من
+            // «أيّ مطعم» — يفتح بحثاً في أصناف كل المطاعم دفعةً واحدة.
+            ActionChip(
+              avatar: const Icon(Icons.search_rounded,
+                  size: 16, color: AppColors.dark),
+              label: const Text('ابحث عن صنف',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ItemSearchScreen()),
+              ),
+              backgroundColor: AppColors.primary.withOpacity(0.14),
+            ),
+            const SizedBox(width: 8),
             ChoiceChip(
               avatar: Icon(Icons.favorite,
                   size: 16,

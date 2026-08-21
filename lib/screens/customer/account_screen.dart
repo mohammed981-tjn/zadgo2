@@ -21,6 +21,7 @@ import '../auth/change_password_screen.dart';
 import '../auth/edit_profile_screen.dart';
 import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
+import 'help_center_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -97,6 +98,27 @@ class AccountScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const ChangePasswordScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // مركز المساعدة (دفعة ٥): مدخلٌ للأسئلة الشائعة قبل التذكرة —
+            // يجيب أكثر الأسئلة فوراً ويقلّل ضغط الدعم.
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.help_outline_rounded,
+                    color: AppColors.primary),
+                title: const Text('مركز المساعدة',
+                    style:
+                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
+                subtitle: const Text('أسئلة شائعة وتواصل مع الدعم',
+                    style: TextStyle(fontSize: 12.5)),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => HelpCenterScreen(user: user)),
                 ),
               ),
             ),

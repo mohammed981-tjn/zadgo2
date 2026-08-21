@@ -765,6 +765,25 @@ class FirebaseService {
       .snapshots()
       .map((s) => s.docs.map((d) => models.MenuItem.fromMap(d.data(), d.id)).toList());
 
+  /// فهرس أصناف كل المطاعم دفعةً واحدة — لبحث الصنف عبر المطاعم (دفعة ٥).
+  ///
+  /// استعلام `collectionGroup('items')` يجمع كل الأصناف من كل المطاعم في
+  /// قراءةٍ واحدة، فيبحث العميل عن «شاورما» فيرى كل مطعمٍ يقدّمها بدل تصفّح
+  /// مطعمٍ مطعماً — المعيار العالمي (دور داش/هنقرستيشن). البيانات عامّة أصلاً
+  /// (قاعدة الأصناف `allow read: if true`)، والفلترة بالاسم تقع في العميل
+  /// لأن Firestore لا يبحث عن نصٍّ جزئي.
+  ///
+  /// قراءةٌ لمرّة (Future) لا تدفّق: الفهرس يُجلب مرّة عند فتح البحث ويُخزَّن،
+  /// فلا قراءةً جديدة مع كل حرف. حدُّه: على نطاق الحيّ الواحد عند الإطلاق
+  /// العدد صغير؛ ومع النموّ يُنقل الفهرس إلى مستند مُجمَّع أو Algolia.
+  Future<List<models.MenuItem>> fetchItemCatalog() async {
+    final snap = await _db.collectionGroup('items').get();
+    return snap.docs
+        .map((d) => models.MenuItem.fromMap(d.data(), d.id))
+        .where((i) => i.isAvailable)
+        .toList();
+  }
+
   Future<void> addMenuItem(models.MenuItem item) =>
       _items(item.restaurantId).doc(item.id).set(item.toMap());
 
