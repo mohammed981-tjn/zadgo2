@@ -119,10 +119,22 @@ service cloud.firestore {
       // إدارياً حقيقياً، فرفعه الحرّ احتيال (عميل يرفعه على طلب مُسلَّم
       // فيصرفه المدير). محمي هنا، مع استثناء دقيق في فرع العميل لكتابة
       // الإلغاء الذاتي المشروعة وحدها.
+      //
+      // دفعة ٠ (تحصين الفحص 2026-08-21) أضافت خمسة حقول مالية كانت مكشوفة
+      // (بند د١: كل حقل مالي يُحمى فور إضافته — وهذه دُيون د١ متراكمة):
+      //   • walletUsed/discountAmount: يُكتبان مرة عند الإنشاء ثم يتجمّدان،
+      //     فلا يرفعهما عميلٌ معدَّل ليضخّم ردّ المحفظة (H5) أو يصفّر العُهدة
+      //     (C2). فرع العميل يستثني الإلغاء الذاتي وحده كما هو موثّق أدناه.
+      //   • custodyDebited: علم قيد عُهدة النقد — يُرفع فقط مقروناً بانتقال
+      //     الاستلام في فرع الكابتن (لا حرّاً)، وإلا تخطّى الكابتن القيد (C2).
+      //   • operatorId/operatorShare: مال مشغّل الأسطول (H1) — يكتبهما الكابتن
+      //     لحظة التسليم مقيَّدين بتبعيّته الفعلية والحصّة المحسوبة (فرع الكابتن).
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
               'restaurantCompensation', 'restaurantChargeback', 'driverTip',
-              'commissionPercent', 'walletRefundPending'];
+              'commissionPercent', 'walletRefundPending',
+              'walletUsed', 'discountAmount', 'custodyDebited',
+              'operatorId', 'operatorShare'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
@@ -137,7 +149,7 @@ service cloud.firestore {
     /// طلبه أصلاً (لا مجرد رفض الخصم). ولوحة الويب طرف كاتب ثانٍ لا نضمن
     /// تطابق حقوله، فالتساهل مع الحقل الغائب شرط تشغيلي لا تجميل.
     /// والكود المحذوف يعطي isActive الافتراضية false فيُرفض بنظافة.
-    function couponGrantsDiscount(code, amount) {
+    function couponGrantsDiscount(code, amount, restaurantId) {
       let path = /databases/$(database)/documents/coupons/$(code);
       let c = exists(path) ? get(path).data : {};
       // حدّ «مرة واحدة لكل عميل» يُفرض هنا لا في التطبيق وحده (فحص مساعد
@@ -149,6 +161,16 @@ service cloud.firestore {
       return c.get('isActive', false) == true &&
           (c.get('perUserLimit', 0) <= 0 ||
               used < c.get('perUserLimit', 0)) &&
+          // السقف العام (ثغرة H6): كوبونٌ استُنفد عالمياً لا يمنح خصماً —
+          // كان يُفحص في الواجهة وحدها فتتخطّاه نسخةٌ معدَّلة. usedCount
+          // المقروء هنا هو الملتزَم قبل زيادة هذا الطلب (الزيادة في دفعة
+          // تالية)، فالطلب رقم (السقف) يمرّ والذي يتجاوزه يُرفض.
+          (c.get('usageLimit', 0) <= 0 ||
+              c.get('usedCount', 0) < c.get('usageLimit', 0)) &&
+          // قصر الكوبون على مطعمه (ثغرة H8): كوبون مطعمٍ لا يسري على غيره.
+          // الفارغ = كوبون عام يسري على الجميع (get بقيمة افتراضية '' يمرّره).
+          (c.get('restaurantId', '') == '' ||
+              c.get('restaurantId', '') == restaurantId) &&
           (c.get('expiresAt', null) == null ||
               request.time < c.get('expiresAt', null)) &&
           // الثابت مسقوف بقيمته، والنسبة مسقوفة بـ maxDiscount **الإلزامي**:
@@ -201,6 +223,22 @@ service cloud.firestore {
           // كود مطعم لا يفتح مطعماً آخر.
           (data.role != 'restaurantManager' ||
               c.get('restaurantId', '') == data.get('restaurantId', ''));
+    }
+
+    /// تبعيّة الكابتن الحالي لمشغّل والحصّة المتوقَّعة — من **مستنده هو**
+    /// (يضبطهما المدير وحده في قاعدة drivers). تُقيّدان ما يكتبه الكابتن على
+    /// الطلب لحظة التسليم (operatorId/operatorShare) فلا يدّعي تبعيةً ليست له
+    /// ولا يصفّر حصّة مشغّله (ثغرة H1، بند د١). لا تُقيَّم إلا حين يمسّ التحديث
+    /// هذين الحقلين (short-circuit) فلا قراءة زائدة على المسار الشائع.
+    function myOperatorId() {
+      return get(/databases/$(database)/documents/drivers/$(currentUid())).data.get('operatorId', '');
+    }
+    /// الحصّة المحسوبة: أجرة التوصيل ناقصاً حصّة الكابتن، مقصوصةً على [0, ds]
+    /// — نفس معادلة markOrderDelivered حرفاً بحرف كي يتطابق المكتوب.
+    function expectedOperatorShare(ds) {
+      let od = get(/databases/$(database)/documents/drivers/$(currentUid())).data.get('operatorDriverShare', 0);
+      let raw = ds - od;
+      return raw < 0 ? 0 : (raw > ds ? ds : raw);
     }
 
     // ---------------------------------------------------------------------
@@ -398,6 +436,15 @@ service cloud.firestore {
           request.resource.data.discountAmount is number &&
           request.resource.data.walletUsed is number &&
           request.resource.data.walletUsed >= 0 &&
+          // ردّ محفظة بلا خصم فعلي (ثغرة H5): walletUsed لا يُقبل عند الإنشاء
+          // إلا إذا نقص رصيد المحفظة بقدره فعلاً في نفس المعاملة — وهو ما
+          // يفعله placeOrderWithWallet (خصم users.walletBalance مع إنشاء
+          // الطلب ذرّياً). فطلبٌ بـ walletUsed=500 بلا خصمٍ حقيقي يُرفض، فلا
+          // يصرف المدير لاحقاً رصيداً لم يُدفع. (walletUsed==0 يتخطّى الفحص.)
+          (request.resource.data.walletUsed == 0 ||
+              getAfter(/databases/$(database)/documents/users/$(currentUid())).data.get('walletBalance', 0) <=
+                  get(/databases/$(database)/documents/users/$(currentUid())).data.get('walletBalance', 0) -
+                      request.resource.data.walletUsed) &&
           request.resource.data.get('driverTip', 0) is number &&
           request.resource.data.get('driverTip', 0) >= 0 &&
           (!('commissionPercent' in request.resource.data) ||
@@ -408,7 +455,8 @@ service cloud.firestore {
              request.resource.data.couponCode is string &&
              request.resource.data.couponCode != '' &&
              couponGrantsDiscount(request.resource.data.couponCode,
-                 request.resource.data.discountAmount)));
+                 request.resource.data.discountAmount,
+                 request.resource.data.restaurantId)));
       // بعد الإنشاء، لا يعدّل أحدٌ الحقول المالية (قيمة الأصناف، أجرة السائق،
       // حصّة التطبيق، حالة السداد...) إلا المدير العام — باستثناء واحد مقصود:
       // السائق المُسنَد يضبط isPaid و platformCommission لحظة تأكيد التوصيل،
@@ -423,7 +471,16 @@ service cloud.firestore {
             // إلغاؤها، إلى cancelled، وللطلب رصيد محفظة مستخدم فعلاً).
             // أي شكل آخر يرفع العلم يُرفض — فلا يُصرف ردٌّ لغير مستحقه.
             (resource.data.customerId == currentUid() &&
-                (!changedKeys().hasAny(orderMoneyKeys()) ||
+                ((!changedKeys().hasAny(orderMoneyKeys()) &&
+                        // إعادة لفّ الحالة (ثغرة H4): العميل لا يكتب الحالة
+                        // إلا →cancelled من حالةٍ يجوز إلغاؤها؛ فلا يُرجع طلباً
+                        // مُسلَّماً إلى «جديد» ثم يعيد شكل الإلغاء لحصد ردّ
+                        // محفظة متكرّر. كتاباته الأخرى (تقييم، ملاحظة) لا تمسّ
+                        // الحالة فتمرّ بالطرف الأول.
+                        (!changedKeys().hasAny(['status']) ||
+                            (request.resource.data.status == 'cancelled' &&
+                                resource.data.status in ['created',
+                                    'restaurantPending', 'restaurantAccepted']))) ||
                     (changedKeys().hasOnly(['status', 'updatedAt',
                             'statusChangedAt', 'walletRefundPending']) &&
                         request.resource.data.walletRefundPending == true &&
@@ -442,7 +499,43 @@ service cloud.firestore {
                                        'orderNumber', 'driverTip',
                                        'restaurantCompensation',
                                        'restaurantChargeback',
-                                       'commissionPercent'])) ||
+                                       'commissionPercent',
+                                       'walletUsed', 'discountAmount']) &&
+                // مصفوفة انتقالات حالة الكابتن (ثغرة H3): الحالتان الوحيدتان
+                // اللتان يكتبهما تطبيق الكابتن هما الاستلام (→onTheWay) والتسليم
+                // (→delivered من onTheWay). أي كتابة لا تمسّ الحالة تمرّ (وصولٌ
+                // للمطعم، قبول/رفض العرض، تعذّر التسليم — كلها بلا status).
+                // بلا هذا القيد كان الكابتن يكتب delivered من أي مكان فيقبض
+                // أجرته دون وصول الطعام. (نمط مصفوفة المطعم أدناه.)
+                (!changedKeys().hasAny(['status']) ||
+                    (request.resource.data.status == 'onTheWay' &&
+                        resource.data.status in ['readyForPickup',
+                            'searchingDriver', 'driverAssigned', 'pickedUp']) ||
+                    (request.resource.data.status == 'delivered' &&
+                        resource.data.status == 'onTheWay')) &&
+                // عُهدة النقد (ثغرة C2): custodyDebited لا يُرفع إلا مقروناً
+                // بانتقال الاستلام نفسه. كان الكابتن يرفعه قبل الاستلام
+                // فيتخطّى markPickedUpBySelf قيدَ العُهدة (needsCustody=false)
+                // ويحصّل كامل النقد بلا قيدٍ عليه.
+                (!changedKeys().hasAny(['custodyDebited']) ||
+                    (request.resource.data.get('custodyDebited', false) == true &&
+                        resource.data.get('custodyDebited', false) == false &&
+                        request.resource.data.status == 'onTheWay' &&
+                        resource.data.status in ['readyForPickup',
+                            'searchingDriver', 'driverAssigned', 'pickedUp'])) &&
+                // مال المشغّل (ثغرة H1، بند د١): الكابتن يكتب operatorId/
+                // operatorShare لحظة التسليم — مقيَّدين بتبعيّته الفعلية (من
+                // مستنده الذي يضبطه المدير) وبالحصّة المحسوبة، فلا ينسب طلبه
+                // لمشغّلٍ آخر ولا يصفّر حصّة مشغّله. الكابتن المستقلّ لا يكتبهما
+                // أصلاً فيتخطّى الشرطين. (الهامش ±0.01 دفاعٌ ضد انحراف الفاصلة.)
+                (!changedKeys().hasAny(['operatorId']) ||
+                    request.resource.data.get('operatorId', '') == myOperatorId()) &&
+                (!changedKeys().hasAny(['operatorShare']) ||
+                    (myOperatorId() != '' &&
+                        request.resource.data.get('operatorShare', 0) >=
+                            expectedOperatorShare(resource.data.get('driverShare', 0)) - 0.01 &&
+                        request.resource.data.get('operatorShare', 0) <=
+                            expectedOperatorShare(resource.data.get('driverShare', 0)) + 0.01))) ||
             // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
             // بعد رفضه إياه — يمرّره جهازُه تلقائياً لأقرب سائق آخر
             // (driverId لغيره). كان الشرط يُلزم أن يكون المعرّف الجديد هو
