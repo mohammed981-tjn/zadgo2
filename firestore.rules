@@ -81,6 +81,12 @@ service cloud.firestore {
       return hasRole('driver');
     }
 
+    // مشغّل الأسطول (roles-design §ثانياً، دفعة 2026-08-21): يرى كباتنه وحدهم
+    // ودفتره. لا يمسّ مالاً ولا عمولةً ولا يعدّل كباتنه — القيود أدناه.
+    function isFleetOperator() {
+      return hasRole('fleetOperator');
+    }
+
     function isCustomer() {
       return hasRole('customer');
     }
@@ -353,7 +359,11 @@ service cloud.firestore {
             isAdmin() || isSupport() ||
             resource.data.customerId == currentUid() ||
             resource.data.driverId == currentUid() ||
-            isRestaurantManagerOf(resource.data.restaurantId)
+            isRestaurantManagerOf(resource.data.restaurantId) ||
+            // مشغّل الأسطول يسرد طلبات كباتنه المسلَّمة (مقيَّدٌ بـ operatorId
+            // == uid) ليجمع مستحقّاته — دفعة «ابدأ المشغل».
+            (isFleetOperator() &&
+                resource.data.get('operatorId', '') == currentUid())
           );
       // الإنشاء يفحص حقول الخصم لا يقبلها حرفياً: كانت القيود المالية كلها
       // على «التعديل» فقط، فعميل معدَّل البرمجية يُنشئ طلباً بخصم مختلَق
@@ -501,8 +511,13 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /drivers/{driverId} {
       allow get: if isSignedIn();
+      // مشغّل الأسطول يسرد كباتنه **حصراً**: القاعدة تُقيَّم لكل مستند، فشرط
+      // `operatorId == uid` يجعل أي استعلامٍ غير مقيَّد به يفشل تلقائياً —
+      // فلا يرى المشغّل كابتناً ليس تابعاً له (roles-design §ثانياً/٥).
       allow list: if isAdmin() || isSupport() || isDriver() ||
-          hasRole('restaurantManager');
+          hasRole('restaurantManager') ||
+          (isFleetOperator() &&
+              resource.data.get('operatorId', '') == currentUid());
       // إنشاء مستند السائق: يبدأ بأرصدة صفرية إلزاماً. بلا هذا القيد كان
       // سائقٌ مقبول (يملك كوداً) يُنشئ مستنده مباشرةً بـ balance/totalEarnings
       // مختلَقين بدل المرور بمسار التطبيق — مسارٌ بديل للسرقة يعمل حتى لو
@@ -510,7 +525,10 @@ service cloud.firestore {
       allow create: if isSignedIn() && currentUid() == driverId &&
           request.resource.data.get('balance', 0) == 0 &&
           request.resource.data.get('totalEarnings', 0) == 0 &&
-          request.resource.data.get('warningCount', 0) == 0;
+          request.resource.data.get('warningCount', 0) == 0 &&
+          // التبعيّة للمشغّل يسندها المدير لاحقاً، فلا يدّعيها كابتنٌ عند
+          // التسجيل (وإلا ظهر تحت مشغّلٍ بلا موافقته).
+          request.resource.data.get('operatorId', '') == '';
       // كتابة السائق على مستنده مقيّدة: كانت بلا قيد على الحقول، فيمكنه
       // ضبط إنذاراته صفراً أو تضخيم totalEarnings. الرصيد يبقى مسموحاً له
       // لأن قيد العُهدة وأجرة التوصيل يُكتبان من جهازه (لا Cloud Functions
@@ -524,7 +542,10 @@ service cloud.firestore {
                 !changedKeys().hasAny(
                     ['warningCount', 'totalEarnings', 'rating', 'ratingCount',
                      'referredByCode', 'referralRewarded',
-                     'lastChallengeWindow'])) ||
+                     'lastChallengeWindow',
+                     // تبعيّة المشغّل وحصّته يضبطهما المدير وحده (بند ج١/د١):
+                     // لا يدّعي كابتنٌ تبعيةً لمشغّل أو يفكّها أو يرفع حصّته.
+                     'operatorId', 'operatorDriverShare'])) ||
             // قلب توفّر السائق: يفعله جهازُ المطعم أثناء الإسناد التلقائي
             // (لا خادم بعد)، والسائق نفسه، والمدير. كان الشرط `!isCustomer()`
             // يسمح به لأي مصادَقٍ بلا دور «عميل» — بمن فيهم المصادَق مجهولاً
@@ -574,6 +595,23 @@ service cloud.firestore {
             get(/databases/$(database)/documents/orders/$(orderId)).data.get('status', '') == 'delivered';
         allow update, delete: if false;
       }
+    }
+
+    // ---------------------------------------------------------------------
+    // fleet_operators — ملف مشغّل الأسطول ودفتره (دفعة «ابدأ المشغل»).
+    //   • القراءة: المدير والدعم، والمشغّل مستنده هو، والسائق التابع (يقرأ
+    //     رقم حصّته لحظة التسليم — لا مالٌ حسّاس، والرصيد رقمٌ إجماليّ).
+    //   • الإنشاء والتعديل: **المدير وحده** — النسب والرصيد شرطٌ تعاقدي
+    //     يضبطه المدير (بند ج١/د١)، فلا يغيّر مشغّلٌ نسبته أو يضخّم دفتره.
+    //   • الحذف: المدير.
+    // ---------------------------------------------------------------------
+    match /fleet_operators/{operatorId} {
+      allow get: if isSignedIn() && (
+            isAdmin() || isSupport() ||
+            currentUid() == operatorId ||
+            isDriver());
+      allow list: if isAdmin() || isSupport();
+      allow create, update, delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------

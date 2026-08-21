@@ -10,6 +10,7 @@ import '../../widgets/common_widgets.dart';
 import '../auth/login_screen.dart';
 import 'admin_restaurants_tab.dart';
 import 'admin_users_tab.dart';
+import 'admin_operators_screen.dart';
 import 'admin_audit_screen.dart';
 import 'admin_suggestions_screen.dart';
 import 'order_tracking_tab.dart';
@@ -155,6 +156,22 @@ class _AdminHomeState extends State<AdminHome> {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const _DrawerScreen(title: 'المستخدمون', child: AdminUsersTab())));
+              },
+            ),
+            // مشغّلو الأسطول (دفعة «ابدأ المشغل»): ملفاتهم ونسبهم وإسناد كباتنهم.
+            ListTile(
+              leading: const Icon(Icons.groups_2_outlined),
+              title: const Text('مشغّلو الأسطول'),
+              subtitle: const Text('النسب وإسناد الكباتن والدفعات',
+                  style: TextStyle(fontSize: 11.5)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const _DrawerScreen(
+                            title: 'مشغّلو الأسطول',
+                            child: AdminOperatorsScreen())));
               },
             ),
             // سجلّ الإدارة للمدير وحده (لا الدعم — والقاعدة تمنعه list):

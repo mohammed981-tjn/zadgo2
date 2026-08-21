@@ -123,6 +123,15 @@ class FirebaseService {
 
   Future<void> updateUser(models.AppUser user) => _users.doc(user.uid).update(user.toMap());
 
+  /// إلغاء صلاحية حسابٍ بتحويل دوره (المدير وحده، تحرسه القاعدة): الوصول
+  /// الحقيقي مبنيٌّ على حقل `role` (hasRole في القواعد)، فتحويله إلى
+  /// `customer` يسحب صلاحية الدعم/المشغّل/مدير المطعم فوراً على الخادم —
+  /// بخلاف «تعطيل» (isActive) وهو علمٌ ناعم لا تفحصه القواعد.
+  /// **ملاحظة**: صفة «المدير العام» ادّعاءٌ موقّع لا حقل دور، فتُسحب من ورشة
+  /// Admin claim (revoke) لا من هنا.
+  Future<void> setUserRole(String uid, models.UserRole role) =>
+      _users.doc(uid).update({'role': role.name});
+
   /// تعديل الملف الشخصي (الاسم والجوال) — حقلان محددان لا مستند كامل، فلا
   /// خطر على الحقول المحمية. [alsoDriver]: مستند السائق يحمل نسخة من
   /// الاسم والجوال (يقرؤها العميل في التتبّع) فتُحدَّث معه في نفس الدفعة.
@@ -1178,6 +1187,71 @@ class FirebaseService {
 
   Future<void> deleteBanner(String id) => _banners.doc(id).delete();
 
+  // ── مشغّل الأسطول (دفعة «ابدأ المشغل») ─────────────────────────────────
+  CollectionReference<Map<String, dynamic>> get _fleetOperators =>
+      _db.collection('fleet_operators');
+
+  /// كل المشغّلين — للمدير (إدارة وإسناد).
+  Stream<List<models.FleetOperator>> streamFleetOperators() =>
+      _fleetOperators.snapshots().map((s) => s.docs
+          .map((d) => models.FleetOperator.fromMap(d.data(), d.id))
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name)));
+
+  /// ملف مشغّلٍ بعينه — يقرؤه المشغّل نفسه (شاشته) والمدير.
+  Stream<models.FleetOperator?> streamFleetOperator(String id) =>
+      _fleetOperators.doc(id).snapshots().map((d) =>
+          d.exists ? models.FleetOperator.fromMap(d.data()!, d.id) : null);
+
+  /// المدير يُنشئ/يحدّث ملف المشغّل بمعرّف حسابه (الرصيد يبدأ صفراً).
+  Future<void> saveFleetOperator(models.FleetOperator op) =>
+      _fleetOperators.doc(op.id).set(op.toMap(), SetOptions(merge: true));
+
+  /// المدير يضبط نسبة المشغّل ورسمه الشهري (لا رقم مبرمَج — بند ج١).
+  Future<void> setOperatorRates(String id,
+          {required double driverSharePerDelivery,
+          required double monthlyFee}) =>
+      _fleetOperators.doc(id).set({
+        'driverSharePerDelivery': driverSharePerDelivery,
+        'monthlyFee': monthlyFee,
+      }, SetOptions(merge: true));
+
+  /// المدير يسند كابتناً لمشغّل (أو يفكّه بتمرير operatorId فارغ)، وينسخ
+  /// حصّة الكابتن الافتراضية من نسبة المشغّل. محميّ في القواعد للمدير وحده.
+  Future<void> assignDriverOperator(String driverId,
+          {required String operatorId, required double operatorDriverShare}) =>
+      _drivers.doc(driverId).update({
+        'operatorId': operatorId,
+        'operatorDriverShare': operatorDriverShare,
+      });
+
+  /// كباتن مشغّلٍ بعينه — لشاشته وللمدير. الترتيب محلياً فلا فهرس مركّب.
+  Stream<List<models.Driver>> streamOperatorDrivers(String operatorId) =>
+      _drivers
+          .where('operatorId', isEqualTo: operatorId)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.Driver.fromMap(d.data(), d.id))
+              .toList()
+            ..sort((a, b) => b.totalDeliveries.compareTo(a.totalDeliveries)));
+
+  /// طلبات مشغّلٍ المسلَّمة — لجمع مستحقّاته (مجموع operatorShare). محدود
+  /// بأحدث ٢٠٠ كنظائره في الدفتر، والجمع محلياً فلا فهرس مركّب.
+  Stream<List<models.Order>> streamOperatorOrders(String operatorId) =>
+      _orders
+          .where('operatorId', isEqualTo: operatorId)
+          .limit(400)
+          .snapshots()
+          .map((s) =>
+              s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
+  /// المدير يسجّل دفعةً للمشغّل: تُنقص من رصيده (كتسوية دفتر الكابتن).
+  Future<void> recordOperatorPayout(String operatorId, double amount) =>
+      _fleetOperators
+          .doc(operatorId)
+          .set({'balance': FieldValue.increment(-amount.abs())},
+              SetOptions(merge: true));
+
   /// إظهار/إخفاء البنر الافتراضي المدمج (دفعة «الإعلانات الذكية»): يُخزَّن في
   /// `delivery_settings/banners` (قراءةٌ عامة كي يراه الزائر). الافتراضي
   /// true — فالسلوك القديم يبقى حتى يطفئه المدير من لوحته.
@@ -2025,9 +2099,26 @@ class FirebaseService {
           : order.driverShare + order.driverTip;
 
       final driverSnap = await tx.get(_drivers.doc(driverId));
-      final currentBalance = driverSnap.exists && driverSnap.data() != null
-          ? models.Driver.fromMap(driverSnap.data()!, driverSnap.id).balance
-          : 0.0;
+      final driverModel = driverSnap.exists && driverSnap.data() != null
+          ? models.Driver.fromMap(driverSnap.data()!, driverSnap.id)
+          : null;
+      final currentBalance = driverModel?.balance ?? 0.0;
+
+      // قسمة أجرة التوصيل مع مشغّل الأسطول (دفعة «ابدأ المشغل»): كابتنٌ تابعٌ
+      // لمشغّل يحتفظ بحصّته (operatorDriverShare) والباقي للمشغّل، ويُثبَّت
+      // على الطلب (operatorShare) ليجمعه المشغّل من دفتره. **الكابتن المستقلّ
+      // (operatorId فارغ) لا يتغيّر في حسابه شيء إطلاقاً** — الفرع كله يُتخطّى.
+      final operatorId = driverModel?.operatorId ?? '';
+      double operatorShare = 0;
+      if (operatorId.isNotEmpty) {
+        operatorShare = order.driverShare - (driverModel?.operatorDriverShare ?? 0);
+        if (operatorShare < 0) operatorShare = 0;
+        if (operatorShare > order.driverShare) operatorShare = order.driverShare;
+      }
+      // الكابتن يحتفظ بأقلّ بمقدار حصّة المشغّل — نقداً كان أو إلكترونياً:
+      //   إلكتروني: أجرته+الإكرامية − حصة المشغّل = حصّته+الإكرامية.
+      //   نقدي: قبض كامل المبلغ، فيدين للمشغّل بحصّته (رصيده − حصة المشغّل).
+      final effectiveDelta = delta - operatorShare;
 
       tx.update(_orders.doc(orderId), {
         'status': models.OrderStatus.delivered.name,
@@ -2035,15 +2126,17 @@ class FirebaseService {
         'updatedAt': FieldValue.serverTimestamp(),
         'statusChangedAt': FieldValue.serverTimestamp(),
         'platformCommission': order.calculatedCommission,
+        if (operatorId.isNotEmpty) 'operatorId': operatorId,
+        if (operatorId.isNotEmpty) 'operatorShare': operatorShare,
       });
       tx.update(_drivers.doc(driverId), {
         'totalDeliveries': FieldValue.increment(1),
-        if (delta != 0) 'balance': FieldValue.increment(delta),
+        if (effectiveDelta != 0) 'balance': FieldValue.increment(effectiveDelta),
         'isAvailable': true,
       });
       // الحركة في نفس المعاملة، فلا يتغيّر رصيد دون سجلّ يفسّره. وحين لا
-      // تغيير (نقدي قُيّدت عُهدته عند الاستلام) لا حركة صفرية تلوّث السجلّ.
-      if (delta != 0) {
+      // تغيير (نقدي قُيّدت عُهدته عند الاستلام، ولا مشغّل) لا حركة صفرية تلوّث السجلّ.
+      if (effectiveDelta != 0) {
         tx.set(
           txRef,
           models.DriverTransaction(
@@ -2052,8 +2145,8 @@ class FirebaseService {
             type: isCash
                 ? models.DriverTransactionType.deliveryCash
                 : models.DriverTransactionType.deliveryOnline,
-            amount: delta,
-            balanceAfter: currentBalance + delta,
+            amount: effectiveDelta,
+            balanceAfter: currentBalance + effectiveDelta,
             orderId: orderId,
             orderNumber: order.orderNumber,
             performedBy: _auth.currentUser?.uid ?? driverId,

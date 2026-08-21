@@ -13,6 +13,7 @@ import 'providers/cart_provider.dart';
 import 'providers/firebase_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/admin/admin_home.dart';
+import 'screens/admin/fleet_operator_home.dart';
 import 'screens/customer/customer_home.dart';
 import 'screens/driver/driver_home.dart';
 import 'screens/restaurant/restaurant_home.dart';
@@ -63,6 +64,9 @@ void main() async {
       case UserRole.support:
         // الدعم يسكن لوحة الإدارة نفسها — وهي تنكمش له من الداخل.
         return const AdminHome();
+      case UserRole.fleetOperator:
+        // مشغّل الأسطول له شاشته الخاصة (كباتنه ودفتره فقط).
+        return const FleetOperatorHome();
       case UserRole.customer:
         return const CustomerHome();
       case UserRole.driver:

@@ -36,6 +36,7 @@ class AdminUsersTab extends StatelessWidget {
           const order = [
             UserRole.admin,
             UserRole.support,
+            UserRole.fleetOperator,
             UserRole.restaurantManager,
             UserRole.driver,
             UserRole.customer,
@@ -74,6 +75,7 @@ class AdminUsersTab extends StatelessWidget {
         UserRole.driver => Icons.delivery_dining_outlined,
         UserRole.customer => Icons.person_outline,
         UserRole.support => Icons.support_agent_outlined,
+        UserRole.fleetOperator => Icons.groups_2_outlined,
       };
 
   void _showGenerateRegistrationCodeDialog(BuildContext context) {
@@ -94,6 +96,7 @@ class AdminUsersTab extends StatelessWidget {
           UserRole.admin => 'مدير عام',
           UserRole.customer => 'عميل',
           UserRole.support => 'موظف دعم',
+          UserRole.fleetOperator => 'مشغّل الأسطول',
         };
 
     showDialog(
@@ -120,6 +123,11 @@ class AdminUsersTab extends StatelessWidget {
                     // كود «موظف دعم» يفتح لوحة إدارة منكمشة: شكاوى
                     // ومتابعة بلا مالٍ ولا صلاحيات — القيد في القواعد.
                     DropdownMenuItem(value: UserRole.support, child: Text('موظف دعم')),
+                    // كود «مشغّل الأسطول» يفتح شاشة كباتنه ودفتره فقط —
+                    // جهةٌ تأتي بكباتنها وتقتسم أجرة التوصيل (بند القواعد).
+                    DropdownMenuItem(
+                        value: UserRole.fleetOperator,
+                        child: Text('مشغّل الأسطول')),
                   ],
                   onChanged: (v) {
                     if (v == null) return;
@@ -345,6 +353,32 @@ class _UserTile extends StatelessWidget {
                   showError(context, 'تعذر إرسال رابط إعادة التعيين: $e');
                 }
               }
+            } else if (v == 'revoke_role') {
+              // إلغاء الصلاحية = تحويل الدور إلى «عميل»: الوصول محروسٌ
+              // بحقل الدور في القواعد، فهذا يسحبه فوراً على الخادم.
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('إلغاء الصلاحية'),
+                  content: Text(
+                      'تحويل "${u.name}" من ${u.role.label} إلى عميل عادي؟ '
+                      'يفقد صلاحيته فوراً. (يمكن منحه الصلاحية لاحقاً بكود جديد.)'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('تراجع')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('إلغاء الصلاحية')),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await service.setUserRole(u.uid, UserRole.customer);
+                if (context.mounted) {
+                  showSuccess(context, 'أُلغيت صلاحية ${u.name} (صار عميلاً)');
+                }
+              }
             } else if (v == 'delete') {
               final confirm = await showDialog<bool>(
                 context: context,
@@ -366,6 +400,14 @@ class _UserTile extends StatelessWidget {
           },
           itemBuilder: (_) => [
             PopupMenuItem(value: 'toggle', child: Text(u.isActive ? 'تعطيل' : 'تفعيل')),
+            // إلغاء الصلاحية يظهر للأدوار المحروسة بالحقل (دعم/مشغّل/مدير
+            // مطعم) — لا للعميل (لا صلاحية) ولا للمدير (ادّعاء موقّع يُسحب
+            // من ورشة Admin claim لا من هنا).
+            if (u.role == UserRole.support ||
+                u.role == UserRole.fleetOperator ||
+                u.role == UserRole.restaurantManager)
+              const PopupMenuItem(
+                  value: 'revoke_role', child: Text('إلغاء الصلاحية')),
             if (u.cashBlocked)
               const PopupMenuItem(
                   value: 'cash_unblock', child: Text('رفع حظر الدفع النقدي')),
