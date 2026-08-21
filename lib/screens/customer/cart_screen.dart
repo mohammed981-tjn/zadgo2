@@ -955,7 +955,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               onPressed:
                   (_loading || !locationSet || outOfRange) ? null : _placeOrder,
               child: _loading
-                  ? const CircularProgressIndicator(color: Colors.white)
+                  // كحليّ لا أبيض: خلفية الزر ذهبية ومقدّمتها كحلية عبر الثيم.
+                  ? const CircularProgressIndicator(color: AppColors.dark)
                   : Text(!locationSet
                       ? 'حدّد موقعك أولاً'
                       : outOfRange

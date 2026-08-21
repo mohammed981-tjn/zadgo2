@@ -478,8 +478,9 @@ class _RoadBar extends StatelessWidget {
                           blurRadius: 8),
                     ],
                   ),
+                  // رمز الكابتن كحليّ على النقطة الذهبية: الأبيض عليها يذوب.
                   child: const Icon(Icons.delivery_dining,
-                      size: 18, color: Colors.white),
+                      size: 18, color: AppColors.dark),
                 ),
               ),
               const Positioned(
@@ -760,7 +761,7 @@ class _OrderCard extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 8),
                       child: Row(children: [
                         const Icon(Icons.star_rounded,
-                            color: Colors.amber, size: 16),
+                            color: AppColors.warning, size: 16),
                         const SizedBox(width: 4),
                         Text(
                             'تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
@@ -830,8 +831,11 @@ class _OrderCard extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
     bool filled = false,
-  }) =>
-      Material(
+  }) {
+    // لون المحتوى عند التعبئة يُشتقّ من إضاءة اللون لا يُثبَّت أبيض: حبّة
+    // «قيّم الطلب» مُعبَّأة بالذهبي، والأبيض عليه ~١٫٩:١ — الكحلي على الفاتح.
+    final onFilled = color.computeLuminance() > 0.5 ? AppColors.dark : Colors.white;
+    return Material(
         color: filled ? color : color.withOpacity(0.10),
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
@@ -840,17 +844,18 @@ class _OrderCard extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, size: 16, color: filled ? Colors.white : color),
+              Icon(icon, size: 16, color: filled ? onFilled : color),
               const SizedBox(width: 6),
               Text(label,
                   style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
-                      color: filled ? Colors.white : color)),
+                      color: filled ? onFilled : color)),
             ]),
           ),
         ),
       );
+  }
 
   Future<void> _reorder(BuildContext context) async {
     // المنطق مشترك مع شريحة «اطلب مجدداً» في الرئيسية (utils/reorder.dart) —
@@ -917,7 +922,7 @@ class _OrderCard extends StatelessWidget {
               RatingBar.builder(
                 initialRating: 5,
                 itemCount: 5,
-                itemBuilder: (_, __) => const Icon(Icons.star, color: Colors.amber),
+                itemBuilder: (_, __) => const Icon(Icons.star, color: AppColors.warning),
                 onRatingUpdate: (r) => orderRating = r,
               ),
               const SizedBox(height: 12),
@@ -925,7 +930,7 @@ class _OrderCard extends StatelessWidget {
               RatingBar.builder(
                 initialRating: 5,
                 itemCount: 5,
-                itemBuilder: (_, __) => const Icon(Icons.star, color: Colors.amber),
+                itemBuilder: (_, __) => const Icon(Icons.star, color: AppColors.warning),
                 onRatingUpdate: (r) => driverRating = r,
               ),
               const SizedBox(height: 12),

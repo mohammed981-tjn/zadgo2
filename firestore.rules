@@ -308,6 +308,11 @@ service cloud.firestore {
           request.resource.data.get('cashTrusted', false) == false &&
           request.resource.data.get('cashBlocked', false) == false &&
           request.resource.data.get('cashNoShowCount', 0) == 0 &&
+          // ختم مكافأة الإحالة يولد آمناً (دفعة ٥): حسابٌ يُنشأ «مكافأته
+          // مصروفة» يمنع أي صرفٍ مستقبليّ خطأً، لكن الأهمّ منع عكسه — لا
+          // يُنشئ أحدٌ حسابه بـ true ثم لا شيء؛ نُلزم false عند الإنشاء.
+          // (كود الداعي يُترك حرّاً هنا: الإنشاء هو مكان التقاطه الشرعيّ.)
+          request.resource.data.get('referralRewarded', false) == false &&
           (
             isAdmin() ||
             (currentUid() == userId && (
@@ -323,8 +328,12 @@ service cloud.firestore {
             // منيوه وأسعاره وطلباته وتسوياته المالية — تصعيدٌ أفقي من مطعم
             // إلى كل المطاعم. الدور مثبَّت لكن معرّف المطعم كان ثغرته.
             (currentUid() == userId &&
+                // إحالة العميل (دفعة ٥): كود الداعي مجمَّد بعد الإنشاء فلا
+                // يُدّعى داعٍ بأثر رجعي بعد الطلب، وختم المكافأة مجمَّد +
+                // للمدير وحده فلا يُعاد ضبطه ليُصرف مرتين.
                 !changedKeys().hasAny(['role', 'isActive', 'restaurantId',
-                    'cashTrusted', 'cashBlocked', 'cashNoShowCount']) &&
+                    'cashTrusted', 'cashBlocked', 'cashNoShowCount',
+                    'referredByCode', 'referralRewarded']) &&
                 // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
                 // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
                 // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
@@ -415,6 +424,16 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isAdmin() || isRestaurantManagerOf(restaurantId);
       }
+    }
+
+    // بحث الصنف عبر المطاعم (دفعة ٥): استعلام collectionGroup على «items»
+    // يُقيَّم مقابل قاعدةٍ تطابق المجموعة في أي مسار — القاعدة المتداخلة أعلاه
+    // لا تكفي له. القراءة عامّة كنظيرتها المتداخلة (الأصناف بيانات عامّة لا
+    // مالية)، والكتابة ممنوعة هنا لأن مسارها الشرعيّ هو القاعدة المتداخلة
+    // (المدير أو مدير المطعم صاحبها) لا هذا المسار المُجمَّع.
+    match /{path=**}/items/{itemId} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // ---------------------------------------------------------------------
@@ -764,8 +783,10 @@ service cloud.firestore {
 
     // ---------------------------------------------------------------------
     // fleet_operators — ملف مشغّل الأسطول ودفتره (دفعة «ابدأ المشغل»).
-    //   • القراءة: المدير والدعم، والمشغّل مستنده هو، والسائق التابع (يقرأ
-    //     رقم حصّته لحظة التسليم — لا مالٌ حسّاس، والرصيد رقمٌ إجماليّ).
+    //   • القراءة: المدير والدعم، والمشغّل مستنده هو فقط. **حُذف السائق**
+    //     (دفعة ٢): الملف يحمل رصيد المشغّل ورسمه الشهري ونسبته — مالٌ خاصّ
+    //     لا يقرؤه كابتن. ولا مسار في تطبيق السائق يقرأ هذا الملف أصلاً (حصّة
+    //     الكابتن على مستنده هو `operatorDriverShare` لا هنا)، فالحذف لا يكسر شيئاً.
     //   • الإنشاء والتعديل: **المدير وحده** — النسب والرصيد شرطٌ تعاقدي
     //     يضبطه المدير (بند ج١/د١)، فلا يغيّر مشغّلٌ نسبته أو يضخّم دفتره.
     //   • الحذف: المدير.
@@ -773,8 +794,7 @@ service cloud.firestore {
     match /fleet_operators/{operatorId} {
       allow get: if isSignedIn() && (
             isAdmin() || isSupport() ||
-            currentUid() == operatorId ||
-            isDriver());
+            currentUid() == operatorId);
       allow list: if isAdmin() || isSupport();
       allow create, update, delete: if isAdmin();
     }
@@ -828,9 +848,30 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && (
             isAdmin() || resource.data.userId == currentUid()
           );
+      // العميل يُنشئ حركاته السالبة فقط (خصمٌ عند الدفع من محفظته). أي حركة
+      // موجبة (استرداد/تسوية/كاش باك/إحالة) للمدير وحده — نظير حماية الرصيد
+      // نفسه (زيادته للمدير فقط). بلا قيد الإشارة كان بوسع عميلٍ معدَّل سكّ
+      // حركةٍ موجبة في الدفتر لا تمسّ رصيده لكنها تُضلّل تسوية المدير اليدوية.
       allow create: if isSignedIn() && (
-            isAdmin() || request.resource.data.userId == currentUid()
+            isAdmin() ||
+            (request.resource.data.userId == currentUid() &&
+                request.resource.data.get('amount', 0) <= 0)
           );
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // cashback_grants — علامة «صُرف الكاش باك عن هذا الطلب» (دفعة ٥):
+    // مستندٌ معرّفه معرّف الطلب، ينشئه المدير عند صرف الكاش باك في كنس
+    // اللوحة، فلا يُصرف الطلب الواحد مرتين. للمدير الإنشاء وحده (الصرف عمليةٌ
+    // موثوقة — العميل لا يزيد رصيده أصلاً)، والقراءة له وللعميل صاحب الطلب،
+    // والتعديل/الحذف ممنوعان (سجلّ لا يُعاد كتابته ليُصرف ثانية).
+    // ---------------------------------------------------------------------
+    match /cashback_grants/{orderId} {
+      allow get, list: if isSignedIn() && (
+            isAdmin() || resource.data.get('customerId', '') == currentUid()
+          );
+      allow create: if isAdmin();
       allow update, delete: if false;
     }
 
@@ -1176,6 +1217,19 @@ service cloud.firestore {
       // الذي مُنع لأجله التعديل والحذف. القراءة بـget الافتراضي (لا
       // وصول مباشر): حقل غائب في القواعد خطأ تقييم يُسقط الطلب كله لا
       // شرطاً يعود بـfalse — درس خطأ الكوبون.
+      allow create: if (isAdmin() || isSupport()) &&
+          request.resource.data.get('by', '') == currentUid();
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------------
+    // ai_feedback — تقييم اقتراحات الذكاء (دفعة ٣، «منجم بيانات التدريب»):
+    // نصّ الاقتراح والنصّ النهائي والنتيجة (accepted/edited/rejected). يكتبه
+    // من يستخدم الاقتراح (مدير/دعم) منسوباً إليه، ويقرؤه المدير للتحليل. لا
+    // يُعدَّل ولا يُحذف — بيانات تحسينٍ لا تُنقَّح بأثر رجعي.
+    // ---------------------------------------------------------------------
+    match /ai_feedback/{feedbackId} {
+      allow get, list: if isAdmin();
       allow create: if (isAdmin() || isSupport()) &&
           request.resource.data.get('by', '') == currentUid();
       allow update, delete: if false;

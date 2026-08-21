@@ -148,7 +148,9 @@ class _OrderMapScreenState extends State<OrderMapScreen>
       polyPoints.add(p);
       points.add(Marker(
         point: p, width: 64, height: 64,
-        child: _buildPin(icon: Icons.restaurant, color: Colors.orange, highlighted: _headingToRestaurant),
+        // دبوس المطعم كحليّ (رمز الهوية) لا برتقاليّاً خارج اللوحة، ويتمايز عن
+        // دبوس العميل الذهبي.
+        child: _buildPin(icon: Icons.restaurant, color: AppColors.secondary, highlighted: _headingToRestaurant),
       ));
     }
 
@@ -412,11 +414,11 @@ class _OrderMapScreenState extends State<OrderMapScreen>
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      color: isRestaurant ? Colors.orange.withOpacity(0.15) : AppColors.primary.withOpacity(0.1),
+      color: isRestaurant ? AppColors.secondary.withOpacity(0.12) : AppColors.primary.withOpacity(0.1),
       child: Row(
         children: [
           Icon(isRestaurant ? Icons.restaurant : Icons.location_on,
-              color: isRestaurant ? Colors.orange : AppColors.primary),
+              color: isRestaurant ? AppColors.secondary : AppColors.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -432,6 +434,9 @@ class _OrderMapScreenState extends State<OrderMapScreen>
   }
 
   Widget _buildPin({required IconData icon, required Color color, required bool highlighted}) {
+    // لون الرمز يُشتقّ من إضاءة تعبئة الدبوس: الأبيض على الدبوس الذهبي (موقع
+    // العميل) يذوب — الفاتح يأخذ رمزاً كحلياً والداكن يبقى أبيض.
+    final onColor = color.computeLuminance() > 0.5 ? AppColors.dark : Colors.white;
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -442,7 +447,7 @@ class _OrderMapScreenState extends State<OrderMapScreen>
             ? [BoxShadow(color: color.withOpacity(0.6), blurRadius: 12, spreadRadius: 2)]
             : null,
       ),
-      child: Icon(icon, color: Colors.white, size: highlighted ? 26 : 20),
+      child: Icon(icon, color: onColor, size: highlighted ? 26 : 20),
     );
   }
 }

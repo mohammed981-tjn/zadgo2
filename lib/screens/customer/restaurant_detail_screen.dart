@@ -7,6 +7,7 @@ import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../utils/food_visuals.dart';
+import '../../widgets/common_widgets.dart';
 import 'cart_screen.dart';
 
 /// هل عُرض تلقين «الدفع مرة واحدة» في هذه الجلسة؟ على مستوى الملف لا
@@ -80,9 +81,14 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                     color: AppColors.textGray),
                 _InfoChip(
                     icon: Icons.delivery_dining_outlined,
+                    // لا «توصيل مجاني»: التسعير الفعلي يحصّل أجرة التوصيل
+                    // (الأجرة + حصّة المنصّة) دائماً، فادّعاء المجانية كذبةٌ
+                    // مكلفة تصدم العميل عند الدفع (نفس تحذير الرئيسية). حين لا
+                    // رسمَ على المطعم نفسه نقول إنه يُحتسب عند الطلب بدل الوعد
+                    // بالمجانية.
                     label: restaurant.deliveryFee > 0
                         ? formatCurrency(restaurant.deliveryFee)
-                        : 'توصيل مجاني',
+                        : 'التوصيل يُحتسب عند الطلب',
                     color: AppColors.textGray),
               ]),
             ),
@@ -114,15 +120,12 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
             stream: service.streamCategories(restaurant.id),
             builder: (context, catSnap) {
               if (catSnap.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: SelectableText(
-                      'خطأ في تحميل الفئات:\n${catSnap.error}',
-                      textDirection: TextDirection.ltr,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
+                // ودجت الخطأ الموحّد بدل النص الأحمر الإنجليزي الخام: يعرض
+                // رسالة عربية ورمز خطأ مختصر، ويحصر التفاصيل التقنية بوضع
+                // التطوير — العميل لا يرى نص Firestore الخام.
+                return AppError(
+                  error: catSnap.error,
+                  message: 'تعذّر تحميل قائمة المطعم',
                 );
               }
               if (!catSnap.hasData) {
@@ -134,15 +137,9 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                 stream: service.streamMenuItems(restaurant.id),
                 builder: (context, itemSnap) {
                   if (itemSnap.hasError) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: SelectableText(
-                          'خطأ في تحميل الأصناف:\n${itemSnap.error}',
-                          textDirection: TextDirection.ltr,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ),
+                    return AppError(
+                      error: itemSnap.error,
+                      message: 'تعذّر تحميل أصناف المطعم',
                     );
                   }
                   if (!itemSnap.hasData) {

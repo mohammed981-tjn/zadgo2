@@ -39,6 +39,8 @@ class FirebaseService {
       _db.collection('driver_transactions');
   CollectionReference<Map<String, dynamic>> get _walletTransactions =>
       _db.collection('wallet_transactions');
+  CollectionReference<Map<String, dynamic>> get _cashbackGrants =>
+      _db.collection('cashback_grants');
 
   bool _isValidStatusTransition(models.OrderStatus from, models.OrderStatus to) {
     if (from == to) return true;
@@ -482,6 +484,36 @@ class FirebaseService {
     }
   }
 
+  CollectionReference<Map<String, dynamic>> get _aiFeedback =>
+      _db.collection('ai_feedback');
+
+  /// التقاط تقييم اقتراح الذكاء (دفعة ٣): «منجم بيانات التدريب» الذي كان
+  /// غير محقَّق صفراً — يُسجَّل عند نقطة الاستخدام: نصّ الاقتراح، والنصّ
+  /// النهائي الذي أرسله المدير، والنتيجة (accepted/edited/rejected). لا
+  /// يُرسَل شيءٌ للنموذج تلقائياً؛ هذه بيانات تحسينٍ لاحقٍ (تأصيل/ضبط/تقييم
+  /// الطراز). غير حرجة: فشلها لا يُعطّل حلّ الشكوى.
+  Future<void> recordAiFeedback({
+    required String feature,
+    required String suggestion,
+    required String finalText,
+    required String outcome,
+    String? context,
+  }) async {
+    try {
+      await _aiFeedback.add({
+        'feature': feature,
+        'suggestion': suggestion,
+        'finalText': finalText,
+        'outcome': outcome,
+        if (context != null) 'context': context,
+        'by': _auth.currentUser?.uid ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('ai feedback write failed: $feature $e');
+    }
+  }
+
   /// سجلّ التدقيق الإداري للعرض (نواقص لا-Blaze 2026-08-20): كان يُكتب
   /// من الجوّال والويب (٣١+١٤ موضعاً) ولا شاشة تقرؤه — سجلٌّ لا يُرى لا
   /// يردع. أحدث ٢٠٠ قيد بترتيب خادمي (createdAt وحده — لا فهرس مركّب).
@@ -734,6 +766,25 @@ class FirebaseService {
   Stream<List<models.MenuItem>> streamMenuItems(String rId) => _items(rId)
       .snapshots()
       .map((s) => s.docs.map((d) => models.MenuItem.fromMap(d.data(), d.id)).toList());
+
+  /// فهرس أصناف كل المطاعم دفعةً واحدة — لبحث الصنف عبر المطاعم (دفعة ٥).
+  ///
+  /// استعلام `collectionGroup('items')` يجمع كل الأصناف من كل المطاعم في
+  /// قراءةٍ واحدة، فيبحث العميل عن «شاورما» فيرى كل مطعمٍ يقدّمها بدل تصفّح
+  /// مطعمٍ مطعماً — المعيار العالمي (دور داش/هنقرستيشن). البيانات عامّة أصلاً
+  /// (قاعدة الأصناف `allow read: if true`)، والفلترة بالاسم تقع في العميل
+  /// لأن Firestore لا يبحث عن نصٍّ جزئي.
+  ///
+  /// قراءةٌ لمرّة (Future) لا تدفّق: الفهرس يُجلب مرّة عند فتح البحث ويُخزَّن،
+  /// فلا قراءةً جديدة مع كل حرف. حدُّه: على نطاق الحيّ الواحد عند الإطلاق
+  /// العدد صغير؛ ومع النموّ يُنقل الفهرس إلى مستند مُجمَّع أو Algolia.
+  Future<List<models.MenuItem>> fetchItemCatalog() async {
+    final snap = await _db.collectionGroup('items').get();
+    return snap.docs
+        .map((d) => models.MenuItem.fromMap(d.data(), d.id))
+        .where((i) => i.isAvailable)
+        .toList();
+  }
 
   Future<void> addMenuItem(models.MenuItem item) =>
       _items(item.restaurantId).doc(item.id).set(item.toMap());
@@ -1139,64 +1190,80 @@ class FirebaseService {
   /// بلا قيد ولا قيد بلا استلام.
   Future<void> markPickedUpBySelf(String orderId) async {
     final ref = _orders.doc(orderId);
-    final doc = await ref.get();
-    if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
-    }
+    // معاملة ذرّية (دفعة ١، عطل السباق ٣): كان الفحص قراءةً منفصلة ثم batch،
+    // فضغطتان متزامنتان (بطاقة السائق + شاشة الخريطة تستدعيان الاستلام) تقرآن
+    // «جاهز للاستلام» قبل ثبوت أولاهما فتمرّان معاً — قيدُ عُهدةٍ **مرّتين**
+    // على الكابتن. الآن القراءة والفحص والقيد في معاملة واحدة: الثانية تقرأ
+    // «في الطريق» داخل معاملتها فتخرج بلا أثر (حصانة تكرار)، وقراءة رصيد
+    // السائق داخل المعاملة قبل أي كتابة (شرط فايرستور: القراءات قبل الكتابات).
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists || snap.data() == null) {
+        throw Exception('الطلب غير موجود');
+      }
+      final current = models.Order.fromMap(snap.data()!, snap.id);
+      // حصانة التكرار: استُلم فعلاً (في الطريق أو أبعد) أو أُنهي — لا قيد ثانٍ.
+      if (current.status == models.OrderStatus.onTheWay ||
+          current.status == models.OrderStatus.delivered ||
+          current.status == models.OrderStatus.cancelled ||
+          current.status == models.OrderStatus.refunded) {
+        return;
+      }
+      if (current.status != models.OrderStatus.readyForPickup &&
+          current.status != models.OrderStatus.searchingDriver &&
+          current.status != models.OrderStatus.driverAssigned &&
+          current.status != models.OrderStatus.pickedUp) {
+        throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
+      }
 
-    final current = models.Order.fromMap(doc.data()!, doc.id);
-    if (current.status != models.OrderStatus.readyForPickup &&
-        current.status != models.OrderStatus.searchingDriver &&
-        current.status != models.OrderStatus.driverAssigned &&
-        current.status != models.OrderStatus.pickedUp) {
-      throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
-    }
+      final driverId = current.driverId ?? '';
+      final needsCustody = current.paymentMethod == models.PaymentMethod.cash &&
+          !current.custodyDebited &&
+          driverId.isNotEmpty;
 
-    final driverId = current.driverId ?? '';
-    final needsCustody = current.paymentMethod == models.PaymentMethod.cash &&
-        !current.custodyDebited &&
-        driverId.isNotEmpty;
+      // قراءة رصيد السائق داخل المعاملة (قبل الكتابة) لحساب balanceAfter.
+      double balance = 0;
+      if (needsCustody && current.custodyAmount != 0) {
+        final driverSnap = await tx.get(_drivers.doc(driverId));
+        balance = driverSnap.exists && driverSnap.data() != null
+            ? models.Driver.fromMap(driverSnap.data()!, driverSnap.id).balance
+            : 0.0;
+      }
 
-    final batch = _db.batch();
-    batch.update(ref, {
-      'status': models.OrderStatus.onTheWay.name,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'statusChangedAt': FieldValue.serverTimestamp(),
-      if (needsCustody) 'custodyDebited': true,
-    });
-
-    // عُهدة صفرية (محفظة العميل غطّت حصّتَي المطعم والمنصّة بالضبط) لا
-    // تستحق قيداً — يبقى custodyDebited=true فلا يُعاد القيد عند التسليم.
-    if (needsCustody && current.custodyAmount != 0) {
-      final custody = current.custodyAmount;
-      final driverDoc = await _drivers.doc(driverId).get();
-      final balance = driverDoc.exists && driverDoc.data() != null
-          ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
-          : 0.0;
-      final txRef = _driverTransactions.doc();
-      batch.update(_drivers.doc(driverId), {
-        'balance': FieldValue.increment(-custody),
-        // دفعة ٠-ب (C1/H2): مؤشّر لحركة الدفتر المرافقة في نفس الدفعة —
-        // القاعدة ترفض أي تغيير رصيد بلا حركةٍ مطابقةٍ يشير إليها هذا الحقل.
-        'lastLedgerTxId': txRef.id,
+      tx.update(ref, {
+        'status': models.OrderStatus.onTheWay.name,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'statusChangedAt': FieldValue.serverTimestamp(),
+        if (needsCustody) 'custodyDebited': true,
       });
-      batch.set(
-        txRef,
-        models.DriverTransaction(
-          id: txRef.id,
-          driverId: driverId,
-          type: models.DriverTransactionType.orderCustody,
-          amount: -custody,
-          balanceAfter: balance - custody,
-          orderId: orderId,
-          orderNumber: current.orderNumber,
-          performedBy: _auth.currentUser?.uid ?? driverId,
-          createdAt: DateTime.now(),
-        ).toMap(),
-      );
-    }
 
-    await batch.commit();
+      // عُهدة صفرية (محفظة العميل غطّت حصّتَي المطعم والمنصّة بالضبط) لا
+      // تستحق قيداً — يبقى custodyDebited=true فلا يُعاد القيد عند التسليم.
+      if (needsCustody && current.custodyAmount != 0) {
+        final custody = current.custodyAmount;
+        final txRef = _driverTransactions.doc();
+        tx.update(_drivers.doc(driverId), {
+          'balance': FieldValue.increment(-custody),
+          // دفعة ٠-ب (C1/H2): مؤشّر لحركة الدفتر المرافقة في نفس المعاملة —
+          // القاعدة ترفض أي تغيير رصيد بلا حركةٍ مطابقةٍ يشير إليها هذا الحقل.
+          'lastLedgerTxId': txRef.id,
+        });
+        tx.set(
+          txRef,
+          models.DriverTransaction(
+            id: txRef.id,
+            driverId: driverId,
+            type: models.DriverTransactionType.orderCustody,
+            amount: -custody,
+            balanceAfter: balance - custody,
+            orderId: orderId,
+            orderNumber: current.orderNumber,
+            performedBy: _auth.currentUser?.uid ?? driverId,
+            createdAt: DateTime.now(),
+          ).toMap(),
+        );
+      }
+    });
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
   }
 
@@ -1285,8 +1352,11 @@ class FirebaseService {
               .toList()
             ..sort((a, b) => b.totalDeliveries.compareTo(a.totalDeliveries)));
 
-  /// طلبات مشغّلٍ المسلَّمة — لجمع مستحقّاته (مجموع operatorShare). محدود
-  /// بأحدث ٢٠٠ كنظائره في الدفتر، والجمع محلياً فلا فهرس مركّب.
+  /// طلبات مشغّلٍ المسلَّمة — لجمع مستحقّاته (مجموع operatorShare)، والجمع
+  /// محلياً فلا فهرس مركّب. **قيد معروف (دفعة ٢):** السقف ٤٠٠ يبتر المستحق
+  /// المتراكم على المدى الطويل (نفس عائلة عطب دفتر المطعم) — الحلّ الجذري
+  /// بلا خادم هو علم `operatorSettled` على الطلب يرفعه المدير عند التسوية،
+  /// فيُجمَع غيرُ المسوَّى وحده (مؤجَّل حتى تفعيل المشغّلين — الميزة خامدة).
   Stream<List<models.Order>> streamOperatorOrders(String operatorId) =>
       _orders
           .where('operatorId', isEqualTo: operatorId)
@@ -1296,11 +1366,27 @@ class FirebaseService {
               s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
   /// المدير يسجّل دفعةً للمشغّل: تُنقص من رصيده (كتسوية دفتر الكابتن).
-  Future<void> recordOperatorPayout(String operatorId, double amount) =>
-      _fleetOperators
-          .doc(operatorId)
-          .set({'balance': FieldValue.increment(-amount.abs())},
-              SetOptions(merge: true));
+  Future<void> recordOperatorPayout(String operatorId, double amount) async {
+    await _fleetOperators.doc(operatorId).set(
+        {'balance': FieldValue.increment(-amount.abs())}, SetOptions(merge: true));
+    // تسجيل التدقيق (دفعة ٢): كل حركة مال للمشغّل تُقيَّد في admin_audit
+    // كنظائرها (صرف السائق/تسوية المطعم) — لم تكن تُسجَّل فيغيب أثرها.
+    logAdminAction('operator.payout',
+        'صرف ${amount.abs().toStringAsFixed(2)} ر.س لمشغّل الأسطول',
+        extra: {'operatorId': operatorId});
+  }
+
+  /// المدير يُحصّل الرسم الشهري من المشغّل (دفعة ٢): كان `monthlyFee` يُضبط
+  /// ولا يُحصَّل بأي مسار — ميّتاً وظيفياً. تحصيلُه يُنقص صافي دفتره (كالدفعة:
+  /// كلاهما يقلّل ما يُستحقّ للمشغّل) ويُسجَّل في التدقيق باسمه المميَّز.
+  Future<void> chargeOperatorMonthlyFee(String operatorId, double amount) async {
+    if (amount <= 0) return;
+    await _fleetOperators.doc(operatorId).set(
+        {'balance': FieldValue.increment(-amount.abs())}, SetOptions(merge: true));
+    logAdminAction('operator.fee',
+        'تحصيل رسم شهري ${amount.abs().toStringAsFixed(2)} ر.س من مشغّل الأسطول',
+        extra: {'operatorId': operatorId});
+  }
 
   /// إظهار/إخفاء البنر الافتراضي المدمج (دفعة «الإعلانات الذكية»): يُخزَّن في
   /// `delivery_settings/banners` (قراءةٌ عامة كي يراه الزائر). الافتراضي
@@ -1595,22 +1681,41 @@ class FirebaseService {
           dispatchScore(acceptanceRate: d.acceptanceRate, rating: d.rating);
       return score(b).compareTo(score(a));
     });
-    final chosen = pool.first;
-
-    final batch = _db.batch();
-    batch.update(_orders.doc(order.id), {
-      'driverId': chosen.id,
-      'driverName': chosen.name,
-      'driverPhone': chosen.phone,
-      'updatedAt': FieldValue.serverTimestamp(),
-      // عرض حقيقي لا إسناد صامت: كان يُكتب true هنا فيتجاوز المسارُ الأكثر
-      // شيوعاً (الإسناد التلقائي) موافقةَ السائق كلياً — لا قبول ولا رفض ولا
-      // حتى علمٌ مؤكَّد. الآن يظهر له عرض بالأجرة والمسافتين وعدّاد، وانقضاء
-      // المهلة أو الرفض يمرّران الطلب لغيره.
-      'driverAcknowledged': false,
+    // الإسناد النهائي في معاملة ذرّية (دفعة ١، عطل السباق ١): كان batch يقرأ
+    // المرشَّح متاحاً (قراءةٌ سابقة على المعاملة) ثم يُسنده، فطلبان يُسنَدان
+    // متزامنين يقرآن نفس السائق متاحاً فيُسنَد لكليهما (خرق سقف الحمولة). الآن
+    // نعيد قراءة مرشَّحي المجموعة (مرتَّبين سلفاً) **داخل المعاملة** ونُسند أوّل
+    // من يبقى متاحاً فعلاً؛ وطلبٌ أُسنِد من مسارٍ آخر لا يُدهَس (driverId موجود).
+    final assignedId = await _db.runTransaction<String?>((tx) async {
+      final orderSnap = await tx.get(_orders.doc(order.id));
+      if (!orderSnap.exists || orderSnap.data() == null) return null;
+      final existing = (orderSnap.data()!['driverId'] as String?) ?? '';
+      if (existing.isNotEmpty) return null; // أُسنِد بالفعل — لا ازدواج
+      models.Driver? pick;
+      for (final cand in pool) {
+        final ds = await tx.get(_drivers.doc(cand.id));
+        if (ds.exists &&
+            ds.data() != null &&
+            (ds.data()!['isAvailable'] as bool? ?? false)) {
+          pick = models.Driver.fromMap(ds.data()!, ds.id);
+          break;
+        }
+      }
+      if (pick == null) return null; // سُبِق كل المرشَّحين — يُعاد لاحقاً
+      tx.update(_orders.doc(order.id), {
+        'driverId': pick.id,
+        'driverName': pick.name,
+        'driverPhone': pick.phone,
+        'updatedAt': FieldValue.serverTimestamp(),
+        // عرض حقيقي لا إسناد صامت: كان يُكتب true هنا فيتجاوز المسارُ الأكثر
+        // شيوعاً (الإسناد التلقائي) موافقةَ السائق كلياً. الآن يظهر له عرض
+        // بالأجرة والمسافتين وعدّاد، وانقضاء المهلة أو الرفض يمرّران الطلب لغيره.
+        'driverAcknowledged': false,
+      });
+      tx.update(_drivers.doc(pick.id), {'isAvailable': false});
+      return pick.id;
     });
-    batch.update(_drivers.doc(chosen.id), {'isAvailable': false});
-    await batch.commit();
+    if (assignedId == null) return false;
     // إشعار السائق المرشَّح — تطبيقه قد يكون بالخلفية لحظة العرض.
     NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
     return true;
@@ -1631,12 +1736,20 @@ class FirebaseService {
       List<models.Driver> online) async {
     try {
       final busy = <String>{};
+      // كل الطلبات النشطة لا «آخر ٣٠٠» (دفعة ١، عطل السباق ٦): النافذة ذات
+      // الحدّ الثابت تُسقط طلباً نشطاً أقدم منها في يومٍ مزدحم، فيُحرَّر سائقٌ
+      // مشغولٌ فعلاً ويتلقّى عرضاً وهو يوصّل (خرق سقف الحمولة). الحالات النشطة
+      // تسعٌ (≤10) فتصلح لاستعلام whereIn المفهرَس تلقائياً بلا فهرس مركّب.
+      final activeStatuses = models.OrderStatus.values
+          .where((s) => s.isActive)
+          .map((s) => s.name)
+          .toList();
       final snap =
-          await _orders.orderBy('createdAt', descending: true).limit(300).get();
+          await _orders.where('status', whereIn: activeStatuses).get();
       for (final doc in snap.docs) {
         final o = models.Order.fromMap(doc.data(), doc.id);
         final id = o.driverId ?? '';
-        if (id.isNotEmpty && o.status.isActive) busy.add(id);
+        if (id.isNotEmpty) busy.add(id);
       }
       final stuck = online
           .where((d) =>
@@ -2679,31 +2792,67 @@ class FirebaseService {
     // وعكس العُهدة. هنا القراءة والقفل (كتابة cancelled) في معاملة واحدة:
     // واحدٌ فقط يفوز بالقفل ويجري الآثار المالية، والثاني يقرأ cancelled
     // داخل معاملته فيخرج بصمت. لا نحجب noDriverFound — إلغاؤه مشروع.
+    //
+    // دفعة ١ (عطل السباق ٥): **عكس العُهدة داخل نفس المعاملة** — كان نداءً
+    // منفصلاً بعد القفل، فلو مات جهاز المدير بينهما بقي القيد على الكابتن
+    // لطلبٍ أُلغي (خصمٌ على توصيلة لن يحصّلها) بلا إعادة، لأن إعادة الإلغاء
+    // تخرج مبكراً «أُلغي سلفاً». المدير يتخطّى قيود القواعد (isAdmin) فلا يلزمه
+    // lastLedgerTxId، ونضيفه اتساقاً. بقية الآثار (المحفظة/الكوبون/الإتاحة/
+    // تعويض المطعم) تبقى بعده — أقلّ حرجاً (المحفظة علمٌ يراه المدير).
     final won = await _db.runTransaction<bool>((tx) async {
       final snap = await tx.get(_orders.doc(orderId));
       final data = snap.data();
       if (!snap.exists || data == null) return false;
-      final status = models.OrderStatus.values.firstWhere(
-        (s) => s.name == (data['status'] as String? ?? ''),
-        orElse: () => models.OrderStatus.created,
-      );
-      if (status == models.OrderStatus.cancelled ||
-          status == models.OrderStatus.refunded) {
+      final o = models.Order.fromMap(data, orderId);
+      if (o.status == models.OrderStatus.cancelled ||
+          o.status == models.OrderStatus.refunded) {
         return false;
+      }
+      // قراءة رصيد الكابتن (قبل الكتابة) إن كانت العُهدة مقيَّدة عليه.
+      final driverId = o.driverId ?? '';
+      final reverse =
+          o.custodyDebited && o.custodyAmount != 0 && driverId.isNotEmpty;
+      double driverBalance = 0;
+      if (reverse) {
+        final dSnap = await tx.get(_drivers.doc(driverId));
+        driverBalance = dSnap.exists && dSnap.data() != null
+            ? models.Driver.fromMap(dSnap.data()!, dSnap.id).balance
+            : 0.0;
       }
       tx.update(_orders.doc(orderId), {
         'status': models.OrderStatus.cancelled.name,
         'updatedAt': FieldValue.serverTimestamp(),
         'statusChangedAt': FieldValue.serverTimestamp(),
       });
+      if (reverse) {
+        final custody = o.custodyAmount;
+        final txRef = _driverTransactions.doc();
+        tx.update(_drivers.doc(driverId), {
+          'balance': FieldValue.increment(custody),
+          'lastLedgerTxId': txRef.id,
+        });
+        tx.set(
+          txRef,
+          models.DriverTransaction(
+            id: txRef.id,
+            driverId: driverId,
+            type: models.DriverTransactionType.custodyReversal,
+            amount: custody,
+            balanceAfter: driverBalance + custody,
+            orderId: orderId,
+            orderNumber: o.orderNumber,
+            note: 'إلغاء الطلب بعد الاستلام',
+            performedBy: _auth.currentUser?.uid ?? '',
+            createdAt: DateTime.now(),
+          ).toMap(),
+        );
+      }
       return true;
     });
     if (!won) return;
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
     await _refundWalletOnCancel(order);
-    // إن كان السائق قد استلم الطلب فعُهدته مقيّدة عليه — تُردّ له، فالطلب
-    // الملغى لن يحصّل قيمته من أحد.
-    await _reverseCustodyIfNeeded(order);
+    // عكس العُهدة تمّ داخل المعاملة (عطل السباق ٥) — لا نداء منفصل هنا.
     // ويعود متاحاً: بلا هذا كان يبقى «مشغولاً» بطلبٍ أُلغي فلا تصله عروض.
     await _releaseOrderDriver(order);
     await _compensateRestaurantIfCooked(order);
@@ -3266,6 +3415,89 @@ class FirebaseService {
     }
   }
 
+  /// صرف مكافأة إحالة عميل (دفعة ٥) — نظير إحالة السائق تماماً: ختمُ
+  /// `referralRewarded` على العميل المُحال ذرّياً أولاً (يمنع الصرف المزدوج
+  /// من جهازَي مدير)، ثم إضافة رصيد لمحفظة الداعي والمدعوّ. الختم قبل الصرف
+  /// عمداً: ختمٌ بلا صرف يظهر مستحقّاً فيُصلَح يدوياً، وصرفٌ بلا ختم يتكرّر.
+  ///
+  /// عملية مدير حصراً: زيادة رصيد العميل في القواعد للمدير وحده، فلا يصرفها
+  /// عميلٌ لنفسه.
+  Future<void> payCustomerReferralBonus({
+    required models.AppUser referrer,
+    required models.AppUser referee,
+    required double referrerAmount,
+    required double refereeAmount,
+  }) async {
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(_users.doc(referee.uid));
+      if (snap.data()?['referralRewarded'] as bool? ?? false) {
+        throw Exception('صُرفت مكافأة هذه الإحالة مسبقاً');
+      }
+      tx.update(_users.doc(referee.uid), {'referralRewarded': true});
+    });
+    if (referrerAmount > 0) {
+      await addWalletCredit(
+        referrer.uid,
+        referrerAmount,
+        type: models.WalletTransactionType.referral,
+        note: 'مكافأة إحالة — ${referee.name}',
+      );
+    }
+    if (refereeAmount > 0) {
+      await addWalletCredit(
+        referee.uid,
+        refereeAmount,
+        type: models.WalletTransactionType.referral,
+        note: 'مكافأة ترحيب — دعوة ${referrer.name}',
+      );
+    }
+    logAdminAction('customer.referral.pay',
+        'إحالة عميل: ${referrer.name} ← ${referee.name}');
+  }
+
+  /// صرف كاش باك عن طلبٍ مسلَّم (دفعة ٥) — مرة واحدة لكل طلب.
+  ///
+  /// علامة `cashback_grants/{orderId}` تُنشأ **قبل** الإضافة داخل معاملة
+  /// (تفشل إن كانت موجودة): تمنع صرف الطلب الواحد مرتين حتى من جهازَي مدير
+  /// أو مسحَين متوازيين. العلامة قبل الصرف عمداً — نفس عقيدة الإحالة.
+  ///
+  /// عملية مدير حصراً (القاعدة: إنشاء العلامة وزيادة الرصيد للمدير وحده).
+  Future<void> accrueCashback({
+    required String customerId,
+    required String orderId,
+    required String orderNumber,
+    required double amount,
+  }) async {
+    if (amount <= 0) return;
+    final ref = _cashbackGrants.doc(orderId);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (snap.exists) {
+        throw Exception('صُرف الكاش باك عن هذا الطلب مسبقاً');
+      }
+      tx.set(ref, {
+        'customerId': customerId,
+        'orderId': orderId,
+        'amount': amount,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    });
+    await addWalletCredit(
+      customerId,
+      amount,
+      type: models.WalletTransactionType.cashback,
+      orderId: orderId,
+      orderNumber: orderNumber,
+      note: 'كاش باك — طلب #$orderNumber',
+    );
+  }
+
+  /// معرّفات الطلبات التي صُرف عنها كاش باك — لكنسِ اللوحة كي يتخطّاها.
+  Future<Set<String>> fetchCashbackPaidOrderIds() async {
+    final snap = await _cashbackGrants.get();
+    return snap.docs.map((d) => d.id).toSet();
+  }
+
   /// صرف مكافأة تحدٍّ — مرة واحدة لكل سائق في كل نافذة.
   ///
   /// الحارس يُقرأ من القاعدة لا من النسخة المعروضة على الشاشة: الصرف
@@ -3327,53 +3559,59 @@ class FirebaseService {
     final orderSnap = await _orders.doc(orderId).get();
     if (!orderSnap.exists || orderSnap.data()?['isRated'] == true) return;
 
-    // قراءة العدّادين الحاليين لحساب المتوسط الجديد (خارج الدفعة).
     final hasDriver = driverId.isNotEmpty;
     final hasRest = restaurantId != null && restaurantId.isNotEmpty;
-    final driverSnap =
-        hasDriver ? await _drivers.doc(driverId).get() : null;
-    final restSnap =
-        hasRest ? await _restaurants.doc(restaurantId).get() : null;
 
-    final batch = _db.batch();
-    batch.update(_orders.doc(orderId), {
-      'customerRating': orderRating,
-      'driverRating': driverRating,
-      'isRated': true,
-      if (review != null) 'customerReview': review,
-    });
-
-    if (driverSnap != null && driverSnap.exists && driverSnap.data() != null) {
-      final d = models.Driver.fromMap(driverSnap.data()!, driverSnap.id);
-      batch.set(_drivers.doc(driverId).collection('ratings').doc(orderId), {
-        'stars': driverRating,
-        'customerId': uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      batch.update(_drivers.doc(driverId), {
-        'rating': _nextAvg(d.rating, d.ratingCount, driverRating),
-        'ratingCount': d.ratingCount + 1,
-        'ratingOrderId': orderId,
-      });
-    }
-
-    if (restSnap != null && restSnap.exists && restSnap.data() != null) {
-      final r = models.Restaurant.fromMap(restSnap.data()!, restSnap.id);
-      batch.set(
-          _restaurants.doc(restaurantId).collection('ratings').doc(orderId), {
-        'stars': orderRating,
-        'customerId': uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      batch.update(_restaurants.doc(restaurantId), {
-        'rating': _nextAvg(r.rating, r.ratingCount, orderRating),
-        'ratingCount': r.ratingCount + 1,
-        'ratingOrderId': orderId,
-      });
-    }
-
+    // معاملة ذرّية (دفعة ١، عطل السباق ٤): كان متوسط التقييم والعدّاد يُحسبان
+    // من قراءةٍ **خارج الدفعة**، فتقييمان متزامنان لنفس الكابتن/المطعم يقرآن
+    // العدّاد نفسه فيكتب كلاهما «+١» واحداً (تحديثٌ ضائع) ومتوسطاً منحرفاً.
+    // الآن القراءة والحساب والكتابة في معاملة واحدة: التزامن يُعيد المحاولة
+    // فيقرأ العدّاد المحدَّث ويحسب عليه. والعلامة الخالدة لكل طلب تبقى تمنع
+    // تكرار تقييم الطلب نفسه (قراءتها/كتابتها ذرّياً كما كانت).
     try {
-      await batch.commit();
+      await _db.runTransaction((tx) async {
+        final oSnap = await tx.get(_orders.doc(orderId));
+        if (!oSnap.exists || oSnap.data() == null) return;
+        if (oSnap.data()!['isRated'] == true) return; // حصانة تكرار
+        final dSnap = hasDriver ? await tx.get(_drivers.doc(driverId)) : null;
+        final rSnap = hasRest ? await tx.get(_restaurants.doc(restaurantId)) : null;
+
+        tx.update(_orders.doc(orderId), {
+          'customerRating': orderRating,
+          'driverRating': driverRating,
+          'isRated': true,
+          if (review != null) 'customerReview': review,
+        });
+
+        if (dSnap != null && dSnap.exists && dSnap.data() != null) {
+          final d = models.Driver.fromMap(dSnap.data()!, dSnap.id);
+          tx.set(_drivers.doc(driverId).collection('ratings').doc(orderId), {
+            'stars': driverRating,
+            'customerId': uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          tx.update(_drivers.doc(driverId), {
+            'rating': _nextAvg(d.rating, d.ratingCount, driverRating),
+            'ratingCount': d.ratingCount + 1,
+            'ratingOrderId': orderId,
+          });
+        }
+
+        if (rSnap != null && rSnap.exists && rSnap.data() != null) {
+          final r = models.Restaurant.fromMap(rSnap.data()!, rSnap.id);
+          tx.set(
+              _restaurants.doc(restaurantId).collection('ratings').doc(orderId), {
+            'stars': orderRating,
+            'customerId': uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          tx.update(_restaurants.doc(restaurantId), {
+            'rating': _nextAvg(r.rating, r.ratingCount, orderRating),
+            'ratingCount': r.ratingCount + 1,
+            'ratingOrderId': orderId,
+          });
+        }
+      });
     } on FirebaseException catch (e) {
       // permission-denied المتوقّع الوحيد هنا: علامةٌ موجودة (سبق التقييم من
       // جهازٍ آخر بين الفحص والدفع) — نجاحٌ خامل لا خطأ يُعرض للعميل.

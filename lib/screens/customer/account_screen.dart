@@ -21,6 +21,8 @@ import '../auth/change_password_screen.dart';
 import '../auth/edit_profile_screen.dart';
 import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
+import 'help_center_screen.dart';
+import 'customer_referral_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -97,6 +99,48 @@ class AccountScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (_) => const ChangePasswordScreen()),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // ادعُ أصدقاءك (دفعة ٥): مدخل إحالة العميل — يشارك كوده فيربح
+            // الطرفان رصيداً حين ينجز المدعوّ الشرط.
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.card_giftcard_rounded,
+                    color: AppColors.primary),
+                title: const Text('ادعُ أصدقاءك',
+                    style:
+                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
+                subtitle: const Text('شارك كودك واربحا معاً',
+                    style: TextStyle(fontSize: 12.5)),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => CustomerReferralScreen(user: user)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // مركز المساعدة (دفعة ٥): مدخلٌ للأسئلة الشائعة قبل التذكرة —
+            // يجيب أكثر الأسئلة فوراً ويقلّل ضغط الدعم.
+            Card(
+              margin: EdgeInsets.zero,
+              child: ListTile(
+                leading: const Icon(Icons.help_outline_rounded,
+                    color: AppColors.primary),
+                title: const Text('مركز المساعدة',
+                    style:
+                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
+                subtitle: const Text('أسئلة شائعة وتواصل مع الدعم',
+                    style: TextStyle(fontSize: 12.5)),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => HelpCenterScreen(user: user)),
                 ),
               ),
             ),
@@ -289,18 +333,21 @@ class _WalletCard extends StatelessWidget {
             colors: [AppColors.primary, AppColors.primaryDark]),
         borderRadius: BorderRadius.circular(16),
       ),
+      // النصّ كحليّ داكن على تدرّج ذهبي — الأبيض على الذهبي يعطي تبايناً ~١٫٨:١
+      // (أقل من عتبة WCAG AA) فيصعب قراءة الرصيد؛ الكحليّ يرفعه فوق ٨:١.
       child: Row(children: [
         const Icon(Icons.account_balance_wallet_rounded,
-            color: Colors.white70, size: 34),
+            color: AppColors.dark, size: 34),
         const SizedBox(width: 14),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('رصيد المحفظة',
-                style: TextStyle(color: Colors.white70, fontSize: 13.5)),
+            Text('رصيد المحفظة',
+                style: TextStyle(
+                    color: AppColors.dark.withOpacity(0.75), fontSize: 13.5)),
             Text(formatCurrency(balance),
                 style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.dark,
                     fontSize: 26,
                     fontWeight: FontWeight.bold)),
           ],

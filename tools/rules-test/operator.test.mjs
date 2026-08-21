@@ -54,6 +54,8 @@ await t('المشغّل لا يسرد كباتن مشغّلٍ آخر', () => ass
 console.log('\nملف المشغّل ودفتره:');
 await t('المشغّل يقرأ ملفه', () => assertSucceeds(getDoc(doc(op1, 'fleet_operators/op1'))));
 await t('المشغّل لا يقرأ ملف مشغّلٍ آخر', () => assertFails(getDoc(doc(op1, 'fleet_operators/op2'))));
+await t('الكابتن لا يقرأ ملف المشغّل (تسريب رصيده ورسمه — دفعة ٢)', () => assertFails(
+  getDoc(doc(drv1, 'fleet_operators/op1'))));
 await t('المشغّل لا يعدّل نسبته', () => assertFails(
   updateDoc(doc(op1, 'fleet_operators/op1'), { driverSharePerDelivery: 9 })));
 await t('المشغّل لا يضخّم دفتره', () => assertFails(

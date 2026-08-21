@@ -110,8 +110,9 @@ class _SuggestionScreenState extends State<SuggestionScreen> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
+                    // كحليّ لا أبيض: مقدّمة الزر الذهبي كحلية عبر الثيم.
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2, color: AppColors.dark))
                 : const Text('إرسال',
                     style: TextStyle(fontWeight: FontWeight.bold)),
           ),

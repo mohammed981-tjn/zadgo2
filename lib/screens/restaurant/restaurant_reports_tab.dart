@@ -30,10 +30,9 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
     try {
       await run();
     } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('تعذّر تصدير التقرير')));
-      }
+      // المعالجة الموحّدة للخطأ (showError) بدل SnackBar خام: تعطي النمط
+      // البصري نفسه المستخدَم في كل الشاشات بدل صندوقٍ افتراضي شاذّ.
+      if (mounted) showError(context, 'تعذّر تصدير التقرير');
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -64,15 +63,17 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                     colors: [context.flavorColors.primary, context.flavorColors.primaryDark]),
                 borderRadius: BorderRadius.circular(16),
               ),
+              // ألوان النص من رمز الثيم (onPrimary) لا أبيض مثبَّت: يحترم قرار
+              // الثيم فلا يكسر لو صار لون النكهة فاتحاً مستقبلاً.
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('إجمالي قيمة الوجبات المباعة',
-                    style: TextStyle(color: Colors.white70)),
+                Text('إجمالي قيمة الوجبات المباعة',
+                    style: TextStyle(color: context.flavorColors.onPrimary.withOpacity(0.7))),
                 Text(formatCurrency(totalMealsValue),
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: context.flavorColors.onPrimary, fontSize: 30, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
                 Text('${sold.length} طلب مكتمل',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+                    style: TextStyle(color: context.flavorColors.onPrimary.withOpacity(0.7), fontSize: 12.5)),
               ]),
             ),
             const SizedBox(height: 12),
@@ -142,9 +143,13 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                           PriceRow(
                               label: 'خصومات شكاوى جودة (لصالح العملاء)',
                               value: '- ${formatCurrency(led.chargebacks)}'),
+                        // «صافي المستحق» بارز كـ«المتبقّي لك»: هو الرقم الذي
+                        // يقرأه المطعم قبل غيره، فلا يصحّ أن يحمل وزن البنود
+                        // الخام فوقه — دفاتر التجار العالمية تُبرز الصافي والمدفوع.
                         PriceRow(
                             label: 'صافي المستحق',
-                            value: formatCurrency(net)),
+                            value: formatCurrency(net),
+                            bold: true),
                         PriceRow(
                             label: 'استلمته',
                             value: '- ${formatCurrency(led.paid)}'),

@@ -226,6 +226,14 @@ class _OperatorCard extends StatelessWidget {
               label: const Text('تسجيل دفعة'),
               onPressed: () => _recordPayout(context, op),
             ),
+            // تحصيل الرسم الشهري (دفعة ٢): يظهر فقط حين ضبط المدير رسماً — كان
+            // `monthlyFee` يُضبط ولا يُحصَّل بأي مسار (ميّتاً وظيفياً).
+            if (op.monthlyFee > 0)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                label: Text('تحصيل الرسم (${op.monthlyFee.toStringAsFixed(0)})'),
+                onPressed: () => _chargeMonthlyFee(context, op),
+              ),
           ]),
         ]),
       ),
@@ -265,6 +273,35 @@ class _OperatorCard extends StatelessWidget {
               if (dCtx.mounted) Navigator.pop(dCtx);
             },
             child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _chargeMonthlyFee(BuildContext context, FleetOperator op) {
+    showDialog(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('تحصيل الرسم الشهري'),
+        content: Text(
+            'تحصيل ${op.monthlyFee.toStringAsFixed(0)} ر.س رسماً شهرياً من '
+            '${op.name.isEmpty ? "المشغّل" : op.name}؟ يُنقص من صافي دفتره '
+            'ويُسجَّل في سجلّ العمليات.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+          FilledButton(
+            onPressed: () async {
+              await context
+                  .read<FirebaseService>()
+                  .chargeOperatorMonthlyFee(op.id, op.monthlyFee);
+              if (dCtx.mounted) {
+                Navigator.pop(dCtx);
+                showSuccess(context, 'حُصِّل الرسم الشهري');
+              }
+            },
+            child: const Text('تحصيل'),
           ),
         ],
       ),

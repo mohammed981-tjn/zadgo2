@@ -177,13 +177,20 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> register({
     required String name, required String email, required String password,
     required String phone, required UserRole role,
+    String referredByCode = '',
   }) async {
     _loading = true; _error = null; notifyListeners();
     try {
       final cred = await _service.register(email.trim(), password.trim());
       final uid = cred.user!.uid;
+      // كود الداعي يُلتقط مرّة عند الإنشاء (إحالة العميل، دفعة ٥) — مطبَّع
+      // كبيراً بلا فراغات، ولا يُطابق كودَ صاحبه (لا يُحيل المرء نفسه).
+      final refCode = referredByCode.trim().toUpperCase();
+      final ownCode =
+          uid.length >= 6 ? uid.substring(0, 6).toUpperCase() : uid.toUpperCase();
       final newUser = AppUser(uid: uid, name: name.trim(), email: email.trim(),
-          phone: phone.trim(), role: role, createdAt: DateTime.now());
+          phone: phone.trim(), role: role, createdAt: DateTime.now(),
+          referredByCode: refCode == ownCode ? '' : refCode);
       await _service.createUser(newUser);
       if (role == UserRole.driver) {
         await _service.addDriver(Driver(id: uid, name: name.trim(), phone: phone.trim(),

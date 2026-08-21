@@ -16,7 +16,10 @@ class AppColors {
   static const errorLight = Color(0xFFFDECEA);
   static const surface = Color(0xFFF4F7FC);
   static const textDark = Color(0xFF0A1A33);
-  static const textGray = Color(0xFF8A8A8E);
+  // غُمِّق من 8A8A8E إلى 5F6470 (دفعة ٤ البصريات): القديم ~3.4:1 على الأبيض
+  // دون عتبة WCAG AA (4.5:1)، وهو لون **كل** النص الثانوي في التطبيق — فسطرٌ
+  // واحد يرفع قراءة الشروح والملاحظات والأعمدة في كل شاشة. الجديد ~5.2:1.
+  static const textGray = Color(0xFF5F6470);
   static const divider = Color(0xFFE3E9F3);
   static const cardShadow = Color(0x14000000);
 }

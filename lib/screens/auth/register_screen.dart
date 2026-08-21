@@ -27,13 +27,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _refCtrl = TextEditingController();
   bool _obscure = true;
 
   Future<void> _register() async {
     if (!_form.currentState!.validate()) return;
     final auth = context.read<app_auth.AuthProvider>();
     final ok = await auth.register(name: _nameCtrl.text, email: _emailCtrl.text,
-        password: _passCtrl.text, phone: _phoneCtrl.text, role: UserRole.customer);
+        password: _passCtrl.text, phone: _phoneCtrl.text, role: UserRole.customer,
+        referredByCode: _refCtrl.text);
     if (!mounted) return;
     if (ok) {
       if (widget.fromCheckout) {
@@ -70,6 +72,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                     onPressed: () => setState(() => _obscure = !_obscure))),
             validator: validatePassword),
+        const SizedBox(height: 14),
+        // كود دعوة اختياريّ (إحالة العميل، دفعة ٥): من دُعي بكودٍ يكتبه هنا
+        // فينال هو وداعيه مكافأةً حين يُكمل شرط الطلبات. اختياريّ فلا يعطّل من
+        // سجّل بلا دعوة.
+        TextFormField(controller: _refCtrl,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+                labelText: 'كود دعوة (اختياري)',
+                prefixIcon: Icon(Icons.card_giftcard_outlined))),
         const SizedBox(height: 28),
         SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
             onPressed: auth.loading ? null : _register,

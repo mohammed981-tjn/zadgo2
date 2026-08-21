@@ -92,6 +92,9 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     // كلمةً منه تسبقها أفضل أثراً من أدقّ تلخيص آلي.
     final resolutionCtrl = TextEditingController();
     bool aiLoading = false;
+    // آخر اقتراح ذكاء في هذا الحوار (دفعة ٣): يُلتقَط عند الحلّ لمقارنته
+    // بالنصّ النهائي فتُعرف النتيجة (قُبل/عُدّل/رُفض) — منجم بيانات التدريب.
+    String? aiSuggestion;
     final service = context.read<FirebaseService>();
     final auth = context.read<app_auth.AuthProvider>();
 
@@ -134,6 +137,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                               complaint: widget.complaint,
                               resolutionDraft: resolutionCtrl.text,
                             );
+                            aiSuggestion = s;
                             resolutionCtrl.text = s;
                           } catch (e) {
                             if (mounted) {
@@ -251,6 +255,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
         chargeRestaurant:
             chargeRestaurant && (refundPercentage ?? 0) > 0,
       );
+      _logAiFeedback(service, aiSuggestion, resolutionCtrl.text.trim());
       if (mounted) {
         showSuccess(context, 'تم حل الشكوى بنجاح');
         Navigator.pop(context);
@@ -262,11 +267,30 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     }
   }
 
+  /// يسجّل تغذية الذكاء الراجعة عند الحلّ (دفعة ٣): يقارن النصّ النهائي
+  /// بالاقتراح فيصنّف النتيجة — قُبل كما هو، عُدِّل، أو رُفض (فُرِّغ). لا
+  /// يُسجَّل شيء إن لم يُستخدَم اقتراحٌ أصلاً. غير حرج (لا يُعطّل الحل).
+  void _logAiFeedback(
+      FirebaseService service, String? suggestion, String finalText) {
+    if (suggestion == null) return;
+    final outcome = finalText.isEmpty
+        ? 'rejected'
+        : (finalText == suggestion.trim() ? 'accepted' : 'edited');
+    service.recordAiFeedback(
+      feature: 'complaintReply',
+      suggestion: suggestion,
+      finalText: finalText,
+      outcome: outcome,
+      context: widget.complaint.type.name,
+    );
+  }
+
   /// حل تذكرة عامة: نص قرار يظهر لمقدّمها في «شكاواي» — أي أثر مالي
   /// (صرف/تسوية) يُنفَّذ من شاشته المختصة (طلبات السحب/دفتر السائق) لا هنا.
   Future<void> _showResolveTicketDialog(BuildContext context) async {
     final resolutionCtrl = TextEditingController();
     bool aiLoading = false;
+    String? aiSuggestion; // دفعة ٣: التقاط الاقتراح لقياس نتيجته عند الحل.
     final service = context.read<FirebaseService>();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -304,6 +328,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                             complaint: widget.complaint,
                             resolutionDraft: resolutionCtrl.text,
                           );
+                          aiSuggestion = s;
                           resolutionCtrl.text = s;
                         } catch (e) {
                           if (mounted) {
@@ -341,6 +366,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
         ComplaintStatus.resolved,
         resolution: resolutionCtrl.text.trim(),
       );
+      _logAiFeedback(service, aiSuggestion, resolutionCtrl.text.trim());
       if (mounted) {
         showSuccess(context, 'حُلّت التذكرة وأُبلغ صاحبها');
         Navigator.pop(context);
