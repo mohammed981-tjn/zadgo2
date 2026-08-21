@@ -2722,31 +2722,67 @@ class FirebaseService {
     // وعكس العُهدة. هنا القراءة والقفل (كتابة cancelled) في معاملة واحدة:
     // واحدٌ فقط يفوز بالقفل ويجري الآثار المالية، والثاني يقرأ cancelled
     // داخل معاملته فيخرج بصمت. لا نحجب noDriverFound — إلغاؤه مشروع.
+    //
+    // دفعة ١ (عطل السباق ٥): **عكس العُهدة داخل نفس المعاملة** — كان نداءً
+    // منفصلاً بعد القفل، فلو مات جهاز المدير بينهما بقي القيد على الكابتن
+    // لطلبٍ أُلغي (خصمٌ على توصيلة لن يحصّلها) بلا إعادة، لأن إعادة الإلغاء
+    // تخرج مبكراً «أُلغي سلفاً». المدير يتخطّى قيود القواعد (isAdmin) فلا يلزمه
+    // lastLedgerTxId، ونضيفه اتساقاً. بقية الآثار (المحفظة/الكوبون/الإتاحة/
+    // تعويض المطعم) تبقى بعده — أقلّ حرجاً (المحفظة علمٌ يراه المدير).
     final won = await _db.runTransaction<bool>((tx) async {
       final snap = await tx.get(_orders.doc(orderId));
       final data = snap.data();
       if (!snap.exists || data == null) return false;
-      final status = models.OrderStatus.values.firstWhere(
-        (s) => s.name == (data['status'] as String? ?? ''),
-        orElse: () => models.OrderStatus.created,
-      );
-      if (status == models.OrderStatus.cancelled ||
-          status == models.OrderStatus.refunded) {
+      final o = models.Order.fromMap(data, orderId);
+      if (o.status == models.OrderStatus.cancelled ||
+          o.status == models.OrderStatus.refunded) {
         return false;
+      }
+      // قراءة رصيد الكابتن (قبل الكتابة) إن كانت العُهدة مقيَّدة عليه.
+      final driverId = o.driverId ?? '';
+      final reverse =
+          o.custodyDebited && o.custodyAmount != 0 && driverId.isNotEmpty;
+      double driverBalance = 0;
+      if (reverse) {
+        final dSnap = await tx.get(_drivers.doc(driverId));
+        driverBalance = dSnap.exists && dSnap.data() != null
+            ? models.Driver.fromMap(dSnap.data()!, dSnap.id).balance
+            : 0.0;
       }
       tx.update(_orders.doc(orderId), {
         'status': models.OrderStatus.cancelled.name,
         'updatedAt': FieldValue.serverTimestamp(),
         'statusChangedAt': FieldValue.serverTimestamp(),
       });
+      if (reverse) {
+        final custody = o.custodyAmount;
+        final txRef = _driverTransactions.doc();
+        tx.update(_drivers.doc(driverId), {
+          'balance': FieldValue.increment(custody),
+          'lastLedgerTxId': txRef.id,
+        });
+        tx.set(
+          txRef,
+          models.DriverTransaction(
+            id: txRef.id,
+            driverId: driverId,
+            type: models.DriverTransactionType.custodyReversal,
+            amount: custody,
+            balanceAfter: driverBalance + custody,
+            orderId: orderId,
+            orderNumber: o.orderNumber,
+            note: 'إلغاء الطلب بعد الاستلام',
+            performedBy: _auth.currentUser?.uid ?? '',
+            createdAt: DateTime.now(),
+          ).toMap(),
+        );
+      }
       return true;
     });
     if (!won) return;
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
     await _refundWalletOnCancel(order);
-    // إن كان السائق قد استلم الطلب فعُهدته مقيّدة عليه — تُردّ له، فالطلب
-    // الملغى لن يحصّل قيمته من أحد.
-    await _reverseCustodyIfNeeded(order);
+    // عكس العُهدة تمّ داخل المعاملة (عطل السباق ٥) — لا نداء منفصل هنا.
     // ويعود متاحاً: بلا هذا كان يبقى «مشغولاً» بطلبٍ أُلغي فلا تصله عروض.
     await _releaseOrderDriver(order);
     await _compensateRestaurantIfCooked(order);
@@ -3370,53 +3406,59 @@ class FirebaseService {
     final orderSnap = await _orders.doc(orderId).get();
     if (!orderSnap.exists || orderSnap.data()?['isRated'] == true) return;
 
-    // قراءة العدّادين الحاليين لحساب المتوسط الجديد (خارج الدفعة).
     final hasDriver = driverId.isNotEmpty;
     final hasRest = restaurantId != null && restaurantId.isNotEmpty;
-    final driverSnap =
-        hasDriver ? await _drivers.doc(driverId).get() : null;
-    final restSnap =
-        hasRest ? await _restaurants.doc(restaurantId).get() : null;
 
-    final batch = _db.batch();
-    batch.update(_orders.doc(orderId), {
-      'customerRating': orderRating,
-      'driverRating': driverRating,
-      'isRated': true,
-      if (review != null) 'customerReview': review,
-    });
-
-    if (driverSnap != null && driverSnap.exists && driverSnap.data() != null) {
-      final d = models.Driver.fromMap(driverSnap.data()!, driverSnap.id);
-      batch.set(_drivers.doc(driverId).collection('ratings').doc(orderId), {
-        'stars': driverRating,
-        'customerId': uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      batch.update(_drivers.doc(driverId), {
-        'rating': _nextAvg(d.rating, d.ratingCount, driverRating),
-        'ratingCount': d.ratingCount + 1,
-        'ratingOrderId': orderId,
-      });
-    }
-
-    if (restSnap != null && restSnap.exists && restSnap.data() != null) {
-      final r = models.Restaurant.fromMap(restSnap.data()!, restSnap.id);
-      batch.set(
-          _restaurants.doc(restaurantId).collection('ratings').doc(orderId), {
-        'stars': orderRating,
-        'customerId': uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      batch.update(_restaurants.doc(restaurantId), {
-        'rating': _nextAvg(r.rating, r.ratingCount, orderRating),
-        'ratingCount': r.ratingCount + 1,
-        'ratingOrderId': orderId,
-      });
-    }
-
+    // معاملة ذرّية (دفعة ١، عطل السباق ٤): كان متوسط التقييم والعدّاد يُحسبان
+    // من قراءةٍ **خارج الدفعة**، فتقييمان متزامنان لنفس الكابتن/المطعم يقرآن
+    // العدّاد نفسه فيكتب كلاهما «+١» واحداً (تحديثٌ ضائع) ومتوسطاً منحرفاً.
+    // الآن القراءة والحساب والكتابة في معاملة واحدة: التزامن يُعيد المحاولة
+    // فيقرأ العدّاد المحدَّث ويحسب عليه. والعلامة الخالدة لكل طلب تبقى تمنع
+    // تكرار تقييم الطلب نفسه (قراءتها/كتابتها ذرّياً كما كانت).
     try {
-      await batch.commit();
+      await _db.runTransaction((tx) async {
+        final oSnap = await tx.get(_orders.doc(orderId));
+        if (!oSnap.exists || oSnap.data() == null) return;
+        if (oSnap.data()!['isRated'] == true) return; // حصانة تكرار
+        final dSnap = hasDriver ? await tx.get(_drivers.doc(driverId)) : null;
+        final rSnap = hasRest ? await tx.get(_restaurants.doc(restaurantId)) : null;
+
+        tx.update(_orders.doc(orderId), {
+          'customerRating': orderRating,
+          'driverRating': driverRating,
+          'isRated': true,
+          if (review != null) 'customerReview': review,
+        });
+
+        if (dSnap != null && dSnap.exists && dSnap.data() != null) {
+          final d = models.Driver.fromMap(dSnap.data()!, dSnap.id);
+          tx.set(_drivers.doc(driverId).collection('ratings').doc(orderId), {
+            'stars': driverRating,
+            'customerId': uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          tx.update(_drivers.doc(driverId), {
+            'rating': _nextAvg(d.rating, d.ratingCount, driverRating),
+            'ratingCount': d.ratingCount + 1,
+            'ratingOrderId': orderId,
+          });
+        }
+
+        if (rSnap != null && rSnap.exists && rSnap.data() != null) {
+          final r = models.Restaurant.fromMap(rSnap.data()!, rSnap.id);
+          tx.set(
+              _restaurants.doc(restaurantId).collection('ratings').doc(orderId), {
+            'stars': orderRating,
+            'customerId': uid,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          tx.update(_restaurants.doc(restaurantId), {
+            'rating': _nextAvg(r.rating, r.ratingCount, orderRating),
+            'ratingCount': r.ratingCount + 1,
+            'ratingOrderId': orderId,
+          });
+        }
+      });
     } on FirebaseException catch (e) {
       // permission-denied المتوقّع الوحيد هنا: علامةٌ موجودة (سبق التقييم من
       // جهازٍ آخر بين الفحص والدفع) — نجاحٌ خامل لا خطأ يُعرض للعميل.

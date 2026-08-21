@@ -278,17 +278,12 @@ class _DriverHomeState extends State<DriverHome> {
               if (mounted) showError(context, 'تعذّر رفض الطلب — ربما تغيّرت حالته');
             }
           },
-          onExpired: () async {
-            // انقضت مهلة القرار: يُمرَّر الطلب لأقرب سائق آخر تلقائياً —
-            // بصمت، فقد يكون الهاتف في الجيب أصلاً. وإن لم يوجد بديل بقي
-            // العرض في قائمته (dueToTimeout) بدل أن يُتَّم الطلب.
+          onExpired: () {
+            // انقضاء عدّاد الشريط يُزيله بصرياً فقط (دفعة ١، عطل السباق ٢):
+            // إعادة الإسناد صارت بيد بطاقة العرض وحدها (كلٌّ بعدّادها) فلا
+            // يُعاد إسناد العرض الأحدث مرّتين (الشريط + البطاقة). البطاقة في
+            // القائمة تُمرّر الطلب عند انقضاء مهلتها.
             dismiss();
-            try {
-              await service.rejectAssignedOrder(order.id, dueToTimeout: true);
-              LocalAlerts.clearOfferAlert();
-            } catch (_) {
-              // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
-            }
           },
         ),
       ),
@@ -829,7 +824,8 @@ class _MyOrdersTab extends StatelessWidget {
                   ),
                   if (pendingOffers.isNotEmpty) ...[
                     const SectionHeader(title: 'عروض بانتظار قرارك'),
-                    ...pendingOffers.map((o) => _PendingOfferCard(order: o)),
+                    ...pendingOffers.map(
+                        (o) => _PendingOfferCard(key: ValueKey(o.id), order: o)),
                     const SizedBox(height: 6),
                   ],
                   if (confirmedActive.isEmpty && pendingOffers.isEmpty)
@@ -1038,7 +1034,7 @@ class _MapPin extends StatelessWidget {
 /// كاملاً إن كان نقدياً، والمسار.
 class _PendingOfferCard extends StatefulWidget {
   final Order order;
-  const _PendingOfferCard({required this.order});
+  const _PendingOfferCard({super.key, required this.order});
 
   @override
   State<_PendingOfferCard> createState() => _PendingOfferCardState();
@@ -1047,8 +1043,51 @@ class _PendingOfferCard extends StatefulWidget {
 class _PendingOfferCardState extends State<_PendingOfferCard> {
   bool _busy = false;
 
+  // مهلة القرار المستقلّة لكل عرض (دفعة ١، عطل السباق ٢): كان العرض الوحيد
+  // يملك مؤقّتاً في الشريط الطافي، فإن جاء عرضٌ ثانٍ أزاح الأول (خانةُ الشريط
+  // واحدة) فمات مؤقّته ولم ينقضِ أبداً — طلبٌ عالقٌ عند سائقٍ لا ينتبه له.
+  // الآن **كل بطاقة عرض** تملك عدّادها الخاص فتُمرّر نفسها تلقائياً عند
+  // انقضاء المهلة، والبطاقة هي **صاحبة القرار الوحيد** (الشريط صار تنبيهاً
+  // بصرياً لا يعيد الإسناد) فلا إسنادٌ مزدوج للعرض الأحدث.
+  static const int _offerSeconds = 45;
+  int _secondsLeft = _offerSeconds;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _secondsLeft--);
+      if (_secondsLeft <= 0) {
+        _timer?.cancel();
+        _expire();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _expire() async {
+    if (_busy) return;
+    // انقضت المهلة: يُمرَّر لأقرب سائق آخر تلقائياً؛ وإن لم يوجد بديل بقي
+    // العرض قائماً (dueToTimeout) بدل أن يُجرَّد الطلب من سائقه فيصير يتيماً.
+    final service = context.read<FirebaseService>();
+    try {
+      await service.rejectAssignedOrder(widget.order.id, dueToTimeout: true);
+      LocalAlerts.clearOfferAlert();
+    } catch (_) {
+      // قد يكون قُبل أو أُلغي في هذه الأثناء — لا إزعاج.
+    }
+  }
+
   Future<void> _decide(bool accept) async {
     if (_busy) return;
+    _timer?.cancel(); // القرار اليدوي يوقف العدّاد فلا ينقضي بعده
     setState(() => _busy = true);
     final service = context.read<FirebaseService>();
     try {
@@ -1088,11 +1127,29 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
           const Icon(Icons.local_shipping_rounded,
               size: 18, color: AppColors.warning),
           const SizedBox(width: 8),
-          Text('عرض توصيل — طلب #${o.orderNumber}',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14.5,
-                  color: Color(0xFF8A6508))),
+          Expanded(
+            child: Text('عرض توصيل — طلب #${o.orderNumber}',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                    color: Color(0xFF8A6508))),
+          ),
+          // عدّاد المهلة (عطل السباق ٢): يحمرّ في آخر ١٠ ثوانٍ حثّاً على القرار.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: (_secondsLeft <= 10 ? AppColors.error : AppColors.warning)
+                  .withOpacity(0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text('${_secondsLeft > 0 ? _secondsLeft : 0} ث',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                    color: _secondsLeft <= 10
+                        ? AppColors.error
+                        : const Color(0xFF8A6508))),
+          ),
         ]),
         const SizedBox(height: 8),
         if (isCash)
