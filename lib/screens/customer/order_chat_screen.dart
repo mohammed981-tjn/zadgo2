@@ -112,9 +112,11 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                               style: TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.bold,
+                                  // كحليّ على الفقاعة الذهبية الصادرة: الأبيض
+                                  // عليها ~١٫٩:١ فتكاد الرسالة لا تُقرأ.
                                   color: isAdminMsg
                                       ? Colors.deepPurple
-                                      : (isMe ? Colors.white70 : AppColors.secondary))),
+                                      : (isMe ? AppColors.dark.withOpacity(0.7) : AppColors.secondary))),
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -128,7 +130,7 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
                         ]),
                         const SizedBox(height: 2),
                         Text(m.text,
-                            style: TextStyle(color: isAdminMsg ? AppColors.textDark : (isMe ? Colors.white : AppColors.textDark))),
+                            style: TextStyle(color: isAdminMsg ? AppColors.textDark : (isMe ? AppColors.dark : AppColors.textDark))),
                       ]),
                     ),
                   );

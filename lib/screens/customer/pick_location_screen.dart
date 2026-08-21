@@ -128,7 +128,8 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      // كحليّ لا أبيض: المؤشّر داخل شريط علوي أبيض فالأبيض خفيّ.
+                      color: AppColors.dark,
                     ),
                   )
                 : const Icon(Icons.my_location),

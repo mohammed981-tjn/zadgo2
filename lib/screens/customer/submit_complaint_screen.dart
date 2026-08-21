@@ -242,7 +242,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
               child: _submitting
                   ? const SizedBox(
                       width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      // كحليّ لا أبيض على الزر الذهبي.
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.dark))
                   : const Text('إرسال الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),

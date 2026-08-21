@@ -81,9 +81,14 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                     color: AppColors.textGray),
                 _InfoChip(
                     icon: Icons.delivery_dining_outlined,
+                    // لا «توصيل مجاني»: التسعير الفعلي يحصّل أجرة التوصيل
+                    // (الأجرة + حصّة المنصّة) دائماً، فادّعاء المجانية كذبةٌ
+                    // مكلفة تصدم العميل عند الدفع (نفس تحذير الرئيسية). حين لا
+                    // رسمَ على المطعم نفسه نقول إنه يُحتسب عند الطلب بدل الوعد
+                    // بالمجانية.
                     label: restaurant.deliveryFee > 0
                         ? formatCurrency(restaurant.deliveryFee)
-                        : 'توصيل مجاني',
+                        : 'التوصيل يُحتسب عند الطلب',
                     color: AppColors.textGray),
               ]),
             ),

@@ -214,16 +214,19 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                   BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 10, offset: const Offset(0, 4)),
                 ],
               ),
+              // نصٌّ ورموزٌ كحلية على الكهرماني: الأبيض على الكهرماني ~١٫٩:١،
+              // وهذا أهمّ تنبيه في المطبخ (طلبٌ جديد) فيجب أن يُقرأ من بعيد —
+              // الكحلي عليه ~٨:١.
               child: Row(children: [
-                const Icon(Icons.notifications_active_rounded, color: Colors.white),
+                const Icon(Icons.notifications_active_rounded, color: AppColors.dark),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     count == 1 ? 'طلب جديد وصل الآن' : '$count طلبات جديدة وصلت الآن',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.5),
+                    style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.bold, fontSize: 14.5),
                   ),
                 ),
-                const Icon(Icons.chevron_left_rounded, color: Colors.white),
+                const Icon(Icons.chevron_left_rounded, color: AppColors.dark),
               ]),
             ),
           ),
@@ -543,10 +546,13 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         // يقع)، والحالة لا تنتقل إلا بتأكيد الكابتن وهو محكومٌ بالحارس.
         // فالعلّة في **الصياغة** لا في المنطق: العنوان الآن يقول أي
         // الطرفين أقرّ وأيّهما ينتظر.
+        // أخضر النجاح لا التركوازي الخام: التركوازي خارج اللوحة ويصطدم بختم
+        // «سلّمته» الأخضر (success) الذي يظهر مباشرةً بعده — لونان لحالة
+        // «جاهز/سُلّم» الواحدة. توحيدهما على success يجعل المسار عائلةً واحدة.
         return widget.order.restaurantHandoverAt == null
-            ? ('جاهز — بانتظار استلام السائق', Colors.teal,
+            ? ('جاهز — بانتظار استلام السائق', AppColors.success,
                 Icons.shopping_bag_rounded)
-            : ('سلّمته — بانتظار تأكيد الكابتن', Colors.teal,
+            : ('سلّمته — بانتظار تأكيد الكابتن', AppColors.success,
                 Icons.hourglass_bottom_rounded);
       case OrderStatus.restaurantRejected:
         return ('تم رفض الطلب', AppColors.error, Icons.block_rounded);
@@ -696,8 +702,10 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       await widget.service.confirmRestaurantHandover(widget.order.id);
       if (context.mounted) showSuccess(context, 'سُجّل تسليمك للطلب');
     } catch (e) {
+      // رسالة عربية ثابتة لا نصّ الاستثناء الخام: بقيّة معالِجات هذا الملف
+      // تعرض رسالةً مضبوطة، وتسريب `e.toString()` قد يُظهر نصاً تقنياً للمطعم.
       if (context.mounted) {
-        showError(context, e.toString().replaceFirst('Exception: ', ''));
+        showError(context, 'تعذّر تسجيل التسليم — حاول مجدداً');
       }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
@@ -828,8 +836,10 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         Row(children: [
           Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const Spacer(),
+          // إجمالي الطلب كحليّ لا ذهبيّ: الذهبي على البطاقة البيضاء ~١٫٦:١،
+          // ورقم الإيراد على كل بطاقة يجب أن يُقرأ.
           Text(formatCurrency(order.itemsTotal),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14.5)),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.dark, fontSize: 14.5)),
         ]),
         // موعد الطلب المجدول (ح4) — بارزاً بلون تحذيري: أخطر خطأ تشغيلي
         // هنا أن يُحضَّر طلب الثامنة ظهراً فيبرد قبل موعده.
@@ -887,8 +897,10 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text('${item.quantity}',
+                      // كحليّ على التلوين الذهبي الخفيف: الذهبي على تدرّجه ذاته
+                      // ~٢:١ لرقمٍ صغير — الكحلي يجعله مقروءاً كبقيّة الحبوب.
                       style: const TextStyle(
-                          fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          fontSize: 12.5, fontWeight: FontWeight.bold, color: AppColors.dark)),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1013,7 +1025,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           else ...[
             _ActionButton(
               label: 'سلّمتُ الطلب للسائق',
-              color: Colors.teal,
+              color: AppColors.success,
               loading: _actionLoading,
               onPressed: () => _confirmHandover(context),
             ),
@@ -1154,21 +1166,31 @@ class _ActionButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: color,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          onPressed: loading ? null : onPressed,
-          child: loading
-              ? const SizedBox(
-                  width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+  Widget build(BuildContext context) {
+    // لون المقدّمة يُشتقّ من إضاءة الخلفية لا يُثبَّت أبيض: الأبيض على الذهبي
+    // (أهمّ أزرار المطعم: تأكيد الاستلام/جاري التحضير) تباينه ~١٫٦:١ فيكاد لا
+    // يُقرأ. الخلفية الفاتحة (كالذهبي) تأخذ نصاً كحلياً (~١٠:١)، والداكنة
+    // (القرمزي/الأخضر) تبقى بيضاء.
+    final onColor =
+        color.computeLuminance() > 0.5 ? AppColors.dark : Colors.white;
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: onColor,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-      );
+        onPressed: loading ? null : onPressed,
+        child: loading
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: onColor))
+            : Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
 }

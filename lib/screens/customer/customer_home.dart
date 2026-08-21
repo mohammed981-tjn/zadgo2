@@ -784,7 +784,7 @@ class _RestaurantCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                StatusBadge(label: r.openStatusLabel, color: r.isOpenNow ? AppColors.success : Colors.grey),
+                StatusBadge(label: r.openStatusLabel, color: r.isOpenNow ? AppColors.success : AppColors.textGray),
               ]),
               const SizedBox(height: 2),
               // المسافة/الحي: يميّز بين فرعين لنفس المطعم في حيَّين مختلفين.

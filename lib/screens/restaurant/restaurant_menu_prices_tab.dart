@@ -129,9 +129,11 @@ class _PriceTile extends StatelessWidget {
           item.isAvailable
               ? formatCurrency(item.price)
               : '${formatCurrency(item.price)} — نفد مؤقتاً',
+          // سعر البيع كحليّ لا ذهبيّ: الذهبي على الـListTile الأبيض ~١٫٦:١ —
+          // المطعم يقرأ أسعاره هنا فيجب أن تُقرأ. (المنفَد يبقى بلون الخطأ.)
           style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: item.isAvailable ? AppColors.primary : AppColors.error)),
+              color: item.isAvailable ? AppColors.dark : AppColors.error)),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         // «نفد الصنف» بيد المطعم (يوم المطعم 2026-08-20): صنفٌ ينفد في
         // الذروة كان يبقى معروضاً فيُطلب ثم يُلغى أو يُستبدل هاتفياً —

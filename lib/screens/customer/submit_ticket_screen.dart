@@ -147,8 +147,9 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
+                    // كحليّ لا أبيض: مقدّمة الزر الذهبي كحلية عبر الثيم.
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                        strokeWidth: 2, color: AppColors.dark))
                 : const Icon(Icons.send_rounded, size: 18),
             label: Text(_submitting ? 'جارٍ الإرسال…' : 'إرسال التذكرة'),
           ),
