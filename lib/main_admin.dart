@@ -23,6 +23,7 @@ import 'providers/auth_provider.dart' as app_auth;
 import 'providers/firebase_service.dart';
 import 'screens/splash_screen.dart';
 import 'screens/admin/admin_home.dart';
+import 'screens/admin/fleet_operator_home.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_with_code_screen.dart';
 import 'utils/theme.dart';
@@ -71,12 +72,15 @@ void main() async {
   AppFlavorConfig.flavorTagline = 'غرفة التحكم الكاملة لمنصتك';
   AppFlavorConfig.flavorLoginTitle = 'دخول المدير العام';
   AppFlavorConfig.restrictToRole = UserRole.admin;
-  // موظف الدعم يدخل تطبيق الإدارة نفسه (لا تطبيق سادس): اللوحة تنكمش
-  // له إلى الشكاوى والمتابعة وسجلّ الطلبات، والقواعد تحرس الباقي.
-  AppFlavorConfig.extraAllowedRoles = {UserRole.support};
-  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات الإدارة والدعم فقط';
+  // موظف الدعم ومشغّل الأسطول يدخلان تطبيق الإدارة نفسه (لا تطبيق سادس/سابع):
+  // الدعم تنكمش له اللوحة، والمشغّل تُفتح له شاشته الخاصة (كباتنه ودفتره)،
+  // والقواعد تحرس الباقي.
+  AppFlavorConfig.extraAllowedRoles = {UserRole.support, UserRole.fleetOperator};
+  AppFlavorConfig.restrictedMessage = 'هذا التطبيق مخصص لحسابات الإدارة والدعم والمشغّلين';
   AppFlavorConfig.allowGuestBrowsing = false;
-  AppFlavorConfig.buildHomeForRole = (role) => const AdminHome();
+  AppFlavorConfig.buildHomeForRole = (role) => role == UserRole.fleetOperator
+      ? const FleetOperatorHome()
+      : const AdminHome();
   AppFlavorConfig.buildLoginScreen = ({fromCheckout = false}) => const LoginScreen();
   AppFlavorConfig.buildRegisterScreen = null;
   AppFlavorConfig.buildRegisterWithCodeScreen = () => const RegisterWithCodeScreen();

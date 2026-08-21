@@ -11,7 +11,12 @@ import '../utils/helpers.dart' show Pricing;
 // لا كلها — الشكاوى والمتابعة والتواصل بلا مالٍ ولا صلاحيات. القيد
 // الحقيقي في قواعد Firestore لا في الواجهة (roles-design.md)، فمن يبني
 // نسخة معدَّلة يتخطى أي إخفاء بصري ولا يتخطى القاعدة.
-enum UserRole { admin, customer, driver, restaurantManager, support }
+// fleetOperator (مشغّل الأسطول، دفعة 2026-08-21 بأمر «ابدأ المشغل»): دورٌ
+// سادس. جهةٌ تأتي بكباتنها وتديرهم، ولها حساب يعرض **كباتنها وحدهم** ودفترها،
+// وتقتسم أجرة التوصيل مع كابتنها بنسبة يضبطها المدير (roles-design.md §ثانياً).
+// أهميته نظامية: يفتح الكباتن غير السعوديين عبر منشأة مرخّصة (الفئة الأولى
+// في لائحة الهيئة). القيد الحقيقي في القواعد لا الواجهة.
+enum UserRole { admin, customer, driver, restaurantManager, support, fleetOperator }
 
 enum OrderStatus {
   created,
@@ -143,6 +148,7 @@ extension UserRoleExt on UserRole {
       UserRole.driver: 'سائق',
       UserRole.restaurantManager: 'مدير مطعم',
       UserRole.support: 'موظف دعم',
+      UserRole.fleetOperator: 'مشغّل الأسطول',
     };
     return map[this] ?? '';
   }
@@ -1121,6 +1127,17 @@ class Driver {
   /// ستدفع المكافأة مع كل تحديث للشاشة.
   final String lastChallengeWindow;
 
+  /// مشغّل الأسطول التابع له (دفعة «ابدأ المشغل»): فارغ = كابتن **مستقل**
+  /// (الوضع الحالي، لا يتغيّر شيء في حسابه)، ومملوء = يتبع مشغّلاً فيقتسم
+  /// معه أجرة التوصيل. يضبطه **المدير وحده** (محميّ في القواعد كـ balance)،
+  /// فلا يدّعي كابتنٌ تبعيةً أو يفكّها بنفسه.
+  final String operatorId;
+
+  /// حصّة هذا الكابتن من أجرة التوصيل حين يكون تابعاً لمشغّل (والباقي للمشغّل).
+  /// يُنسخ من `driverSharePerDelivery` في ملف المشغّل عند الإسناد، ويقبل
+  /// تخصيصاً لكابتنٍ بعينه. يضبطه المدير وحده (محميّ كـ operatorId).
+  final double operatorDriverShare;
+
   /// تاريخ الانضمام — تُحسب منه نافذة شرط الإحالة (٣٠ يوماً افتراضياً).
   final DateTime? createdAt;
 
@@ -1169,6 +1186,8 @@ class Driver {
     this.referredByCode = '',
     this.referralRewarded = false,
     this.lastChallengeWindow = '',
+    this.operatorId = '',
+    this.operatorDriverShare = 0,
     this.createdAt,
     this.activeOrders = 0,
     this.clusterLat,
@@ -1198,6 +1217,9 @@ class Driver {
         referredByCode: map['referredByCode'] as String? ?? '',
         referralRewarded: map['referralRewarded'] as bool? ?? false,
         lastChallengeWindow: map['lastChallengeWindow'] as String? ?? '',
+        operatorId: map['operatorId'] as String? ?? '',
+        operatorDriverShare:
+            (map['operatorDriverShare'] as num?)?.toDouble() ?? 0,
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
         activeOrders: (map['activeOrders'] as num?)?.toInt() ?? 0,
         clusterLat: (map['clusterLat'] as num?)?.toDouble(),
@@ -1227,10 +1249,73 @@ class Driver {
         'referredByCode': referredByCode,
         'referralRewarded': referralRewarded,
         'lastChallengeWindow': lastChallengeWindow,
+        if (operatorId.isNotEmpty) 'operatorId': operatorId,
+        if (operatorDriverShare != 0) 'operatorDriverShare': operatorDriverShare,
         if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
         'activeOrders': activeOrders,
         if (clusterLat != null) 'clusterLat': clusterLat,
         if (clusterLng != null) 'clusterLng': clusterLng,
+      };
+}
+
+/// مشغّل الأسطول — ملفٌّ ودفتر (دفعة «ابدأ المشغل»، roles-design.md §ثانياً).
+/// مستنده `fleet_operators/{uid}` بمعرّف حساب المشغّل نفسه.
+///
+/// نموذج التحاسب **حقلان رقميان يضبطهما المدير وحده** (قرار المالك، بند ج١
+/// «لا رقم مبرمَج»)، يعطيان كل النماذج بمسار حساب واحد:
+///   حصة المشغّل من التوصيلة = حصة الكابتن الأصلية − driverSharePerDelivery
+///   • (0, 0)  → المشغّل يأخذ الأجرة كاملة، والكابتن يقبض من مؤسسته.
+///   • (7.5,0) → تقسيم: الكابتن 7.5 والمشغّل الباقي.
+///   • (9, 500)→ الكابتن كامل الأجرة، ويُحصَّل رسمٌ شهري يدوي من المشغّل.
+///
+/// الرصيد بإشارة كدفتر الكابتن: موجب = التطبيق مدينٌ للمشغّل بحصص كباتنه.
+class FleetOperator {
+  final String id;
+  final String name;
+  final String phone;
+
+  /// كم يذهب للكابتن مباشرةً من أجرة التوصيل؛ والباقي للمشغّل. الافتراض 0
+  /// (النموذج المعتمد: المشغّل يأخذ الأجرة والكابتن يقبض من مؤسسته).
+  final double driverSharePerDelivery;
+
+  /// رسم شهري على المشغّل (قيدٌ يدوي في دفتره لا مجدول). الافتراض 0 —
+  /// لا يُنصح به عند الإطلاق (المشغّل الأول نحتاجه نحن).
+  final double monthlyFee;
+
+  /// دفتر المشغّل: مستحقّاته المتراكمة من حصص كباتنه، تُسوّى بزرّ «تسجيل دفعة».
+  final double balance;
+
+  final DateTime? createdAt;
+
+  const FleetOperator({
+    required this.id,
+    this.name = '',
+    this.phone = '',
+    this.driverSharePerDelivery = 0,
+    this.monthlyFee = 0,
+    this.balance = 0,
+    this.createdAt,
+  });
+
+  factory FleetOperator.fromMap(Map<String, dynamic> map, String id) =>
+      FleetOperator(
+        id: id,
+        name: map['name'] as String? ?? '',
+        phone: map['phone'] as String? ?? '',
+        driverSharePerDelivery:
+            (map['driverSharePerDelivery'] as num?)?.toDouble() ?? 0,
+        monthlyFee: (map['monthlyFee'] as num?)?.toDouble() ?? 0,
+        balance: (map['balance'] as num?)?.toDouble() ?? 0,
+        createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'phone': phone,
+        'driverSharePerDelivery': driverSharePerDelivery,
+        'monthlyFee': monthlyFee,
+        'balance': balance,
+        if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       };
 }
 
@@ -2212,6 +2297,10 @@ class Order {
   final String? notes;
   final double driverShare;
   final double appShare;
+  /// حصّة مشغّل الأسطول من هذه التوصيلة (دفعة «ابدأ المشغل»): تُثبَّت لحظة
+  /// التسليم إن كان الكابتن تابعاً لمشغّل، وصفرٌ للمستقلّ. مصدرُ جمع مستحقّ
+  /// المشغّل. لا تُرسَل في toMap (يكتبها مسار التسليم وحده).
+  final double operatorShare;
   final String orderNumber;
   final double? customerRating;
   final String? customerReview;
@@ -2314,6 +2403,15 @@ class Order {
   final String? couponCode;
   final double discountAmount;
 
+  /// المبلغ المشحون على البطاقة بالهللات (دفعة ٠-ب، C3) — يُكتب للطلبات
+  /// المدفوعة بالبطاقة فقط، وتطابقه القاعدة مع ختم verify.php (amountHalalas)
+  /// فلا يُنشأ طلبٌ بقيمة ٥٠٠ خلف دفعة ريال واحد.
+  final int? cardAmountHalalas;
+
+  /// ختم «أُرجع كوبون هذا الطلب» (دفعة ٠-ب، H7) — يُرفع مرة واحدة مع إنقاص
+  /// عدّاد الكوبون عند الإلغاء، فلا يتكرّر الإنقاص على الطلب نفسه.
+  final bool couponReleased;
+
   const Order({
     required this.id,
     required this.restaurantId,
@@ -2335,6 +2433,7 @@ class Order {
     this.notes,
     this.driverShare = 5.0,
     this.appShare = 0.0,
+    this.operatorShare = 0.0,
     required this.orderNumber,
     this.customerRating,
     this.customerReview,
@@ -2365,6 +2464,8 @@ class Order {
     this.commissionPercent,
     this.couponCode,
     this.discountAmount = 0,
+    this.cardAmountHalalas,
+    this.couponReleased = false,
   });
 
   /// عُهدة الطلب النقدي على السائق لحظة استلامه: قيمة الوجبات (للمطعم)
@@ -2484,6 +2585,7 @@ class Order {
             (map['deliveryFee'] as num?)?.toDouble() ??
             5.0,
         appShare: (map['appShare'] as num?)?.toDouble() ?? 0.0,
+        operatorShare: (map['operatorShare'] as num?)?.toDouble() ?? 0.0,
         orderNumber: (map['orderNumber'] as String?) ?? id.substring(0, 6).toUpperCase(),
         customerRating: (map['customerRating'] as num?)?.toDouble(),
         customerReview: map['customerReview'] as String?,
@@ -2496,6 +2598,8 @@ class Order {
         restaurantLng: (map['restaurantLng'] as num?)?.toDouble(),
         rejectionReason: map['rejectionReason'] as String?,
         paymentId: map['paymentId'] as String?,
+        cardAmountHalalas: (map['cardAmountHalalas'] as num?)?.toInt(),
+        couponReleased: map['couponReleased'] as bool? ?? false,
         walletUsed: (map['walletUsed'] as num?)?.toDouble() ?? 0,
         driverAcknowledged: map['driverAcknowledged'] as bool? ?? true,
         deliveryFailed: map['deliveryFailed'] as bool? ?? false,
@@ -2580,6 +2684,12 @@ class Order {
           'commissionPercent': commissionPercent,
         if (couponCode != null) 'couponCode': couponCode,
         'discountAmount': discountAmount,
+        if (cardAmountHalalas != null) 'cardAmountHalalas': cardAmountHalalas,
+        'couponReleased': couponReleased,
+        // إجمالي الوجبات محسوباً (دفعة ٠-ب): تقرؤه القاعدة لفحص حدّ الكوبون
+        // الأدنى ومنع الخصم السالب — القواعد لا تجمع مصفوفة الأصناف بنفسها.
+        // التطبيق يعيد حسابه من items عند القراءة فلا يُعتمد المخزَّن.
+        'itemsTotal': itemsTotal,
       };
 
   Order copyWith({
@@ -2652,6 +2762,8 @@ class Order {
         commissionPercent: commissionPercent,
         couponCode: couponCode,
         discountAmount: discountAmount,
+        cardAmountHalalas: cardAmountHalalas,
+        couponReleased: couponReleased,
       );
 }
 

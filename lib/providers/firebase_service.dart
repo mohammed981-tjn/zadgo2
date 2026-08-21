@@ -123,6 +123,15 @@ class FirebaseService {
 
   Future<void> updateUser(models.AppUser user) => _users.doc(user.uid).update(user.toMap());
 
+  /// إلغاء صلاحية حسابٍ بتحويل دوره (المدير وحده، تحرسه القاعدة): الوصول
+  /// الحقيقي مبنيٌّ على حقل `role` (hasRole في القواعد)، فتحويله إلى
+  /// `customer` يسحب صلاحية الدعم/المشغّل/مدير المطعم فوراً على الخادم —
+  /// بخلاف «تعطيل» (isActive) وهو علمٌ ناعم لا تفحصه القواعد.
+  /// **ملاحظة**: صفة «المدير العام» ادّعاءٌ موقّع لا حقل دور، فتُسحب من ورشة
+  /// Admin claim (revoke) لا من هنا.
+  Future<void> setUserRole(String uid, models.UserRole role) =>
+      _users.doc(uid).update({'role': role.name});
+
   /// تعديل الملف الشخصي (الاسم والجوال) — حقلان محددان لا مستند كامل، فلا
   /// خطر على الحقول المحمية. [alsoDriver]: مستند السائق يحمل نسخة من
   /// الاسم والجوال (يقرؤها العميل في التتبّع) فتُحدَّث معه في نفس الدفعة.
@@ -814,25 +823,56 @@ class FirebaseService {
   // معاً — والقواعد ترفض أي زيادةٍ بلا علامة، فلا يعمل المسار المباشر أصلاً.
 
   Future<String> placeOrder(models.Order order) async {
-    await _orders.doc(order.id).set({
+    // دفعة ٠-ب: الإنشاء وختمُ استهلاك الدفعة وتقييدُ الكوبون في **دفعة ذرّية
+    // واحدة** — لم يعد التقييد لاحقاً «غير حرج»، بل تشترطه القاعدة في نفس
+    // اللحظة (existsAfter): الخصم لا يُقبل بلا علامة استخدامٍ تُنشأ معه، ودفعة
+    // البطاقة لا تُقبل بلا ختم استهلاكٍ يمنع إعادة استخدامها. فإمّا أن يقع
+    // الكل أو لا يقع الطلب — لا خصمٌ بلا تقييد ولا دفعةٌ قابلة لإعادة الاستخدام.
+    final batch = _db.batch();
+    batch.set(_orders.doc(order.id), {
       ...order.toMap(),
-      if (order.statusChangedAt == null) 'statusChangedAt': FieldValue.serverTimestamp(),
+      if (order.statusChangedAt == null)
+        'statusChangedAt': FieldValue.serverTimestamp(),
     });
-    // تقييد استخدام الكوبون بعد ثبوت الطلب لا قبله — فلا يُستهلك كودٌ على
-    // طلب لم يُنشأ. وفشل التقييد لا يُسقط الطلب: الخصم محفوظ داخله أصلاً.
-    final code = order.couponCode;
-    if (code != null && code.isNotEmpty && order.discountAmount > 0) {
-      try {
-        await _recordCouponUse(
-            code: code, userId: order.customerId, orderId: order.id);
-      } catch (e) {
-        debugPrint('⚠️ تعذّر تقييد استخدام الكوبون $code: $e');
-      }
-    }
+    _stampPaymentConsumption(batch, order);
+    _stampCouponUse(batch, order);
+    await batch.commit();
     // إشعار فوري لمديري المطعم بالطلب الجديد عبر الخادم المرافق — بدونه لا
     // يعلم المطعم بالطلب إلا حين يكون تطبيقه مفتوحاً على الشاشة.
     NotifyRelay.orderEvent(order.id, OrderEvent.created);
     return order.id;
+  }
+
+  /// ختم استهلاك دفعة البطاقة داخل دفعة الطلب (C3): مستند بمعرّف الدفعة
+  /// يُنشأ مرة واحدة — القاعدة تشترط وجوده (existsAfter) وتمنع إعادة إنشائه،
+  /// فلا تُستخدم دفعةٌ واحدة لطلبات كثيرة. للطلبات المدفوعة بالبطاقة فقط.
+  void _stampPaymentConsumption(WriteBatch batch, models.Order order) {
+    final pid = order.paymentId;
+    if (pid == null || pid.isEmpty) return;
+    batch.set(_paymentConsumptions.doc(pid), {
+      'uid': order.customerId,
+      'orderId': order.id,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// تقييد استهلاك الكوبون داخل دفعة الطلب (H6): عدّاد كلّي + عدّاد لكل مستخدم
+  /// يُكتبان ذرّياً مع الطلب — القاعدة تربط الخصم بوجودهما فلا خصمَ بلا تقييد.
+  void _stampCouponUse(WriteBatch batch, models.Order order) {
+    final code = order.couponCode;
+    if (code == null || code.isEmpty || order.discountAmount <= 0) return;
+    batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(1)});
+    batch.set(
+      _couponUsages.doc(_usageId(code, order.customerId)),
+      {
+        'code': code,
+        'userId': order.customerId,
+        'count': FieldValue.increment(1),
+        'lastOrderId': order.id,
+        'lastUsedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 
   /// إنشاء الطلب وخصم المحفظة في **معاملة ذرّية واحدة**.
@@ -878,19 +918,35 @@ class FirebaseService {
         if (order.statusChangedAt == null)
           'statusChangedAt': FieldValue.serverTimestamp(),
       });
+      // ختم الدفعة وتقييد الكوبون داخل نفس المعاملة (C3/H6) — كتاباتٌ بلا
+      // قراءات إضافية فلا تخرق قاعدة «القراءات قبل الكتابات». تشترطهما
+      // القاعدة ذرّياً مع إنشاء الطلب.
+      final pid = order.paymentId;
+      if (pid != null && pid.isNotEmpty) {
+        transaction.set(_paymentConsumptions.doc(pid), {
+          'uid': order.customerId,
+          'orderId': order.id,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+      final code = order.couponCode;
+      if (code != null && code.isNotEmpty && order.discountAmount > 0) {
+        transaction.update(
+            _coupons.doc(code), {'usedCount': FieldValue.increment(1)});
+        transaction.set(
+          _couponUsages.doc(_usageId(code, order.customerId)),
+          {
+            'code': code,
+            'userId': order.customerId,
+            'count': FieldValue.increment(1),
+            'lastOrderId': order.id,
+            'lastUsedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
     });
 
-    // بعد ثبوت الطلب والخصم معاً: تقييد الكوبون (غير حرج، لا يُسقط الطلب)
-    // ثم إشعار المطعم — كما في `placeOrder` تماماً.
-    final code = order.couponCode;
-    if (code != null && code.isNotEmpty && order.discountAmount > 0) {
-      try {
-        await _recordCouponUse(
-            code: code, userId: order.customerId, orderId: order.id);
-      } catch (e) {
-        debugPrint('⚠️ تعذّر تقييد استخدام الكوبون $code: $e');
-      }
-    }
     NotifyRelay.orderEvent(order.id, OrderEvent.created);
     return order.id;
   }
@@ -1120,6 +1176,9 @@ class FirebaseService {
       final txRef = _driverTransactions.doc();
       batch.update(_drivers.doc(driverId), {
         'balance': FieldValue.increment(-custody),
+        // دفعة ٠-ب (C1/H2): مؤشّر لحركة الدفتر المرافقة في نفس الدفعة —
+        // القاعدة ترفض أي تغيير رصيد بلا حركةٍ مطابقةٍ يشير إليها هذا الحقل.
+        'lastLedgerTxId': txRef.id,
       });
       batch.set(
         txRef,
@@ -1177,6 +1236,71 @@ class FirebaseService {
       _banners.doc(id).update({'isActive': active});
 
   Future<void> deleteBanner(String id) => _banners.doc(id).delete();
+
+  // ── مشغّل الأسطول (دفعة «ابدأ المشغل») ─────────────────────────────────
+  CollectionReference<Map<String, dynamic>> get _fleetOperators =>
+      _db.collection('fleet_operators');
+
+  /// كل المشغّلين — للمدير (إدارة وإسناد).
+  Stream<List<models.FleetOperator>> streamFleetOperators() =>
+      _fleetOperators.snapshots().map((s) => s.docs
+          .map((d) => models.FleetOperator.fromMap(d.data(), d.id))
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name)));
+
+  /// ملف مشغّلٍ بعينه — يقرؤه المشغّل نفسه (شاشته) والمدير.
+  Stream<models.FleetOperator?> streamFleetOperator(String id) =>
+      _fleetOperators.doc(id).snapshots().map((d) =>
+          d.exists ? models.FleetOperator.fromMap(d.data()!, d.id) : null);
+
+  /// المدير يُنشئ/يحدّث ملف المشغّل بمعرّف حسابه (الرصيد يبدأ صفراً).
+  Future<void> saveFleetOperator(models.FleetOperator op) =>
+      _fleetOperators.doc(op.id).set(op.toMap(), SetOptions(merge: true));
+
+  /// المدير يضبط نسبة المشغّل ورسمه الشهري (لا رقم مبرمَج — بند ج١).
+  Future<void> setOperatorRates(String id,
+          {required double driverSharePerDelivery,
+          required double monthlyFee}) =>
+      _fleetOperators.doc(id).set({
+        'driverSharePerDelivery': driverSharePerDelivery,
+        'monthlyFee': monthlyFee,
+      }, SetOptions(merge: true));
+
+  /// المدير يسند كابتناً لمشغّل (أو يفكّه بتمرير operatorId فارغ)، وينسخ
+  /// حصّة الكابتن الافتراضية من نسبة المشغّل. محميّ في القواعد للمدير وحده.
+  Future<void> assignDriverOperator(String driverId,
+          {required String operatorId, required double operatorDriverShare}) =>
+      _drivers.doc(driverId).update({
+        'operatorId': operatorId,
+        'operatorDriverShare': operatorDriverShare,
+      });
+
+  /// كباتن مشغّلٍ بعينه — لشاشته وللمدير. الترتيب محلياً فلا فهرس مركّب.
+  Stream<List<models.Driver>> streamOperatorDrivers(String operatorId) =>
+      _drivers
+          .where('operatorId', isEqualTo: operatorId)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.Driver.fromMap(d.data(), d.id))
+              .toList()
+            ..sort((a, b) => b.totalDeliveries.compareTo(a.totalDeliveries)));
+
+  /// طلبات مشغّلٍ المسلَّمة — لجمع مستحقّاته (مجموع operatorShare). محدود
+  /// بأحدث ٢٠٠ كنظائره في الدفتر، والجمع محلياً فلا فهرس مركّب.
+  Stream<List<models.Order>> streamOperatorOrders(String operatorId) =>
+      _orders
+          .where('operatorId', isEqualTo: operatorId)
+          .limit(400)
+          .snapshots()
+          .map((s) =>
+              s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
+
+  /// المدير يسجّل دفعةً للمشغّل: تُنقص من رصيده (كتسوية دفتر الكابتن).
+  Future<void> recordOperatorPayout(String operatorId, double amount) =>
+      _fleetOperators
+          .doc(operatorId)
+          .set({'balance': FieldValue.increment(-amount.abs())},
+              SetOptions(merge: true));
 
   /// إظهار/إخفاء البنر الافتراضي المدمج (دفعة «الإعلانات الذكية»): يُخزَّن في
   /// `delivery_settings/banners` (قراءةٌ عامة كي يراه الزائر). الافتراضي
@@ -2025,9 +2149,26 @@ class FirebaseService {
           : order.driverShare + order.driverTip;
 
       final driverSnap = await tx.get(_drivers.doc(driverId));
-      final currentBalance = driverSnap.exists && driverSnap.data() != null
-          ? models.Driver.fromMap(driverSnap.data()!, driverSnap.id).balance
-          : 0.0;
+      final driverModel = driverSnap.exists && driverSnap.data() != null
+          ? models.Driver.fromMap(driverSnap.data()!, driverSnap.id)
+          : null;
+      final currentBalance = driverModel?.balance ?? 0.0;
+
+      // قسمة أجرة التوصيل مع مشغّل الأسطول (دفعة «ابدأ المشغل»): كابتنٌ تابعٌ
+      // لمشغّل يحتفظ بحصّته (operatorDriverShare) والباقي للمشغّل، ويُثبَّت
+      // على الطلب (operatorShare) ليجمعه المشغّل من دفتره. **الكابتن المستقلّ
+      // (operatorId فارغ) لا يتغيّر في حسابه شيء إطلاقاً** — الفرع كله يُتخطّى.
+      final operatorId = driverModel?.operatorId ?? '';
+      double operatorShare = 0;
+      if (operatorId.isNotEmpty) {
+        operatorShare = order.driverShare - (driverModel?.operatorDriverShare ?? 0);
+        if (operatorShare < 0) operatorShare = 0;
+        if (operatorShare > order.driverShare) operatorShare = order.driverShare;
+      }
+      // الكابتن يحتفظ بأقلّ بمقدار حصّة المشغّل — نقداً كان أو إلكترونياً:
+      //   إلكتروني: أجرته+الإكرامية − حصة المشغّل = حصّته+الإكرامية.
+      //   نقدي: قبض كامل المبلغ، فيدين للمشغّل بحصّته (رصيده − حصة المشغّل).
+      final effectiveDelta = delta - operatorShare;
 
       tx.update(_orders.doc(orderId), {
         'status': models.OrderStatus.delivered.name,
@@ -2035,15 +2176,20 @@ class FirebaseService {
         'updatedAt': FieldValue.serverTimestamp(),
         'statusChangedAt': FieldValue.serverTimestamp(),
         'platformCommission': order.calculatedCommission,
+        if (operatorId.isNotEmpty) 'operatorId': operatorId,
+        if (operatorId.isNotEmpty) 'operatorShare': operatorShare,
       });
       tx.update(_drivers.doc(driverId), {
         'totalDeliveries': FieldValue.increment(1),
-        if (delta != 0) 'balance': FieldValue.increment(delta),
+        if (effectiveDelta != 0) 'balance': FieldValue.increment(effectiveDelta),
+        // دفعة ٠-ب (C1/H2): مؤشّر لحركة التسليم — يُكتب حصراً حين يتغيّر الرصيد
+        // (نفس شرط السطر أعلاه) فتراه القاعدة مقروناً بالحركة والطلب المُسلَّم.
+        if (effectiveDelta != 0) 'lastLedgerTxId': txRef.id,
         'isAvailable': true,
       });
       // الحركة في نفس المعاملة، فلا يتغيّر رصيد دون سجلّ يفسّره. وحين لا
-      // تغيير (نقدي قُيّدت عُهدته عند الاستلام) لا حركة صفرية تلوّث السجلّ.
-      if (delta != 0) {
+      // تغيير (نقدي قُيّدت عُهدته عند الاستلام، ولا مشغّل) لا حركة صفرية تلوّث السجلّ.
+      if (effectiveDelta != 0) {
         tx.set(
           txRef,
           models.DriverTransaction(
@@ -2052,8 +2198,8 @@ class FirebaseService {
             type: isCash
                 ? models.DriverTransactionType.deliveryCash
                 : models.DriverTransactionType.deliveryOnline,
-            amount: delta,
-            balanceAfter: currentBalance + delta,
+            amount: effectiveDelta,
+            balanceAfter: currentBalance + effectiveDelta,
             orderId: orderId,
             orderNumber: order.orderNumber,
             performedBy: _auth.currentUser?.uid ?? driverId,
@@ -2269,6 +2415,11 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _couponUsages =>
       _db.collection('coupon_usages');
 
+  /// ختوم استهلاك دفعات البطاقة (دفعة ٠-ب، C3): مستند لكل paymentId يمنع
+  /// إعادة استخدام دفعةٍ واحدة لطلبات كثيرة.
+  CollectionReference<Map<String, dynamic>> get _paymentConsumptions =>
+      _db.collection('payment_consumptions');
+
   String _usageId(String code, String uid) => '${code}_$uid';
 
   /// التحقق من كود خصم قبل تطبيقه. يرمي رسالة عربية مفهومة عند كل سبب رفض،
@@ -2316,29 +2467,10 @@ class FirebaseService {
     return coupon;
   }
 
-  /// تقييد استخدام الكوبون بعد نجاح الطلب — عدّاد كلي + عدّاد لكل مستخدم.
-  /// يُستدعى بعد [placeOrder]؛ فشله لا يُلغي الطلب (الخصم مسجَّل في الطلب
-  /// نفسه) لكنه يُسجَّل في السجلّ.
-  Future<void> _recordCouponUse({
-    required String code,
-    required String userId,
-    required String orderId,
-  }) async {
-    final batch = _db.batch();
-    batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(1)});
-    batch.set(
-      _couponUsages.doc(_usageId(code, userId)),
-      {
-        'code': code,
-        'userId': userId,
-        'count': FieldValue.increment(1),
-        'lastOrderId': orderId,
-        'lastUsedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
-    await batch.commit();
-  }
+  // أُزيلت _recordCouponUse: صار تقييد الكوبون يقع **ذرّياً داخل دفعة إنشاء
+  // الطلب** (_stampCouponUse في placeOrder، ومباشرةً في معاملة
+  // placeOrderWithWallet) لا بعده — فالقاعدة تربط الخصم بوجود العلامة في نفس
+  // اللحظة (existsAfter)، ولا يبقى مسارٌ لاحقٌ يفشل فيمرّ الخصم بلا تقييد.
 
   Stream<List<models.Coupon>> streamCoupons() =>
       _coupons.limit(200).snapshots().map((s) {
@@ -2590,11 +2722,18 @@ class FirebaseService {
   Future<void> _releaseCouponOnCancel(models.Order order) async {
     final code = order.couponCode;
     if (code == null || code.isEmpty || order.discountAmount <= 0) return;
+    // لا يُعاد الإنقاص لطلبٍ سبق إرجاع كوبونه (دفعة ٠-ب، H7): الختم
+    // couponReleased يحرس من التكرار في القاعدة، ونتخطّاه هنا مبكراً فلا
+    // دفعةً مرفوضة بلا داعٍ.
+    if (order.couponReleased) return;
     try {
       final batch = _db.batch();
       batch.update(_coupons.doc(code), {'usedCount': FieldValue.increment(-1)});
       batch.update(_couponUsages.doc(_usageId(code, order.customerId)),
           {'count': FieldValue.increment(-1)});
+      // ختم «أُرجع» على الطلب في نفس الدفعة — القاعدة تشترط رفعَه ذرّياً مع
+      // الإنقاص (getAfter) فيصير الإرجاع لمرّة واحدة لا يتكرّر.
+      batch.update(_orders.doc(order.id), {'couponReleased': true});
       await batch.commit();
     } catch (e) {
       debugPrint('⚠️ تعذّر إرجاع الكوبون $code: $e');
