@@ -51,9 +51,9 @@
     'taste.lead': 'تصفّح مطاعم حيّك واطلب، والسعر أمامك قبل أن تضغط: الوجبة والتوصيل، بلا بندٍ يظهر عند الدفع.',
     'doors.r.t': 'أنا مطعم', 'doors.r.d': 'قائمتك الرقمية وطلباتك ومستحقاتك بحساب مكشوف.',
     'doors.d.t': 'أنا كابتن', 'doors.d.d': 'دخلٌ مرن، ونصيبك من كل توصيلة معروف قبل قبولها.',
-    'doors.c.t': 'أنا عميل', 'doors.c.d': 'اطلب من مطاعم مدينتك — بلا تطبيق يُحمَّل.',
-    'doors.c.d.trial': 'نفتح باب الطلب للجميع قريباً — وسنُعلن هنا أوّلاً.',
-    'doors.go': 'ادخل ←', 'doors.go.trial': 'تعرّف على المنصّة ←',
+    'doors.c.t': 'أنا عميل', 'doors.c.d': 'اطلب من أي مطعم في مدينتك — الوجبة والتوصيل أمامك قبل أن تدفع.',
+    'doors.c.soon': 'قريباً',
+    'doors.go': 'ادخل ←',
     'kitchen.h2': 'ما تراه <em>هو ما يصلك</em>',
     'kitchen.lead': 'صور الأصناف في التطبيق من مطابخ شركائنا أنفسهم وبأسعارهم هم — ولا سعرٌ يتغيّر عند الدفع.',
     'kitchen.c1': 'فطير بالعسل', 'kitchen.c1d': 'من مطبخ شريكنا فطير ستيشن',
@@ -103,9 +103,9 @@
     'taste.lead': 'Browse the restaurants in your neighbourhood and order. The price is in front of you before you tap: the meal and the delivery, with no line added at checkout.',
     'doors.r.t': "I'm a restaurant", 'doors.r.d': 'Your digital menu, your orders, and your earnings in the open.',
     'doors.d.t': "I'm a captain", 'doors.d.d': 'Flexible income — your share is known before you accept.',
-    'doors.c.t': "I'm a customer", 'doors.c.d': "Order from your city's restaurants — no app to install.",
-    'doors.c.d.trial': 'We open ordering to everyone soon — and we will announce it here first.',
-    'doors.go': 'Enter →', 'doors.go.trial': 'Learn about the platform →',
+    'doors.c.t': "I'm a customer", 'doors.c.d': 'Order from any restaurant in your city — meal and delivery shown before you pay.',
+    'doors.c.soon': 'Coming soon',
+    'doors.go': 'Enter →',
     'kitchen.h2': 'What you see <em>is what arrives</em>',
     'kitchen.lead': 'Item photos in the app come from our partners\u2019 own kitchens, at their own prices — and no price that changes at checkout.',
     'kitchen.c1': 'Fateer with honey', 'kitchen.c1d': 'From our partner Fateer Station',
@@ -155,9 +155,9 @@
     'taste.lead': 'আপনার এলাকার রেস্টুরেন্ট দেখুন আর অর্ডার করুন। ট্যাপ করার আগেই দাম সামনে: খাবার আর ডেলিভারি — পেমেন্টে কোনো বাড়তি লাইন নেই।',
     'doors.r.t': 'আমি রেস্টুরেন্ট', 'doors.r.d': 'আপনার ডিজিটাল মেনু, অর্ডার আর প্রাপ্য — সবই খোলা হিসাবে।',
     'doors.d.t': 'আমি ক্যাপ্টেন', 'doors.d.d': 'নমনীয় আয় — গ্রহণের আগেই আপনার ভাগ জানা।',
-    'doors.c.t': 'আমি গ্রাহক', 'doors.c.d': 'আপনার শহরের রেস্টুরেন্ট থেকে অর্ডার করুন — অ্যাপ ইনস্টল ছাড়াই।',
-    'doors.c.d.trial': 'শীঘ্রই সবার জন্য অর্ডার খুলছি — আর প্রথম ঘোষণা এখানেই হবে।',
-    'doors.go': 'প্রবেশ করুন →', 'doors.go.trial': 'প্ল্যাটফর্ম সম্পর্কে জানুন →',
+    'doors.c.t': 'আমি গ্রাহক', 'doors.c.d': 'আপনার শহরের যেকোনো রেস্টুরেন্ট থেকে অর্ডার করুন — খাবার আর ডেলিভারির দাম টাকা দেওয়ার আগেই সামনে।',
+    'doors.c.soon': 'শীঘ্রই আসছে',
+    'doors.go': 'প্রবেশ করুন →',
     'kitchen.h2': 'যা দেখছেন <em>তাই পৌঁছাবে</em>',
     'kitchen.lead': 'অ্যাপে আইটেমের ছবি আমাদের পার্টনারদের নিজের রান্নাঘর থেকে, তাদের নিজের দামে — আর পেমেন্টে দাম বদলায় না।',
     'kitchen.c1': 'মধু দিয়ে ফাতির', 'kitchen.c1d': 'আমাদের পার্টনার ফাতির স্টেশন থেকে',
@@ -207,9 +207,9 @@
     'taste.lead': 'اپنے محلے کے ریستوران دیکھیں اور آرڈر کریں۔ دبانے سے پہلے قیمت سامنے ہے: کھانا اور ڈیلیوری — ادائیگی پر کوئی اضافی لائن نہیں۔',
     'doors.r.t': 'میں ریستوران ہوں', 'doors.r.d': 'آپ کا ڈیجیٹل مینیو، آرڈرز اور رقم — سب کھلے حساب میں۔',
     'doors.d.t': 'میں کیپٹن ہوں', 'doors.d.d': 'لچکدار آمدنی — قبول کرنے سے پہلے آپ کا حصہ معلوم۔',
-    'doors.c.t': 'میں گاہک ہوں', 'doors.c.d': 'اپنے شہر کے ریستورانوں سے آرڈر کریں — کوئی ایپ انسٹال کیے بغیر۔',
-    'doors.c.d.trial': 'ہم جلد سب کے لیے آرڈر کھول رہے ہیں — اور اعلان سب سے پہلے یہیں ہوگا۔',
-    'doors.go': 'داخل ہوں ←', 'doors.go.trial': 'پلیٹ فارم کے بارے میں جانیں ←',
+    'doors.c.t': 'میں گاہک ہوں', 'doors.c.d': 'اپنے شہر کے کسی بھی ریستوران سے آرڈر کریں — کھانا اور ڈیلیوری دونوں ادائیگی سے پہلے سامنے۔',
+    'doors.c.soon': 'جلد آ رہا ہے',
+    'doors.go': 'داخل ہوں ←',
     'kitchen.h2': 'جو دیکھیں <em>وہی پہنچے گا</em>',
     'kitchen.lead': 'ایپ میں آئٹمز کی تصاویر ہمارے شراکت داروں کے اپنے کچن سے ہیں، انہی کی قیمتوں پر — اور ادائیگی پر قیمت نہیں بدلتی۔',
     'kitchen.c1': 'شہد کے ساتھ فطیر', 'kitchen.c1d': 'ہمارے شراکت دار فطیر اسٹیشن سے',
@@ -259,9 +259,9 @@
     'taste.lead': 'Telusuri restoran di sekitarmu lalu pesan. Harganya di depanmu sebelum kamu menekan: makanan dan pengantaran, tanpa baris tambahan saat bayar.',
     'doors.r.t': 'Saya restoran', 'doors.r.d': 'Menu digital, pesanan, dan pendapatanmu terbuka jelas.',
     'doors.d.t': 'Saya kurir', 'doors.d.d': 'Penghasilan fleksibel — bagianmu diketahui sebelum menerima.',
-    'doors.c.t': 'Saya pelanggan', 'doors.c.d': 'Pesan dari restoran di kotamu — tanpa unduh aplikasi.',
-    'doors.c.d.trial': 'Kami segera membuka pemesanan untuk semua — dan akan kami umumkan di sini lebih dulu.',
-    'doors.go': 'Masuk →', 'doors.go.trial': 'Kenali platformnya →',
+    'doors.c.t': 'Saya pelanggan', 'doors.c.d': 'Pesan dari restoran mana pun di kotamu — harga makanan dan antar terlihat sebelum bayar.',
+    'doors.c.soon': 'Segera hadir',
+    'doors.go': 'Masuk →',
     'kitchen.h2': 'Yang kamu lihat <em>itu yang tiba</em>',
     'kitchen.lead': 'Foto item di aplikasi berasal dari dapur mitra kami sendiri, dengan harga mereka sendiri — dan harga tidak berubah saat bayar.',
     'kitchen.c1': 'Fateer madu', 'kitchen.c1d': 'Dari mitra kami Fateer Station',
@@ -301,10 +301,13 @@
    * الحال مخاطرةٌ من نوعٍ واحد لكنه الأسوأ: عميلٌ يطلب في وقتٍ لا مطعمَ
    * مفتوحاً فيه، فينتظر ما لن يأتي ويحكم على المنصّة من تجربةٍ واحدة.
    *
-   * **وباب العميل لا يُحذف** — يتغيّر نصّه فقط. النصّ فوقه يعد بثلاثة أبواب،
-   * وعرضُ بابين تكذيبٌ للنصّ في السطر نفسه.
+   * **وباب العميل لا يُحذف** — يصير بطاقةً ساكنة. النصّ فوقه يعد بثلاثة
+   * أبواب، وعرضُ بابين تكذيبٌ للنصّ في السطر نفسه. وكان يفتح دليل المطعم
+   * (خطأ: العميل يقرأ دليل صاحب المطعم)، فصار لا يفتح شيئاً بأمر المالك
+   * 2026-08-21 — والبطاقة تشرح ما سيكون بدل أن تنقل إلى صفحةٍ لا تعنيه.
    *
-   * للفتح للجمهور: بدّل السطر إلى false. لا شيء غيره.
+   * للفتح للجمهور: بدّل السطر إلى false. لا شيء غيره — الدالة أدناه
+   * تُعيد الـ`href` والسهم الذهبي وحدها.
    */
   var TRIAL_MODE = true;
 
@@ -340,17 +343,20 @@
     try { localStorage.setItem('zadgo-lang', l); } catch (e) {}
   }
 
+  /* الاتجاه معكوسٌ عمداً: الملف مكتوبٌ بحالة التجربة (باب العميل بطاقةٌ
+   * بشارة «قريباً» بلا `href`)، وهذه الدالة **تفتحه** لا تُغلقه. فلو لم
+   * تعمل جافاسكربت بقي الباب ساكناً صادقاً بدل رابطٍ يعد بما لم يُفتح. */
   function trial() {
-    if (!TRIAL_MODE) return;
-    /* الحاجب لا يُبدَّل: «والتطبيق قادم قريباً» كافٍ وصادق. وكان يُبدَّل
-     * بسطرٍ يصف حالتنا الداخلية — حُذف بأمر المالك (2026-08-20): الحال
-     * الداخلي وثيقةٌ داخلية، لا سطرٌ في واجهة البيع. */
+    if (TRIAL_MODE) return;
     var door = document.getElementById('door-c');
-    if (door) {
-      var p = door.querySelector('p');
-      var go = door.querySelector('.go');
-      if (p) p.innerHTML = t('doors.c.d.trial') || p.innerHTML;
-      if (go) go.innerHTML = t('doors.go.trial') || go.innerHTML;
+    if (!door) return;
+    door.classList.remove('soon');
+    door.setAttribute('href', '/order/');
+    var go = door.querySelector('.go');
+    if (go) {
+      go.classList.remove('soon-badge');
+      go.setAttribute('data-i18n', 'doors.go');   // فتُترجَم مع كل تبديل لغة
+      go.innerHTML = t('doors.go') || go.innerHTML;
     }
   }
 

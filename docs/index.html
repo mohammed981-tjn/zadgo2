@@ -395,6 +395,14 @@ section.light + .horizon,.horizon.on-light{color:var(--gold-dk)}
 .door p{color:var(--on-navy-3);font-size:var(--fs-meta);margin-block-start:12px}
 .door .go{display:inline-block;margin-block-start:12px;color:var(--gold);
   font-weight:700;font-size:var(--fs-meta)}
+/* باب العميل ما دام الطلب لم يُفتح للعموم: بطاقةٌ لا باب. لا توهّجَ
+   تحت الإصبع ولا ضغطةَ لمس — بطاقةٌ تستجيب تَعِدُ بفتحٍ لا يقع؛ ووصفُها
+   مفتوحٌ دائماً لأن لا تفاعلَ يفتحه. */
+.door.soon:hover{border-color:var(--line);background:rgba(255,255,255,.05)}
+.door.soon:active{scale:1}
+.door.soon .more{grid-template-rows:1fr}
+.go.soon-badge{padding:4px 12px;border-radius:999px;
+  border:1px solid rgba(255,193,7,.32);color:var(--gold-lt)}
 .door .seal{position:absolute;inset-block-end:-6px;inset-inline-start:-6px;
   inline-size:64px;block-size:64px;opacity:.22;pointer-events:none;
   color:var(--gold-lt);fill:currentColor}
@@ -758,8 +766,12 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
         <span class="go" data-i18n="doors.go">ادخل ←</span>
       </a>
       <!-- باب العميل **لا يُحذف** في وضع التجربة — يتغيّر نصّه فقط.
-           النصّ يعد بثلاثة أبواب، وعرضُ بابين تكذيبٌ للنصّ فوقه مباشرة. -->
-      <a class="door reveal" id="door-c" style="--i:2" href="/guide/restaurant/">
+           النصّ يعد بثلاثة أبواب، وعرضُ بابين تكذيبٌ للنصّ فوقه مباشرة.
+           **وهو بطاقةٌ لا رابط ما دام الطلب مغلقاً**: `<a>` بلا `href`
+           ليس رابطاً أصلاً (لا تركيز ولا مؤشّر يد)، فالحالة الساكنة هي
+           حالة الملف نفسه ولو لم تعمل جافاسكربت — والحالة النهائية هي
+           الأساس (بند و٤). ويفتحه المفتاح الواحد في `home.js`. -->
+      <a class="door soon reveal" id="door-c" style="--i:2">
         <svg class="seal" aria-hidden="true" viewBox="0 0 40 40"><use href="#zay"/></svg>
         <span class="top">
           <span class="k"><picture>
@@ -768,8 +780,8 @@ footer .cr{text-align:center;font-size:var(--fs-meta);color:var(--on-navy-4)}
             <img src="images/p-customer-sm.jpg" alt="" width="160" height="160" loading="lazy"></picture></span>
           <h3 data-i18n="doors.c.t">أنا عميل</h3>
         </span>
-        <span class="more"><span><p data-i18n="doors.c.d">اطلب من مطاعم مدينتك — بلا تطبيق يُحمَّل.</p></span></span>
-        <span class="go" data-i18n="doors.go">ادخل ←</span>
+        <span class="more"><span><p data-i18n="doors.c.d">اطلب من أي مطعم في مدينتك — الوجبة والتوصيل أمامك قبل أن تدفع.</p></span></span>
+        <span class="go soon-badge" data-i18n="doors.c.soon">قريباً</span>
       </a>
     </div>
   </div>
