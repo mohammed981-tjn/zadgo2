@@ -55,6 +55,10 @@ class _CustomerHomeState extends State<CustomerHome> {
             : tr('مرحباً ${auth.user?.name ?? ""}',
                 'Hi ${auth.user?.name ?? ""}')),
         actions: [
+          // تبديل اللغة على الرئيسية نفسها (بلاغ المالك): الزائر لا يمرّ
+          // بشاشة الدخول ولا يملك «حسابي»، فبلا هذا الزرّ لا يجد الإنجليزية
+          // إطلاقاً — وهو أحوج الناس إليها.
+          const LanguageToggleButton(),
           // اقتراح/نصيحة — متاح للزائر أيضاً (قناة صوت عامة بلا تسجيل).
           IconButton(
             tooltip: tr('اقتراح أو نصيحة', 'Suggestion or advice'),
