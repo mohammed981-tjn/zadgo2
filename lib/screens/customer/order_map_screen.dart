@@ -227,8 +227,8 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                     Expanded(
                       child: Text(
                         tr(
-                            'حصّل من العميل ${formatCurrency(order.payableTotal - order.walletUsed + order.driverTip)} نقداً عند التسليم${order.driverTip > 0 ? " (منها إكراميتك " + formatCurrency(order.driverTip) + ")" : ""}',
-                            'Collect ${formatCurrency(order.payableTotal - order.walletUsed + order.driverTip)} in cash from the customer on delivery${order.driverTip > 0 ? " (includes your " + formatCurrency(order.driverTip) + " tip)" : ""}'),
+                            'حصّل من العميل ${formatCurrency(order.cashDueFromCustomer)} نقداً عند التسليم${order.driverTip > 0 ? " (منها إكراميتك " + formatCurrency(order.driverTip) + ")" : ""}',
+                            'Collect ${formatCurrency(order.cashDueFromCustomer)} in cash from the customer on delivery${order.driverTip > 0 ? " (includes your " + formatCurrency(order.driverTip) + " tip)" : ""}'),
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,

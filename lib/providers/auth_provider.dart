@@ -262,6 +262,18 @@ class AuthProvider extends ChangeNotifier {
       case 'invalid-credential': return tr('البريد أو كلمة المرور غير صحيحة', 'Incorrect email or password');
       case 'email-already-in-use': return tr('البريد الإلكتروني مستخدم بالفعل', 'Email already in use');
       case 'weak-password': return tr('كلمة المرور ضعيفة جداً', 'Password is too weak');
+      // ت٤٠: أشيع حالتَي فشلٍ فعليتين — تغطية ضعيفة وحجبٌ بعد محاولات —
+      // كانتا ترتدّان رمزاً إنجليزياً خاماً وسط واجهة عربية بلا إرشاد.
+      case 'network-request-failed':
+        return tr('تعذّر الاتصال — تحقّق من شبكتك ثم أعد المحاولة',
+            'Connection failed — check your network and try again');
+      case 'too-many-requests':
+        return tr('محاولات كثيرة متتالية — انتظر دقائق ثم أعد المحاولة',
+            'Too many attempts — wait a few minutes and try again');
+      case 'invalid-email':
+        return tr('صيغة البريد الإلكتروني غير صحيحة', 'Invalid email format');
+      case 'user-disabled':
+        return tr('هذا الحساب موقوف — تواصل مع الإدارة', 'This account is disabled — contact support');
       default: return tr('خطأ ($code)', 'Error ($code)');
     }
   }

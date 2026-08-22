@@ -11,6 +11,7 @@
 // كل الطلبات، ببحث نصّي حرّ وفلاتر حالة وفترة، ومدخل للفاتورة التفصيلية.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/app_lang.dart';
@@ -152,6 +153,8 @@ class _AdminOrdersArchiveScreenState extends State<AdminOrdersArchiveScreen> {
           ),
           // سطر الحصيلة: عدد الطلبات ومجموع قيمتها ضمن الفلاتر الحالية —
           // يجيب «كم طلباً ألغي هذا الأسبوع وبكم؟» بلا حساب يدوي.
+          // ت٧: المجموع الماليّ للمدير وحده — جدول تصميم دور الدعم يمنع
+          // عنه «التقارير المالية بكل صورها»، والعدد يكفي عمله.
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -159,11 +162,18 @@ class _AdminOrdersArchiveScreenState extends State<AdminOrdersArchiveScreen> {
             child: Text(
               shown.isEmpty
                   ? tr('لا نتائج', 'No results')
-                  : tr(
-                      '${shown.length} طلب • إجمالي قيمتها ${formatCurrency(total)}'
-                          '${showDeep ? ' (من الأرشيف الكامل)' : ''}',
-                      '${shown.length} orders • total value ${formatCurrency(total)}'
-                          '${showDeep ? ' (from the full archive)' : ''}'),
+                  : (context.read<app_auth.AuthProvider>().user?.role ==
+                          UserRole.support)
+                      ? tr(
+                          '${shown.length} طلب'
+                              '${showDeep ? ' (من الأرشيف الكامل)' : ''}',
+                          '${shown.length} orders'
+                              '${showDeep ? ' (from the full archive)' : ''}')
+                      : tr(
+                          '${shown.length} طلب • إجمالي قيمتها ${formatCurrency(total)}'
+                              '${showDeep ? ' (من الأرشيف الكامل)' : ''}',
+                          '${shown.length} orders • total value ${formatCurrency(total)}'
+                              '${showDeep ? ' (from the full archive)' : ''}'),
               style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,

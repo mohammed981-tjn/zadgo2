@@ -964,6 +964,9 @@ class _OrderCard extends StatelessWidget {
 
   void _showRateDialog(BuildContext context, FirebaseService service, Order o) {
     double orderRating = 5, driverRating = 5;
+    // ت٤٢: حالة إرسالٍ ظاهرة — كان الحوار يبدو ميتاً عند الضغط، وفشل
+    // الإرسال لا يُغلق ولا يُخبر فيظنّ العميل تقييمه وصل وهو لم يصل.
+    var sending = false;
     final reviewCtrl = TextEditingController();
     showDialog(
       context: context,
@@ -998,25 +1001,48 @@ class _OrderCard extends StatelessWidget {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
+                onPressed: sending ? null : () => Navigator.pop(ctx),
                 child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
-              onPressed: () async {
-                await service.rateOrder(
-                  orderId: o.id,
-                  driverId: o.driverId ?? '',
-                  orderRating: orderRating,
-                  driverRating: driverRating,
-                  review: reviewCtrl.text.trim().isEmpty ? null : reviewCtrl.text.trim(),
-                  restaurantId: o.restaurantId,
-                );
-                if (context.mounted) Navigator.pop(ctx);
-              },
-              child: Text(tr('إرسال', 'Submit')),
+              onPressed: sending
+                  ? null
+                  : () async {
+                      setState(() => sending = true);
+                      try {
+                        await service.rateOrder(
+                          orderId: o.id,
+                          driverId: o.driverId ?? '',
+                          orderRating: orderRating,
+                          driverRating: driverRating,
+                          review: reviewCtrl.text.trim().isEmpty
+                              ? null
+                              : reviewCtrl.text.trim(),
+                          restaurantId: o.restaurantId,
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      } catch (_) {
+                        // يبقى الحوار مفتوحاً بنصّه — يجرّب ثانيةً بلا
+                        // إعادة كتابة، ويعرف أن التقييم لم يُرسل.
+                        if (ctx.mounted) {
+                          setState(() => sending = false);
+                          showError(
+                              ctx,
+                              tr('تعذّر إرسال التقييم — أعد المحاولة',
+                                  'Couldn\'t submit the rating — try again'));
+                        }
+                      }
+                    },
+              child: sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(tr('إرسال', 'Submit')),
             ),
           ],
         ),
       ),
-    );
+    // ت٥٤: التخلّص من المتحكّم بعد إغلاق الحوار — كان يتسرّب مع كل فتح.
+    ).then((_) => reviewCtrl.dispose());
   }
 }

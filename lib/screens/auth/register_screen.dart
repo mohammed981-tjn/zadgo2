@@ -31,6 +31,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _refCtrl = TextEditingController();
   bool _obscure = true;
 
+  // ت٤٤: كانت شاشة التسجيل الوحيدة بين شاشات المصادقة التي لا تتخلّص
+  // من متحكّماتها — تسريبٌ يتراكم مع كل فتحٍ للشاشة.
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _passCtrl.dispose();
+    _refCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _register() async {
     if (!_form.currentState!.validate()) return;
     final auth = context.read<app_auth.AuthProvider>();

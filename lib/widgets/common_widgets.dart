@@ -366,6 +366,15 @@ class AppEmpty extends StatelessWidget {
     '💸': Icons.payments_outlined,
     '🔑': Icons.vpn_key_outlined,
     '🖼️': Icons.image_outlined,
+    // ت٤١ (الفحص الشامل): سبعة إيموجيات كانت خارج الخريطة فترتدّ صامتةً
+    // إلى «صندوق فارغ» لا صلة له بمحتواها — منها «مفضّلاتي» عند العميل.
+    '🗺️': Icons.map_outlined,
+    '📒': Icons.menu_book_outlined,
+    '🛒': Icons.shopping_cart_outlined,
+    '🚚': Icons.local_shipping_outlined,
+    '💡': Icons.lightbulb_outline_rounded,
+    '🏪': Icons.storefront_outlined,
+    '⭐': Icons.star_outline_rounded,
   };
 
   @override

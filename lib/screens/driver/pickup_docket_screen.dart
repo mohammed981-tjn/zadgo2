@@ -134,7 +134,8 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
           // محفظته قد تكون غطّت المبلغ كله فيُعامل كالمدفوع إلكترونياً.
           // التحصيل النقدي يشمل الإكرامية (ح3) — هي للكابتن نفسه لكنها
           // تُحصَّل مع المبلغ، وبيانها منفصل كي يعرف أن الزيادة حقّه.
-          final collectAmount = o.payableTotal - o.walletUsed + o.driverTip;
+          // ت٥٠: الحاسم الواحد على النموذج — نفس الرقم في الشاشات الأربع.
+          final collectAmount = o.cashDueFromCustomer;
           final isCash =
               o.paymentMethod == PaymentMethod.cash && collectAmount > 0;
           final prePickup = o.status == OrderStatus.readyForPickup ||
@@ -409,7 +410,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                         );
                         if (matched == true && context.mounted) {
                           final done = await DriverProofFlow.confirmPickup(
-                              context, service, o);
+                              context, service, o, byScan: true);
                           if (done && context.mounted) {
                             Navigator.pushReplacement(
                               context,

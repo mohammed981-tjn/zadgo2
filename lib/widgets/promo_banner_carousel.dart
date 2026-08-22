@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/firebase_service.dart';
 import '../utils/app_lang.dart';
+import '../utils/helpers.dart';
 import '../utils/theme.dart';
 import '../screens/customer/restaurant_detail_screen.dart';
 
@@ -30,9 +31,17 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
   int _current = 0;
   int _count = 0;
 
+  /// ت٢٨: انطباعٌ واحد لكل بنر في الجلسة — لا عدّ مكرّر مع كل تقليب.
+  final Set<String> _impressed = {};
+
   @override
   void initState() {
     super.initState();
+    _startAutoSlide();
+  }
+
+  void _startAutoSlide() {
+    _autoSlide?.cancel();
     _autoSlide = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted || _count < 2 || !_controller.hasClients) return;
       final next = (_current + 1) % _count;
@@ -48,12 +57,26 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
     super.dispose();
   }
 
+  void _recordImpression(PromoBanner b) {
+    if (!_impressed.add(b.id)) return;
+    context.read<FirebaseService>().recordBannerImpression(b.id);
+  }
+
   Future<void> _open(PromoBanner banner) async {
     final restaurantId = banner.restaurantId;
     if (restaurantId == null || restaurantId.isEmpty) return;
     final service = context.read<FirebaseService>();
+    // ت٢٨: النقرة تُقاس قبل الجلب — نقرةُ مطعمٍ حُذف نقرةٌ حقيقية أيضاً.
+    service.recordBannerClick(banner.id);
     final restaurant = await service.getRestaurantOnce(restaurantId);
-    if (restaurant == null || !mounted) return;
+    if (!mounted) return;
+    if (restaurant == null) {
+      // ت٢٥: البنر المشير لمطعمٍ محذوف كان يصمت — ضغطةٌ بلا نتيجة توحي
+      // بعطل. رسالة صادقة أفضل من صمت.
+      showError(context,
+          tr('هذا العرض لم يعد متاحاً', 'This offer is no longer available'));
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -85,28 +108,48 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
           );
         }
 
+        // ت٢٨: انطباع البنر الأول يُسجَّل مع أول بناء — onPageChanged لا
+        // يُستدعى للصفحة الافتتاحية.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && banners.isNotEmpty) _recordImpression(banners[0]);
+        });
+
         return Column(children: [
-          SizedBox(
-            height: 150,
-            child: PageView.builder(
-              controller: _controller,
-              itemCount: banners.length,
-              onPageChanged: (i) => setState(() => _current = i),
-              itemBuilder: (_, i) {
-                final b = banners[i];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: GestureDetector(
-                    onTap: () => _open(b),
-                    child: ClipRRect(
+          // ت٢٣: ارتفاع الصندوق مشتقّ من عرضه بنسبة ٢٫٤:١ — نفس النسبة
+          // التي توصي بها شاشة البنرات حرفياً، فلا يُقصّ من الصورة ٩-١٨٪
+          // على الشاشات العريضة ويُبتر نصٌّ كُتب داخلها.
+          LayoutBuilder(builder: (ctx, constraints) {
+            final boxHeight = ((constraints.maxWidth - 32) / 2.4)
+                .clamp(120.0, 190.0);
+            return SizedBox(
+              height: boxHeight,
+              // ت٢٤: الكاروسيل يتوقف تحت الإصبع — كان يقفز أثناء السحب.
+              child: Listener(
+                onPointerDown: (_) => _autoSlide?.cancel(),
+                onPointerUp: (_) => _startAutoSlide(),
+                onPointerCancel: (_) => _startAutoSlide(),
+                child: PageView.builder(
+                  controller: _controller,
+                  itemCount: banners.length,
+                  onPageChanged: (i) {
+                    setState(() => _current = i);
+                    _recordImpression(banners[i]);
+                  },
+                  itemBuilder: (_, i) {
+                    final b = banners[i];
+                    final linked = (b.restaurantId ?? '').isNotEmpty;
+                    final card = ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: Stack(fit: StackFit.expand, children: [
                         CachedNetworkImage(
                           imageUrl: b.imageUrl,
                           fit: BoxFit.cover,
-                          // فكّ الترميز بعرض معقول للبنر لا بحجم الملف الأصلي،
-                          // والتخزين على القرص يعرضه فورياً من ثاني فتح.
-                          memCacheWidth: 1200,
+                          // ت٢٧: فكّ الترميز بعرض الصندوق الفعلي بالبكسل
+                          // لا برقمٍ ثابت — كان 1200 لصندوقٍ عرضه ~600
+                          // بكسل: أربعة أضعاف الذاكرة لكل بنر معروض.
+                          memCacheWidth: ((constraints.maxWidth - 32) *
+                                  MediaQuery.of(ctx).devicePixelRatio)
+                              .round(),
                           // بديل هادئ عند فشل التحميل بدل أيقونة كسر قبيحة.
                           errorWidget: (_, __, ___) => Container(
                             color: AppColors.primary.withOpacity(0.1),
@@ -116,6 +159,26 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                           ),
                           placeholder: (_, __) =>
                               Container(color: AppColors.surface),
+                        ),
+                        // ت٢٩ (قرار المالك 2026-08-22): وسم «إعلان» على كل
+                        // بنر إداري — شفافية أن ما يتصدّر شاشةً مرتّبة
+                        // بالتقييم والقرب مساحةٌ مدفوعة/موجَّهة لا ترتيب.
+                        PositionedDirectional(
+                          top: 8,
+                          start: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.45),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(tr('إعلان', 'Ad'),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700)),
+                          ),
                         ),
                         if (b.title.trim().isNotEmpty)
                           Positioned(
@@ -147,12 +210,28 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                             ),
                           ),
                       ]),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      // ت٢٤: عنوانٌ منطوق لقارئ الشاشة — بنرٌ بلا عنوان
+                      // كان لا يُنطق منه شيء. وت٢٥: البنر غير المربوط لا
+                      // يستقبل ضغطاً أصلاً — لا «ضغطة بلا نتيجة».
+                      child: Semantics(
+                        label: b.title.trim().isNotEmpty
+                            ? tr('إعلان: ${b.title}', 'Ad: ${b.title}')
+                            : tr('بنر ترويجي', 'Promotional banner'),
+                        button: linked,
+                        child: linked
+                            ? GestureDetector(
+                                onTap: () => _open(b), child: card)
+                            : card,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          }),
           if (banners.length > 1)
             Padding(
               padding: const EdgeInsets.only(top: 8),

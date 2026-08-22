@@ -158,6 +158,62 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
         buffer.writeln(tr('  ⚠️ تعذّرت القراءة — $e', '  ⚠️ read failed — $e'));
       }
 
+      // ── أختام بلا صرف (ت٥٥) ─────────────────────────────────────────
+      // عقيدة «الختم قبل الصرف» تجعل العطب الوحيد الممكن ختماً يتيماً:
+      // جهازٌ مات بين الختم والصرف. كان التوثيق يعد بـ«مراجعة يدوية»
+      // بلا أداة تحقّقها — هذا البند هو الأداة: يطابق كل مختومٍ بحركة
+      // صرفٍ في دفتره، وما لا حركة له يُصرف يدوياً من لوحة الحوافز.
+      buffer.writeln();
+      buffer.writeln(tr('● أختام بلا صرف', '● Stamps without payout'));
+      try {
+        final bonusTxs = await service.fetchBonusTransactions();
+        final growthTxs = await service.fetchGrowthWalletTransactions();
+        final rewardedCustomers = await service.fetchRewardedCustomers();
+        var orphans = 0;
+        for (final d in drivers.where(
+            (d) => d.referralRewarded && d.referredByCode.isNotEmpty)) {
+          final hasTx = bonusTxs.any((t) =>
+              t.driverId == d.id && (t.note ?? '').contains('ترحيب'));
+          if (!hasTx) {
+            orphans++;
+            buffer.writeln(tr(
+                '  ⚠️ كابتن ${d.name}: مختوم «صُرفت إحالته» بلا حركة ترحيب',
+                '  ⚠️ captain ${d.name}: referral stamped, no welcome tx'));
+          }
+        }
+        for (final c in rewardedCustomers
+            .where((c) => c.referredByCode.isNotEmpty)) {
+          final hasTx = growthTxs.any((t) =>
+              t.userId == c.uid &&
+              t.type == WalletTransactionType.referral);
+          if (!hasTx) {
+            orphans++;
+            buffer.writeln(tr(
+                '  ⚠️ عميل ${c.name}: مختوم «صُرفت إحالته» بلا حركة محفظة',
+                '  ⚠️ customer ${c.name}: referral stamped, no wallet tx'));
+          }
+        }
+        final cashbackIds = await service.fetchCashbackPaidOrderIds();
+        final cashbackTxOrderIds = growthTxs
+            .where((t) => t.type == WalletTransactionType.cashback)
+            .map((t) => t.orderId)
+            .whereType<String>()
+            .toSet();
+        for (final id in cashbackIds.difference(cashbackTxOrderIds)) {
+          orphans++;
+          buffer.writeln(tr(
+              '  ⚠️ كاش باك الطلب $id: علامة صرفٍ بلا حركة محفظة',
+              '  ⚠️ cashback for order $id: grant mark, no wallet tx'));
+        }
+        if (orphans == 0) {
+          buffer.writeln(
+              tr('  ✅ كل الأختام تقابلها حركات', '  ✅ every stamp has its tx'));
+        }
+      } catch (e) {
+        buffer.writeln(tr('  ⚠️ تعذّرت المطابقة — $e',
+            '  ⚠️ reconciliation failed — $e'));
+      }
+
       setState(() => _report = buffer.toString());
     } catch (e) {
       setState(() => _error = '$e');

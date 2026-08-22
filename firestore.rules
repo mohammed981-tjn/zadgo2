@@ -846,6 +846,12 @@ service cloud.firestore {
                 // حصراً (لا تصفير يجمّل المعدل الذي يوزّع رزق الكباتن)،
                 // والحمولة تتحرك درجةً درجة في مداها — لا «صفر» دائم
                 // يقفز به فوق سقف الحمولة الصارم.
+                // ت٣: عدّاد الموقع المُحاكى تصاعدي +1 حصراً — إشارة
+                // نيّةٍ يكتبها جهازه الرسمي، ولا يصفّرها صاحبها؛ التصحيح
+                // (إن لزم) للمدير.
+                (!changedKeys().hasAny(['mockLocationCount']) ||
+                    request.resource.data.get('mockLocationCount', 0) ==
+                        resource.data.get('mockLocationCount', 0) + 1) &&
                 (!changedKeys().hasAny(['offersTotal']) ||
                     request.resource.data.get('offersTotal', 0) ==
                         resource.data.get('offersTotal', 0) + 1) &&
@@ -1259,8 +1265,10 @@ service cloud.firestore {
             (!changedKeys().hasAny(['arrivedAt', 'arrivedLat',
                     'arrivedLng']) ||
                 !('arrivedAt' in resource.data)) &&
+            // ت٤: ختم «استُلم بالمسح» ضمن محطة الاستلام — يوثّق أن نتيجة
+            // مسح رمز المطعم صارت أثراً محفوظاً لا شعوراً بالتوثيق.
             (!changedKeys().hasAny(['pickupAt', 'pickupLat', 'pickupLng',
-                    'pickupPhoto']) ||
+                    'pickupPhoto', 'pickupByScan']) ||
                 !('pickupAt' in resource.data)) &&
             (!changedKeys().hasAny(['deliveryAt', 'deliveryLat',
                     'deliveryLng', 'deliveryPhoto',
@@ -1580,7 +1588,24 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /banners/{bannerId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      // ت٢٨ (الفحص الشامل): مساحتك الإعلانية بلا قياس — لا انطباعات ولا
+      // نقرات، فلا تسعير ولا إثبات للمطعم الدافع. العدّادان يزيدهما جهاز
+      // العميل +١ حصراً دون مسّ أي حقل آخر. **استرشاديان لا ماليان**:
+      // عميل معدَّل يستطيع تضخيمهما — يكفيان دليلَ حجمٍ نسبيّ بين البنرات،
+      // والقياس الموثّق خادميٌّ يوم يلزم.
+      allow update: if isAdmin() || (
+            isSignedIn() && (
+              (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['impressions']) &&
+                  request.resource.data.get('impressions', 0) ==
+                      resource.data.get('impressions', 0) + 1) ||
+              (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['clicks']) &&
+                  request.resource.data.get('clicks', 0) ==
+                      resource.data.get('clicks', 0) + 1)
+            )
+          );
+      allow create, delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
@@ -1655,7 +1680,15 @@ service cloud.firestore {
                      rd.get('operatorShare', 0) <=
                          expectedOperatorShare(cur.get('driverShare', 0)) + 0.01)) &&
              (!ck.hasAny(['operatorId', 'driverId']) ||
-                 operatorIdMatchesAssignedDriver());
+                 operatorIdMatchesAssignedDriver()) &&
+             // ت٢ (الفحص الشامل): علم «تعذّر التسليم» يقود لعدّاد حظر
+             // النقد على العميل — الكابتن يرفعه (true) على توصيلةٍ جارية
+             // حصراً، ولا يمحوه ولا يرفعه على طلبٍ منتهٍ بأثر رجعي؛
+             // المحو والتصحيح للمدير وحده.
+             (!ck.hasAny(['deliveryFailed']) ||
+                 (rd.get('deliveryFailed', false) == true &&
+                     cur.status in ['readyForPickup', 'searchingDriver',
+                         'driverAssigned', 'pickedUp', 'onTheWay']));
     }
 
     /// م١٨: سقف مبلغ حركة الكابتن بنوعها من قيم طلبها — قراءةٌ واحدة
@@ -1839,28 +1872,25 @@ service cloud.firestore {
       // «الأسطول يضيف والإدارة توافق» (أمر المالك 2026-08-22 على نمط
       // جاهز/هنقرستيشن): المدير وحده يختمه مستهلَكاً لحظة اعتماد طلب
       // الانضمام، فلا يلتحق كابتن بأسطولٍ دون فحص مستنداته.
+      // ت١ (الفحص الشامل): كان الختم «مستخدَماً» يمرّ **بلا اسم مستهلِك**
+      // (تسامُح نسخ قديمة تختم على خطوتين)، فمن رأى الكود — لقطة شاشة،
+      // ورقة مطبوعة، هوية مجهولة من صفحة الانضمام — يحرقه فيُحرم صاحبه
+      // بلا أثر يدلّ على الفاعل. وفرعُ «الحاق الاسم بكودٍ مستخدَمٍ بلا
+      // مالك» كان باب انتحال. الآن: الاستهلاك ذرّي — الختم واسم المستهلِك
+      // في نفس الكتابة حصراً، والنسخ الحالية كلها تفعل ذلك أصلاً (بيانات
+      // التجربة تُصفَّر قبل الإطلاق فلا كود قديم بلا مالك يعنينا).
       allow update: if isAdmin() || (
-            isSignedIn() && resource.data.get('operatorId', '') == '' && (
-              (resource.data.isUsed == false &&
-                  // الكود المنتهي لا يُستهلك حتى بالكتابة المباشرة — فحص
-                  // الصلاحية هنا لا في التطبيق وحده.
-                  (!('expiresAt' in resource.data) ||
-                      resource.data.expiresAt == null ||
-                      request.time < resource.data.expiresAt) &&
-                  request.resource.data.isUsed == true &&
-                  // الختم باسم المستهلِك يقع في نفس المعاملة (النسخة
-                  // الحالية)، أو في خطوة تالية (نسخ أقدم) — كلاهما مقبول
-                  // أثناء انتشار التحديث، والمعرّف لا يكون لغير الكاتب.
-                  (!('usedByUid' in request.resource.data.diff(resource.data).affectedKeys()) ||
-                      request.resource.data.usedByUid == currentUid()) &&
-                  request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['isUsed', 'usedAt', 'usedByUid', 'usedByName'])) ||
-              (resource.data.isUsed == true &&
-                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedByUid', 'usedByName']) &&
-                  request.resource.data.usedByUid == currentUid() &&
-                  (!('usedByUid' in resource.data) || resource.data.usedByUid == null ||
-                      resource.data.usedByUid == currentUid()))
-            )
+            isSignedIn() && resource.data.get('operatorId', '') == '' &&
+            resource.data.isUsed == false &&
+            // الكود المنتهي لا يُستهلك حتى بالكتابة المباشرة — فحص
+            // الصلاحية هنا لا في التطبيق وحده.
+            (!('expiresAt' in resource.data) ||
+                resource.data.expiresAt == null ||
+                request.time < resource.data.expiresAt) &&
+            request.resource.data.isUsed == true &&
+            request.resource.data.usedByUid == currentUid() &&
+            request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['isUsed', 'usedAt', 'usedByUid', 'usedByName'])
           );
     }
   }

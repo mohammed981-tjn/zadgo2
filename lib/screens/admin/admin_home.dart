@@ -950,11 +950,15 @@ class _DriversTab extends StatelessWidget {
           leading: CircleAvatar(backgroundColor: d.isOnline ? AppColors.success.withOpacity(0.2) : Colors.grey.shade200,
               child: Text(d.name.isNotEmpty ? d.name[0] : '?')),
           title: Text(d.name),
+          // ت٣: شارة الموقع المُحاكى بجوار الإنذارات — نيّة غشٍّ مثبتة
+          // تقنياً تستحق أن تُرى قبل أن تتكرر، والقرار للمدير.
           subtitle: Text(tr(
               '${d.totalDeliveries} توصيلة  •  ${d.rating.toStringAsFixed(1)} ⭐'
-                  '${d.warningCount > 0 ? '  •  ⚠️ ${d.warningCount} إنذار' : ''}',
+                  '${d.warningCount > 0 ? '  •  ⚠️ ${d.warningCount} إنذار' : ''}'
+                  '${d.mockLocationCount > 0 ? '  •  🛰️ ${d.mockLocationCount} موقع وهمي' : ''}',
               '${d.totalDeliveries} deliveries  •  ${d.rating.toStringAsFixed(1)} ⭐'
-                  '${d.warningCount > 0 ? '  •  ⚠️ ${d.warningCount} warnings' : ''}')),
+                  '${d.warningCount > 0 ? '  •  ⚠️ ${d.warningCount} warnings' : ''}'
+                  '${d.mockLocationCount > 0 ? '  •  🛰️ ${d.mockLocationCount} mocked GPS' : ''}')),
           trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
             if (d.balance != 0)
               Text(

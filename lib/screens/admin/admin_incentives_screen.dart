@@ -136,7 +136,31 @@ class _BodyState extends State<_Body> {
     // (سبقنا جهاز آخر إليها) لا فشلاً.
     try {
       if (s.referralEnabled) {
+        // م٢٦: سقف الداعي الشهري **منعٌ آليّ هنا** (الصرف اليدوي يبقى
+        // تنبيهاً — القرار المالي للمدير): يُحصى من المُحالين المختومين
+        // الذين انضموا هذا الشهر لنفس الداعي، ويُحدَّث أثناء المسح نفسه
+        // كي لا يتجاوز مسحٌ واحد السقفَ دفعةً واحدة.
+        final monthStart =
+            DateTime(DateTime.now().year, DateTime.now().month);
+        final codeOf = {
+          for (final d in widget.drivers) d.referralCode: d.id
+        };
+        final paidThisMonth = <String, int>{};
+        for (final d in widget.drivers) {
+          if (d.referralRewarded &&
+              d.referredByCode.isNotEmpty &&
+              (d.createdAt?.isAfter(monthStart) ?? false)) {
+            final rid = codeOf[d.referredByCode];
+            if (rid != null) {
+              paidThisMonth[rid] = (paidThisMonth[rid] ?? 0) + 1;
+            }
+          }
+        }
         for (final r in eligibleReferrals(s, widget.drivers, delivered)) {
+          if (s.referralMonthlyCap > 0 &&
+              (paidThisMonth[r.referrer.id] ?? 0) >= s.referralMonthlyCap) {
+            continue; // بلغ سقفه — يبقى للصرف اليدوي إن أراده المدير.
+          }
           try {
             await service.payReferralBonus(
               referrer: r.referrer,
@@ -145,6 +169,8 @@ class _BodyState extends State<_Body> {
               refereeAmount: s.refereeBonus,
             );
             paid++;
+            paidThisMonth[r.referrer.id] =
+                (paidThisMonth[r.referrer.id] ?? 0) + 1;
           } catch (_) {
             // يبقى المستحقّ ظاهراً للصرف اليدوي؛ ونكمل على بقية القائمة.
           }
@@ -270,7 +296,18 @@ List<_ReferralRow> referralRows(
 List<_ReferralRow> eligibleReferrals(
         IncentiveSettings s, List<Driver> drivers, List<Order> delivered) =>
     referralRows(s, drivers, delivered)
-        .where((r) => !r.expired && r.count >= s.referralDeliveries)
+        // ت٥٢: «صفر توصيلات» كان يجعل **كل** حامل كودٍ مستحقاً فوراً —
+        // ومع الصرف التلقائي يُصرف بلا مراجعة. الصفر الآن يعطّل الاستحقاق
+        // (نظير حارس إحالة العميل حرفاً) حتى يُضبط شرطٌ حقيقي.
+        .where((r) =>
+            s.referralDeliveries > 0 &&
+            !r.expired &&
+            r.count >= s.referralDeliveries)
+        // م٢٦: تمايز الطرفين بالجوّال — جوّال واحد لحسابين ليس إحالةً بل
+        // الشخص نفسه؛ يسقط من الاستحقاق ويبقى في القائمة العامة ليَبين.
+        .where((r) =>
+            r.referrer.phone.trim().isEmpty ||
+            r.referrer.phone.trim() != r.referee.phone.trim())
         .toList();
 
 // ————— إحالة العميل (دفعة ٥) — نظير دوال السائق تماماً، لكن على العملاء
@@ -327,6 +364,10 @@ List<_CustomerReferralRow> eligibleCustomerReferrals(
             !r.expired &&
             s.customerReferralOrders > 0 &&
             r.count >= s.customerReferralOrders)
+        // م٢٦: نفس تمايز الجوّال المطبَّق على إحالة السائق أعلاه.
+        .where((r) =>
+            r.referrer.phone.trim().isEmpty ||
+            r.referrer.phone.trim() != r.referee.phone.trim())
         .toList();
 
 /// قسم نموّ العميل في لوحة الحوافز — حالة الإحالة والكاش باك وعدد المستحقّين،
@@ -702,9 +743,15 @@ class _SettingsFormState extends State<_SettingsForm> {
               referralEnabled: _referralOn,
               referrerBonus: double.tryParse(_referrer.text.trim()) ?? 0,
               refereeBonus: double.tryParse(_referee.text.trim()) ?? 0,
-              referralDeliveries: int.tryParse(_deliveries.text.trim()) ?? 1,
-              referralWindowDays: int.tryParse(_windowDays.text.trim()) ?? 30,
-              referralMonthlyCap: int.tryParse(_cap.text.trim()) ?? 3,
+              // ت٥٢: حدود مدى تمنع رقماً شاذاً بغلطة إدخال — الشرط ١..٥٠٠
+              // (صفره يعطّل الاستحقاق في المرشِّح لا هنا)، والنافذة يوم
+              // إلى سنة، والسقف ٠ (بلا سقف آلي) إلى ١٠٠٠.
+              referralDeliveries:
+                  (int.tryParse(_deliveries.text.trim()) ?? 1).clamp(0, 500),
+              referralWindowDays:
+                  (int.tryParse(_windowDays.text.trim()) ?? 30).clamp(1, 365),
+              referralMonthlyCap:
+                  (int.tryParse(_cap.text.trim()) ?? 3).clamp(0, 1000),
               challengeEnabled: _challengeOn,
               challengeWeekdays: _days,
               tiers: tiers,

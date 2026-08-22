@@ -729,7 +729,9 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           final headers = <Widget>[
             if (_query.isEmpty) const _ReorderStrip(),
             if (_query.isEmpty) _RequestedArrivedBanner(restaurants: list),
-            if (_query.isEmpty) const PromoBannerCarousel(),
+            // ت٣٠: «مفضّلاتي» شاشةُ اختيار العميل الشخصي — بنرُ مطعمٍ آخر
+            // يتصدّرها اقتحامٌ يدفع بطاقاته هو للأسفل. البنر للشاشة العامة.
+            if (_query.isEmpty && !_favoritesOnly) const PromoBannerCarousel(),
           ];
           final h = headers.length;
           return Column(children: [

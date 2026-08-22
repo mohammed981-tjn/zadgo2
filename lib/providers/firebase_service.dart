@@ -192,7 +192,12 @@ class FirebaseService {
   Future<void> requestRestaurant(String rawName) async {
     final name = rawName.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (name.length < 2) throw Exception(tr('اكتب اسم المطعم', 'Enter the restaurant name'));
-    final slug = name.replaceAll(' ', '-');
+    // ت٥٣: «/» في معرّف مستند تعني مساراً فرعياً في Firestore — اسم مثل
+    // «شاورما/برجر» كان يفشل **دائماً** فيموت أهم صوت تحويل («لم أجد
+    // مطعمي»). تُستبدل المحارف المحظورة في المعرّف والاسم يبقى كما كُتب.
+    final slug = name
+        .replaceAll(' ', '-')
+        .replaceAll(RegExp(r'[/\\.#$\[\]]'), '_');
     await _restaurantRequests.doc(slug).set({
       'name': name,
       'count': FieldValue.increment(1),
@@ -293,47 +298,15 @@ class FirebaseService {
         note: note,
       );
 
-  /// خصم من رصيد المحفظة عند استخدامه في دفع طلب. يتحقّق من كفاية الرصيد
-  /// داخل معاملة (transaction) لا بقراءة ثم كتابة، فطلبان متزامنان لا
-  /// يستطيعان إنفاق الرصيد نفسه مرّتين.
-  Future<void> spendFromWallet({
-    required String userId,
-    required double amount,
-    required String orderId,
-    required String orderNumber,
-  }) async {
-    if (amount <= 0) return;
-    final userRef = _users.doc(userId);
-    final txRef = _walletTransactions.doc();
+  // أُزيلت spendFromWallet (ت١٣ — الفحص الشامل 2026-08-22): كود ميت بلا
+  // مستدعٍ يخصم الرصيد **بلا إنشاء الطلب** — وهو العطب الذي وُثّق علاجه في
+  // placeOrderWithWallet (الخصم والإنشاء معاملة واحدة). بقاؤها فخٌّ لأول
+  // من يستدعيها بحسن نية فيعيد فتح الثغرة المرمَّمة.
 
-    await _db.runTransaction((transaction) async {
-      final snap = await transaction.get(userRef);
-      final data = snap.data();
-      if (!snap.exists || data == null) {
-        throw Exception(tr('حساب العميل غير موجود', 'Customer account not found'));
-      }
-      final current = (data['walletBalance'] as num?)?.toDouble() ?? 0;
-      if (current + 0.001 < amount) {
-        throw Exception(tr('رصيد المحفظة غير كافٍ', 'Insufficient wallet balance'));
-      }
-      transaction.update(userRef, {'walletBalance': current - amount});
-      transaction.set(
-        txRef,
-        models.WalletTransaction(
-          id: txRef.id,
-          userId: userId,
-          type: models.WalletTransactionType.orderPayment,
-          amount: -amount,
-          balanceAfter: current - amount,
-          orderId: orderId,
-          orderNumber: orderNumber,
-          createdAt: DateTime.now(),
-        ).toMap(),
-      );
-    });
-  }
-
-  /// يكتب حركة محفظة ويحدّث الرصيد في دفعة واحدة.
+  /// يكتب حركة محفظة ويحدّث الرصيد **في معاملة واحدة** (ت١٢): كانت قراءة
+  /// الرصيد خارج الدفعة، فحركتان متزامنتان تسجّلان «الرصيد بعد الحركة»
+  /// نفسه — الرصيد المخزَّن يبقى صحيحاً (increment) لكن الدفتر لا يجمع
+  /// إليه، وهو دفترٌ لا يُنقَّح. المعاملة تجعل المقروء والمكتوب ذرّيين.
   Future<void> _recordWalletEntry({
     required String userId,
     required double amount,
@@ -343,29 +316,29 @@ class FirebaseService {
     String? note,
   }) async {
     if (amount == 0) return;
-    final doc = await _users.doc(userId).get();
-    final current = (doc.data()?['walletBalance'] as num?)?.toDouble() ?? 0;
     final signed = type == models.WalletTransactionType.orderPayment ? -amount : amount;
     final txRef = _walletTransactions.doc();
-    final batch = _db.batch();
-    batch.update(_users.doc(userId), {
-      'walletBalance': FieldValue.increment(signed),
+    await _db.runTransaction((tx) async {
+      final doc = await tx.get(_users.doc(userId));
+      final current = (doc.data()?['walletBalance'] as num?)?.toDouble() ?? 0;
+      tx.update(_users.doc(userId), {
+        'walletBalance': current + signed,
+      });
+      tx.set(
+        txRef,
+        models.WalletTransaction(
+          id: txRef.id,
+          userId: userId,
+          type: type,
+          amount: signed,
+          balanceAfter: current + signed,
+          orderId: orderId,
+          orderNumber: orderNumber,
+          note: note,
+          createdAt: DateTime.now(),
+        ).toMap(),
+      );
     });
-    batch.set(
-      txRef,
-      models.WalletTransaction(
-        id: txRef.id,
-        userId: userId,
-        type: type,
-        amount: signed,
-        balanceAfter: current + signed,
-        orderId: orderId,
-        orderNumber: orderNumber,
-        note: note,
-        createdAt: DateTime.now(),
-      ).toMap(),
-    );
-    await batch.commit();
   }
 
   /// سجلّ حركات محفظة عميل، الأحدث أولاً.
@@ -511,12 +484,20 @@ class FirebaseService {
   /// النهائي الذي أرسله المدير، والنتيجة (accepted/edited/rejected). لا
   /// يُرسَل شيءٌ للنموذج تلقائياً؛ هذه بيانات تحسينٍ لاحقٍ (تأصيل/ضبط/تقييم
   /// الطراز). غير حرجة: فشلها لا يُعطّل حلّ الشكوى.
+  /// ت٣٢ (الفحص الشامل): كان السجل «بنصف ضلعه» — مخرجات بلا مدخلات ولا
+  /// اسم طراز ولا إصدار تلقين، فلا يُبنى منه زوج تدريب واحد ولا تُقارن
+  /// طرازات. [input] نصُّ المدخل الفعلي، [model] الطراز الذي أجاب
+  /// (AiAssist.lastServedModel)، [promptVersion] رقم صيغة التلقين يرتفع
+  /// مع كل تعديل جوهري على نصّ الـprompt في AiAssist.
   Future<void> recordAiFeedback({
     required String feature,
     required String suggestion,
     required String finalText,
     required String outcome,
     String? context,
+    String? input,
+    String? model,
+    String? promptVersion,
   }) async {
     try {
       await _aiFeedback.add({
@@ -525,6 +506,9 @@ class FirebaseService {
         'finalText': finalText,
         'outcome': outcome,
         if (context != null) 'context': context,
+        if (input != null) 'input': input,
+        if (model != null) 'model': model,
+        if (promptVersion != null) 'promptVersion': promptVersion,
         'by': _auth.currentUser?.uid ?? '',
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -836,7 +820,9 @@ class FirebaseService {
   /// انقطعت الشبكة في المنتصف.
   ///
   /// حدّ Firestore للدفعة الواحدة 500 عملية، لذا تُقسَّم تلقائياً عند تجاوزه.
-  Future<void> importMenu({
+  ///
+  /// يعيد (imported: عدد الأصناف المكتوبة، skipped: المكرَّرات المتخطّاة).
+  Future<({int imported, int skipped})> importMenu({
     required String restaurantId,
     required List<models.MenuCategory> categories,
     required List<models.MenuItem> items,
@@ -844,6 +830,9 @@ class FirebaseService {
   }) async {
     const maxOps = 450; // هامش أمان تحت حدّ 500
     final ops = <void Function(WriteBatch)>[];
+    var catsToWrite = categories;
+    var itemsToWrite = items;
+    var skipped = 0;
 
     // وضع الاستبدال: يُحذف المنيو القائم (تصنيفاته وأصنافه) قبل كتابة
     // الجديد — لإعادة استيراد منيو استُورد سابقاً (من لوحة الويب مثلاً)
@@ -857,12 +846,49 @@ class FirebaseService {
       for (final d in oldItems.docs) {
         ops.add((b) => b.delete(d.reference));
       }
+    } else {
+      // ت٣٨: وضع الإضافة كان يضاعف المنيو عند إعادة الاستيراد — ومسار
+      // «المنيو من صورة» يشجّع إعادة المحاولة، فيُكتشف منيو كامل مكرَّراً
+      // أمام العملاء وتنظيفه يدويٌّ صنفاً صنفاً. الآن: الصنف الذي يطابق
+      // اسمُه صنفاً قائماً يُتخطّى، والتصنيف المطابق يُعاد استخدامه بدل
+      // سكّ توأمه.
+      String norm(String s) => s.trim().replaceAll(RegExp(r'\s+'), ' ');
+      final oldCats = await _categories(restaurantId).get();
+      final oldItems = await _items(restaurantId).get();
+      final oldCatIdByName = {
+        for (final d in oldCats.docs)
+          norm((d.data()['name'] as String?) ?? ''): d.id
+      };
+      final oldItemNames = {
+        for (final d in oldItems.docs)
+          norm((d.data()['name'] as String?) ?? '')
+      };
+      final catRemap = <String, String>{};
+      catsToWrite = [];
+      for (final c in categories) {
+        final existingId = oldCatIdByName[norm(c.name)];
+        if (existingId != null) {
+          catRemap[c.id] = existingId;
+        } else {
+          catsToWrite.add(c);
+        }
+      }
+      itemsToWrite = [];
+      for (final i in items) {
+        if (oldItemNames.contains(norm(i.name))) {
+          skipped++;
+          continue;
+        }
+        final remapped = catRemap[i.categoryId];
+        itemsToWrite
+            .add(remapped == null ? i : i.copyWith(categoryId: remapped));
+      }
     }
 
-    for (final c in categories) {
+    for (final c in catsToWrite) {
       ops.add((b) => b.set(_categories(restaurantId).doc(c.id), c.toMap()));
     }
-    for (final i in items) {
+    for (final i in itemsToWrite) {
       ops.add((b) => b.set(_items(restaurantId).doc(i.id), i.toMap()));
     }
 
@@ -874,6 +900,7 @@ class FirebaseService {
       }
       await batch.commit();
     }
+    return (imported: itemsToWrite.length, skipped: skipped);
   }
   Future<void> updateMenuItem(models.MenuItem item) =>
       _items(item.restaurantId).doc(item.id).update(item.toMap());
@@ -1521,6 +1548,7 @@ class FirebaseService {
     Uint8List? photo,
     required double lat,
     required double lng,
+    bool byScan = false,
   }) =>
       _orderProofs.doc(order.id).set({
         'driverId': order.driverId ?? '',
@@ -1529,6 +1557,9 @@ class FirebaseService {
         'pickupAt': FieldValue.serverTimestamp(),
         'pickupLat': lat,
         'pickupLng': lng,
+        // ت٤: نتيجة مسح رمز المطعم كانت لا تُسجَّل في أي مكان — ميزة
+        // «توثيق» بلا أثر. الختم هنا يجعلها بيّنة تُقرأ في النزاع.
+        if (byScan) 'pickupByScan': true,
       }, SetOptions(merge: true));
 
   /// حفظ إثبات التسليم عند العميل — قبل تأكيد التوصيل. الصورة اختيارية
@@ -3658,7 +3689,9 @@ class FirebaseService {
       tx.update(_drivers.doc(referee.id), {'referralRewarded': true});
     });
     // الختم قبل الصرف عمداً — نفس عقيدة payChallengeBonus: ختمٌ بلا صرف
-    // يُكتشف ويُصلَح يدوياً، أما صرفٌ بلا ختم فيتكرر صامتاً.
+    // يُكتشف ويُصلَح يدوياً، أما صرفٌ بلا ختم فيتكرر صامتاً. (ت٥٥: أداة
+    // الاكتشاف الموعودة موجودة فعلاً — بند «أختام بلا صرف» في شاشة
+    // التشخيص يسرد كل مختومٍ لا حركة صرفٍ تقابله.)
     if (referrerAmount > 0) {
       await recordDriverBonus(
         driverId: referrer.id,
@@ -3756,6 +3789,71 @@ class FirebaseService {
   Future<Set<String>> fetchCashbackPaidOrderIds() async {
     final snap = await _cashbackGrants.get();
     return snap.docs.map((d) => d.id).toSet();
+  }
+
+  /// ت٣: توثيق كشف موقعٍ مُحاكى — عدّاد تصاعدي على مستند الكابتن (القاعدة
+  /// تقيّده +1) وسطرٌ في سجلّ الإدارة. لا حظر آلياً: الإشارة للمدير يقرّر
+  /// بعينه — إشارة نيّةٍ من التطبيق الرسمي، والنسخة المعدَّلة خارج مداها.
+  Future<void> recordMockLocationIncident() async {
+    final uid = _auth.currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+    try {
+      await _drivers
+          .doc(uid)
+          .update({'mockLocationCount': FieldValue.increment(1)});
+      logAdminAction('driver.mockLocation',
+          'كُشف موقع مُحاكى على جهاز كابتن أثناء تأكيد ميداني',
+          extra: {'driverId': uid});
+    } catch (_) {}
+  }
+
+  /// قياس البنرات (ت٢٨): انطباعٌ عند ظهور البنر (مرة لكل جلسة) ونقرةٌ عند
+  /// فتحه — بلا هذين كانت المساحة الإعلانية الوحيدة غير قابلة للتسعير ولا
+  /// للإثبات للمطعم الدافع. العدّادان استرشاديان (القاعدة تضبط +1 حصراً)،
+  /// وفشل التسجيل مبتلَع: القياس لا يعطّل العرض.
+  Future<void> recordBannerImpression(String bannerId) async {
+    try {
+      await _banners.doc(bannerId).update({'impressions': FieldValue.increment(1)});
+    } catch (_) {}
+  }
+
+  Future<void> recordBannerClick(String bannerId) async {
+    try {
+      await _banners.doc(bannerId).update({'clicks': FieldValue.increment(1)});
+    } catch (_) {}
+  }
+
+  /// حركات مكافآت الكباتن كلها (ت٥٥ — «أختام بلا صرف» في التشخيص):
+  /// عقيدة «الختم قبل الصرف» تعني أن العطب الوحيد الممكن ختمٌ يتيمٌ بلا
+  /// حركة — وهذه القراءة نصفُ المطابقة الذي كان موعوداً بلا أداة.
+  Future<List<models.DriverTransaction>> fetchBonusTransactions() async {
+    final snap = await _driverTransactions
+        .where('type', isEqualTo: models.DriverTransactionType.bonus.name)
+        .get();
+    return snap.docs
+        .map((d) => models.DriverTransaction.fromMap(d.data(), d.id))
+        .toList();
+  }
+
+  /// حركات محافظ العملاء من نوعَي الإحالة والكاش باك — النصف الثاني من
+  /// مطابقة «أختام بلا صرف» (ت٥٥).
+  Future<List<models.WalletTransaction>> fetchGrowthWalletTransactions() async {
+    final snap = await _walletTransactions.where('type', whereIn: [
+      models.WalletTransactionType.referral.name,
+      models.WalletTransactionType.cashback.name,
+    ]).get();
+    return snap.docs
+        .map((d) => models.WalletTransaction.fromMap(d.data(), d.id))
+        .toList();
+  }
+
+  /// العملاء المختومون «صُرفت إحالتهم» — طرف المطابقة عند العميل (ت٥٥).
+  Future<List<models.AppUser>> fetchRewardedCustomers() async {
+    final snap =
+        await _users.where('referralRewarded', isEqualTo: true).get();
+    return snap.docs
+        .map((d) => models.AppUser.fromMap(d.data(), d.id))
+        .toList();
   }
 
   /// صرف مكافأة تحدٍّ — مرة واحدة لكل سائق في كل نافذة.

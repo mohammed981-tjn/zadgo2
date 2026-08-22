@@ -96,7 +96,10 @@ String? validateRequired(String? v, [String? label]) => (v == null || v.trim().i
 
 String? validateEmail(String? v) {
   if (v == null || v.trim().isEmpty) return tr('البريد الإلكتروني مطلوب', 'Email is required');
-  if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v.trim())) {
+  // ت٤٣: كان النمط يحدّ لاحقة النطاق بأربعة محارف فيرفض ‎.online و.store
+  // (نطاقات المطاعم والأسر المنتجة) وعناوين Gmail بعلامة «+» — أصحابها
+  // يستعملونها يومياً فرسالة «صيغة غير صالحة» تتهم بريداً سليماً.
+  if (!RegExp(r'^[\w\-.+]+@([\w-]+\.)+[\w-]{2,}$').hasMatch(v.trim())) {
     return tr('صيغة غير صالحة', 'Invalid format');
   }
   return null;

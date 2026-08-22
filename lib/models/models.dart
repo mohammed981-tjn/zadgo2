@@ -1148,6 +1148,11 @@ class Driver {
   /// العقد" (contract violations) المعتمد في تطبيقات التوصيل الكبرى.
   final int warningCount;
 
+  /// ت٣: عدّاد كشف الموقع المُحاكى — يكتبه جهاز الكابتن الرسمي لحظة
+  /// الرفض (نيّة مثبتة تقنياً بلا إيجابيات كاذبة)، والقاعدة تقيّده +1
+  /// حصراً فلا يصفّره صاحبه. القرار (حظر/تنبيه) للمدير بعينه.
+  final int mockLocationCount;
+
   /// عدّادا معدل القبول (نمط تويو/جاهز): مجموع العروض التي وصلته وما قبله
   /// منها. يُخزَّنان في المستند لا في ذاكرة الجلسة كي لا يُصفَّر المعدل مع
   /// كل إعادة تشغيل.
@@ -1227,6 +1232,7 @@ class Driver {
     this.lng,
     this.lastLocationUpdate,
     this.warningCount = 0,
+    this.mockLocationCount = 0,
     this.offersTotal = 0,
     this.offersAccepted = 0,
     this.referredByCode = '',
@@ -1260,6 +1266,7 @@ class Driver {
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
         warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
+        mockLocationCount: (map['mockLocationCount'] as num?)?.toInt() ?? 0,
         offersTotal: (map['offersTotal'] as num?)?.toInt() ?? 0,
         offersAccepted: (map['offersAccepted'] as num?)?.toInt() ?? 0,
         referredByCode: map['referredByCode'] as String? ?? '',
@@ -1294,6 +1301,7 @@ class Driver {
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
         'warningCount': warningCount,
+        'mockLocationCount': mockLocationCount,
         'offersTotal': offersTotal,
         'offersAccepted': offersAccepted,
         'referredByCode': referredByCode,
@@ -2647,6 +2655,12 @@ class Order {
   /// دفعٌ من رصيده لا تخفيض للقيمة).
   double get payableTotal => grandTotal - discountAmount;
 
+  /// المبلغ النقدي الذي يحصّله الكابتن عند الباب — **حاسمٌ واحد** تستدعيه
+  /// الشاشات الأربع (ت٥٠): بطاقتا العرض كانتا تحسبانه بلا الإكرامية
+  /// بينما المذكرة وخريطة التوصيل تحسبانها، فيرى الكابتن رقمين مختلفين
+  /// لنفس الطلب في شاشتين متجاورتين ويتشوّش قبل القبول.
+  double get cashDueFromCustomer => payableTotal - walletUsed + driverTip;
+
   double get calculatedCommission =>
       itemsTotal * ((commissionPercent ?? 15) / 100);
 
@@ -2951,6 +2965,10 @@ class OrderProof {
   /// دائماً، وقيمته الكبيرة بيّنة «سلّم في مكان آخر» عند النزاع.
   final int? deliveryDistanceMeters;
 
+  /// ت٤: استُلم الطلب بمسح رمز المطعم — تواجهُ الجهازين في المكان
+  /// واللحظة، أقوى بيّنة استلام في النزاع.
+  final bool pickupByScan;
+
   const OrderProof({
     required this.orderId,
     required this.driverId,
@@ -2966,6 +2984,7 @@ class OrderProof {
     this.deliveryLat,
     this.deliveryLng,
     this.deliveryDistanceMeters,
+    this.pickupByScan = false,
   });
 
   factory OrderProof.fromMap(Map<String, dynamic> map, String id) => OrderProof(
@@ -2983,6 +3002,7 @@ class OrderProof {
         deliveryLat: (map['deliveryLat'] as num?)?.toDouble(),
         deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
         deliveryDistanceMeters: (map['deliveryDistanceMeters'] as num?)?.toInt(),
+        pickupByScan: map['pickupByScan'] as bool? ?? false,
       );
 }
 
