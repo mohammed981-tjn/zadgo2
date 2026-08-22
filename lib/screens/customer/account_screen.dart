@@ -176,9 +176,30 @@ class AccountScreen extends StatelessWidget {
                             fontSize: 12.5, color: AppColors.textGray)),
                   );
                 }
-                return Column(
-                  children: txs.map((t) => _WalletTile(tx: t)).toList(),
-                );
+                // ت٤٦: عدّاد ما كسبه العميل من الكاش باك — برنامج ولاءٍ
+                // لا يراه صاحبه مصروفٌ بلا عائد تسويقي.
+                final cashbackTotal = txs
+                    .where((t) => t.type == WalletTransactionType.cashback)
+                    .fold(0.0, (s, t) => s + t.amount);
+                return Column(children: [
+                  if (cashbackTotal > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(children: [
+                        const Icon(Icons.savings_outlined,
+                            size: 18, color: AppColors.success),
+                        const SizedBox(width: 8),
+                        Text(
+                            tr('كسبتَ من الكاش باك حتى الآن: ${formatCurrency(cashbackTotal)}',
+                                'Cashback earned so far: ${formatCurrency(cashbackTotal)}'),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.success)),
+                      ]),
+                    ),
+                  ...txs.map((t) => _WalletTile(tx: t)),
+                ]);
               },
             ),
             const SizedBox(height: 24),
@@ -395,6 +416,11 @@ class _AddressesSection extends StatelessWidget {
   Future<void> _addAddress(BuildContext context) async {
     final labelCtrl = TextEditingController();
     final addrCtrl = TextEditingController();
+    // ت٤٨: الوحدة والتعليمات الدائمة و«اتركه عند الباب» — في حيٍّ بلا
+    // أرقام مبانٍ كان الكابتن يتصل في كل طلب يسأل نفس الأسئلة.
+    final unitCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    var leaveAtDoor = false;
     LatLng? picked;
 
     final saved = await showDialog<bool>(
@@ -417,7 +443,34 @@ class _AddressesSection extends StatelessWidget {
                 decoration: InputDecoration(
                     labelText: tr('العنوان بالتفصيل', 'Full address')),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              TextField(
+                controller: unitCtrl,
+                decoration: InputDecoration(
+                    labelText: tr('المبنى / الدور / الشقة (اختياري)',
+                        'Building / floor / apartment (optional)'),
+                    hintText: tr('عمارة الياسمين، الدور ٣، شقة ٥',
+                        'Yasmin bldg, 3rd floor, apt 5')),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: notesCtrl,
+                maxLines: 2,
+                decoration: InputDecoration(
+                    labelText: tr('تعليمات دائمة للكابتن (اختياري)',
+                        'Standing instructions for the captain (optional)'),
+                    hintText: tr('ادخل من البوابة الشرقية، اسأل الحارس',
+                        'Use the east gate, ask the guard')),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                value: leaveAtDoor,
+                onChanged: (v) => setDialogState(() => leaveAtDoor = v),
+                title: Text(tr('اتركه عند الباب', 'Leave at the door'),
+                    style: const TextStyle(fontSize: 13.5)),
+              ),
+              const SizedBox(height: 4),
               OutlinedButton.icon(
                 icon: Icon(picked != null ? Icons.check_circle : Icons.map_outlined,
                     color: picked != null ? AppColors.success : null),
@@ -447,7 +500,13 @@ class _AddressesSection extends StatelessWidget {
       ),
     );
 
-    if (saved != true || !context.mounted) return;
+    if (saved != true || !context.mounted) {
+      labelCtrl.dispose();
+      addrCtrl.dispose();
+      unitCtrl.dispose();
+      notesCtrl.dispose();
+      return;
+    }
 
     final label = labelCtrl.text.trim();
     final address = addrCtrl.text.trim();
@@ -472,7 +531,10 @@ class _AddressesSection extends StatelessWidget {
           label: label,
           address: address,
           lat: picked!.latitude,
-          lng: picked!.longitude),
+          lng: picked!.longitude,
+          unit: unitCtrl.text.trim(),
+          notes: notesCtrl.text.trim(),
+          leaveAtDoor: leaveAtDoor),
     ];
     try {
       await context

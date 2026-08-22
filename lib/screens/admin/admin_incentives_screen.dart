@@ -426,10 +426,16 @@ class _CustomerGrowthSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
+                  // ت٤٦ (كشفٌ لا حكم): الكنس يرى طلبات نافذة اللوحة فقط —
+                  // طلبٌ مسلَّم أقدم من النافذة يخرج من الصرف الآلي بصمت،
+                  // فالإفصاح هنا أصدق من إيهامٍ بتغطية كاملة.
                   tr('الكاش باك ${s.cashbackPercent.toStringAsFixed(1)}٪ يُصرف عن '
-                          'كل طلبٍ مسلَّم عند الكنس',
+                          'كل طلبٍ مسلَّم ضمن نافذة اللوحة (${s.referralWindowDays} يوماً) '
+                          'عند الكنس — الأقدم يُصرف يدوياً من محفظة العميل إن لزم',
                       'Cashback of ${s.cashbackPercent.toStringAsFixed(1)}% is '
-                          'paid for every delivered order during the sweep'),
+                          'paid for every delivered order within the panel window '
+                          '(${s.referralWindowDays} days) during the sweep — older '
+                          "ones need a manual wallet credit if due"),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textGray)),
             ),

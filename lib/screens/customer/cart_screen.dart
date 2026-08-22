@@ -230,6 +230,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   double get _discount =>
       _coupon?.discountFor(context.read<CartProvider>().itemsTotal) ?? 0;
 
+  /// ت٤٦: معاينة الكاش باك بنفس معادلة الصرف حرفياً (نسبة من قيمة
+  /// الوجبات بسقفٍ اختياري) — رقمٌ يخالف ما يُصرف لاحقاً وعدٌ كاذب.
+  double _cashbackPreview() {
+    var credit = context.read<CartProvider>().itemsTotal *
+        _settings.cashbackPercent /
+        100;
+    if (_settings.cashbackMaxPerOrder > 0 &&
+        credit > _settings.cashbackMaxPerOrder) {
+      credit = _settings.cashbackMaxPerOrder;
+    }
+    return credit;
+  }
+
   /// إجمالي ما يدفعه العميل — مصدر واحد يستخدمه العرض وشحن البطاقة معاً، حتى
   /// لا يُشحن مبلغ يخالف ما رآه العميل على الشاشة.
   double _orderTotal() {
@@ -702,9 +715,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         selected: selected,
                         avatar: PhosphorIcon(PhosphorIcons.mapPin(), size: 16),
                         onSelected: (_) => setState(() {
-                          _addrCtrl.text = a.address;
+                          // ت٤٨: العنوان الكامل (مع المبنى/الدور/الشقة)،
+                          // والتعليمات الدائمة و«اتركه عند الباب» تُسكب في
+                          // ملاحظة الطلب إن كانت فارغة — تُكتب مرةً وتصل
+                          // الكابتن مع كل طلب.
+                          _addrCtrl.text = a.fullAddress;
                           _lat = a.lat;
                           _lng = a.lng;
+                          if (_noteCtrl.text.trim().isEmpty) {
+                            _noteCtrl.text = [
+                              if (a.leaveAtDoor)
+                                tr('اتركه عند الباب', 'Leave at the door'),
+                              if (a.notes.trim().isNotEmpty) a.notes.trim(),
+                            ].join(' — ');
+                          }
                           _recomputeDistance();
                         }),
                       );
@@ -738,6 +762,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          // ت٤٩: «متى يصل؟» أول سؤال في قرار الشراء وكل المنافسين يجيبونه
+          // قبل زرّ التأكيد. نافذة صادقة: تحضير المطعم (يضبطه بنفسه)
+          // + هامش توصيل الحي — لا وعدٌ بالدقيقة في نموذجٍ بلا خادم تتبع.
+          if (_scheduledFor == null && _restaurant != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                const Icon(Icons.timer_outlined,
+                    size: 18, color: AppColors.textGray),
+                const SizedBox(width: 8),
+                Text(
+                    tr('الوصول المتوقع: ${_restaurant!.estimatedTimeMin + 10}–${_restaurant!.estimatedTimeMin + 25} دقيقة',
+                        'Expected arrival: ${_restaurant!.estimatedTimeMin + 10}–${_restaurant!.estimatedTimeMin + 25} min'),
+                    style: const TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+          // ت٤٦: الكاش باك كان مصروفاً بلا عائد تسويقي — يخرج مع كل طلب
+          // ولا سطر يخبر العميل أنه يكسب. يظهر فقط حين يفعّله المدير (ج١).
+          if (_settings.cashbackPercent > 0)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(children: [
+                const Icon(Icons.savings_outlined,
+                    size: 18, color: AppColors.success),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                      tr('تكسب ${formatCurrency(_cashbackPreview())} كاش باك في محفظتك بعد التسليم',
+                          'You earn ${formatCurrency(_cashbackPreview())} wallet cashback after delivery'),
+                      style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.success)),
+                ),
+              ]),
+            ),
           // وقت التوصيل (ح4): «في أقرب وقت» افتراضاً، أو موعدٌ يختاره —
           // بين ساعةٍ من الآن ويومين، فلا جدولة على مواعيد مضت ولا
           // التزامات بعيدة تُنسى.
@@ -778,6 +839,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         context,
                         tr('أقرب موعد جدولة بعد ساعة من الآن — لما هو أعجل اختر «في أقرب وقت»',
                             'Earliest scheduling is one hour from now — for anything sooner choose "as soon as possible"'));
+                  }
+                  return;
+                }
+                // ت٤٥: الموعد داخل ساعات عمل المطعم — كان المنتقي يقبل
+                // الثالثة فجراً ويوم إجازة المطعم، فيُؤخذ مال العميل ثم
+                // لا يجد الطلبُ من يحضّره (المعيار العالمي: فتحات داخل
+                // ساعات المتجر). نفس دالة الجدول الخالصة المختبَرة.
+                final r = _restaurant;
+                if (r != null &&
+                    r.openingHours.isNotEmpty &&
+                    !Restaurant.scheduleOpenAt(r.openingHours,
+                        picked.weekday, picked.hour * 60 + picked.minute)) {
+                  if (context.mounted) {
+                    showError(
+                        context,
+                        tr('المطعم مغلق في هذا الموعد — اختر وقتاً داخل ساعات عمله',
+                            'The restaurant is closed at that time — pick a slot within its working hours'));
                   }
                   return;
                 }

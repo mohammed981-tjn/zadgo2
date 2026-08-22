@@ -11,7 +11,11 @@ class AppColors {
   static const silver = Color(0xFFC7CFD6);           // فضي/سحابي للمس الثانوية والخلفيات الفاتحة
   static const success = Color(0xFF00D084);
   static const successLight = Color(0xFFE8F9F1);
-  static const warning = Color(0xFFFFB020);
+  // ت١٨: كان التحذير ذهبياً (FFB020) متطابقاً بصرياً مع لون العلامة
+  // (١٫٠٦:١) — فالتطبيق يملك لوناً اسمه «تحذير» ولا يملك تحذيراً مرئياً،
+  // وتنبيه «وضع الاختبار» يُقرأ زخرفة. برتقالي عميق متمايز عن الذهبي
+  // وعن أحمر الخطأ معاً.
+  static const warning = Color(0xFFEF6C00);
   static const error = Color(0xFFE53935);
   static const errorLight = Color(0xFFFDECEA);
   static const surface = Color(0xFFF4F7FC);
@@ -22,6 +26,27 @@ class AppColors {
   static const textGray = Color(0xFF5F6470);
   static const divider = Color(0xFFE3E9F3);
   static const cardShadow = Color(0x14000000);
+}
+
+/// أنصاف الأقطار المعتمدة (ت٢٠ — الفحص الشامل 2026-08-22): جرد الفحص وجد
+/// ١٤ نصف قطر في ١٤٨ موضعاً وثلاثةً فقط في الثيم، والقيمة الأشيع (12)
+/// غير معلَنة أصلاً — أربعة إيقاعات في بطاقة واحدة هي مصدر إحساس
+/// «الشاشة غير مضبوطة». هذه المرجعية لكل موضع جديد، والقديم يُهاجَر
+/// شاشةً شاشة كنهج المقياس الطباعي أدناه حرفاً.
+class AppRadius {
+  AppRadius._();
+
+  /// عناصر صغيرة: شارات، حقول مدمجة.
+  static const chip = 8.0;
+
+  /// الافتراضي الأشيع: أزرار، حقول، صناديق.
+  static const control = 12.0;
+
+  /// البطاقات.
+  static const card = 14.0;
+
+  /// الأوراق السفلية والحوارات الكبيرة والبنرات.
+  static const sheet = 18.0;
 }
 
 /// المقياس الطباعي المعتمد (دفعة ز4) — سبع درجات لا تسعٌ وعشرون.
@@ -126,12 +151,18 @@ class FlavorPalette {
   /// (#E8590C) من نفس العائلة الدافئة لذهبي العميل فكانا يُقرآن شقيقين في
   /// شبكة المشغّل عند 48dp. ورُفض الأخضر عمداً: يشتبه بلون النجاح
   /// (AppColors.success) داخل شاشات التطبيق نفسه.
+  ///
+  /// ت١٩: الدرجة السابقة (#C92A2A) كانت أحمرَ صريحاً تباينه مع أحمر الخطأ
+  /// ١٫٢٩:١ — فلون «امضِ» المؤسسي ولون «قِف» الدلالي واحد في تطبيقٍ يقبل
+  /// ويرفض عشرات المرات يومياً تحت ضغط الوقت (نفس الحجة التي رُفض بها
+  /// الأخضر). الدرجة الجديدة قرميدُ طينٍ حقيقي (terracotta) — أصدق لاسم
+  /// «قرميدي» ومتمايزة عن الأحمر وعن ذهبي العميل معاً.
   static const restaurant = FlavorPalette(
-    primary: Color(0xFFC92A2A),
-    primaryDark: Color(0xFF9C1F1F),
-    primaryLight: Color(0xFFE76A6A),
-    bgDark: Color(0xFF2E0B0B),
-    bgDarker: Color(0xFF170404),
+    primary: Color(0xFFB5502A),
+    primaryDark: Color(0xFF8C3A1C),
+    primaryLight: Color(0xFFDD8A63),
+    bgDark: Color(0xFF2B130A),
+    bgDarker: Color(0xFF160903),
   );
 
   /// هوية لوحة المدير: بنفسجي ملكي — طابع "غرفة التحكم"، متمايز بوضوح عن

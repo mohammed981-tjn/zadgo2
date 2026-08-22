@@ -390,8 +390,14 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                 value: c,
                 groupValue: _cuisine,
                 dense: true,
-                // «الكل» قيمة حارسة تُترجم عرضاً فقط — أسماء المطابخ بيانات.
-                title: Text(c == 'الكل' ? tr('الكل', 'All') : c,
+                // «الكل» قيمة حارسة تُترجم عرضاً فقط — أسماء المطابخ بيانات
+                // تبقى عربية في التخزين والفلترة، وتُترجم **عرضاً** (ت٤٧):
+                // كان الوضع الإنجليزي يعرض التصنيفات عربية كاملة فيفقد
+                // متصفّحُ المطاعم الأجنبي نصف فائدته.
+                title: Text(
+                    c == 'الكل'
+                        ? tr('الكل', 'All')
+                        : tr(c, kCuisinesEn[c] ?? c),
                     style: const TextStyle(fontSize: 13.5)),
                 onChanged: (v) => Navigator.pop(ctx, v),
               ),
@@ -610,7 +616,9 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                       ? AppColors.textDark
                       : AppColors.primary),
               label: Text(
-                  _cuisine == 'الكل' ? tr('المطابخ ⌄', 'Cuisines ⌄') : '$_cuisine ⌄',
+                  _cuisine == 'الكل'
+                      ? tr('المطابخ ⌄', 'Cuisines ⌄')
+                      : '${tr(_cuisine, kCuisinesEn[_cuisine] ?? _cuisine)} ⌄',
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: _cuisine == 'الكل'

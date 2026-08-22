@@ -180,21 +180,29 @@ extension OrderStatusExt on OrderStatus {
       };
 
   Color get color {
+    // ت١٧ (الفحص الشامل): كانت ٢١ لوناً من لوحة Material الخام صفرٌ منها
+    // من الهوية، وحالتان **متتاليتان** في الدورة (مُسنَد ← في الطريق:
+    // 3F51B5/303F9F) تباينهما ١٫٣١:١ فلا يُقرأ الانتقال لوناً. اللوحة
+    // الآن من عائلات الهوية (ذهبي/كحلي/أزرق الكابتن/بنفسجي الإدارة
+    // والدلاليان)، وكل جارتين في الدورة من عائلتين مختلفتين:
+    // انتظار(برتقالي) ← قبول(أزرق) ← طبخ(ذهبي) ← جاهز(كحلي) ←
+    // بحث(بنفسجي) ← مُسنَد(أزرق فاتح) ← استُلم(بنفسجي داكن) ←
+    // في الطريق(أزرق) ← سُلّم(أخضر النجاح).
     const map = {
-      OrderStatus.created: Color(0xFF607D8B),
-      OrderStatus.restaurantPending: Color(0xFFFF9800),
-      OrderStatus.restaurantAccepted: Color(0xFF2196F3),
-      OrderStatus.preparing: Color(0xFF9C27B0),
-      OrderStatus.readyForPickup: Color(0xFF00BCD4),
-      OrderStatus.searchingDriver: Color(0xFFFFC107),
-      OrderStatus.driverAssigned: Color(0xFF3F51B5),
-      OrderStatus.pickedUp: Color(0xFF673AB7),
-      OrderStatus.onTheWay: Color(0xFF303F9F),
-      OrderStatus.delivered: Color(0xFF4CAF50),
+      OrderStatus.created: Color(0xFF5F6470),
+      OrderStatus.restaurantPending: Color(0xFFEF6C00),
+      OrderStatus.restaurantAccepted: Color(0xFF12559E),
+      OrderStatus.preparing: Color(0xFFD99400),
+      OrderStatus.readyForPickup: Color(0xFF132C56),
+      OrderStatus.searchingDriver: Color(0xFF5E35B1),
+      OrderStatus.driverAssigned: Color(0xFF5C90D2),
+      OrderStatus.pickedUp: Color(0xFF4527A0),
+      OrderStatus.onTheWay: Color(0xFF12559E),
+      OrderStatus.delivered: Color(0xFF00D084),
       OrderStatus.restaurantRejected: Color(0xFF795548),
       OrderStatus.noDriverFound: Color(0xFF9E9E9E),
-      OrderStatus.cancelled: Color(0xFFF44336),
-      OrderStatus.refunded: Color(0xFF009688),
+      OrderStatus.cancelled: Color(0xFFE53935),
+      OrderStatus.refunded: Color(0xFF00838F),
     };
     return map[this] ?? Colors.grey;
   }
@@ -408,11 +416,26 @@ class SavedAddress {
   final double? lat;
   final double? lng;
 
+  /// ت٤٨: مبنى/دور/شقة — في حيّ المدينة (مبانٍ بلا أرقام وشوارع بلا
+  /// لافتات) كان الكابتن يتصل بالعميل في **كل** طلب. حقلٌ حرّ واحد
+  /// («عمارة الياسمين، الدور ٣، شقة ٥») لا ثلاثة حقول تُرهق الإدخال.
+  final String unit;
+
+  /// تعليمات دائمة على العنوان («البوابة الشرقية»، «اسأل الحارس») —
+  /// تُكتب مرةً وتصل الكابتن مع كل طلب، بدل إعادة كتابتها في الملاحظة.
+  final String notes;
+
+  /// «اتركه عند الباب» — المعيار العالمي منذ سنوات.
+  final bool leaveAtDoor;
+
   const SavedAddress({
     required this.label,
     required this.address,
     this.lat,
     this.lng,
+    this.unit = '',
+    this.notes = '',
+    this.leaveAtDoor = false,
   });
 
   factory SavedAddress.fromMap(Map<String, dynamic> map) => SavedAddress(
@@ -420,6 +443,9 @@ class SavedAddress {
         address: map['address'] as String? ?? '',
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
+        unit: map['unit'] as String? ?? '',
+        notes: map['notes'] as String? ?? '',
+        leaveAtDoor: map['leaveAtDoor'] as bool? ?? false,
       );
 
   Map<String, dynamic> toMap() => {
@@ -427,7 +453,14 @@ class SavedAddress {
         'address': address,
         'lat': lat,
         'lng': lng,
+        'unit': unit,
+        'notes': notes,
+        'leaveAtDoor': leaveAtDoor,
       };
+
+  /// نصّ التوصيل الكامل الذي يراه الكابتن: العنوان + الوحدة —
+  /// مصدر واحد كي لا تتفاوت الشاشات فيما تعرضه.
+  String get fullAddress => unit.trim().isEmpty ? address : '$address — $unit';
 
   /// عنوان بلا إحداثيات لا يصلح للطلب، لأن أجرة التوصيل تُحسب من المسافة.
   bool get hasLocation => lat != null && lng != null;
@@ -600,6 +633,20 @@ const kCuisines = [
   'هندي', 'فطائر ومعجنات', 'مخبوزات', 'فلافل', 'سلطات وصحي',
   'حلويات', 'عصائر', 'قهوة وشاي',
 ];
+
+/// ت٤٧: ترجمة عرضٍ لأسماء المطابخ — القيمة المخزَّنة تبقى عربية (بيانات
+/// وفلاتر)، والعرض وحده يُترجم. كانت أثمن ميزة في الوضع الإنجليزي
+/// (تصفّح مطاعم لا تعرف أسماءها) تعرض تصنيفاتها عربيةً كاملة.
+const kCuisinesEn = {
+  'سعودي': 'Saudi', 'مشاوي': 'Grills', 'مندي وحنيذ': 'Mandi & Haneeth',
+  'برجر': 'Burgers', 'دجاج مقلي': 'Fried chicken', 'شاورما': 'Shawarma',
+  'ساندويتشات': 'Sandwiches', 'بيتزا': 'Pizza',
+  'إيطالي ومكرونة': 'Italian & pasta', 'لبناني': 'Lebanese',
+  'سوري': 'Syrian', 'مصري': 'Egyptian', 'هندي': 'Indian',
+  'فطائر ومعجنات': 'Pies & pastries', 'مخبوزات': 'Bakery',
+  'فلافل': 'Falafel', 'سلطات وصحي': 'Salads & healthy',
+  'حلويات': 'Desserts', 'عصائر': 'Juices', 'قهوة وشاي': 'Coffee & tea',
+};
 
 /// جدول عمل يومٍ واحد للمطعم (ساعات العمل المجدولة — أبرز فجوة قبل
 /// الإطلاق: كان `isOpen` مفتاحاً يدوياً فقط، فيبقى المطعم «مفتوحاً» ليلاً

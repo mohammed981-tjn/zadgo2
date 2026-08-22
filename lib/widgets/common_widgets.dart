@@ -719,7 +719,9 @@ class WindowCapNotice extends StatelessWidget {
                   'This view covers the latest 500 orders'
                   '${trueTotal != null ? ' of $trueTotal' : ''}'
                   ' — pick a specific date range for complete figures.'),
-              style: const TextStyle(fontSize: 12, color: AppColors.textDark),
+              // ت١٥: هجرة الودجت المشترك للمقياس السباعي — كان 12 الحرّ
+              // آخر شذوذٍ في هذا الملف.
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textDark),
             ),
           ),
         ]),

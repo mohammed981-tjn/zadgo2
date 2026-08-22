@@ -41,9 +41,13 @@ class _BroadcastTabState extends State<BroadcastTab> with SingleTickerProviderSt
       children: [
         Material(
           color: Colors.white,
+          // ت١٦: كان التبويب المحدَّد ذهبياً على أبيض (١٫٧٢:١ — دون حدّ
+          // القراءة) ولونُ نصّه غير لون مؤشّره، وذهبيُّ العميل يتسرّب
+          // للوحة البنفسجية أصلاً. لون النكهة الداكن يقرأ ويطابق الهوية.
           child: TabBar(
             controller: _tabController,
-            labelColor: AppColors.primary,
+            labelColor: context.flavorColors.primaryDark,
+            indicatorColor: context.flavorColors.primary,
             tabs: [
               Tab(text: tr('رسالة لكل السائقين', 'Message all drivers')),
               Tab(text: tr('رسالة لكل العملاء', 'Message all customers')),
