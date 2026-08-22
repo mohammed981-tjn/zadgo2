@@ -90,7 +90,14 @@ function lum(rgb) {
 
             // صور لم تُحمَّل / بلا بديل نصّي
             const imgs = [...document.querySelectorAll('img')];
-            const broken = imgs.filter(i => i.complete && i.naturalWidth === 0).map(i => i.getAttribute('src'));
+            // «مكسورة» = لها مصدرٌ **وفشل**. أمّا عنصرٌ بلا `src` أصلاً فهو
+            // لوحةٌ تُملأ عند الحاجة (عارض المستندات في اللوحة مثلاً) — لا
+            // عطب. كان الفاحص يبلّغ عنه بـ«صور مكسورة: » وقائمةٍ فارغة،
+            // فيُقرأ عطباً وليس كذلك؛ والإنذار الكاذب يُفقد الثقة بالأداة.
+            const broken = imgs
+              .filter(i => { const s = i.getAttribute('src'); return s !== null && s !== ''; })
+              .filter(i => i.complete && i.naturalWidth === 0)
+              .map(i => i.getAttribute('src'));
             if (broken.length) out.issues.push('صور مكسورة: ' + broken.slice(0, 3).join(','));
             const noAlt = imgs.filter(i => !i.hasAttribute('alt')).length;
             if (noAlt) out.issues.push(`${noAlt} صورة بلا alt`);
