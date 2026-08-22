@@ -1247,8 +1247,19 @@ async function reverseGeocode(lat, lng) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 9000);
   try {
+    /* الإحداثيات تُقرَّب إلى ثلاث خانات (نحو ١١٠×١٠٠ متر) قبل أن تغادر
+     * جهاز العميل.
+     *
+     * ما يخرج من هنا يذهب إلى **مؤسسةٍ أجنبية غير متعاقَدٍ معنا**، وبالدقّة
+     * الكاملة يدلّ على باب البيت. والتقريب مجّانيّ لأن هذا النداء غرضه
+     * **اسمُ الشارع والحي** لا التوصيل: دبّوسُ الكابتن (`deliveryLat`/
+     * `deliveryLng`) يُحفظ في قاعدتنا بدقّته كاملةً ولا يمرّ بهم أبداً.
+     * فأسوأ ما يقع أن يُقترح اسم الشارع المجاور — والعميل يصحّحه بضغطة،
+     * والكابتن يمشي على الدبّوس لا على النصّ.
+     * (بأمر المالك 2026-08-22 بعد فحص الخصوصية — البند م٢٨.) */
+    const q = (v) => Number(v).toFixed(3);
     const url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2'
-      + `&lat=${lat}&lon=${lng}&zoom=18&accept-language=ar`;
+      + `&lat=${q(lat)}&lon=${q(lng)}&zoom=18&accept-language=ar`;
     const res = await fetch(url, { signal: ctl.signal, headers: { Accept: 'application/json' } });
     if (!res.ok) return null;
     const d = await res.json();
