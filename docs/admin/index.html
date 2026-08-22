@@ -4213,7 +4213,18 @@ function exportCsv() {
     ['السائق', 'توصيلات', 'أجور التوصيل'],
     ...Object.entries(r.perDriver).map(([n, v]) => [n, v.count, fmtMoney(v.share)]),
   ];
-  const csv = '﻿' + rows.map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  /* تحييدُ الصيغ: الاقتباس يمنع كسر الأعمدة ولا يمنع **تنفيذ الصيغة**.
+     خليّةٌ تبدأ بـ`=` أو `+` أو `-` أو `@` (أو محرف تحكّم) يُقيّمها إكسل
+     وجداول جوجل بعد فكّ الاقتباس — واسمُ الكابتن حقلٌ يكتبه الكابتن نفسه.
+     فبادئةُ اقتباسٍ مفردة تجعلها نصّاً، وهي التوصية المعيارية (OWASP). */
+  const cell = (v) => {
+    let x = String(v ?? '');
+    // والرقمُ يُترك رقماً: أرصدة العُهد سالبةٌ مشروعةً، وبادئةُ اقتباسٍ
+    // عليها تحوّلها نصّاً فلا تُجمع في إكسل — فيكسر الإصلاحُ التقرير.
+    if (/^[=+\-@\t\r]/.test(x) && !Number.isFinite(Number(x))) x = "'" + x;
+    return '"' + x.replace(/"/g, '""') + '"';
+  };
+  const csv = '﻿' + rows.map((row) => row.map(cell).join(',')).join('\r\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = `zadgo-report-${r.days}d.csv`;
@@ -4252,10 +4263,18 @@ async function loadAudit() {
  * **ونصّ الزائر لا يُعدَّل من هنا** — القاعدة تمنعه أصلاً. الحالة والملاحظة
  * الداخلية وحدهما تتغيّران.
  */
-const SUG_ROLES = { customer: ['عميل', '#2980b9'], restaurant: ['مطعم', '#e67e22'],
-  driver: ['كابتن', '#16a085'], visitor: ['مهتمّ', '#8e44ad'], '': ['لم يُفصح', '#7f8c8d'] };
-const SUG_STATES = { new: ['🆕 جديد', '#c0392b'], read: ['👁️ مقروء', '#f39c12'],
-  done: ['✅ نُفِّذ', '#27ae60'] };
+/* `Object.create(null)` لا `{}`: مفتاح هاتين الخريطتين يأتي من مستندٍ
+   **يكتبه زائرٌ مجهول** (صندوق «قل لنا» مفتوحٌ بلا حساب بطبيعته). ومع كائنٍ
+   عاديّ يرث `Object.prototype`، فقيمةٌ مثل `constructor` أو `toString`
+   تُرجع دالّةً — **صادقةً** فلا يُنقذ منها `|| DEFAULT`، ثم يفشل التفكيك
+   فينفجر رسم القائمة كلها ولا يُرسم حتى زرّ الحذف، فلا يمكن حذف المستند
+   الذي عطّلها. طلبٌ واحدٌ من الإنترنت يُعمي طابور الملاحظات. */
+const SUG_ROLES = Object.assign(Object.create(null), {
+  customer: ['عميل', '#2980b9'], restaurant: ['مطعم', '#e67e22'],
+  driver: ['كابتن', '#16a085'], visitor: ['مهتمّ', '#8e44ad'], '': ['لم يُفصح', '#7f8c8d'] });
+const SUG_STATES = Object.assign(Object.create(null), {
+  new: ['🆕 جديد', '#c0392b'], read: ['👁️ مقروء', '#f39c12'],
+  done: ['✅ نُفِّذ', '#27ae60'] });
 let sugFilter = 'new', sugSearch = '';
 
 function sugList() {

@@ -278,11 +278,30 @@ $('print').onclick = () => window.print();
 paint();
 if (S.name) $('manual').value = S.name;
 
-/* وضع التجربة يُقرأ من الصفحة الرئيسية لا يُكرَّر هنا: نسختان من الراية
-   تفترقان يوماً ما، فيطمئن من يطبع إلى راية قديمة. */
-fetch('../index.html').then((r) => r.text()).then((t) => {
-  if (/TRIAL_MODE\s*=\s*true/.test(t)) $('trialWarn').hidden = false;
-}).catch(() => {});
+/* وضع التجربة يُقرأ من مصدره لا يُكرَّر هنا: نسختان من الراية تفترقان يوماً
+   ما، فيطمئن من يطبع إلى راية قديمة.
+   **وهذا وقع فعلاً**: كان يُقرأ من `index.html` ثم انتقلت الراية إلى
+   `home.js` يوم أُعيد بناء الرئيسية (2026-08-20)، فمات التحذير شهراً بلا
+   أن يشتكي أحد — لأن غيابه صامت. ولهذا صار **يفشل مغلقاً**: ما لم نتحقّق
+   إيجاباً أن المنصّة مفتوحة، يُحذَّر. ملصقٌ يُطبع ويُعلَّق على جدار مطعمٍ
+   قبل الأوان أغلى من تحذيرٍ زائد. */
+fetch('../home.js')
+  .then((r) => (r.ok ? r.text() : Promise.reject(new Error('http ' + r.status))))
+  .then((t) => {
+    if (/TRIAL_MODE\s*=\s*true/.test(t)) return 'trial';
+    if (/TRIAL_MODE\s*=\s*false/.test(t)) return 'open';
+    return 'unknown';                       // الراية انتقلت مرّةً أخرى
+  })
+  .catch(() => 'unknown')                   // بلا شبكة، أو الملف تغيّر اسمه
+  .then((state) => {
+    if (state === 'open') return;
+    if (state === 'unknown') {
+      $('trialWarn').textContent =
+        'تعذّر التحقق من حالة المنصّة (لا شبكة أو تغيّر مصدر الراية) — '
+        + 'تأكّد أن صفحة الطلب مفتوحة للجمهور قبل توزيع الملصقات.';
+    }
+    $('trialWarn').hidden = false;
+  });
 
 window.__poster = { S: S, paint: paint };
 </script>
