@@ -509,7 +509,7 @@ const PRICING = {
 };
 /* الإعداد الحيّ (يُملأ بعد الدخول — القواعد تسمح بقراءته لأي مسجَّل).
  * الزائر يتصفّح بالاحتياطي، ويُعاد الرسم فور وصول الإعداد. */
-const SETTINGS = { ...PRICING, loaded: false };
+const SETTINGS = { ...PRICING, firstCashOrderCap: 0, loaded: false };
 async function loadPricing() {
   try {
     const s = (await getDoc(doc(db, 'delivery_settings', 'incentives'))).data() || {};
@@ -519,6 +519,8 @@ async function loadPricing() {
     SETTINGS.perExtraKmFee = n(s.deliveryPerKmFee, PRICING.perExtraKmFee);
     SETTINGS.fixedDeliveryCommission = n(s.deliveryAppCut, PRICING.fixedDeliveryCommission);
     SETTINGS.maxDeliveryDistanceKm = n(s.maxDeliveryDistanceKm, PRICING.maxDeliveryDistanceKm);
+    // سقف أول طلب نقدي (صفر = بلا سقف، وهو الافتراضي كما في التطبيق).
+    SETTINGS.firstCashOrderCap = n(s.firstCashOrderCap, 0);
     SETTINGS.loaded = true;
     render();
   } catch (e) { /* يبقى الاحتياطي — وهو ما يعمل به التطبيق عند الفشل نفسه */ }
@@ -1363,6 +1365,18 @@ async function placeOrder() {
   const km = distanceKm();
   if (km != null && isOutOfRange(km)) { showOrderErr('موقعك خارج نطاق التوصيل.'); return; }
 
+  /* سقف أول طلب نقدي — **مرآةُ واجهةٍ لا حارس**. الحارس الحقيقي في
+   * القاعدة، وهذا يوفّر على العميل أن يملأ سلّته ثم يُرفض طلبه برسالةٍ
+   * تقنية لا يفهمها. وصفحة الويب نقديةٌ كلها، فالشرط يقع دائماً.
+   * (نسخةُ الفحص في `cart_screen.dart:445-452` حرفاً: صفر = بلا سقف،
+   * ومن أتمّ توصيلةً ناجحة `cashTrusted` يُرفع عنه.) */
+  const cap = SETTINGS.firstCashOrderCap || 0;
+  if (cap > 0 && S.user && S.user.cashTrusted !== true && cartTotal() > cap) {
+    showOrderErr(`سقف أول طلب نقدي ${money(cap)} — قلّل السلة، `
+      + 'وبعد أول توصيلة ناجحة يُرفع السقف عنك.');
+    return;
+  }
+
   S.busy = true;
   const b = $('placeBtn'); b.disabled = true; b.textContent = 'جارٍ الإرسال…';
 
@@ -1397,6 +1411,11 @@ async function placeOrder() {
     driverShare,
     appShare,
     deliveryFee: driverShare + appShare,
+    // `itemsTotal` يكتبه `Order.toMap()` في التطبيق ولم تكن هذه الحمولة
+    // تكتبه — ثغرة ح٦ في فحص 2026-08-22: قاعدةُ سقف أول طلب نقدي تقرأ
+    // قيمة الطلب، فطلبُ الويب يصلها بلا قيمةٍ يُقاس عليها. والانضباط أن
+    // تُكتب الحمولتان حقلاً بحقل، وإلا حرست القاعدةُ جانباً وتركت جانباً.
+    itemsTotal,
     orderNumber,
     customerRating: null, customerReview: null, driverRating: null,
     isRated: false,
