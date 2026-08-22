@@ -530,10 +530,18 @@ void showDriverLedgerSheet(BuildContext context, Driver driver) {
                             : AppColors.error),
                     title: Text(t.type.label,
                         style: const TextStyle(fontSize: 13)),
-                    subtitle: (t.note ?? '').isEmpty
-                        ? null
-                        : Text(t.note!,
-                            style: const TextStyle(fontSize: 11.5)),
+                    // سطر السياق (طلب المالك 2026-08-22): وقت الحركة
+                    // ورقم طلبها — قائمة «توصيل نقدي» متكررة بلا تاريخ
+                    // ولا رقم يستحيل تدقيقها مع الكابتن.
+                    subtitle: Text(
+                        [
+                          formatDateTime(t.createdAt),
+                          if ((t.orderNumber ?? '').isNotEmpty)
+                            tr('طلب #${t.orderNumber}',
+                                'Order #${t.orderNumber}'),
+                          if ((t.note ?? '').isNotEmpty) t.note!,
+                        ].join(' · '),
+                        style: const TextStyle(fontSize: 11.5)),
                     trailing: Text(formatCurrency(t.amount),
                         style: TextStyle(
                             fontWeight: FontWeight.w700,
