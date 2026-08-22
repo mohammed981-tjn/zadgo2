@@ -35,6 +35,7 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
   late final TextEditingController _nationalId;
   late final TextEditingController _plate;
   late final TextEditingController _referrer;
+  late final TextEditingController _operatorCode;
   String _vehicleType = 'دراجة نارية';
 
   final Map<String, Uint8List> _docs = {};
@@ -54,12 +55,13 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
     _nationalId = TextEditingController(text: e?.nationalId ?? '');
     _plate = TextEditingController(text: e?.vehiclePlate ?? '');
     _referrer = TextEditingController(text: e?.referredByCode ?? '');
+    _operatorCode = TextEditingController(text: e?.operatorCode ?? '');
     if (e != null && e.vehicleType.isNotEmpty) _vehicleType = e.vehicleType;
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _phone, _nationalId, _plate, _referrer]) {
+    for (final c in [_name, _phone, _nationalId, _plate, _referrer, _operatorCode]) {
       c.dispose();
     }
     super.dispose();
@@ -94,6 +96,7 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
         vehicleType: _vehicleType,
         vehiclePlate: _plate.text,
         referredByCode: _referrer.text,
+        operatorCode: _operatorCode.text,
         docImages: _docs,
         vehiclePhotos: _vehiclePhotos,
       );
@@ -178,6 +181,18 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
                 "Referring captain's code (optional)"),
             helperText: tr('إن دعاك كابتن — يُصرف له ولك حافز الإحالة',
                 'If a captain invited you, you both get the referral bonus'),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: _operatorCode,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(
+            labelText: tr('كود دعوة مشغّل الأسطول (اختياري)',
+                'Fleet operator invite code (optional)'),
+            helperText: tr(
+                'إن دعاك مشغّل أسطول — تلتحق بأسطوله بعد اعتماد الإدارة لطلبك',
+                "If a fleet operator invited you, you join their fleet once admin approves your application"),
           ),
         ),
         const SizedBox(height: 20),

@@ -53,6 +53,11 @@ await env.withSecurityRulesDisabled(async (ctx) => {
       { role: 'driver', operatorId: 'op1', isUsed: true, usedByUid: 'newcap' });
   await setDoc(doc(db, 'registrationCodes/OPUNUSED'),
       { role: 'driver', operatorId: 'op1', isUsed: false });
+  // كود مدير عادي (بلا تبعية) وكود مشغّل حي — لاختبار بوابة «الإدارة توافق».
+  await setDoc(doc(db, 'registrationCodes/PLAIN1'),
+      { role: 'driver', isUsed: false });
+  await setDoc(doc(db, 'registrationCodes/OPGATE'),
+      { role: 'driver', operatorId: 'op1', isUsed: false });
 });
 
 const op1 = env.authenticatedContext('op1').firestore();
@@ -121,6 +126,22 @@ await t('المشغّل يحذف كوده غير المستهلَك', () => asse
   deleteDoc(doc(op1, 'registrationCodes/OPUNUSED'))));
 await t('المشغّل لا يحذف كوداً مستهلَكاً', () => assertFails(
   deleteDoc(doc(op1, 'registrationCodes/OPCODE1'))));
+
+console.log('\nبوابة «الأسطول يضيف والإدارة توافق» (أمر المالك 2026-08-22):');
+const applicant = env.authenticatedContext('applicant1').firestore();
+await t('متقدّمٌ لا يستهلك كود مشغّل بالتسجيل الذاتي', () => assertFails(
+  updateDoc(doc(applicant, 'registrationCodes/OPGATE'),
+      { isUsed: true, usedAt: new Date(), usedByUid: 'applicant1',
+        usedByName: 'متقدم' })));
+await t('كود المدير العادي يُستهلك بالتسجيل الذاتي كما كان', () => assertSucceeds(
+  updateDoc(doc(applicant, 'registrationCodes/PLAIN1'),
+      { isUsed: true, usedAt: new Date(), usedByUid: 'applicant1',
+        usedByName: 'متقدم' })));
+const admin = env.authenticatedContext('boss', { admin: true }).firestore();
+await t('المدير يختم كود المشغّل مستهلَكاً عند اعتماد الطلب', () => assertSucceeds(
+  updateDoc(doc(admin, 'registrationCodes/OPGATE'),
+      { isUsed: true, usedAt: new Date(), usedByUid: 'applicant1',
+        usedByName: 'متقدم' })));
 
 console.log('\nإنشاء مستند الكابتن بتبعيةٍ من كود المشغّل:');
 const newcap = env.authenticatedContext('newcap').firestore();

@@ -3396,6 +3396,12 @@ class DriverApplication {
   /// كود التسجيل الصادر عند القبول — يبقى ظاهراً للمدير ليعيد إرساله.
   final String issuedCode;
 
+  /// كود دعوة مشغّل الأسطول الذي أدخله المتقدّم (دفعة ٨ — «الأسطول يضيف
+  /// والإدارة توافق»): لا يمنح التبعية بنفسه — المدير يفحص المستندات ثم
+  /// يعتمد، فيُختم الكود مستهلَكاً باسم المتقدّم وتثبت التبعية من الكود
+  /// لا من هذا الحقل (فتزويره على الطلب بلا أثر).
+  final String operatorCode;
+
   const DriverApplication({
     required this.id,
     this.uid = '',
@@ -3414,6 +3420,7 @@ class DriverApplication {
     this.reviewedAt,
     this.reviewNote = '',
     this.issuedCode = '',
+    this.operatorCode = '',
   });
 
   /// المستندات المطلوبة نظاميّاً بأسمائها المعروضة — الترتيب هو ترتيب
@@ -3474,6 +3481,8 @@ class DriverApplication {
       reviewedAt: (map['reviewedAt'] as Timestamp?)?.toDate(),
       reviewNote: map['reviewNote'] as String? ?? '',
       issuedCode: map['issuedCode'] as String? ?? '',
+      operatorCode:
+          (map['operatorCode'] as String? ?? '').trim().toUpperCase(),
     );
   }
 }

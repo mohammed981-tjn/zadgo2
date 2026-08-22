@@ -186,10 +186,13 @@ class _AddCaptainCardState extends State<_AddCaptainCard> {
   }
 
   String _inviteText(String code) => tr(
-      'انضمّ لأسطولي على تطبيق زاد جو للكباتن: حمّل تطبيق الكابتن ثم سجّل '
-          'بكود الدعوة «$code» (صالح ٧ أيام). 🛵',
-      'Join my fleet on the ZadGo captain app: download the captain app and '
-          'sign up with invite code "$code" (valid 7 days). 🛵');
+      'انضمّ لأسطولي على تطبيق زاد جو للكباتن: حمّل تطبيق الكابتن، قدّم '
+          '«طلب انضمام كابتن» بمستنداتك، وأدخل كود الدعوة «$code» في خانة '
+          'كود المشغّل (صالح ٧ أيام) — تعتمدك الإدارة فتلتحق بأسطولي. 🛵',
+      'Join my fleet on the ZadGo captain app: download the captain app, '
+          'submit the captain application with your documents, and enter '
+          'invite code "$code" in the fleet-operator field (valid 7 days) — '
+          'once admin approves, you join my fleet. 🛵');
 
   @override
   Widget build(BuildContext context) {
@@ -223,8 +226,10 @@ class _AddCaptainCardState extends State<_AddCaptainCard> {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-                tr('يسجّل الكابتن في تطبيق الكباتن بالكود فيلتحق بأسطولك تلقائياً.',
-                    'The captain signs up in the captain app with the code and joins your fleet automatically.'),
+                tr('يقدّم الكابتن طلب انضمام في تطبيق الكباتن ويُدخل الكود فيه، '
+                        'وبعد اعتماد الإدارة لمستنداته يلتحق بأسطولك.',
+                    'The captain submits the join application in the captain app with your code; '
+                        'once admin approves their documents they join your fleet.'),
                 style: const TextStyle(
                     fontSize: 11.5, color: AppColors.textGray)),
           ),
@@ -264,7 +269,8 @@ class _AddCaptainCardState extends State<_AddCaptainCard> {
                                       'Used — ${c.usedByName ?? ''}')
                                   : (c.isExpired
                                       ? tr('منتهٍ', 'Expired')
-                                      : tr('بانتظار التسجيل', 'Awaiting signup')),
+                                      : tr('بانتظار الطلب واعتماد الإدارة',
+                                          'Awaiting application & admin approval')),
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                   fontSize: 11.5, color: AppColors.textGray)),

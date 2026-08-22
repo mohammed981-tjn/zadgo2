@@ -1578,8 +1578,12 @@ service cloud.firestore {
           (isFleetOperator() &&
               resource.data.get('operatorId', '') == currentUid() &&
               resource.data.get('isUsed', false) == false);
+      // كود المشغّل (operatorId مختوم) لا يُستهلك بالتسجيل الذاتي أبداً —
+      // «الأسطول يضيف والإدارة توافق» (أمر المالك 2026-08-22 على نمط
+      // جاهز/هنقرستيشن): المدير وحده يختمه مستهلَكاً لحظة اعتماد طلب
+      // الانضمام، فلا يلتحق كابتن بأسطولٍ دون فحص مستنداته.
       allow update: if isAdmin() || (
-            isSignedIn() && (
+            isSignedIn() && resource.data.get('operatorId', '') == '' && (
               (resource.data.isUsed == false &&
                   // الكود المنتهي لا يُستهلك حتى بالكتابة المباشرة — فحص
                   // الصلاحية هنا لا في التطبيق وحده.

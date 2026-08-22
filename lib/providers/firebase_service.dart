@@ -623,6 +623,14 @@ class FirebaseService {
     if (allowedRoles != null && !allowedRoles.contains(initial.role)) {
       throw Exception(tr('هذا الكود غير مخصص لهذا التطبيق', 'This code is not for this app'));
     }
+    // كود دعوة مشغّل أسطول لا يفتح حساباً مباشرةً — بوابة «الإدارة توافق»:
+    // يقدّم المتقدّم طلب انضمام (بمستنداته) ويُدخل الكود فيه، والقاعدة
+    // أصلاً تمنع استهلاك هذا الكود بغير يد المدير فلا التفاف على الرسالة.
+    if (initial.operatorId.isNotEmpty) {
+      throw Exception(tr(
+          'هذا كود دعوة أسطول: قدّم «طلب انضمام كابتن» من التطبيق وأدخل الكود فيه، وتعتمدك الإدارة بعد فحص المستندات',
+          'This is a fleet invite code: submit the captain application in the app and enter the code there — admin approves after reviewing your documents'));
+    }
 
     final cred = await register(email.trim(), password.trim());
     final uid = cred.user!.uid;
@@ -3219,6 +3227,7 @@ class FirebaseService {
     required String vehicleType,
     required String vehiclePlate,
     String referredByCode = '',
+    String operatorCode = '',
     required Map<String, Uint8List> docImages,
     required List<Uint8List> vehiclePhotos,
   }) async {
@@ -3233,6 +3242,10 @@ class FirebaseService {
       'vehicleType': vehicleType.trim(),
       'vehiclePlate': vehiclePlate.trim(),
       'referredByCode': referredByCode.trim().toUpperCase(),
+      // كود دعوة المشغّل يُخزَّن على الطلب للعرض فقط — التبعية لا تثبت
+      // إلا بختم المدير الكودَ مستهلَكاً عند الاعتماد (بوابة «الإدارة
+      // توافق»)، فالقيمة هنا لا تمنح شيئاً بنفسها.
+      'operatorCode': operatorCode.trim().toUpperCase(),
       'documents': <String, String>{},
       'vehiclePhotos': <String>[],
       'status': models.DriverApplicationStatus.pending.name,
@@ -3296,6 +3309,31 @@ class FirebaseService {
   /// لغير صاحب المعرّف — حتى المدير — بإنشائه).
   Future<void> approveDriverApplicationDirect(
       models.DriverApplication application) async {
+    // «الأسطول يضيف والإدارة توافق» (أمر المالك 2026-08-22): إن حمل الطلب
+    // كود دعوة مشغّل صالحاً يُختم مستهلَكاً باسم المتقدّم **قبل** منح
+    // الدور — جهاز الكابتن ينشئ مستنده لحظة الفتح، والقاعدة تشتق تبعيته
+    // من الكود المستهلَك، فتأخير الختم يعني كابتناً مستقلاً بالغلط.
+    final opCode = application.operatorCode.trim().toUpperCase();
+    var fleetNote = '';
+    if (opCode.isNotEmpty) {
+      final codeSnap = await _registrationCodes.doc(opCode).get();
+      final data = codeSnap.data();
+      final codeOperator = (data?['operatorId'] as String?) ?? '';
+      final usedBy = (data?['usedByUid'] as String?) ?? '';
+      final valid = codeSnap.exists &&
+          codeOperator.isNotEmpty &&
+          (data?['role'] as String?) == models.UserRole.driver.name &&
+          ((data?['isUsed'] as bool?) != true || usedBy == application.uid);
+      if (valid) {
+        await _registrationCodes.doc(opCode).update({
+          'isUsed': true,
+          'usedAt': FieldValue.serverTimestamp(),
+          'usedByUid': application.uid,
+          'usedByName': application.name.trim(),
+        });
+        fleetNote = ' — يلتحق بأسطول مشغّله من كود $opCode';
+      }
+    }
     await _users.doc(application.uid).update({
       'role': models.UserRole.driver.name,
       if (application.nationalId.trim().isNotEmpty)
@@ -3308,7 +3346,7 @@ class FirebaseService {
       'reviewedAt': FieldValue.serverTimestamp(),
     });
     logAdminAction('application.approve',
-        'اعتماد مباشر لكابتن ${application.name} — تطبيقه يُفتح فوراً',
+        'اعتماد مباشر لكابتن ${application.name} — تطبيقه يُفتح فوراً$fleetNote',
         extra: {'applicationId': application.id});
   }
 
@@ -3318,6 +3356,23 @@ class FirebaseService {
       models.DriverApplication app) async {
     final existing = await _drivers.doc(app.uid).get();
     if (existing.exists) return;
+    // تبعية المشغّل تُشتق من كود الدعوة **بعد** أن يختمه المدير مستهلَكاً
+    // باسم هذا المتقدّم عند الاعتماد — لا من حقلٍ على الطلب يكتبه صاحبه.
+    // القاعدة تتحقق من الكود نفسه، فالقراءة هنا لتمرير القيمة لا لحراستها.
+    var operatorId = '';
+    var operatorCode = '';
+    final opCode = app.operatorCode.trim().toUpperCase();
+    if (opCode.isNotEmpty) {
+      final codeSnap = await _registrationCodes.doc(opCode).get();
+      final data = codeSnap.data();
+      if (codeSnap.exists &&
+          (data?['isUsed'] as bool?) == true &&
+          (data?['usedByUid'] as String?) == app.uid &&
+          ((data?['operatorId'] as String?) ?? '').isNotEmpty) {
+        operatorId = data!['operatorId'] as String;
+        operatorCode = opCode;
+      }
+    }
     await addDriver(models.Driver(
       id: app.uid,
       name: app.name,
@@ -3325,6 +3380,8 @@ class FirebaseService {
       vehicleType: app.vehicleType.isEmpty ? 'دراجة نارية' : app.vehicleType,
       vehiclePlate: app.vehiclePlate,
       referredByCode: app.referredByCode,
+      operatorId: operatorId,
+      registrationCode: operatorCode,
     ));
   }
 
