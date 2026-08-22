@@ -120,7 +120,8 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
           // على الشاشات العريضة ويُبتر نصٌّ كُتب داخلها.
           LayoutBuilder(builder: (ctx, constraints) {
             final boxHeight = ((constraints.maxWidth - 32) / 2.4)
-                .clamp(120.0, 190.0);
+                .clamp(120.0, 190.0)
+                .toDouble();
             return SizedBox(
               height: boxHeight,
               // ت٢٤: الكاروسيل يتوقف تحت الإصبع — كان يقفز أثناء السحب.
