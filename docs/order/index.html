@@ -473,7 +473,7 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   onAuthStateChanged, signOut, sendPasswordResetEmail }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, orderBy, limit,
-  getDocs, onSnapshot, Timestamp }
+  getDocs, onSnapshot, Timestamp, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const app = initializeApp({
@@ -1748,21 +1748,43 @@ function viewAccount() {
  * يمنحها أحد. لو خالفتُ هذا لاختلف متوسط المطعم بحسب من قيّمه: من التطبيق
  * أم من الموقع.
  *
- * والقواعد تسمح بهذا كلّه بلا تعديل: العميل يعدّل طلبه في غير الحقول
- * المالية، ويعدّل من المطعم والسائق حقلَي التقييم وحدهما. */
+ * وكان هنا سطرٌ يقول «والقواعد تسمح بهذا كلّه بلا تعديل» — صحيحاً يوم
+ * كُتب (2026-08-12) وكاذباً منذ تشديد 2026-08-20. القواعد اليوم تشترط
+ * علامةَ تقييمٍ ذرّية، والعقد مطبَّقٌ في `bumpRating` أدناه. */
 function starsHtml(name, value) {
   return `<div class="stars" data-stars="${name}">${[1, 2, 3, 4, 5].map((n) =>
     `<button type="button" data-star="${n}" class="${n <= value ? 'on' : ''}">★</button>`).join('')}</div>`;
 }
-async function bumpRating(ref, newRating) {
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
+/* التقييم **دفعةٌ ذرّية**، لا كتابةً مفردة.
+ *
+ * شُدِّدت القاعدة (2026-08-20، ثغرة تكرار التقييم): زيادةُ العدّاد لا تُقبل
+ * إلا مقرونةً بإنشاء «علامة تقييم» `ratings/{orderId}` **في الدفعة نفسها**،
+ * وبأن يحمل التحديث `ratingOrderId` وألّا يمسّ حقلاً رابعاً. وهذه الصفحة
+ * كُتبت قبل التشديد فبقيت تكتب كتابةً مفردة — فكان **كل تقييمٍ يُرسل من
+ * الموقع يُرفض**، ويُبتلع في `catch` صامت، والطلب مختومٌ «مُقيَّم» فلا
+ * يُسأل العميل ثانيةً. فمتوسّطات المطاعم والكباتن كانت تعكس مستخدمي
+ * التطبيق وحدهم، ومطعمٌ يخدم عملاء الويب يبقى «جديداً» أبداً.
+ *
+ * العقد منقولٌ حرفياً عن `rateOrder` في `firebase_service.dart:3670-3700`
+ * كي لا يفترق الجانبان ثانيةً. */
+async function bumpRating(batch, base, kind, orderId, uid, newRating) {
+  const snap = await getDoc(base);
+  if (!snap.exists()) return false;
   const d = snap.data();
   const count = Number(d.ratingCount) || 0;
-  const newCount = count + 1;
   const avg = count <= 0 ? newRating
-    : ((Number(d.rating) || 0) * count + newRating) / newCount;
-  await updateDoc(ref, { rating: Number(avg.toFixed(1)), ratingCount: newCount });
+    : ((Number(d.rating) || 0) * count + newRating) / (count + 1);
+  // العلامة أولاً: القاعدة تفحص `existsAfter` عليها قبل قبول الزيادة.
+  batch.set(doc(db, kind, base.id, 'ratings', orderId), {
+    stars: newRating, customerId: uid, createdAt: serverTimestamp(),
+  });
+  // ثلاثة حقول لا رابع: القاعدة `hasOnly(['rating','ratingCount','ratingOrderId'])`.
+  batch.update(base, {
+    rating: Number(avg.toFixed(1)),
+    ratingCount: count + 1,
+    ratingOrderId: orderId,
+  });
+  return true;
 }
 async function submitRating(o) {
   const r = S.rate || {};
@@ -1776,13 +1798,22 @@ async function submitRating(o) {
       isRated: true,
       ...(review ? { customerReview: review } : {}),
     });
-    // تحديث المتوسّطات بعد ثبوت التقييم على الطلب: لو فشل أحدهما بقي الطلب
-    // مقيَّماً ولا يُطلب من العميل التقييم مرتين.
+    // المتوسّطات بعد ثبوت التقييم على الطلب. ولا `catch` صامت بعد اليوم:
+    // ابتلاعُ الخطأ هو ما أخفى سقوطَ كل تقييمات الموقع شهراً كاملاً — فما
+    // يفشل يُكتب في الكونسول ليُرى.
+    const b = writeBatch(db);
+    let any = false;
     if (o.restaurantId) {
-      try { await bumpRating(doc(db, 'restaurants', o.restaurantId), r.restaurant); } catch (e) {}
+      any = await bumpRating(b, doc(db, 'restaurants', o.restaurantId),
+        'restaurants', o.id, auth.currentUser.uid, r.restaurant) || any;
     }
     if (o.driverId) {
-      try { await bumpRating(doc(db, 'drivers', o.driverId), r.driver || r.restaurant); } catch (e) {}
+      any = await bumpRating(b, doc(db, 'drivers', o.driverId),
+        'drivers', o.id, auth.currentUser.uid, r.driver || r.restaurant) || any;
+    }
+    if (any) {
+      try { await b.commit(); }
+      catch (e) { console.error('تعذّر تحديث متوسّط التقييم:', e); }
     }
     S.rate = null;
   } catch (e) {

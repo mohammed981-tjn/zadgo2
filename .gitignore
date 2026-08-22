@@ -21,3 +21,10 @@ functions/package-lock.json
 
 # مخرجات فحص QR — تُولَّد بأمر `node tools/verify-qr.js` ولا تُرفع.
 tools/verify-qr-cases.json
+
+# سجلّات محاكي فايربيز — أثرُ تشغيلٍ محلّي يُولَّد مع كل جولة اختبار قواعد،
+# لا كودٌ ولا إعداد. دخل المستودع سهواً مع دفعة ٨ (firestore-debug.log).
+*-debug.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
