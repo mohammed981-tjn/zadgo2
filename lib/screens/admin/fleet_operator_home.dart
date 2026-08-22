@@ -18,6 +18,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../providers/auth_provider.dart' as app_auth;
+import '../auth/login_screen.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/app_lang.dart';
@@ -66,7 +67,14 @@ class _FleetOperatorHomeState extends State<FleetOperatorHome> {
                       'Do you want to sign out?'),
                   confirmLabel: tr('خروج', 'Sign out'),
                   confirmColor: AppColors.error);
-              if (ok == true) auth.logout();
+              if (ok != true || !context.mounted) return;
+              await auth.logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (_) => false);
+              }
             },
           ),
         ],
