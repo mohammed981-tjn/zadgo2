@@ -370,7 +370,6 @@ class AppEmpty extends StatelessWidget {
     // إلى «صندوق فارغ» لا صلة له بمحتواها — منها «مفضّلاتي» عند العميل.
     '🗺️': Icons.map_outlined,
     '📒': Icons.menu_book_outlined,
-    '🛒': Icons.shopping_cart_outlined,
     '🚚': Icons.local_shipping_outlined,
     '💡': Icons.lightbulb_outline_rounded,
     '🏪': Icons.storefront_outlined,
