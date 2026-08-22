@@ -571,7 +571,7 @@ class _TrackedOrderCard extends StatelessWidget {
                 stream: service.streamDrivers,
                 builder: (ctx, allDrivers) {
                   final drivers = allDrivers
-                      .where((d) => d.id != order.driverId && d.isOnline)
+                      .where((d) => d.id != order.driverId && d.isOnline && d.isActive)
                       .toList();
                   if (drivers.isEmpty) {
                     return Text(tr('لا يوجد سائقون متاحون آخرون حالياً',
@@ -667,7 +667,7 @@ class _TrackedOrderCard extends StatelessWidget {
               AppStreamBuilder<List<Driver>>(
                 stream: service.streamDrivers,
                 builder: (ctx, allDrivers) {
-                  final drivers = allDrivers.where((d) => d.isOnline).toList()
+                  final drivers = allDrivers.where((d) => d.isOnline && d.isActive).toList()
                     ..sort((a, b) => a.activeOrders.compareTo(b.activeOrders));
                   if (drivers.isEmpty) {
                     return Text(tr('لا يوجد كابتن متصل الآن', 'No captain online right now'),

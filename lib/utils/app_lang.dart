@@ -58,20 +58,47 @@ class AppLang extends ChangeNotifier {
 String tr(String ar, String en) => AppLang.en ? en : ar;
 
 /// زرّ تبديل اللغة الموحّد — يعرض اسم اللغة **الهدف** لا الحالية (المعيار
-/// العالمي: من يقرأ العربية يرى «EN» ليعرف أين يذهب، والعكس)، ويصلح
-/// لشريط العنوان في كل النكهات.
+/// العالمي: من يقرأ العربية يرى «EN» ليعرف أين يذهب، والعكس).
+///
+/// حبّةٌ بتعبئةٍ وإطارٍ لا نصٌّ عارٍ (بلاغ المالك بالصور): TextButton الافتراضي
+/// كان كحليّاً باهتاً يذوب في خلفية الدخول الداكنة فلا يُرى أصلاً. الحبّة
+/// تتكيّف: على الأسطح الداكنة ([onDark]) أبيضُ بتعبئةٍ شفافة فاتحة، وعلى
+/// أشرطة العناوين الفاتحة كحليٌّ على تعبئةٍ ذهبية خفيفة بإطارٍ ذهبي.
 class LanguageToggleButton extends StatelessWidget {
-  const LanguageToggleButton({super.key});
+  /// true حين يجلس الزرّ على خلفيةٍ داكنة (شاشة الدخول) — يقلب ألوانه.
+  final bool onDark;
+  const LanguageToggleButton({super.key, this.onDark = false});
 
   @override
   Widget build(BuildContext context) {
     final lang = context.watch<AppLang>();
-    return TextButton.icon(
-      onPressed: () => context.read<AppLang>().toggle(),
-      icon: const Icon(Icons.language_rounded, size: 18),
-      label: Text(
-        lang.isEn ? 'عربي' : 'EN',
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+    final fg = onDark ? Colors.white : const Color(0xFF0B1E3D);
+    final bg = onDark
+        ? Colors.white.withOpacity(0.14)
+        : const Color(0xFFFFB903).withOpacity(0.18);
+    final border =
+        onDark ? Colors.white.withOpacity(0.45) : const Color(0xFFD99400);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 6),
+      child: Material(
+        color: bg,
+        shape: StadiumBorder(side: BorderSide(color: border, width: 1.2)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () => context.read<AppLang>().toggle(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.language_rounded, size: 17, color: fg),
+              const SizedBox(width: 5),
+              Text(
+                lang.isEn ? 'عربي' : 'EN',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 13, color: fg),
+              ),
+            ]),
+          ),
+        ),
       ),
     );
   }

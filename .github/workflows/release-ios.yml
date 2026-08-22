@@ -1,0 +1,143 @@
+# رفع iOS إلى App Store Connect — بالتوقيع السحابي (بلا ماك وبلا شهادة يدوية)
+#
+# الطريقة: مفتاح App Store Connect API يمنح xcodebuild صلاحية
+# `-allowProvisioningUpdates` فيُنشئ شهادة التوزيع وملف التزويد بنفسه
+# سحابياً (Cloud Signing، Xcode 13+) ويرفع الناتج مباشرة. هذا يختصر
+# «الأسرار» إلى أربعة تصدر كلها من حساب آبل لحظة اعتماده:
+#
+#   APPLE_TEAM_ID   → معرّف الفريق (Membership → Team ID)
+#   ASC_KEY_ID      → معرّف مفتاح API (Users and Access → Integrations)
+#   ASC_ISSUER_ID   → معرّف المُصدر (نفس الصفحة، أعلى القائمة)
+#   ASC_API_KEY_P8  → محتوى ملف AuthKey_XXXX.p8 نصاً كما هو
+#
+# ⚠️ المفتاح يلزم أن يكون بدور Admin كي يستطيع سكّ شهادات التوزيع.
+# ⚠️ قبل أول رفع: أنشئ سجلّ التطبيق في App Store Connect (My Apps → +)
+#   بمعرّف الحزمة com.zadam.zadgo2 — الورشة ترفع إليه ولا تنشئه.
+#
+# البناء للعميل افتراضاً — استراتيجية المتاجر تنشر تطبيق العميل وحده
+# عاماً (dev-docs/store-distribution.md)، والنكهات كلها تتشارك معرّف
+# حزمة واحداً في مشروع Xcode فلا يصلح رفع غير واحدة حتى تُفصل المعرّفات.
+
+name: Release iOS to App Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'النكهة (customer هي المنشورة عاماً)'
+        type: choice
+        default: customer
+        options: [customer, driver, restaurant, admin]
+
+jobs:
+  release-ios:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # فشل مبكّر برسالة مفهومة بدل انفجار غامض في منتصف xcodebuild:
+      # الأسرار لا تُفحص شرطياً في if، فتُفحص هنا في أول خطوة.
+      - name: تحقّق من الأسرار الأربعة
+        env:
+          T: ${{ secrets.APPLE_TEAM_ID }}
+          K: ${{ secrets.ASC_KEY_ID }}
+          I: ${{ secrets.ASC_ISSUER_ID }}
+          P: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          missing=""
+          [ -z "$T" ] && missing="$missing APPLE_TEAM_ID"
+          [ -z "$K" ] && missing="$missing ASC_KEY_ID"
+          [ -z "$I" ] && missing="$missing ASC_ISSUER_ID"
+          [ -z "$P" ] && missing="$missing ASC_API_KEY_P8"
+          if [ -n "$missing" ]; then
+            echo "::error::أسرار ناقصة:$missing — أضفها في Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "✅ الأسرار الأربعة موجودة"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.0'
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install --repo-update
+
+      # مفتاح API يُكتب لملف مؤقت خارج المستودع — يقرؤه xcodebuild فقط.
+      - name: تجهيز مفتاح App Store Connect
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          printf '%s' "$ASC_API_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+
+      # اسم الإصدار من pubspec (مصدر واحد للحقيقة كورشة أندرويد)، ورقم
+      # البناء من رقم التشغيل — آبل تشترط رقماً متصاعداً لكل رفعة.
+      - name: Flutter config (${{ inputs.flavor }})
+        run: |
+          flutter build ios \
+            --config-only \
+            --release \
+            --no-codesign \
+            --build-number=${{ github.run_number }} \
+            -t lib/main_${{ inputs.flavor }}.dart
+
+      - name: Archive بتوقيع سحابي
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Runner.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID '${{ secrets.ASC_KEY_ID }}' \
+            -authenticationKeyIssuerID '${{ secrets.ASC_ISSUER_ID }}' \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM='${{ secrets.APPLE_TEAM_ID }}' \
+            | tail -100
+
+      - name: كتابة ExportOptions
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>${{ secrets.APPLE_TEAM_ID }}</string>
+          </dict>
+          </plist>
+          EOF
+
+      # التصدير بوجهة upload يرفع مباشرة إلى App Store Connect — يظهر
+      # البناء في TestFlight خلال دقائق من نجاح هذه الخطوة.
+      - name: Export ورفع إلى App Store Connect
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/Runner.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID '${{ secrets.ASC_KEY_ID }}' \
+            -authenticationKeyIssuerID '${{ secrets.ASC_ISSUER_ID }}' \
+            | tail -60
+          echo "✅ رُفع البناء — راجع TestFlight في App Store Connect"

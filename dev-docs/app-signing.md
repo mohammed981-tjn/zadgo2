@@ -86,3 +86,23 @@ key) — فلو ضاع أمكن استبداله بمراسلة جوجل. هذه
 المستودع عام. إيداع مفتاح التوقيع فيه يعني أن أي أحد يستطيع توقيع تطبيق
 باسمك — ولهذا `.gitignore` يمنع `*.jks` و`key.properties`، والأسرار تُحقن
 وقت البناء ولا تُخزَّن في الشيفرة.
+
+## توقيع iOS — الأسرار الأربعة (أُعدّت الورشة 2026-08-22)
+
+لا شهادة يدوية ولا ماك: ورشة `release-ios.yml` توقّع **سحابياً** — مفتاح
+App Store Connect API يخوّل xcodebuild إنشاء شهادة التوزيع وملف التزويد
+بنفسه (`-allowProvisioningUpdates`) والرفع مباشرة إلى TestFlight.
+
+الأسرار الأربعة (تُضاف في Settings → Secrets and variables → Actions
+فور اعتماد حساب Apple Developer):
+
+| السر | من أين يؤخذ |
+|---|---|
+| `APPLE_TEAM_ID` | developer.apple.com → Membership → Team ID |
+| `ASC_KEY_ID` | App Store Connect → Users and Access → Integrations → مفتاح جديد بدور **Admin** → Key ID |
+| `ASC_ISSUER_ID` | نفس الصفحة — Issuer ID أعلى قائمة المفاتيح |
+| `ASC_API_KEY_P8` | ملف `AuthKey_XXXX.p8` الذي يُنزَّل **مرة واحدة** عند إنشاء المفتاح — يُلصق محتواه نصاً |
+
+⚠️ ملف `.p8` لا يمكن تنزيله ثانيةً — احفظه عندك قبل لصقه في السر.
+⚠️ قبل أول رفع أنشئ سجلّ التطبيق في App Store Connect (My Apps → +)
+بمعرّف الحزمة `com.zadam.zadgo2`.

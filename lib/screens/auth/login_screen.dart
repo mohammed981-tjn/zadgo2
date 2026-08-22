@@ -137,7 +137,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     // يستطيع إتمامه.
                     const Align(
                       alignment: AlignmentDirectional.topEnd,
-                      child: LanguageToggleButton(),
+                      // onDark: الشاشة بخلفيتها الليلية — ألوان الحبّة تنقلب.
+                      child: LanguageToggleButton(onDark: true),
                     ),
                     // الشعار المتوهّج — نفس القرص المستخدم في الجولة
                     // التعريفية بحلقاته ولمعته، بحجم أصغر: لغة بصرية واحدة
