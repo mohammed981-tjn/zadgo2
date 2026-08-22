@@ -540,6 +540,7 @@ class FirebaseService {
     String restaurantName = '',
     Duration? validity,
     String referredByCode = '',
+    String operatorId = '',
   }) async {
     for (var attempt = 0; attempt < 5; attempt++) {
       final code = _randomCode();
@@ -554,11 +555,16 @@ class FirebaseService {
         createdAt: DateTime.now(),
         expiresAt: validity == null ? null : DateTime.now().add(validity),
         referredByCode: referredByCode.trim().toUpperCase(),
+        operatorId: operatorId,
       );
       await ref.set(entry.toMap());
-      logAdminAction('code.create',
-          'إصدار كود تسجيل $code (${role.name})'
-          '${restaurantName.isEmpty ? '' : ' — $restaurantName'}');
+      // سجلّ التدقيق كتابة مدير حصراً (قاعدته) — كود المشغّل لا يمرّ به
+      // وإلا فشل الإصدار كله؛ أكواد المشغّل ظاهرة له وللمدير في القائمة.
+      if (operatorId.isEmpty) {
+        logAdminAction('code.create',
+            'إصدار كود تسجيل $code (${role.name})'
+            '${restaurantName.isEmpty ? '' : ' — $restaurantName'}');
+      }
       return entry;
     }
     throw Exception(tr('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى', 'Couldn\'t generate a unique registration code, try again'));
@@ -669,6 +675,12 @@ class FirebaseService {
           name: name.trim(),
           phone: phone.trim(),
           vehicleType: 'دراجة نارية',
+          // تبعيّة المشغّل من الكود (دفعة ٨): كودٌ أصدره مشغّلٌ يحمل
+          // operatorId فيُلحق الكابتن بأسطوله فوراً — والقاعدة تتحقق من
+          // الكود المستهلَك باسمه، لذلك يُكتب معرّفه على المستند.
+          operatorId: claimed.operatorId,
+          registrationCode:
+              claimed.operatorId.isNotEmpty ? ref.id : '',
           // كود الداعي يُثبَّت لحظة التسجيل ولا يُعدَّل بعدها: إتاحة
           // إضافته لاحقاً تعني إحالات تُدّعى بأثر رجعي لسائقين عملوا
           // شهوراً. وتاريخ الانضمام أساس نافذة شرط التوصيلات.
@@ -1546,6 +1558,9 @@ class FirebaseService {
       'driverId': driverId,
       'driverName': driverName,
       'driverPhone': driverData?.phone,
+      // ختم التبعية عند الإسناد (دفعة ٨) — يفتح للمشغّل متابعة طلبات
+      // كباتنه الجارية، والقاعدة تطابقه بمستند السائق.
+      'operatorId': driverData?.operatorId ?? '',
       if (!earlyStage) 'status': models.OrderStatus.driverAssigned.name,
       'updatedAt': FieldValue.serverTimestamp(),
       if (!earlyStage) 'statusChangedAt': FieldValue.serverTimestamp(),
@@ -1707,6 +1722,8 @@ class FirebaseService {
         'driverId': pick.id,
         'driverName': pick.name,
         'driverPhone': pick.phone,
+        // ختم التبعية عند الإسناد (دفعة ٨) — القاعدة تطابقه بمستند المختار.
+        'operatorId': pick.operatorId,
         'updatedAt': FieldValue.serverTimestamp(),
         // عرض حقيقي لا إسناد صامت: كان يُكتب true هنا فيتجاوز المسارُ الأكثر
         // شيوعاً (الإسناد التلقائي) موافقةَ السائق كلياً. الآن يظهر له عرض
@@ -2001,6 +2018,7 @@ class FirebaseService {
               'driverId': null,
               'driverName': null,
               'driverPhone': null,
+              'operatorId': '',
               'driverAcknowledged': true,
               'updatedAt': FieldValue.serverTimestamp(),
             });
@@ -2116,6 +2134,8 @@ class FirebaseService {
       'driverId': null,
       'driverName': null,
       'driverPhone': null,
+      // التبعية تُجرَّد مع التجريد (دفعة ٨ — تُلزم به القاعدة).
+      'operatorId': '',
       'driverAcknowledged': true,
       'updatedAt': FieldValue.serverTimestamp(),
     });
@@ -2145,15 +2165,18 @@ class FirebaseService {
     required String performedBy,
   }) async {
     final newDriverDoc = await _drivers.doc(newDriverId).get();
-    final newDriverPhone = newDriverDoc.exists && newDriverDoc.data() != null
-        ? models.Driver.fromMap(newDriverDoc.data()!, newDriverDoc.id).phone
+    final newDriver = newDriverDoc.exists && newDriverDoc.data() != null
+        ? models.Driver.fromMap(newDriverDoc.data()!, newDriverDoc.id)
         : null;
+    final newDriverPhone = newDriver?.phone;
 
     final batch = _db.batch();
     batch.update(_orders.doc(order.id), {
       'driverId': newDriverId,
       'driverName': newDriverName,
       'driverPhone': newDriverPhone,
+      // تبعية الكابتن الجديد تحلّ محلّ القديمة (دفعة ٨).
+      'operatorId': newDriver?.operatorId ?? '',
       'updatedAt': FieldValue.serverTimestamp(),
     });
     batch.update(_drivers.doc(newDriverId), {'isAvailable': false});
@@ -3912,4 +3935,79 @@ class FirebaseService {
     await _broadcasts.doc(message.id).delete();
     logAdminAction('broadcast.delete', 'حذف رسالة جماعية: ${message.title}');
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // مشغّل الأسطول — أدواته التشغيلية (دفعة ٨ «المشغّل بأحدث طراز»)
+  // القيود الحقيقية في القواعد: كباتنه حصراً، وصلاحيات مسمّاة لا عامة.
+  // ═══════════════════════════════════════════════════════════════════
+
+  /// حظر/تفعيل كابتنٍ من أسطوله: isActive وحده — يوقفه عن العروض ويعيده.
+  Future<void> operatorSetDriverActive(String driverId, bool active) =>
+      _drivers.doc(driverId).update({'isActive': active});
+
+  /// فصل كابتن عن الأسطول («حذفٌ» من أسطول المشغّل لا من المنصّة):
+  /// الحساب ودفاتره تبقى — سجلٌّ ماليّ لا يُمحى بقرار مشغّل؛ يعود الكابتن
+  /// مستقلاً ويستطيع المدير إسناده من جديد.
+  Future<void> operatorReleaseDriver(String driverId) =>
+      _drivers.doc(driverId).update({'operatorId': ''});
+
+  /// تسوية مالية بين المشغّل وكابتنه — ذرّيةٌ بعقيدة الدفتر نفسها:
+  /// [amount] موجبٌ يزيد رصيد الكابتن (المشغّل دفع له)، وسالبٌ ينقصه
+  /// (الكابتن سلّم نقداً لمشغّله). الحركة والرصيد في معاملة واحدة تربطهما
+  /// القاعدة (operatorSettlementBacked)، وcreatedBy يوثّق مُنشئها.
+  Future<void> operatorSettleDriver({
+    required String driverId,
+    required double amount,
+    String? note,
+  }) async {
+    if (amount == 0) return;
+    final uid = _auth.currentUser?.uid ?? '';
+    final txRef = _driverTransactions.doc();
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(_drivers.doc(driverId));
+      if (!snap.exists || snap.data() == null) {
+        throw Exception(tr('السائق غير موجود', 'Captain not found'));
+      }
+      final balance =
+          (snap.data()!['balance'] as num?)?.toDouble() ?? 0;
+      tx.set(txRef, {
+        'driverId': driverId,
+        'type': 'operatorSettlement',
+        'amount': amount,
+        'balanceAfter': balance + amount,
+        'note': note ?? '',
+        'performedBy': uid,
+        'createdBy': uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      tx.update(_drivers.doc(driverId), {
+        'balance': balance + amount,
+        'lastLedgerTxId': txRef.id,
+      });
+    });
+  }
+
+  /// كود «أضف كابتناً» لأسطول المشغّل — صلاحيته ٧ أيام افتراضاً.
+  Future<models.RegistrationCode> operatorCreateDriverCode(
+          String operatorId) =>
+      generateRegistrationCode(
+        role: models.UserRole.driver,
+        operatorId: operatorId,
+        validity: const Duration(days: 7),
+      );
+
+  /// أكواد المشغّل (متابعة «أضف كابتناً») — أحدثها أولاً.
+  Stream<List<models.RegistrationCode>> streamOperatorCodes(
+          String operatorId) =>
+      _registrationCodes
+          .where('operatorId', isEqualTo: operatorId)
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => models.RegistrationCode.fromMap(d.data(), d.id))
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// حذف كود مشغّل غير مستهلَك (تراجُع عن دعوة).
+  Future<void> operatorDeleteCode(String code) =>
+      _registrationCodes.doc(code).delete();
 }
