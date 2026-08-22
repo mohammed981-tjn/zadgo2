@@ -96,6 +96,8 @@ class _AppCard extends StatelessWidget {
             if (app.source == 'app') tr('من التطبيق 📱', 'From the app 📱'),
             if (app.referredByCode.isNotEmpty)
               tr('دعوة ${app.referredByCode}', 'Referral ${app.referredByCode}'),
+            if (app.operatorCode.isNotEmpty)
+              tr('أسطول 🛵 ${app.operatorCode}', 'Fleet 🛵 ${app.operatorCode}'),
             if (app.missingRequired.isNotEmpty)
               tr('ناقص ${app.missingRequired.length}',
                   '${app.missingRequired.length} missing'),
@@ -147,6 +149,9 @@ class _AppDetailScreen extends StatelessWidget {
                       .join(' — ')),
               if (app.referredByCode.isNotEmpty)
                 _field(tr('كود الداعي', 'Referrer code'), app.referredByCode),
+              if (app.operatorCode.isNotEmpty)
+                _field(tr('كود دعوة الأسطول', 'Fleet invite code'),
+                    app.operatorCode),
             ]),
           ),
         ),
@@ -410,11 +415,15 @@ class _AppDetailScreen extends StatelessWidget {
           '${missing.isNotEmpty ? '⚠️ ناقص: '
                   '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}\n\n' : ''}'
               'يُمنح ${app.name} دور الكابتن فوراً وينفتح تطبيقه من شاشة '
-              'الانتظار — بلا كود.',
+              'الانتظار — بلا كود.'
+              '${app.operatorCode.isNotEmpty ? '\nكود أسطول ${app.operatorCode}: '
+                  'إن صحّ الكود يلتحق بأسطول مشغّله.' : ''}',
           '${missing.isNotEmpty ? '⚠️ Missing: '
                   '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join(', ')}\n\n' : ''}'
               '${app.name} is granted the captain role immediately and their app opens '
-              'from the waiting screen — no code needed.'),
+              'from the waiting screen — no code needed.'
+              '${app.operatorCode.isNotEmpty ? '\nFleet code ${app.operatorCode}: '
+                  'if valid, they join that operator\'s fleet.' : ''}'),
       confirmLabel: tr('اعتماد', 'Approve'),
       confirmColor: AppColors.success,
     );

@@ -467,6 +467,30 @@ class _DriverHomeState extends State<DriverHome> {
             ],
           ),
           body: Column(children: [
+            // بانر الحظر (دفعة ٨): كابتنٌ محظور (المدير أو مشغّل أسطوله)
+            // لا يُرشَّح للعروض — وصمتُ التطبيق عندها يُقرأ عطلاً، فالبانر
+            // يقول السبب وماذا يفعل بدل أن يظل يقلّب شاشةً فارغة.
+            if (driver != null && !driver.isActive)
+              Container(
+                width: double.infinity,
+                color: AppColors.error.withOpacity(0.12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(children: [
+                  const Icon(Icons.block_rounded,
+                      color: AppColors.error, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                        tr('حسابك موقوف مؤقتاً عن استقبال العروض — تواصل مع إدارتك أو مشغّل أسطولك.',
+                            'Your account is temporarily suspended from receiving offers — contact the admin or your fleet operator.'),
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.error)),
+                  ),
+                ]),
+              ),
             StreamBuilder<List<BroadcastMessage>>(
               stream: service.streamBroadcasts(BroadcastAudience.drivers),
               builder: (ctx, snap) {

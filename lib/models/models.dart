@@ -1118,6 +1118,12 @@ class Driver {
   final String vehiclePlate;
   final bool isAvailable;
   final bool isOnline;
+
+  /// حظرٌ تشغيلي (يقلبه المدير أو مشغّل أسطوله — دفعة ٨): false يعني
+  /// موقوفاً عن الترشيح للعروض حتى يُعاد تفعيله. حقلٌ مستقل عن
+  /// [isAvailable] (انشغال لحظي يقلبه النظام) وعن تعليق الإنذارات —
+  /// فخلطها يجعل رفع الحظر يمسح حالةً أخرى لها سببها.
+  final bool isActive;
   final double totalEarnings;
   final double pendingPayout;
 
@@ -1172,6 +1178,11 @@ class Driver {
   /// تخصيصاً لكابتنٍ بعينه. يضبطه المدير وحده (محميّ كـ operatorId).
   final double operatorDriverShare;
 
+  /// كود التسجيل الذي أُنشئ به المستند (دفعة ٨): يُكتب لحظة الإنشاء فقط —
+  /// قاعدة drivers تتحقق به أن تبعيّة operatorId المدّعاة جاءت من كودٍ
+  /// مستهلَكٍ باسم هذا الكابتن أصدره المشغّل نفسه، لا ادّعاءً حرّاً.
+  final String registrationCode;
+
   /// تاريخ الانضمام — تُحسب منه نافذة شرط الإحالة (٣٠ يوماً افتراضياً).
   final DateTime? createdAt;
 
@@ -1205,6 +1216,7 @@ class Driver {
     this.vehiclePlate = '',
     this.isAvailable = true,
     this.isOnline = false,
+    this.isActive = true,
     this.totalEarnings = 0,
     this.pendingPayout = 0,
     this.balance = 0,
@@ -1222,6 +1234,7 @@ class Driver {
     this.lastChallengeWindow = '',
     this.operatorId = '',
     this.operatorDriverShare = 0,
+    this.registrationCode = '',
     this.createdAt,
     this.activeOrders = 0,
     this.clusterLat,
@@ -1236,6 +1249,7 @@ class Driver {
         vehiclePlate: map['vehiclePlate'] as String? ?? '',
         isAvailable: map['isAvailable'] as bool? ?? true,
         isOnline: map['isOnline'] as bool? ?? false,
+        isActive: map['isActive'] as bool? ?? true,
         totalEarnings: (map['totalEarnings'] as num?)?.toDouble() ?? 0,
         pendingPayout: (map['pendingPayout'] as num?)?.toDouble() ?? 0,
         balance: (map['balance'] as num?)?.toDouble() ?? 0,
@@ -1254,6 +1268,7 @@ class Driver {
         operatorId: map['operatorId'] as String? ?? '',
         operatorDriverShare:
             (map['operatorDriverShare'] as num?)?.toDouble() ?? 0,
+        registrationCode: map['registrationCode'] as String? ?? '',
         createdAt: (map['createdAt'] as Timestamp?)?.toDate(),
         activeOrders: (map['activeOrders'] as num?)?.toInt() ?? 0,
         clusterLat: (map['clusterLat'] as num?)?.toDouble(),
@@ -1267,6 +1282,7 @@ class Driver {
         'vehiclePlate': vehiclePlate,
         'isAvailable': isAvailable,
         'isOnline': isOnline,
+        'isActive': isActive,
         'totalEarnings': totalEarnings,
         'pendingPayout': pendingPayout,
         'balance': balance,
@@ -1285,6 +1301,7 @@ class Driver {
         'lastChallengeWindow': lastChallengeWindow,
         if (operatorId.isNotEmpty) 'operatorId': operatorId,
         if (operatorDriverShare != 0) 'operatorDriverShare': operatorDriverShare,
+        if (registrationCode.isNotEmpty) 'registrationCode': registrationCode,
         if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
         'activeOrders': activeOrders,
         if (clusterLat != null) 'clusterLat': clusterLat,
@@ -2249,6 +2266,11 @@ enum DriverTransactionType {
 
   /// تسوية يدوية من الإدارة (تصحيح خطأ، مكافأة، خصم...).
   adjustment,
+
+  /// تسوية من مشغّل الأسطول لكابتنه (دفعة ٨): نقدٌ سلّمه الكابتن لمشغّله
+  /// أو دفعةٌ من المشغّل له — القواعد تربطها ذرّياً بتغيّر الرصيد المطابق
+  /// وباسم مُنشئها (createdBy)، ولا يكتبها إلا مشغّلُ الكابتن نفسه.
+  operatorSettlement,
 }
 
 DriverTransactionType _driverTxTypeFromString(String? raw) =>
@@ -2273,6 +2295,8 @@ extension DriverTransactionTypeExt on DriverTransactionType {
         DriverTransactionType.payout => tr('صرف مستحقّات', 'Payout'),
         DriverTransactionType.adjustment =>
             tr('تسوية يدوية', 'Manual adjustment'),
+        DriverTransactionType.operatorSettlement =>
+            tr('تسوية المشغّل', 'Operator settlement'),
       };
 
   IconData get icon {
@@ -2285,6 +2309,7 @@ extension DriverTransactionTypeExt on DriverTransactionType {
       DriverTransactionType.deposit: Icons.south_west_rounded,
       DriverTransactionType.payout: Icons.north_east_rounded,
       DriverTransactionType.adjustment: Icons.tune_rounded,
+      DriverTransactionType.operatorSettlement: Icons.handshake_outlined,
     };
     return map[this] ?? Icons.receipt_long_outlined;
   }
@@ -3278,6 +3303,11 @@ class RegistrationCode {
   /// الإحالة لأن المتقدّم نسي نقل كود الداعي بيده.
   final String referredByCode;
 
+  /// مشغّل الأسطول مُصدر الكود (دفعة ٨ — «أضف كابتناً»): كابتنٌ يسجّل بهذا
+  /// الكود يُلحق بأسطول مُصدره تلقائياً — والقواعد تُلزم المشغّل بإصدار
+  /// أكوادٍ بتبعيّته هو حصراً. فارغ = كود مدير عادي.
+  final String operatorId;
+
   const RegistrationCode({
     required this.code,
     required this.role,
@@ -3290,6 +3320,7 @@ class RegistrationCode {
     this.usedByName,
     this.expiresAt,
     this.referredByCode = '',
+    this.operatorId = '',
   });
 
   bool get isExpired =>
@@ -3311,6 +3342,7 @@ class RegistrationCode {
         usedByName: map['usedByName'] as String?,
         expiresAt: (map['expiresAt'] as Timestamp?)?.toDate(),
         referredByCode: map['referredByCode'] as String? ?? '',
+        operatorId: map['operatorId'] as String? ?? '',
       );
 
   Map<String, dynamic> toMap() => {
@@ -3325,6 +3357,7 @@ class RegistrationCode {
         'usedByName': usedByName,
         if (expiresAt != null) 'expiresAt': Timestamp.fromDate(expiresAt!),
         'referredByCode': referredByCode,
+        if (operatorId.isNotEmpty) 'operatorId': operatorId,
       };
 }
 
@@ -3372,6 +3405,12 @@ class DriverApplication {
   /// كود التسجيل الصادر عند القبول — يبقى ظاهراً للمدير ليعيد إرساله.
   final String issuedCode;
 
+  /// كود دعوة مشغّل الأسطول الذي أدخله المتقدّم (دفعة ٨ — «الأسطول يضيف
+  /// والإدارة توافق»): لا يمنح التبعية بنفسه — المدير يفحص المستندات ثم
+  /// يعتمد، فيُختم الكود مستهلَكاً باسم المتقدّم وتثبت التبعية من الكود
+  /// لا من هذا الحقل (فتزويره على الطلب بلا أثر).
+  final String operatorCode;
+
   const DriverApplication({
     required this.id,
     this.uid = '',
@@ -3390,6 +3429,7 @@ class DriverApplication {
     this.reviewedAt,
     this.reviewNote = '',
     this.issuedCode = '',
+    this.operatorCode = '',
   });
 
   /// المستندات المطلوبة نظاميّاً بأسمائها المعروضة — الترتيب هو ترتيب
@@ -3450,6 +3490,8 @@ class DriverApplication {
       reviewedAt: (map['reviewedAt'] as Timestamp?)?.toDate(),
       reviewNote: map['reviewNote'] as String? ?? '',
       issuedCode: map['issuedCode'] as String? ?? '',
+      operatorCode:
+          (map['operatorCode'] as String? ?? '').trim().toUpperCase(),
     );
   }
 }
