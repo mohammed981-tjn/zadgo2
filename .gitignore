@@ -28,3 +28,7 @@ tools/verify-qr-cases.json
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# ملفات فحصٍ مؤقتة يخلّفها وكلاء التدقيق أثناء الدحض — تُشغَّل ثم تُحذف،
+# ولا مكان لها في المستودع (خلّفها فحص 2026-08-22 فأمسكها حارس git).
+tools/rules-test/tmp-*.mjs
