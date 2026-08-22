@@ -685,9 +685,11 @@ class FirebaseService {
           name: name.trim(),
           phone: phone.trim(),
           vehicleType: 'دراجة نارية',
-          // تبعيّة المشغّل من الكود (دفعة ٨): كودٌ أصدره مشغّلٌ يحمل
-          // operatorId فيُلحق الكابتن بأسطوله فوراً — والقاعدة تتحقق من
-          // الكود المستهلَك باسمه، لذلك يُكتب معرّفه على المستند.
+          // تبعيّة المشغّل من الكود: **فرعٌ دفاعيّ لا يُبلَغ في التشغيل
+          // الجاري** (🟡 فحص دفعة ٨) — أكواد المشغّل لا تُستهلك ذاتياً
+          // أصلاً (القاعدة تمنع والتطبيق يوجّه لنموذج طلب الانضمام)،
+          // فclaimed.operatorId هنا فارغ دائماً. يبقى السطران صفراً
+          // آمناً لا منطقاً حياً — أزِلهما مع أول إعادة هيكلة للتسجيل.
           operatorId: claimed.operatorId,
           registrationCode:
               claimed.operatorId.isNotEmpty ? ref.id : '',
@@ -1464,40 +1466,56 @@ class FirebaseService {
               .toList()
             ..sort((a, b) => b.totalDeliveries.compareTo(a.totalDeliveries)));
 
-  /// طلبات مشغّلٍ المسلَّمة — لجمع مستحقّاته (مجموع operatorShare)، والجمع
-  /// محلياً فلا فهرس مركّب. **قيد معروف (دفعة ٢):** السقف ٤٠٠ يبتر المستحق
-  /// المتراكم على المدى الطويل (نفس عائلة عطب دفتر المطعم) — الحلّ الجذري
-  /// بلا خادم هو علم `operatorSettled` على الطلب يرفعه المدير عند التسوية،
-  /// فيُجمَع غيرُ المسوَّى وحده (مؤجَّل حتى تفعيل المشغّلين — الميزة خامدة).
-  Stream<List<models.Order>> streamOperatorOrders(String operatorId) =>
+  /// 🟠٢ (فحص دفعة ٨): كان استعلاماً واحداً بحدّ ٤٠٠ **بلا ترتيب** —
+  /// وفايرستور يرتّب حينها بمعرّف المستند العشوائي، فالنافذة «أصغر ٤٠٠
+  /// معرّفاً» لا «آخر ٤٠٠»: رقمُ مستحقّاتٍ يتجمّد بل ينقص أمام المشغّل،
+  /// وخريطةٌ تكذب. الآن استعلامان لكلٍّ غرضه:
+  ///
+  /// المال: المسلَّم وحده بترتيبٍ زمني تنازلي (فهرس مركّب في
+  /// firestore.indexes.json — يُنشر آلياً).
+  Stream<List<models.Order>> streamOperatorDelivered(String operatorId) =>
       _orders
           .where('operatorId', isEqualTo: operatorId)
+          .where('status', isEqualTo: models.OrderStatus.delivered.name)
+          .orderBy('statusChangedAt', descending: true)
           .limit(400)
           .snapshots()
           .map((s) =>
               s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
-  /// المدير يسجّل دفعةً للمشغّل: تُنقص من رصيده (كتسوية دفتر الكابتن).
-  Future<void> recordOperatorPayout(String operatorId, double amount) async {
-    await _fleetOperators.doc(operatorId).set(
-        {'balance': FieldValue.increment(-amount.abs())}, SetOptions(merge: true));
-    // تسجيل التدقيق (دفعة ٢): كل حركة مال للمشغّل تُقيَّد في admin_audit
-    // كنظائرها (صرف السائق/تسوية المطعم) — لم تكن تُسجَّل فيغيب أثرها.
-    logAdminAction('operator.payout',
-        'صرف ${amount.abs().toStringAsFixed(2)} ر.س لمشغّل الأسطول',
-        extra: {'operatorId': operatorId});
-  }
+  /// الخريطة والمتابعة: الطلبات الجارية وحدها — مجموعة صغيرة بلا ترتيب.
+  Stream<List<models.Order>> streamOperatorActive(String operatorId) =>
+      _orders
+          .where('operatorId', isEqualTo: operatorId)
+          .where('status',
+              whereIn: models.OrderStatus.values
+                  .where((s) => s.isActive)
+                  .map((s) => s.name)
+                  .toList())
+          .snapshots()
+          .map((s) =>
+              s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList());
 
-  /// المدير يُحصّل الرسم الشهري من المشغّل (دفعة ٢): كان `monthlyFee` يُضبط
-  /// ولا يُحصَّل بأي مسار — ميّتاً وظيفياً. تحصيلُه يُنقص صافي دفتره (كالدفعة:
-  /// كلاهما يقلّل ما يُستحقّ للمشغّل) ويُسجَّل في التدقيق باسمه المميَّز.
+  /// المدير يسجّل صرف حصص التوصيلات للمشغّل — صار **قيد دفتر** لا رقماً
+  /// يُنقص («سُدّ الثغرة»): الحقل المخزَّن fleet_operators.balance هُجر —
+  /// رقمٌ بلا سطورٍ تفسّره هو عين ما نعالجه، والدفتر مجموعُه رصيدُه.
+  Future<void> recordOperatorPayout(String operatorId, double amount) =>
+      recordOperatorEntry(
+        operatorId: operatorId,
+        type: 'sharesPayout',
+        amount: amount.abs(),
+        note: 'صرف حصص توصيلات',
+      );
+
+  /// تحصيل الرسم الشهري — قيدٌ سالب على دفتر المشغّل (نفس الهجرة أعلاه).
   Future<void> chargeOperatorMonthlyFee(String operatorId, double amount) async {
     if (amount <= 0) return;
-    await _fleetOperators.doc(operatorId).set(
-        {'balance': FieldValue.increment(-amount.abs())}, SetOptions(merge: true));
-    logAdminAction('operator.fee',
-        'تحصيل رسم شهري ${amount.abs().toStringAsFixed(2)} ر.س من مشغّل الأسطول',
-        extra: {'operatorId': operatorId});
+    await recordOperatorEntry(
+      operatorId: operatorId,
+      type: 'monthlyFee',
+      amount: -amount.abs(),
+      note: 'رسم شهري',
+    );
   }
 
   /// إظهار/إخفاء البنر الافتراضي المدمج (دفعة «الإعلانات الذكية»): يُخزَّن في
@@ -3527,6 +3545,19 @@ class FirebaseService {
       final data = codeSnap.data();
       final codeOperator = (data?['operatorId'] as String?) ?? '';
       final usedBy = (data?['usedByUid'] as String?) ?? '';
+      // 🟠٣ (فحص دفعة ٨): «صالح ٧ أيام» كان وعداً لا يُفحص هنا — المشغّل
+      // يرى كوده «منتهياً» بالأحمر ولقطةُ شاشةٍ قديمة كانت تكفي لإلحاق
+      // صاحبها بأسطوله عند الاعتماد. الانتهاء يُفرض الآن (قرار: يُفرض
+      // لا يُسقط — الوعد المعروض للمشغّل يصير صادقاً).
+      final expiresAt = (data?['expiresAt'] as Timestamp?)?.toDate();
+      if (codeSnap.exists &&
+          codeOperator.isNotEmpty &&
+          expiresAt != null &&
+          DateTime.now().isAfter(expiresAt)) {
+        throw Exception(tr(
+            'كود الأسطول $opCode منتهي الصلاحية — اطلب من المشغّل إصدار كودٍ جديد ثم أعد الاعتماد',
+            'Fleet code $opCode has expired — ask the operator to issue a new code, then approve again'));
+      }
       final valid = codeSnap.exists &&
           codeOperator.isNotEmpty &&
           (data?['role'] as String?) == models.UserRole.driver.name &&
@@ -3538,6 +3569,16 @@ class FirebaseService {
           'usedByUid': application.uid,
           'usedByName': application.name.trim(),
         });
+        // 🟡 (فحص دفعة ٨): من له مستند سائقٍ سلفاً كان الكود يُحرق عليه
+        // والالتحاق لا يقع — جهازه لا يعيد إنشاء المستند، والقاعدة تمنعه
+        // من كتابة تبعيته بنفسه. المدير (المخوَّل الوحيد) يلحقه هنا.
+        final existingDriver = await _drivers.doc(application.uid).get();
+        if (existingDriver.exists) {
+          await _drivers.doc(application.uid).update({
+            'operatorId': codeOperator,
+            'registrationCode': opCode,
+          });
+        }
         fleetNote = ' — يلتحق بأسطول مشغّله من كود $opCode';
       }
     }
@@ -4325,6 +4366,22 @@ class FirebaseService {
   /// [amount] موجبٌ يزيد رصيد الكابتن (المشغّل دفع له)، وسالبٌ ينقصه
   /// (الكابتن سلّم نقداً لمشغّله). الحركة والرصيد في معاملة واحدة تربطهما
   /// القاعدة (operatorSettlementBacked)، وcreatedBy يوثّق مُنشئها.
+  CollectionReference<Map<String, dynamic>> get _operatorTransactions =>
+      _db.collection('operator_transactions');
+
+  /// تسوية المشغّل مع كابتنه — الدفتر المزدوج («سُدّ الثغرة» 2026-08-22).
+  ///
+  /// دلالة [amount] على رصيد **الكابتن**: سالبٌ = المشغّل استلم نقداً من
+  /// الكابتن (يُنقص دينه للمنصّة)، موجبٌ = المشغّل دفع للكابتن مستحقَّه.
+  /// وكلاهما يحرّك الرصيد **نحو الصفر ولا يتجاوزه** — فحص فحص دفعة ٨
+  /// أثبت أن النسخة الأولى كانت تسكّ رصيداً من العدم؛ القاعدة ترفض الآن
+  /// والتطبيق يصارح قبلها.
+  ///
+  /// «الريال لا يختفي، ينتقل»: مع حركة الكابتن يُقيَّد قيدٌ مرآتي على
+  /// دفتر المشغّل نفسه (operator_transactions) بنفس المعرّف وبمبلغٍ
+  /// معاكس — النقد الذي حصّله يظهر عليه للمنصّة، وما دفعه من جيبه يظهر
+  /// له، حتى يسوّيه المدير. القاعدة تشترط القيدين معاً فلا أحدهما يقع
+  /// وحده.
   Future<void> operatorSettleDriver({
     required String driverId,
     required double amount,
@@ -4338,23 +4395,90 @@ class FirebaseService {
       if (!snap.exists || snap.data() == null) {
         throw Exception(tr('السائق غير موجود', 'Captain not found'));
       }
-      final balance =
-          (snap.data()!['balance'] as num?)?.toDouble() ?? 0;
+      final balance = (snap.data()!['balance'] as num?)?.toDouble() ?? 0;
+      final driverName = (snap.data()!['name'] as String?) ?? '';
+      final newBalance = balance + amount;
+      final towardZero = (balance < 0 && amount > 0 && newBalance <= 0.001) ||
+          (balance > 0 && amount < 0 && newBalance >= -0.001);
+      if (!towardZero) {
+        throw Exception(tr(
+            'التسوية تحرّك رصيد الكابتن نحو الصفر فقط — رصيده الآن ${balance.toStringAsFixed(2)} ر.س والمبلغ لا يتجاوزه',
+            "A settlement only moves the captain's balance toward zero — current balance is ${balance.toStringAsFixed(2)} SAR and the amount can't overshoot it"));
+      }
       tx.set(txRef, {
         'driverId': driverId,
         'type': 'operatorSettlement',
         'amount': amount,
-        'balanceAfter': balance + amount,
+        'balanceAfter': newBalance,
         'note': note ?? '',
         'performedBy': uid,
         'createdBy': uid,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      tx.set(_operatorTransactions.doc(txRef.id), {
+        'operatorId': uid,
+        'driverId': driverId,
+        'driverName': driverName,
+        'type': 'driverSettlement',
+        // الدلالة على دفتر المشغّل: سالبٌ = عليه للمنصّة (نقدٌ بيده)،
+        // موجبٌ = له عليها (دفع من جيبه) — معاكس حركة الكابتن دائماً.
+        'amount': -amount,
+        'note': note ?? '',
+        'createdBy': uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
       tx.update(_drivers.doc(driverId), {
-        'balance': balance + amount,
+        'balance': newBalance,
         'lastLedgerTxId': txRef.id,
       });
     });
+  }
+
+  /// دفتر المشغّل — أحدث ٢٠٠ قيد (للمشغّل نفسه ولشاشة المدير).
+  Stream<List<Map<String, dynamic>>> streamOperatorLedger(String operatorId) =>
+      _operatorTransactions
+          .where('operatorId', isEqualTo: operatorId)
+          .orderBy('createdAt', descending: true)
+          .limit(200)
+          .snapshots()
+          .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
+
+  /// قيدٌ إداري على دفتر المشغّل — ثلاثة أنواع بيد المدير:
+  ///   adminSettlement: تسوية نقدية (قبض منه/دفع له) — تدخل صافي النقد.
+  ///   monthlyFee: رسم شهري (سالب) — يدخل صافي النقد.
+  ///   sharesPayout: صرف حصص التوصيلات (موجب = مبلغ مدفوع) — **خارج**
+  ///     صافي النقد: يُخصم من الحصص المحسوبة من الطلبات لا من الدفتر،
+  ///     وإلا حُسب الصرف مرتين.
+  Future<void> recordOperatorEntry({
+    required String operatorId,
+    required String type,
+    required double amount,
+    String? note,
+  }) async {
+    if (amount == 0) return;
+    await _operatorTransactions.add({
+      'operatorId': operatorId,
+      'type': type,
+      'amount': amount,
+      'note': note ?? '',
+      'createdBy': _auth.currentUser?.uid ?? '',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    logAdminAction('operator.$type',
+        'قيد $type بمبلغ ${amount.toStringAsFixed(2)} ر.س على دفتر مشغّل',
+        extra: {'operatorId': operatorId});
+  }
+
+  /// مستند كود تسجيلٍ خاماً — لعرض حالته (صالح/منتهٍ/مستهلَك) في حوار
+  /// اعتماد المدير (🟡 فحص دفعة ٨: كان يعتمد على العمياء).
+  Future<Map<String, dynamic>?> fetchRegistrationCodeInfo(String code) async {
+    try {
+      final snap =
+          await _registrationCodes.doc(code.trim().toUpperCase()).get();
+      return snap.data();
+    } catch (_) {
+      return null;
+    }
   }
 
   /// كود «أضف كابتناً» لأسطول المشغّل — صلاحيته ٧ أيام افتراضاً.

@@ -83,23 +83,29 @@ class _FleetOperatorHomeState extends State<FleetOperatorHome> {
         stream: service.streamFleetOperator(uid),
         builder: (ctx, opSnap) {
           final op = opSnap.data;
+          // 🟠٢ (فحص دفعة ٨): تياران متخصصان بدل نافذة الـ٤٠٠ العشوائية —
+          // المال يقرأ المسلَّم مرتَّباً زمنياً، والخريطة تقرأ الجاري وحده.
           return AppStreamBuilder<List<Driver>>(
             stream: () => service.streamOperatorDrivers(uid),
-            builder: (ctx, drivers) => AppStreamBuilder<List<Order>>(
-              stream: () => service.streamOperatorOrders(uid),
-              builder: (ctx, orders) {
-                switch (_tab) {
-                  case 1:
-                    return _FleetMapTab(drivers: drivers, orders: orders);
-                  case 2:
-                    return _MoneyTab(
+            builder: (ctx, drivers) {
+              switch (_tab) {
+                case 1:
+                  return AppStreamBuilder<List<Order>>(
+                    stream: () => service.streamOperatorActive(uid),
+                    builder: (ctx, orders) =>
+                        _FleetMapTab(drivers: drivers, orders: orders),
+                  );
+                case 2:
+                  return AppStreamBuilder<List<Order>>(
+                    stream: () => service.streamOperatorDelivered(uid),
+                    builder: (ctx, orders) => _MoneyTab(
                         uid: uid, fleetOp: op, drivers: drivers,
-                        orders: orders);
-                  default:
-                    return _CaptainsTab(uid: uid, drivers: drivers);
-                }
-              },
-            ),
+                        orders: orders),
+                  );
+                default:
+                  return _CaptainsTab(uid: uid, drivers: drivers);
+              }
+            },
           );
         },
       ),
@@ -222,11 +228,14 @@ class _AddCaptainCardState extends State<_AddCaptainCard> {
             FilledButton.icon(
               onPressed: _creating ? null : _createCode,
               icon: _creating
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 14,
                       height: 14,
+                      // 🟡: لون المؤشّر من الثيم لا ثابتاً — الكحلي على
+                      // بنفسجي الإدارة كان ~٢:١ فيبدو الزر فارغاً.
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: AppColors.dark))
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.onPrimary))
                   : const Icon(Icons.qr_code_2_rounded, size: 18),
               label: Text(tr('كود دعوة', 'Invite code')),
             ),
@@ -283,11 +292,12 @@ class _AddCaptainCardState extends State<_AddCaptainCard> {
                               style: const TextStyle(
                                   fontSize: 11.5, color: AppColors.textGray)),
                         ),
-                        if (!c.isUsed) ...[
+                        // 🟡 (فحص دفعة ٨): النسخ والمشاركة على الصالح وحده
+                        // — كودٌ منتهٍ يُشارَك كان وعداً كاذباً للمدعو.
+                        if (!c.isUsed && !c.isExpired) ...[
                           IconButton(
-                            visualDensity: VisualDensity.compact,
                             tooltip: tr('نسخ', 'Copy'),
-                            icon: const Icon(Icons.copy_rounded, size: 16),
+                            icon: const Icon(Icons.copy_rounded, size: 18),
                             onPressed: () async {
                               await Clipboard.setData(
                                   ClipboardData(text: c.code));
@@ -298,20 +308,38 @@ class _AddCaptainCardState extends State<_AddCaptainCard> {
                             },
                           ),
                           IconButton(
-                            visualDensity: VisualDensity.compact,
                             tooltip: tr('مشاركة', 'Share'),
-                            icon: const Icon(Icons.share_rounded, size: 16),
+                            icon: const Icon(Icons.share_rounded, size: 18),
                             onPressed: () => Share.share(_inviteText(c.code)),
                           ),
+                        ],
+                        if (!c.isUsed)
                           IconButton(
-                            visualDensity: VisualDensity.compact,
                             tooltip: tr('حذف', 'Delete'),
                             icon: const Icon(Icons.delete_outline,
-                                size: 16, color: AppColors.error),
-                            onPressed: () =>
-                                service.operatorDeleteCode(c.code),
+                                size: 18, color: AppColors.error),
+                            // 🟡: تأكيدٌ قبل محو دعوةٍ ربما أُرسلت فعلاً —
+                            // كان الحذف بلمسةٍ بلا سؤال ولا رسالة خطأ.
+                            onPressed: () async {
+                              final ok = await showConfirmDialog(ctx,
+                                  title: tr('حذف الكود ${c.code}؟',
+                                      'Delete code ${c.code}?'),
+                                  content: tr(
+                                      'من أرسلتَ له هذا الكود لن يستطيع استعماله.',
+                                      'Anyone you sent this code to won\'t be able to use it.'),
+                                  confirmLabel: tr('احذف', 'Delete'),
+                                  confirmColor: AppColors.error);
+                              if (ok != true) return;
+                              try {
+                                await service.operatorDeleteCode(c.code);
+                              } catch (_) {
+                                if (ctx.mounted) {
+                                  showError(ctx,
+                                      tr('تعذّر الحذف', 'Couldn\'t delete'));
+                                }
+                              }
+                            },
                           ),
-                        ],
                       ])),
                 ],
               );
@@ -364,9 +392,11 @@ class _CaptainCard extends StatelessWidget {
     final service = context.read<FirebaseService>();
     final ok = await showConfirmDialog(context,
         title: tr('فصل ${d.name} عن أسطولك؟', 'Remove ${d.name} from your fleet?'),
+        // 🟡 (فحص دفعة ٨): كان النص يعد بعودةٍ «بكود دعوة جديد» ولا مسار
+        // لها — الكاتب الوحيد لتبعيةٍ على كابتنٍ قائم هو المدير.
         content: tr(
             'يخرج من أسطولك ويصير كابتناً مستقلاً — حسابه ودفاتره تبقى، '
-                'ولا يعود إليك إلا بكود دعوة جديد أو بإسناد المدير.',
+                'ولا يعود إليك إلا بإسناد المدير.',
             'They leave your fleet and become independent — their account and '
                 'ledger remain, and they only return via a new invite code or admin assignment.'),
         confirmLabel: tr('فصل', 'Remove'),
@@ -644,10 +674,12 @@ Future<void> showOperatorSettleDialog(
                   showSuccess(
                       context, tr('سُجّلت التسوية', 'Settlement recorded'));
                 }
-              } catch (_) {
+              } catch (e) {
+                // رسالة القاعدة/الخدمة نفسها — «نحو الصفر فقط» توجيهٌ
+                // يحتاجه المشغّل ليعرف لماذا رُفض المبلغ، لا رفضٌ أبكم.
                 if (context.mounted) {
                   showError(context,
-                      tr('تعذّرت التسوية — حاول مجدداً', 'Settlement failed — try again'));
+                      e.toString().replaceFirst('Exception: ', ''));
                 }
               }
             },
@@ -657,6 +689,10 @@ Future<void> showOperatorSettleDialog(
       ),
     ),
   );
+  // 🟡 (فحص دفعة ٨): تخلّصٌ من متحكّمَي الحوار — شاشةٌ تبقى مفتوحة
+  // نهاراً كاملاً يتراكم تسريبها.
+  amountCtrl.dispose();
+  noteCtrl.dispose();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -675,12 +711,29 @@ class _FleetMapTab extends StatelessWidget {
     final active = orders.where((o) => o.status.isActive).toList();
 
     if (located.isEmpty) {
-      return AppEmpty(
-          emoji: '🗺️',
-          title: tr('لا مواقع بعد', 'No locations yet'),
-          subtitle: tr(
-              'تظهر مواقع كباتنك هنا حين يتصلون ويشاركون مواقعهم.',
-              'Your captains appear here once they go online and share their location.'));
+      // 🟡 (فحص دفعة ٨): كان الخروج المبكر يُخفي شريط الطلبات الجارية
+      // كلياً — أسطولٌ لا يشارك كباتنه مواقعهم كان يفقد المتابعة كاملة
+      // والبيانات في يده. الحالة الفارغة للخريطة، والشريط يبقى.
+      return Column(children: [
+        Expanded(
+          child: AppEmpty(
+              emoji: '🗺️',
+              title: tr('لا مواقع بعد', 'No locations yet'),
+              subtitle: tr(
+                  'تظهر مواقع كباتنك هنا حين يتصلون ويشاركون مواقعهم.',
+                  'Your captains appear here once they go online and share their location.')),
+        ),
+        if (active.isNotEmpty)
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(8),
+              itemCount: active.length,
+              itemBuilder: (_, i) => _ActiveOrderCard(order: active[i]),
+            ),
+          ),
+      ]);
     }
 
     final center = LatLng(
@@ -853,6 +906,18 @@ class _ActiveOrderCard extends StatelessWidget {
 // تبويب «المال»: المستحقّ المتراكم + دفتر المشغّل + أرصدة كباتنه.
 // ═══════════════════════════════════════════════════════════════════════
 
+/// تسمية قيد دفتر المشغّل للعرض — الأنواع أربعة (سُدّ الثغرة).
+String _entryLabel(String type, String note) {
+  final base = switch (type) {
+    'driverSettlement' => tr('تسوية مع كابتن', 'Captain settlement'),
+    'adminSettlement' => tr('تسوية مع الإدارة', 'Admin settlement'),
+    'monthlyFee' => tr('رسم شهري', 'Monthly fee'),
+    'sharesPayout' => tr('صرف حصص', 'Shares payout'),
+    _ => type,
+  };
+  return note.trim().isEmpty ? base : '$base — $note';
+}
+
 class _MoneyTab extends StatelessWidget {
   final String uid;
   final FleetOperator? fleetOp;
@@ -870,50 +935,125 @@ class _MoneyTab extends StatelessWidget {
         orders.where((o) => o.status == OrderStatus.delivered).toList();
     final earned =
         delivered.fold<double>(0, (sum, o) => sum + o.operatorShare);
-    final ledger = fleetOp?.balance ?? 0;
     final share = fleetOp?.driverSharePerDelivery ?? 0;
+    final service = context.read<FirebaseService>();
 
     return ListView(padding: const EdgeInsets.all(12), children: [
-      Card(
-        margin: EdgeInsets.zero,
-        color: AppColors.primary.withOpacity(0.06),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(tr('إجمالي مستحقّاتك المتراكمة', 'Your total accumulated earnings'),
-                style: const TextStyle(
-                    fontSize: 12.5, color: AppColors.textGray)),
-            const SizedBox(height: 2),
-            Text(formatCurrency(earned),
-                style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.dark)),
-            if (ledger != 0)
-              Text(
-                  ledger > 0
-                      ? tr('رصيد دفترك: ${formatCurrency(ledger)}',
-                          'Ledger balance: ${formatCurrency(ledger)}')
-                      : tr('صُرف لك: ${formatCurrency(-ledger)}',
-                          'Paid out to you: ${formatCurrency(-ledger)}'),
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textGray)),
-            const Divider(height: 20),
-            Row(children: [
-              _stat(tr('كباتنك', 'Your captains'), '${drivers.length}'),
-              const SizedBox(width: 20),
-              _stat(
-                  tr('حصّة الكابتن/توصيلة', 'Captain share per delivery'),
-                  share > 0
-                      ? formatCurrency(share)
-                      : tr('يحدّدها المدير', 'Set by the admin')),
-              const SizedBox(width: 20),
-              _stat(tr('طلبات مسلَّمة', 'Delivered orders'),
-                  '${delivered.length}'),
-            ]),
-          ]),
-        ),
+      // «سُدّ الثغرة» (2026-08-22): حساب المشغّل صار **دفتراً** يُعرض
+      // للطرفين لا رقماً مخزَّناً — بطاقتان منفصلتان لأنهما مالان مختلفان:
+      //   ١) حصصك من التوصيلات: تُحسب من الطلبات المسلَّمة ويُخصم منها ما
+      //      صرفه المدير (قيود sharesPayout).
+      //   ٢) حساب النقد: صافي قيود الدفتر — نقدٌ حصّلته من كباتنك (عليك)
+      //      أو دفعته من جيبك (لك) أو رسوم/تسويات المدير.
+      StreamBuilder<List<Map<String, dynamic>>>(
+        stream: service.streamOperatorLedger(uid),
+        builder: (ctx, ledgerSnap) {
+          final entries = ledgerSnap.data ?? const [];
+          double cashNet = 0, sharesPaid = 0;
+          for (final e in entries) {
+            final a = (e['amount'] as num?)?.toDouble() ?? 0;
+            if (e['type'] == 'sharesPayout') {
+              sharesPaid += a;
+            } else {
+              cashNet += a;
+            }
+          }
+          final remaining = earned - sharesPaid;
+          return Card(
+            margin: EdgeInsets.zero,
+            color: AppColors.primary.withOpacity(0.06),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        tr('حصصك من التوصيلات (آخر ${delivered.length} طلب مسلَّم)',
+                            'Your delivery shares (latest ${delivered.length} delivered)'),
+                        style: const TextStyle(
+                            fontSize: 12.5, color: AppColors.textGray)),
+                    const SizedBox(height: 2),
+                    Text(formatCurrency(earned),
+                        style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.dark)),
+                    if (sharesPaid > 0)
+                      Text(
+                          tr('صُرف لك منها ${formatCurrency(sharesPaid)} — المتبقي ${formatCurrency(remaining)}',
+                              'Paid out: ${formatCurrency(sharesPaid)} — remaining ${formatCurrency(remaining)}'),
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textGray)),
+                    const Divider(height: 20),
+                    Text(
+                        cashNet == 0
+                            ? tr('حساب النقد مع المنصّة: مُسوّى ✓',
+                                'Cash account with the platform: settled ✓')
+                            : cashNet < 0
+                                ? tr('عليك للمنصّة ${formatCurrency(-cashNet)} — نقدٌ حصّلته من كباتنك ورسوم',
+                                    'You owe the platform ${formatCurrency(-cashNet)} — cash collected from your captains and fees')
+                                : tr('لك على المنصّة ${formatCurrency(cashNet)} — دفعته من جيبك لكباتنك',
+                                    'The platform owes you ${formatCurrency(cashNet)} — paid to your captains from your pocket'),
+                        style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: cashNet == 0
+                                ? AppColors.success
+                                : (cashNet < 0
+                                    ? AppColors.error
+                                    : AppColors.success))),
+                    const Divider(height: 20),
+                    Row(children: [
+                      _stat(tr('كباتنك', 'Your captains'), '${drivers.length}'),
+                      const SizedBox(width: 20),
+                      _stat(
+                          tr('حصّة الكابتن/توصيلة',
+                              'Captain share per delivery'),
+                          share > 0
+                              ? formatCurrency(share)
+                              : tr('يحدّدها المدير', 'Set by the admin')),
+                      const SizedBox(width: 20),
+                      _stat(tr('طلبات مسلَّمة', 'Delivered orders'),
+                          '${delivered.length}'),
+                    ]),
+                    if (entries.isNotEmpty) ...[
+                      const Divider(height: 20),
+                      Text(tr('آخر قيود دفترك', 'Latest ledger entries'),
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      for (final e in entries.take(5))
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(children: [
+                            Expanded(
+                              child: Text(
+                                  _entryLabel(e['type'] as String? ?? '',
+                                      e['note'] as String? ?? ''),
+                                  style: const TextStyle(fontSize: 11.5),
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                            Text(
+                                formatCurrency(
+                                    ((e['amount'] as num?)?.toDouble() ?? 0)
+                                        .abs()),
+                                style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: ((e['amount'] as num?)
+                                                    ?.toDouble() ??
+                                                0) <
+                                            0
+                                        ? AppColors.error
+                                        : AppColors.success)),
+                          ]),
+                        ),
+                    ],
+                  ]),
+            ),
+          );
+        },
       ),
       const SizedBox(height: 14),
       Padding(
