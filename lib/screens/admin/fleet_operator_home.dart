@@ -995,7 +995,7 @@ class _MoneyTab extends StatelessWidget {
                                 : tr('لك على المنصّة ${formatCurrency(cashNet)} — دفعته من جيبك لكباتنك',
                                     'The platform owes you ${formatCurrency(cashNet)} — paid to your captains from your pocket'),
                         style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 13.5,
                             fontWeight: FontWeight.w700,
                             color: cashNet == 0
                                 ? AppColors.success
