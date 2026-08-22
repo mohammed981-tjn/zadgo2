@@ -15,6 +15,7 @@ import '../../providers/local_alerts.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/complaint_window.dart';
 import '../auth/login_screen.dart';
@@ -378,6 +379,8 @@ class _DriverHomeState extends State<DriverHome> {
           appBar: AppBar(
             title: Text('مرحباً ${auth.user?.name ?? ""}'),
             actions: [
+              // تبديل اللغة (دفعة «اللغة الثانية»).
+              const LanguageToggleButton(),
               if (driver != null)
                 Row(children: [
                   // تباين حالة الاتصال (دفعة ٤): كان «غير متصل» بـwhite54 غيرَ

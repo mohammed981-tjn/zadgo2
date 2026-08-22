@@ -8,6 +8,7 @@ import '../../utils/theme.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/common_widgets.dart';
 import '../../app_flavor.dart';
+import '../../utils/app_lang.dart';
 import 'applicant_register_screen.dart';
 import 'application_gate_screen.dart';
 
@@ -127,7 +128,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 8),
+                    // تبديل اللغة قبل الدخول: أول شاشة يراها الجميع — من لا
+                    // يقرأ العربية يجب أن يجد مخرجه هنا لا بعد تسجيلٍ لن
+                    // يستطيع إتمامه.
+                    const Align(
+                      alignment: AlignmentDirectional.topEnd,
+                      child: LanguageToggleButton(),
+                    ),
                     // الشعار المتوهّج — نفس القرص المستخدم في الجولة
                     // التعريفية بحلقاته ولمعته، بحجم أصغر: لغة بصرية واحدة
                     // بين أول شاشتين يراهما المستخدم.

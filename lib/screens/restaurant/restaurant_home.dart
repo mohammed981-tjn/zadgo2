@@ -23,6 +23,7 @@ import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/complaint_window.dart';
 import '../auth/login_screen.dart';
@@ -261,6 +262,8 @@ class _RestaurantHomeState extends State<RestaurantHome> {
           _ => 'التقييمات',
         }),
         actions: [
+          // تبديل اللغة (دفعة «اللغة الثانية»).
+          const LanguageToggleButton(),
           // الإيقاف المؤقت (يوم المطعم): مطبخ غارق يوقف الاستقبال بمدد
           // جاهزة ويستأنف وحده — بدل الإغلاق الكامل الذي يُخفيه عن
           // العملاء أو الغرقِ بطلبات لن تخرج في وقتها.

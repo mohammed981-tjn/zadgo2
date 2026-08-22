@@ -23,6 +23,7 @@ import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
 import 'help_center_screen.dart';
 import 'customer_referral_screen.dart';
+import '../../utils/app_lang.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -123,6 +124,9 @@ class AccountScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            // تبديل اللغة (دفعة «اللغة الثانية»): عربية ↔ إنجليزية.
+            const Card(margin: EdgeInsets.zero, child: LanguageToggleTile()),
             const SizedBox(height: 8),
             // مركز المساعدة (دفعة ٥): مدخلٌ للأسئلة الشائعة قبل التذكرة —
             // يجيب أكثر الأسئلة فوراً ويقلّل ضغط الدعم.

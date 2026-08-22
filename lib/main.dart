@@ -21,6 +21,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/register_with_code_screen.dart';
 import 'utils/theme.dart';
+import 'utils/app_lang.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -79,6 +80,9 @@ void main() async {
   AppFlavorConfig.buildRegisterScreen = ({fromCheckout = false}) => RegisterScreen(fromCheckout: fromCheckout);
   AppFlavorConfig.buildRegisterWithCodeScreen = () => const RegisterWithCodeScreen();
 
+  // اللغة المحفوظة تُقرأ قبل runApp حتى يُرسم أول إطار بها مباشرةً.
+  await AppLang.init();
+
   runApp(const ZadGoApp());
 }
 
@@ -97,29 +101,32 @@ class ZadGoApp extends StatelessWidget {
         ChangeNotifierProvider<CartProvider>(
           create: (_) => CartProvider(),
         ),
+        // مزوّد اللغة: التبديل يعيد بناء MaterialApp كله (لغةً واتجاهاً).
+        ChangeNotifierProvider<AppLang>(create: (_) => AppLang()),
       ],
-      child: MaterialApp(
+      child: Consumer<AppLang>(
+        builder: (context, lang, _) => MaterialApp(
         navigatorKey: navigatorKey,
         scaffoldMessengerKey: messengerKey,
         // رسائل الشاشة السابقة تُمسح عند الدخول لشاشة جديدة.
         navigatorObservers: [ClearMessagesOnPush()],
         title: 'ZadGo',
         debugShowCheckedModeBanner: false,
-        // تعريب حوارات النظام (منتقيا التاريخ والوقت): كانت تظهر إنجليزية
-        // («Select date» وأسبوع يبدأ الأحد الأمريكي) داخل تطبيق عربي
-        // بالكامل — بلاغ المالك بالصور 2026-08-15. القفل على العربية
-        // يجعلها عربية RTL بأيام وشهور عربية.
-        locale: const Locale('ar'),
-        supportedLocales: const [Locale('ar')],
+        // اللغة من مزوّدها (دفعة «اللغة الثانية»): العربية RTL أصلاً،
+        // والإنجليزية LTR ثانيةً — حوارات النظام (منتقيا التاريخ والوقت)
+        // تتبعها تلقائياً عبر supportedLocales.
+        locale: lang.locale,
+        supportedLocales: const [Locale('ar'), Locale('en')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: AppTheme.light,
         builder: (context, child) => Directionality(
-          textDirection: TextDirection.rtl,
+          textDirection: lang.direction,
           // بوابة الإصدار أولاً ثم شريط انقطاع الاتصال — نسخة محجوبة لا
           // معنى لعرض حالة شبكتها.
           child: MinVersionGate(child: ConnectivityBanner(child: child!)),
         ),
         home: const SplashScreen(),
+        ),
       ),
     );
   }

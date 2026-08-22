@@ -30,6 +30,7 @@ import '../auth/change_password_screen.dart';
 import 'admin_registration_codes_screen.dart';
 import 'admin_restaurant_requests_screen.dart';
 import 'admin_diagnostics_screen.dart';
+import '../../utils/app_lang.dart';
 
 /// شاشة المدير الرئيسية — أُعيدت هيكلتها لتحترم قاعدة "3-5 عناصر كحد أقصى"
 /// للتنقل السفلي على الجوال (كما توصي بها Material Design 3 وiOS HIG).
@@ -324,6 +325,8 @@ class _AdminHomeState extends State<AdminHome> {
 
             // — النظام —
             const _DrawerSection('النظام'),
+            // تبديل اللغة (دفعة «اللغة الثانية»): عربية ↔ إنجليزية.
+            const LanguageToggleTile(),
             ListTile(
               leading: const Icon(Icons.lock_outline),
               title: const Text('تغيير كلمة المرور'),
