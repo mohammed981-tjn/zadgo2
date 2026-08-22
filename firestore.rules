@@ -260,8 +260,15 @@ service cloud.firestore {
       let code = data.get('registrationCode', '');
       let path = /databases/$(database)/documents/registrationCodes/$(code);
       let c = exists(path) ? get(path).data : {};
+      let cAfter = existsAfter(path) ? getAfter(path).data : {};
       return code != '' &&
           c.get('usedByUid', '') == userId &&
+          // 🔴٢ (فحص دفعة ٨): كانت تقرأ الختم ولا تقرأ الاستهلاك — فكودٌ
+          // «مختوم مسبقاً» عند إنشائه يمنح الدور بلا أن يُستهلك قط. الآن
+          // الاستهلاك شرطٌ (قبل الدفعة أو فيها — getAfter يغطي الاستهلاك
+          // الذرّي في نفس الدفعة).
+          (c.get('isUsed', false) == true ||
+              cAfter.get('isUsed', false) == true) &&
           c.get('role', '') == data.role &&
           // كود مطعم لا يفتح مطعماً آخر.
           (data.role != 'restaurantManager' ||
@@ -338,17 +345,47 @@ service cloud.firestore {
     /// بحركة دفترٍ من نوع operatorSettlement تُنشأ في **الدفعة نفسها** باسمه
     /// وبالمبلغ المطابق — نفس عقيدة ledgerBackedBalance: لا رقم يتحرك بلا
     /// حركةٍ تفسّره، فلا يصفّر مشغّلٌ دَين كابتنه ولا ينفخ مستحقّه بلا أثر.
+    /// تسوية المشغّل مع كابتنه — أُعيد تحصينها بعد فحص دفعة ٨ (🔴١:
+    /// خمسة فاحصين أثبتوا سكّ رصيدٍ من العدم على المحاكي) وبأمر المالك
+    /// «سُدّ الثغرة» (2026-08-22). أربعة قيود سقطت من النسخة الأولى:
+    ///   ١) الجِدّة: كانت existsAfter تصدق على حركةٍ قديمة — بل مرّ رفع
+    ///      الرصيد **بلا أي حركة** حين بقي lastLedgerTxId على قيمته.
+    ///      الآن: المعرّف يتغيّر، والحركة تولد في هذه الدفعة حصراً.
+    ///   ٢) نوع المبلغ: حركة بلا حقل amount كانت تجعل الشرطين صادقين
+    ///      لأي فرقٍ (بديلا ±999999). الآن: رقمٌ إلزاماً.
+    ///   ٣) الاتجاه: التسوية الواقعية «الكابتن سلّمني نقداً» أو «دفعتُ
+    ///      مستحقّه» — كلاهما يحرّك الرصيد **نحو الصفر ولا يتجاوزه**.
+    ///      مليون ريالٍ من العدم صارت مستحيلة بنيوياً.
+    ///   ٤) **الدفتر المزدوج — «الريال لا يختفي، ينتقل»**: كل تسويةٍ
+    ///      تُقيّد مرآتها على دفتر المشغّل نفسه (operator_transactions)
+    ///      بنفس المعرّف وبمبلغٍ معاكس — فالنقد الذي حصّله من كابتنه
+    ///      يظهر دَيناً عليه للمنصّة حتى يسويه المدير، لا يتبخّر.
     function operatorSettlementBacked(driverId) {
       let L = request.resource.data.get('lastLedgerTxId', '');
       let txPath = /databases/$(database)/documents/driver_transactions/$(L);
+      let opTxPath = /databases/$(database)/documents/operator_transactions/$(L);
       let tx = existsAfter(txPath) ? getAfter(txPath).data : {};
-      let d = request.resource.data.get('balance', 0) - resource.data.get('balance', 0);
-      return L != '' && existsAfter(txPath) &&
+      let otx = existsAfter(opTxPath) ? getAfter(opTxPath).data : {};
+      let oldB = resource.data.get('balance', 0);
+      let newB = request.resource.data.get('balance', 0);
+      let d = newB - oldB;
+      return L != '' &&
+          L != resource.data.get('lastLedgerTxId', '') &&
+          !exists(txPath) && existsAfter(txPath) &&
           tx.get('driverId', '') == driverId &&
           tx.get('type', '') == 'operatorSettlement' &&
           tx.get('createdBy', '') == currentUid() &&
-          d - tx.get('amount', 999999) <= 0.001 &&
-          tx.get('amount', -999999) - d <= 0.001;
+          tx.get('amount', 0) is number &&
+          d - tx.get('amount', 0) <= 0.001 &&
+          tx.get('amount', 0) - d <= 0.001 &&
+          ((oldB <= 0 && newB >= oldB - 0.001 && newB <= 0.001) ||
+              (oldB >= 0 && newB <= oldB + 0.001 && newB >= -0.001)) &&
+          !exists(opTxPath) && existsAfter(opTxPath) &&
+          otx.get('operatorId', '') == currentUid() &&
+          otx.get('driverId', '') == driverId &&
+          otx.get('amount', 0) is number &&
+          otx.get('amount', 0) + tx.get('amount', 0) <= 0.001 &&
+          -0.001 <= otx.get('amount', 0) + tx.get('amount', 0);
     }
 
     // ---------------------------------------------------------------------
@@ -705,6 +742,12 @@ service cloud.firestore {
                 changedKeys().hasOnly(['driverId', 'driverName',
                     'driverPhone', 'driverAcknowledged', 'operatorId',
                     'updatedAt']) &&
+                // 🔴٤ (فحص دفعة ٨): «الحظر» كان ترشيحاً في التطبيق وحده —
+                // المحظور بنسخةٍ معدَّلة يلتقط الطلبات الحرة وكأن شيئاً لم
+                // يكن. الآن القاعدة نفسها ترفض إسناداً لكابتنٍ محظور —
+                // ذاتياً كان أو تمريراً من جهاز زميلٍ رافض.
+                get(/databases/$(database)/documents/drivers/$(request.resource.data.driverId))
+                    .data.get('isActive', true) != false &&
                 // دفعة ٨: قبول الطلب يختم تبعيّة قابله (محروسة بالمطابقة)
                 // — والحارس يشتعل مع تغيّر driverId نفسه: بدونه بقيت نسبةُ
                 // المشغّل القديمة على كابتنٍ جديد بلا فحص.
@@ -730,6 +773,12 @@ service cloud.firestore {
                 // المُسنَد — محروسةً بمطابقة مستنده، فلا اختلاق نسبةِ مشغّل.
                 (!changedKeys().hasAny(['operatorId', 'driverId']) ||
                     operatorIdMatchesAssignedDriver()) &&
+                // انحدار ١ (فحص دفعة ٨): لا مساس بحقول الإسناد والتبعية
+                // على طلبٍ منتهٍ — التجريد والإسناد كلاهما قبل الختام.
+                (!changedKeys().hasAny(['driverId', 'driverName',
+                        'driverPhone', 'operatorId']) ||
+                    !(resource.data.status in
+                        ['delivered', 'cancelled', 'refunded'])) &&
                 changedKeys().hasOnly(['status', 'updatedAt',
                     'statusChangedAt', 'rejectionReason',
                     'walletRefundPending', 'cardRefundPending',
@@ -808,6 +857,17 @@ service cloud.firestore {
       // مختلَقين بدل المرور بمسار التطبيق — مسارٌ بديل للسرقة يعمل حتى لو
       // أُحكمت قاعدة التحديث. الرصيد ينمو لاحقاً بحركات دفتر لكلٍّ سببها.
       allow create: if isSignedIn() && currentUid() == driverId &&
+          // 🔴٣ (فحص دفعة ٨): كان **أي مصادَق** — عميلاً أو مجهولَ صفحة
+          // الانضمام — ينشئ «كابتناً شبحاً» بإحداثيات مطعمٍ فيبتلع كل
+          // إسنادٍ تلقائي (تقييمه الافتراضي ٥٫٠ فيفوز حتى بالفرز) وتعلق
+          // الطلبات بحسابٍ لا أحد خلفه. الآن: دورُ سائقٍ ممنوحٌ من
+          // الإدارة شرطُ الميلاد، ويولد المستند غير متصلٍ بلا موقعٍ
+          // ولا حمولة — البثّ الحيّ من جهازه بعد ذلك.
+          isDriver() &&
+          request.resource.data.get('isOnline', false) == false &&
+          request.resource.data.get('activeOrders', 0) == 0 &&
+          request.resource.data.get('lat', null) == null &&
+          request.resource.data.get('lng', null) == null &&
           request.resource.data.get('balance', 0) == 0 &&
           request.resource.data.get('totalEarnings', 0) == 0 &&
           request.resource.data.get('warningCount', 0) == 0 &&
@@ -818,6 +878,9 @@ service cloud.firestore {
           (request.resource.data.get('operatorId', '') == '' ||
               (request.resource.data.get('registrationCode', '') != '' &&
                   get(/databases/$(database)/documents/registrationCodes/$(request.resource.data.registrationCode)).data.get('usedByUid', '') == driverId &&
+                  // 🔴٢: الاستهلاك شرطٌ هنا أيضاً — ختمٌ بلا استهلاكٍ
+                  // إداري لا يُلحق كابتناً بأسطول (الحارس على البابين).
+                  get(/databases/$(database)/documents/registrationCodes/$(request.resource.data.registrationCode)).data.get('isUsed', false) == true &&
                   get(/databases/$(database)/documents/registrationCodes/$(request.resource.data.registrationCode)).data.get('operatorId', '') == request.resource.data.operatorId)) &&
           request.resource.data.get('operatorDriverShare', 0) == 0;
       // كتابة السائق على مستنده مقيّدة: كانت بلا قيد على الحقول، فيمكنه
@@ -840,6 +903,9 @@ service cloud.firestore {
                      // م٢٢ (فحص مساعد الويب): تاريخ الانضمام أساسُ نافذة
                      // شرط الإحالة — محوُه كان يفتحها للأبد. المدير يصحّحه.
                      'createdAt',
+                     // فحص دفعة ٨: كود التسجيل جذرُ تبعية المشغّل — تحريره
+                     // بيد الكابتن كان يفكّ التبعية أو يدّعيها.
+                     'registrationCode',
                      // م٢٠: علم الحظر بيد المدير ومشغّل الأسطول لا الكابتن.
                      'isActive']) &&
                 // م٢٠ (فحص مساعد الويب): عدّادا معدل القبول يتحركان +1
@@ -1003,6 +1069,32 @@ service cloud.firestore {
             currentUid() == operatorId);
       allow list: if isAdmin() || isSupport();
       allow create, update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // operator_transactions — دفتر المشغّل (الدفتر المزدوج، «سُدّ الثغرة»
+    // 2026-08-22): لكل تسويةٍ بين المشغّل وكابتنه قيدٌ مرآتي هنا بنفس
+    // معرّف حركة الكابتن — سالبٌ = نقد المنصّة بيده (حصّله من كابتن)،
+    // موجبٌ = له على المنصّة (دفع مستحق كابتنٍ من جيبه). رصيد المشغّل
+    // مجموعُ دفتره لا حقلٌ يُكتب، والمدير يصفّيه بقيد adminSettlement.
+    //   • القراءة: المدير والدعم، والمشغّل دفتره هو.
+    //   • إنشاء المشغّل: قيد driverSettlement حصراً، مربوطٌ بتحرّك مستند
+    //     كابتنه في نفس الدفعة بنفس المعرّف (التفصيل القيمي كلّه في
+    //     operatorSettlementBacked — هنا نضمن الربط لا نكرّر الحساب).
+    //   • لا تعديل ولا حذف لأحد — دفترٌ محاسبي لا يُنقَّح، كدفتر الكابتن.
+    // ---------------------------------------------------------------------
+    match /operator_transactions/{txId} {
+      allow get, list: if isAdmin() || isSupport() ||
+          (isFleetOperator() &&
+              resource.data.get('operatorId', '') == currentUid());
+      allow create: if isAdmin() ||
+          (isFleetOperator() &&
+              request.resource.data.get('operatorId', '') == currentUid() &&
+              request.resource.data.get('type', '') == 'driverSettlement' &&
+              request.resource.data.get('amount', 0) is number &&
+              getAfter(/databases/$(database)/documents/drivers/$(request.resource.data.get('driverId', '')))
+                  .data.get('lastLedgerTxId', '') == txId);
+      allow update, delete: if false;
     }
 
     // ---------------------------------------------------------------------
@@ -1659,7 +1751,12 @@ service cloud.firestore {
                  'driverId', 'driverName', 'driverPhone', 'operatorId',
                  'deliveryFailed', 'undeliveredAt', 'undeliveredReason',
                  'arrivedAtRestaurantAt']) &&
-             (!ck.hasAny(['driverId']) ||
+             // انحدار ١ (فحص دفعة ٨): امتدّ الحارس من driverId وحده إلى
+             // حقول التبعية كلها — كان الكابتن يمحو operatorId عن طلبٍ
+             // مُسلَّم فيُسقطه من قائمة مشغّله. المسار المشروع للتجريد
+             // (رفض العرض/تمريره) كلّه قبل الاستلام.
+             (!ck.hasAny(['driverId', 'driverName', 'driverPhone',
+                     'operatorId']) ||
                  !(cur.status in ['delivered', 'cancelled', 'refunded'])) &&
              (!ck.hasAny(['status']) ||
                  (rd.status == 'onTheWay' &&
@@ -1679,6 +1776,14 @@ service cloud.firestore {
                          expectedOperatorShare(cur.get('driverShare', 0)) - 0.01 &&
                      rd.get('operatorShare', 0) <=
                          expectedOperatorShare(cur.get('driverShare', 0)) + 0.01)) &&
+             // 🟠١/م١٣ (فحص دفعة ٨): الختم كان **اختيارياً** — كابتن أسطولٍ
+             // بنسخة معدَّلة يسلّم بلا كتابة الحصّة فيقبض أجرة التوصيل
+             // كاملةً ويسرق حصّة مشغّله كل توصيلة. الآن انتقال التسليم
+             // لكابتنٍ له مشغّل **يُلزمه** بكتابة الحصّة (وقيمتُها يحرسها
+             // الشرط أعلاه).
+             (!(ck.hasAny(['status']) && rd.status == 'delivered') ||
+                 myOperatorId() == '' ||
+                 ck.hasAny(['operatorShare'])) &&
              (!ck.hasAny(['operatorId', 'driverId']) ||
                  operatorIdMatchesAssignedDriver()) &&
              // ت٢ (الفحص الشامل): علم «تعذّر التسليم» يقود لعدّاد حظر
@@ -1701,14 +1806,20 @@ service cloud.firestore {
       let o = getAfter(/databases/$(database)/documents/orders/$(d.orderId)).data;
       let custody = o.get('itemsTotal', 0) + o.get('appShare', 0) -
           o.get('walletUsed', 0) - o.get('discountAmount', 0);
+      // 🟠١ (فحص دفعة ٨): السقف صار **صافياً من حصّة المشغّل** — كان
+      // سقف الإيداع أجرةَ التوصيل كاملة، فكابتن أسطولٍ يودع لنفسه حصّةَ
+      // مشغّله فوق حصّته. التطبيق يخصمها أصلاً (effectiveDelta)، والقاعدة
+      // الآن تطابق التطبيق حرفاً.
       return (d.type == 'orderCustody' &&
                  d.amount <= 0 && d.amount >= -custody) ||
              (d.type == 'deliveryCash' &&
                  d.amount <= 0 &&
-                 d.amount >= -(custody + o.get('driverShare', 0))) ||
+                 d.amount >= -(custody + o.get('driverShare', 0) +
+                     o.get('operatorShare', 0))) ||
              (d.type == 'deliveryOnline' &&
                  d.amount >= 0 &&
-                 d.amount <= o.get('driverShare', 0) + o.get('driverTip', 0));
+                 d.amount <= o.get('driverShare', 0) + o.get('driverTip', 0) -
+                     o.get('operatorShare', 0));
     }
 
     /// م٤ (فحص مساعد الويب): زيادة عدّاد الكوبون كانت متاحة لأي مسجَّل
@@ -1863,7 +1974,13 @@ service cloud.firestore {
           (isFleetOperator() &&
               request.resource.data.get('role', '') == 'driver' &&
               request.resource.data.get('operatorId', '') == currentUid() &&
-              request.resource.data.get('isUsed', true) == false);
+              request.resource.data.get('isUsed', true) == false &&
+              // 🔴٢ (فحص دفعة ٨): كان المشغّل يكتب حقول **الختم** بيده
+              // لحظة الإنشاء (usedByUid باسم حسابٍ من صنعه) فيولد الكود
+              // «مستهلَكاً» ويمنح الدور بلا مرور المدير — بوابة «الأسطول
+              // يضيف والإدارة توافق» كلها كانت تُلتفّ. الختم للمدير وحده.
+              !request.resource.data.keys().hasAny(
+                  ['usedByUid', 'usedByName', 'usedAt']));
       allow delete: if isAdmin() ||
           (isFleetOperator() &&
               resource.data.get('operatorId', '') == currentUid() &&

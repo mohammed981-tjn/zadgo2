@@ -947,6 +947,36 @@ class _DriversTab extends StatelessWidget {
         return Card(child: ListTile(
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => AdminDriverLedgerScreen(driver: d))),
+          // 🟡 (فحص دفعة ٨): حظرٌ لم يكن المدير يملك رفعه — الكاتب الوحيد
+          // كان المشغّل، فمشغّلٌ منسحبٌ يترك كابتنه محظوراً بلا مسارٍ إلا
+          // الكونسول. ضغطة مطوّلة تقلب الحظر (القاعدة تجيزها للمدير).
+          onLongPress: () async {
+            final blocking = d.isActive;
+            final ok = await showConfirmDialog(context,
+                title: blocking
+                    ? tr('حظر ${d.name} عن العروض؟', 'Block ${d.name} from offers?')
+                    : tr('رفع الحظر عن ${d.name}؟', 'Unblock ${d.name}?'),
+                content: blocking
+                    ? tr('لن تصله عروض طلبات حتى يُعاد تفعيله — القاعدة نفسها تمنع إسناده.',
+                        'No offers will reach them until re-enabled — the rules themselves block assignment.')
+                    : tr('يعود لاستقبال العروض فوراً.', 'They start receiving offers again immediately.'),
+                confirmLabel: blocking ? tr('احظر', 'Block') : tr('فعّل', 'Enable'),
+                confirmColor: blocking ? AppColors.error : null);
+            if (ok != true || !context.mounted) return;
+            try {
+              await context
+                  .read<FirebaseService>()
+                  .operatorSetDriverActive(d.id, !blocking);
+              if (context.mounted) {
+                showSuccess(context,
+                    blocking ? tr('حُظر', 'Blocked') : tr('فُعّل', 'Enabled'));
+              }
+            } catch (_) {
+              if (context.mounted) {
+                showError(context, tr('تعذّر التغيير', 'Couldn\'t apply'));
+              }
+            }
+          },
           leading: CircleAvatar(backgroundColor: d.isOnline ? AppColors.success.withOpacity(0.2) : Colors.grey.shade200,
               child: Text(d.name.isNotEmpty ? d.name[0] : '?')),
           title: Text(d.name),
@@ -966,9 +996,15 @@ class _DriversTab extends StatelessWidget {
                       '${owes ? 'Owes ' : 'Is owed '}${formatCurrency(d.balance.abs())}'),
                   style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold,
                       color: owes ? AppColors.error : AppColors.success)),
-            StatusBadge(
-                label: d.isOnline ? tr('متصل', 'Online') : tr('غير متصل', 'Offline'),
-                color: d.isOnline ? AppColors.success : Colors.grey),
+            if (!d.isActive)
+              StatusBadge(
+                  label: tr('محظور', 'Blocked'), color: AppColors.error)
+            else
+              StatusBadge(
+                  label: d.isOnline
+                      ? tr('متصل', 'Online')
+                      : tr('غير متصل', 'Offline'),
+                  color: d.isOnline ? AppColors.success : Colors.grey),
           ]),
         ));
       });

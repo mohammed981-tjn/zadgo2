@@ -86,9 +86,16 @@ class LanguageToggleButton extends StatelessWidget {
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: () => context.read<AppLang>().toggle(),
-          child: Padding(
+          // انحدار ٣ (فحص دفعة ٨): هدف اللمس كان ~٣٣ بكسل — دون حدّ ٤٨
+          // الإرشادي، وفي كل النكهات. الحد الأدنى يضمنه القيد لا الحشو.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44, minWidth: 64),
+            child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
+            child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
               Icon(Icons.language_rounded, size: 17, color: fg),
               const SizedBox(width: 5),
               Text(
@@ -97,6 +104,7 @@ class LanguageToggleButton extends StatelessWidget {
                     fontWeight: FontWeight.w800, fontSize: 13, color: fg),
               ),
             ]),
+            ),
           ),
         ),
       ),

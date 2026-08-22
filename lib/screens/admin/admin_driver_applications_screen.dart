@@ -12,6 +12,7 @@
 // تتطلّب الترقية شيئاً هنا.
 import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
@@ -149,9 +150,37 @@ class _AppDetailScreen extends StatelessWidget {
                       .join(' — ')),
               if (app.referredByCode.isNotEmpty)
                 _field(tr('كود الداعي', 'Referrer code'), app.referredByCode),
-              if (app.operatorCode.isNotEmpty)
+              if (app.operatorCode.isNotEmpty) ...[
                 _field(tr('كود دعوة الأسطول', 'Fleet invite code'),
                     app.operatorCode),
+                // 🟡 (فحص دفعة ٨): المدير كان «يعتمد على العمياء» — يرى
+                // الكود مجرّداً بلا اسم مشغّله ولا حالته. الحالة تُجلب
+                // حيّةً: صالح/منتهٍ/مستهلَك واسم أسطوله — والاعتماد على
+                // كودٍ منتهٍ سيُرفض برسالةٍ صريحة لا صمتاً.
+                FutureBuilder<Map<String, dynamic>?>(
+                  future: context
+                      .read<FirebaseService>()
+                      .fetchRegistrationCodeInfo(app.operatorCode),
+                  builder: (ctx, snap) {
+                    final info = snap.data;
+                    if (info == null) return const SizedBox.shrink();
+                    final expiresAt =
+                        (info['expiresAt'] as Timestamp?)?.toDate();
+                    final expired = expiresAt != null &&
+                        DateTime.now().isAfter(expiresAt);
+                    final used = (info['isUsed'] as bool?) == true;
+                    final status = used
+                        ? tr('مستهلَك — ${info['usedByName'] ?? ''}',
+                            'Consumed — ${info['usedByName'] ?? ''}')
+                        : expired
+                            ? tr('⚠️ منتهي الصلاحية — اطلب كوداً جديداً',
+                                '⚠️ Expired — request a new code')
+                            : tr('صالح ✓', 'Valid ✓');
+                    return _field(
+                        tr('حالة الكود', 'Code status'), status);
+                  },
+                ),
+              ],
             ]),
           ),
         ),

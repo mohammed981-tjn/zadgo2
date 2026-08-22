@@ -24,7 +24,35 @@ on:
   workflow_dispatch:
 
 jobs:
+  # 🟠٤ (فحص دفعة ٨): أخطر ملف في المشروع كان يصل الإنتاج بلا فحص آلي
+  # واحد — «الفحوص الخضراء» ادّعاء عن لحظة محلية لا ضمان قائم. الآن
+  # **النشر تابعٌ لنجاح رزمة المحاكي كاملة**: فشلُ فحصٍ واحد يمنع النشر.
+  # المحاكي مجاني ولا يحتاج سراً ولا مشروعاً حقيقياً (demo-zadgo).
+  rules-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - name: تثبيت اعتماديات فحوص القواعد
+        working-directory: tools/rules-test
+        run: npm ci || npm install
+      - name: رزمة فحوص القواعد على المحاكي
+        working-directory: tools/rules-test
+        run: |
+          # نسخة القواعد تُنسخ من جذر المستودع دائماً — الملف المحلي في
+          # هذا المجلد غير متتبَّع وقد يكون متقادماً (تحذير README هنا).
+          cp ../../firestore.rules .
+          npx firebase-tools emulators:exec --only firestore --project demo-zadgo \
+            'set -e; for f in *.test.mjs; do echo "== $f"; node "$f"; done'
+
   deploy:
+    needs: rules-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

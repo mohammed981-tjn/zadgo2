@@ -56,6 +56,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   // كود مدير عادي (بلا تبعية) وكود مشغّل حي — لاختبار بوابة «الإدارة توافق».
   await setDoc(doc(db, 'registrationCodes/PLAIN1'),
       { role: 'driver', isUsed: false });
+  // 🔴٣: ميلاد مستند السائق صار يشترط دور «سائق» ممنوحاً من الإدارة.
+  await setDoc(doc(db, 'users/newcap'), { role: 'driver' });
   await setDoc(doc(db, 'registrationCodes/OPGATE'),
       { role: 'driver', operatorId: 'op1', isUsed: false });
 });
@@ -91,6 +93,11 @@ await t('تسوية مطابقة المبلغ تمرّ (‎-50 → 0 مع حرك
   const b = writeBatch(op1);
   b.set(doc(op1, 'driver_transactions/set1'),
       { driverId: 'capA', type: 'operatorSettlement', createdBy: 'op1', amount: 50 });
+  // «سُدّ الثغرة»: القيد المرآتي على دفتر المشغّل صار شرطاً — بنفس
+  // المعرّف وبمبلغٍ معاكس (الدفتر المزدوج).
+  b.set(doc(op1, 'operator_transactions/set1'),
+      { operatorId: 'op1', driverId: 'capA', type: 'driverSettlement',
+        amount: -50, createdBy: 'op1', createdAt: new Date() });
   b.update(doc(op1, 'drivers/capA'), { balance: 0, lastLedgerTxId: 'set1' });
   return b.commit();
 })()));

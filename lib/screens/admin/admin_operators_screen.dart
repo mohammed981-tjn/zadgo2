@@ -202,15 +202,35 @@ class _OperatorCard extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.bold)),
             ),
-            if (op.balance != 0)
-              Text(
-                  op.balance > 0
-                      ? tr('مستحق: ${op.balance.toStringAsFixed(0)}',
-                          'Owed: ${op.balance.toStringAsFixed(0)}')
-                      : tr('مدفوع: ${(-op.balance).toStringAsFixed(0)}',
-                          'Paid: ${(-op.balance).toStringAsFixed(0)}'),
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textGray)),
+            // «سُدّ الثغرة»: الرقم من مجموع دفتره (operator_transactions) لا
+            // من حقلٍ مخزَّن — نفس الرقم الذي يراه المشغّل في تطبيقه حرفاً،
+            // فلا خلاف تعاقدياً على رقمين.
+            StreamBuilder<List<Map<String, dynamic>>>(
+              stream: context
+                  .read<FirebaseService>()
+                  .streamOperatorLedger(op.id),
+              builder: (ctx, snap) {
+                double cashNet = 0;
+                for (final e in snap.data ?? const []) {
+                  if (e['type'] != 'sharesPayout') {
+                    cashNet += (e['amount'] as num?)?.toDouble() ?? 0;
+                  }
+                }
+                if (cashNet == 0) return const SizedBox.shrink();
+                return Text(
+                    cashNet < 0
+                        ? tr('عليه للمنصّة: ${(-cashNet).toStringAsFixed(0)}',
+                            'Owes platform: ${(-cashNet).toStringAsFixed(0)}')
+                        : tr('له على المنصّة: ${cashNet.toStringAsFixed(0)}',
+                            'Platform owes: ${cashNet.toStringAsFixed(0)}'),
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: cashNet < 0
+                            ? AppColors.error
+                            : AppColors.success));
+              },
+            ),
           ]),
           const SizedBox(height: 6),
           Text(
@@ -249,6 +269,14 @@ class _OperatorCard extends StatelessWidget {
                     'Charge fee (${op.monthlyFee.toStringAsFixed(0)})')),
                 onPressed: () => _chargeMonthlyFee(context, op),
               ),
+            // «سُدّ الثغرة»: تسوية حساب النقد — النقد الذي حصّله المشغّل
+            // من كباتنه (عليه) أو دفعه من جيبه (له) يُصفّى هنا بقيدٍ لا
+            // بتحرير رقم.
+            OutlinedButton.icon(
+              icon: const Icon(Icons.account_balance_outlined, size: 16),
+              label: Text(tr('تسوية النقد', 'Settle cash')),
+              onPressed: () => _settleCash(context, op),
+            ),
           ]),
         ]),
       ),
@@ -329,6 +357,67 @@ class _OperatorCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// تسوية حساب النقد مع المشغّل — قيد adminSettlement على دفتره:
+  /// «قبضتُ منه» يزيد صافيه نحو الصفر (كان عليه)، و«دفعتُ له» ينقصه
+  /// نحو الصفر (كان له). القيد لا يُعدَّل ولا يُحذف — التصحيح بقيدٍ معاكس.
+  void _settleCash(BuildContext context, FleetOperator op) {
+    final amountCtrl = TextEditingController();
+    var received = true; // true = قبضتُ منه، false = دفعتُ له
+    showDialog(
+      context: context,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx2, setDialogState) => AlertDialog(
+          title: Text(tr('تسوية النقد مع ${op.name.isEmpty ? "المشغّل" : op.name}',
+              'Settle cash with ${op.name.isEmpty ? "the operator" : op.name}')),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                    value: true,
+                    label: Text(tr('قبضتُ منه', 'Received from them'))),
+                ButtonSegment(
+                    value: false,
+                    label: Text(tr('دفعتُ له', 'Paid to them'))),
+              ],
+              selected: {received},
+              onSelectionChanged: (s) =>
+                  setDialogState(() => received = s.first),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: amountCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                  labelText: tr('المبلغ (ر.س)', 'Amount (SAR)')),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dCtx),
+                child: Text(tr('إلغاء', 'Cancel'))),
+            FilledButton(
+              onPressed: () async {
+                final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+                if (amount <= 0) return;
+                await context.read<FirebaseService>().recordOperatorEntry(
+                      operatorId: op.id,
+                      type: 'adminSettlement',
+                      amount: received ? amount : -amount,
+                      note: received ? 'قبض نقدي من المشغّل' : 'دفع نقدي للمشغّل',
+                    );
+                if (dCtx.mounted) {
+                  Navigator.pop(dCtx);
+                  showSuccess(context, tr('قُيّدت التسوية', 'Settlement recorded'));
+                }
+              },
+              child: Text(tr('قَيِّد', 'Record')),
+            ),
+          ],
+        ),
+      ),
+    ).then((_) => amountCtrl.dispose());
   }
 
   void _recordPayout(BuildContext context, FleetOperator op) {
