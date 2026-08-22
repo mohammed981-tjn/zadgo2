@@ -1608,7 +1608,9 @@ class FirebaseService {
     final driversSnap = await _drivers.get();
     final online = driversSnap.docs
         .map((doc) => models.Driver.fromMap(doc.data(), doc.id))
-        .where((d) => d.id != excludeDriverId && d.isOnline)
+        // المحظور (isActive=false — بيد المدير أو مشغّل أسطوله) لا يُرشَّح
+        // إطلاقاً: هذا مفعول زرّ «حظر مؤقت» الحقيقي لا مجرّد وسمٍ يُعرض.
+        .where((d) => d.id != excludeDriverId && d.isOnline && d.isActive)
         .toList();
     if (online.isEmpty) return false;
 

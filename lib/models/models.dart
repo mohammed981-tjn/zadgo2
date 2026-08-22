@@ -1118,6 +1118,12 @@ class Driver {
   final String vehiclePlate;
   final bool isAvailable;
   final bool isOnline;
+
+  /// حظرٌ تشغيلي (يقلبه المدير أو مشغّل أسطوله — دفعة ٨): false يعني
+  /// موقوفاً عن الترشيح للعروض حتى يُعاد تفعيله. حقلٌ مستقل عن
+  /// [isAvailable] (انشغال لحظي يقلبه النظام) وعن تعليق الإنذارات —
+  /// فخلطها يجعل رفع الحظر يمسح حالةً أخرى لها سببها.
+  final bool isActive;
   final double totalEarnings;
   final double pendingPayout;
 
@@ -1210,6 +1216,7 @@ class Driver {
     this.vehiclePlate = '',
     this.isAvailable = true,
     this.isOnline = false,
+    this.isActive = true,
     this.totalEarnings = 0,
     this.pendingPayout = 0,
     this.balance = 0,
@@ -1242,6 +1249,7 @@ class Driver {
         vehiclePlate: map['vehiclePlate'] as String? ?? '',
         isAvailable: map['isAvailable'] as bool? ?? true,
         isOnline: map['isOnline'] as bool? ?? false,
+        isActive: map['isActive'] as bool? ?? true,
         totalEarnings: (map['totalEarnings'] as num?)?.toDouble() ?? 0,
         pendingPayout: (map['pendingPayout'] as num?)?.toDouble() ?? 0,
         balance: (map['balance'] as num?)?.toDouble() ?? 0,
@@ -1274,6 +1282,7 @@ class Driver {
         'vehiclePlate': vehiclePlate,
         'isAvailable': isAvailable,
         'isOnline': isOnline,
+        'isActive': isActive,
         'totalEarnings': totalEarnings,
         'pendingPayout': pendingPayout,
         'balance': balance,
