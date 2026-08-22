@@ -302,7 +302,11 @@ const STATUS_AR = {
 const ACTIVE_STATUSES = ['created','restaurantPending','restaurantAccepted','preparing','readyForPickup',
   'searchingDriver','driverAssigned','pickedUp','onTheWay','pending','confirmed','outForDelivery'];
 const CANCELLED_STATUSES = ['cancelled','restaurantRejected','noDriverFound','refunded'];
-const ROLE_AR = { admin: 'مدير عام', customer: 'عميل', driver: 'سائق', restaurantManager: 'مدير مطعم' };
+/* الأدوار الستة كما في `UserRole` بـ`models.dart:19`. الدوران الأخيران
+   شُحنا في 2026-08-20/21 ولم تعرفهما هذه اللوحة، فكان موظف الدعم يظهر
+   في قائمة المستخدمين بكلمة `support` إنجليزيةً خام وسط واجهةٍ عربية. */
+const ROLE_AR = { admin: 'مدير عام', customer: 'عميل', driver: 'سائق',
+  restaurantManager: 'مدير مطعم', support: 'موظف دعم', fleetOperator: 'مشغّل أسطول' };
 const PAY_AR = { cash: 'كاش عند الاستلام', card: 'بطاقة', wallet: 'محفظة' };
 const COMPLAINT_STATUS_AR = { open: 'مفتوحة', inProgress: 'قيد المعالجة', resolved: 'محلولة', closed: 'مغلقة' };
 const COMPLAINT_TYPE_AR = { lateDelivery: 'تأخر التوصيل', wrongOrder: 'طلب خاطئ', badQuality: 'جودة سيئة',
@@ -618,14 +622,33 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
   try {
-    const snap = await getDoc(doc(db, 'users', user.uid));
-    if (!snap.exists() || snap.data().role !== 'admin') {
+    /* البوّابة تفحص **الرمز الموقّع** لا حقل الدور.
+     *
+     * `isAdmin()` في القواعد صارت `request.auth.token.admin == true` — رمزٌ
+     * تمنحه ورشة GitHub ويُسحب منها. وكانت هذه البوّابة تفحص
+     * `users/{uid}.role == 'admin'`، وهو حقلٌ في قاعدة البيانات لا علاقة
+     * له بالرمز. فمن سُحب رمزه — أو مُنح دور «مدير عام» بكودِ تسجيل ولم
+     * يُمنح رمزاً — كان يدخل **لوحةً كاملة تفشل كلُّ عملياتها بصمت**:
+     * صفحاتٌ فارغة وأزرارٌ لا تفعل شيئاً، بلا سببٍ ظاهر.
+     * الرمز يُقرأ بـ`true` لإجبار التحديث: المسحوب يبقى في النسخة
+     * المخبّأة حتى ساعة. */
+    const tok = await user.getIdTokenResult(true);
+    if (tok.claims.admin !== true) {
       await signOut(auth);
-      $('loginError').textContent = 'هذا الحساب ليس حساب مدير عام — الدخول مرفوض';
+      const snap0 = await getDoc(doc(db, 'users', user.uid)).catch(() => null);
+      const looksAdmin = snap0 && snap0.exists() && snap0.data().role === 'admin';
+      $('loginError').textContent = looksAdmin
+        ? 'حسابك مسجَّل «مدير عام» لكنه بلا صلاحية موقَّعة — تُمنح من ورشة «Admin claim»، ثم أعد الدخول'
+        : 'هذا الحساب ليس حساب مدير عام — الدخول مرفوض';
       $('loginError').classList.remove('hidden');
       return;
     }
-    adminUser = { name: snap.data().name || '', email: user.email || '', uid: user.uid };
+    // الرمز هو الصلاحية، والمستند تسميةٌ فقط — فغيابه لا يمنع الدخول ولا
+    // يجوز أن يُفجّر اللوحة (يقع فعلاً: الرمز يُمنح من الورشة قبل إنشاء
+    // المستند). كانت البوّابة السابقة تشترط وجوده فحرستُه ضمناً.
+    const snap = await getDoc(doc(db, 'users', user.uid)).catch(() => null);
+    const udata = (snap && snap.exists() && snap.data()) || {};
+    adminUser = { name: udata.name || '', email: user.email || '', uid: user.uid };
     $('adminChip').innerHTML = `<b>${esc(adminUser.name || 'المدير العام')}</b><br>${esc(adminUser.email)}`;
     $('loginView').classList.add('hidden');
     $('appView').classList.remove('hidden');
@@ -2222,7 +2245,8 @@ async function rejectApplication(a) {
 /* ================= المستخدمون ================= */
 function renderUsersPage() {
   const filters = [['all', 'الكل'], ['customer', 'العملاء'], ['driver', 'السائقون'],
-    ['restaurantManager', 'مديرو المطاعم'], ['admin', 'المديرون']];
+    ['restaurantManager', 'مديرو المطاعم'], ['support', 'الدعم'],
+    ['fleetOperator', 'المشغّلون'], ['admin', 'المديرون']];
   let list = S.users;
   if (userFilter !== 'all') list = list.filter((u) => u.role === userFilter);
   if (userSearch) {
@@ -2586,10 +2610,12 @@ function openItemForm(itemId) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
       <div class="field"><label>السعر (${SAR})</label>
         <input id="it_price" type="number" min="0" step="any" value="${Number(i?.price) || ''}"></div>
-      <!-- `Number(...)` لا `esc(...)`: الحقل رقمٌ فيجب أن يخرج رقماً مهما كان
-           المخزَّن. والقاعدة على أصناف المطعم لا تفحص أنواع الحقول، فمدير
-           مطعمٍ معدَّل البرمجية يكتب في «السعرات» نصّاً — وكان يُطبع خاماً
-           هنا وحده بين جيرانه، فيُنفَّذ في متصفّح المدير بصلاحيته هو. -->
+      <!-- «السعرات» تمرّ بـNumber لا بـesc: الحقل رقمٌ فيجب أن يخرج رقماً
+           مهما كان المخزَّن. والقاعدة على أصناف المطعم لا تفحص أنواع
+           الحقول، فمدير مطعمٍ معدَّل البرمجية يكتب فيه نصّاً — وكان يُطبع
+           خاماً هنا وحده بين جيرانه، فيُنفَّذ في متصفّح المدير بصلاحيته هو.
+           (ولا شرطة عكسية في هذا التعليق: هو داخل نصٍّ قالبيّ، فأولُ شرطةٍ
+           تُنهيه وتكسر اللوحة كلَّها — وقد وقع.) -->
       <div class="field"><label>السعرات (اختياري)</label>
         <input id="it_kcal" type="number" min="0" step="1" value="${Number(i?.kcal) || ''}"></div>
     </div>
