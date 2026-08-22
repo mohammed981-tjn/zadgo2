@@ -8,6 +8,7 @@ import '../../providers/route_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/reorder.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/app_skeletons.dart';
@@ -34,7 +35,8 @@ class MyOrdersScreen extends StatelessWidget {
       loading: const ListCardsSkeleton(),
       builder: (ctx, orders) {
         if (orders.isEmpty) {
-          return const AppEmpty(emoji: '📋', title: 'لا يوجد طلبات');
+          return AppEmpty(
+              emoji: '📋', title: tr('لا يوجد طلبات', 'No orders yet'));
         }
         final active = orders.where((o) => o.status.isActive).toList();
         final past = orders.where((o) => !o.status.isActive).toList();
@@ -49,8 +51,12 @@ class MyOrdersScreen extends StatelessWidget {
                 unselectedLabelColor: AppColors.textGray,
                 indicatorColor: AppColors.primary,
                 tabs: [
-                  Tab(text: active.isEmpty ? 'جارية' : 'جارية (${active.length})'),
-                  const Tab(text: 'السابقة'),
+                  Tab(
+                      text: active.isEmpty
+                          ? tr('جارية', 'Active')
+                          : tr('جارية (${active.length})',
+                              'Active (${active.length})')),
+                  Tab(text: tr('السابقة', 'Past')),
                 ],
               ),
               Expanded(
@@ -58,7 +64,7 @@ class MyOrdersScreen extends StatelessWidget {
                   children: [
                     _OrdersList(
                       orders: active,
-                      emptyTitle: 'لا يوجد طلبات جارية',
+                      emptyTitle: tr('لا يوجد طلبات جارية', 'No active orders'),
                       // أحدث طلب جارٍ يتصدّر ببطاقة تتبّع حيّة بدل بطاقة
                       // عادية: هذه أكثر شاشة يحدّق فيها العميل، وكانت
                       // تعطيه شريط مراحل مجرداً بينما وعدُ الصفحة الرئيسية
@@ -67,7 +73,7 @@ class MyOrdersScreen extends StatelessWidget {
                     ),
                     _OrdersList(
                       orders: past,
-                      emptyTitle: 'لا يوجد طلبات سابقة',
+                      emptyTitle: tr('لا يوجد طلبات سابقة', 'No past orders'),
                     ),
                   ],
                 ),

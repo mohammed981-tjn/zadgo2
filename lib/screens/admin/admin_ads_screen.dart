@@ -298,21 +298,28 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
             ),
           ),
         ] else ...[
-          const Text(
-            'اكتب ما تريد الإعلان عنه (منتج، عرض، مناسبة) واختر أسلوب '
-            'المنصة — تصلك ثلاث صيغ: **«أرسله للعملاء»** يصل إعلاناً '
-            'لكل عملاء زاد قو داخل التطبيق فوراً، و«انسخ النص» للنشر '
-            'في حساباتك الخارجية.',
-            style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+          Text(
+            tr(
+                'اكتب ما تريد الإعلان عنه (منتج، عرض، مناسبة) واختر أسلوب '
+                'المنصة — تصلك ثلاث صيغ: **«أرسله للعملاء»** يصل إعلاناً '
+                'لكل عملاء زاد قو داخل التطبيق فوراً، و«انسخ النص» للنشر '
+                'في حساباتك الخارجية.',
+                'Write what you want to advertise (a product, offer, occasion) and pick the '
+                'platform style — you get three variants: **"Send to customers"** delivers the ad '
+                'to every ZadGo customer inside the app instantly, and "Copy text" is for posting '
+                'on your external accounts.'),
+            style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _productCtrl,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'ماذا نعلن؟',
-              hintText: 'مثال: عرض فطيرة الجمعة — قطعتان بسعر واحدة، توصيل مجاني فوق ٥٠ ريالاً',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: tr('ماذا نعلن؟', 'What are we advertising?'),
+              hintText: tr(
+                  'مثال: عرض فطيرة الجمعة — قطعتان بسعر واحدة، توصيل مجاني فوق ٥٠ ريالاً',
+                  'Example: Friday pie deal — two for the price of one, free delivery over SAR 50'),
+              border: const OutlineInputBorder(),
               alignLabelWithHint: true,
             ),
           ),
@@ -338,7 +345,9 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.auto_awesome, size: 18),
-              label: Text(_generating ? 'جارٍ التوليد…' : 'ولّد إعلاناً ✨'),
+              label: Text(_generating
+                  ? tr('جارٍ التوليد…', 'Generating…')
+                  : tr('ولّد إعلاناً ✨', 'Generate an ad ✨')),
               onPressed: _generating ? null : _generate,
             ),
           ),
@@ -375,7 +384,7 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                             radius: 12,
                             backgroundColor:
                                 AppColors.primary.withOpacity(0.15),
-                            child: Text('${v['rank'] ?? '؟'}',
+                            child: Text(tr('${v['rank'] ?? '؟'}', '${v['rank'] ?? '?'}'),
                                 style: const TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.bold,
@@ -421,8 +430,8 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                                   backgroundColor: AppColors.success),
                               icon: const Icon(Icons.campaign_outlined,
                                   size: 17),
-                              label: const Text('أرسله للعملاء',
-                                  style: TextStyle(fontSize: 12.5)),
+                              label: Text(tr('أرسله للعملاء', 'Send to customers'),
+                                  style: const TextStyle(fontSize: 12.5)),
                               onPressed: _sending
                                   ? null
                                   : () => _sendAsBroadcast(v),
@@ -432,13 +441,14 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                           Expanded(
                             child: OutlinedButton.icon(
                               icon: const Icon(Icons.copy_rounded, size: 17),
-                              label: const Text('انسخ النص',
-                                  style: TextStyle(fontSize: 12.5)),
+                              label: Text(tr('انسخ النص', 'Copy text'),
+                                  style: const TextStyle(fontSize: 12.5)),
                               onPressed: () {
                                 Clipboard.setData(
                                     ClipboardData(text: _variantText(v)));
                                 showSuccess(context,
-                                    'نُسخ — الصقه في أي منصة تريدها');
+                                    tr('نُسخ — الصقه في أي منصة تريدها',
+                                        'Copied — paste it on any platform'));
                               },
                             ),
                           ),
@@ -451,8 +461,8 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
           Center(
             child: TextButton.icon(
               icon: const Icon(Icons.key_off_outlined, size: 16),
-              label: const Text('تبديل المفتاح',
-                  style: TextStyle(fontSize: 12.5)),
+              label: Text(tr('تبديل المفتاح', 'Replace key'),
+                  style: const TextStyle(fontSize: 12.5)),
               onPressed: () => setState(() => _storedKey = null),
             ),
           ),

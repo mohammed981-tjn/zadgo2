@@ -7,6 +7,7 @@ import '../../providers/ai_assist.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/image_upload_field.dart';
@@ -27,10 +28,10 @@ class AdminRestaurantsTab extends StatelessWidget {
           body: list.isEmpty
               ? AppEmpty(
                   emoji: '🍽️',
-                  title: 'لا يوجد مطاعم',
+                  title: tr('لا يوجد مطاعم', 'No restaurants'),
                   action: ElevatedButton(
                     onPressed: () => _showRestaurantForm(ctx, null),
-                    child: const Text('إضافة مطعم'),
+                    child: Text(tr('إضافة مطعم', 'Add restaurant')),
                   ),
                 )
               : ListView.builder(
@@ -41,7 +42,7 @@ class AdminRestaurantsTab extends StatelessWidget {
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () => _showRestaurantForm(ctx, null),
             icon: const Icon(Icons.add),
-            label: const Text('مطعم جديد'),
+            label: Text(tr('مطعم جديد', 'New restaurant')),
           ),
         );
       },
@@ -91,27 +92,32 @@ class _RestaurantCard extends StatelessWidget {
               children: [
                 InfoRow(icon: Icons.phone_outlined, text: restaurant.phone),
                 InfoRow(icon: Icons.location_on_outlined, text: restaurant.address),
-                const InfoRow(
+                InfoRow(
                   icon: Icons.delivery_dining_outlined,
-                  text: 'أجرة التوصيل موحّدة للمنصّة — تُضبط من شاشة «الحوافز»',
+                  text: tr('أجرة التوصيل موحّدة للمنصّة — تُضبط من شاشة «الحوافز»',
+                      'Delivery fee is platform-wide — set from the "Incentives" screen'),
                 ),
                 InfoRow(
                   icon: Icons.timer_outlined,
-                  text: 'وقت التوصيل: ${restaurant.estimatedTimeMin} دقيقة',
+                  text: tr('وقت التوصيل: ${restaurant.estimatedTimeMin} دقيقة',
+                      'Delivery time: ${restaurant.estimatedTimeMin} min'),
                 ),
                 InfoRow(
                   icon: Icons.shopping_bag_outlined,
-                  text: 'الحد الأدنى: ${formatCurrency(restaurant.minOrder)}',
+                  text: tr('الحد الأدنى: ${formatCurrency(restaurant.minOrder)}',
+                      'Minimum order: ${formatCurrency(restaurant.minOrder)}'),
                 ),
                 InfoRow(
                   icon: Icons.star_rounded,
-                  text: 'التقييم: ${restaurant.rating.toStringAsFixed(1)} ⭐',
+                  text: tr('التقييم: ${restaurant.rating.toStringAsFixed(1)} ⭐',
+                      'Rating: ${restaurant.rating.toStringAsFixed(1)} ⭐'),
                 ),
                 InfoRow(
                   icon: restaurant.lat != null ? Icons.check_circle : Icons.warning_amber_rounded,
                   text: restaurant.lat != null
-                      ? 'الموقع محدد على الخريطة'
-                      : 'لم يُحدَّد موقع على الخريطة',
+                      ? tr('الموقع محدد على الخريطة', 'Location set on the map')
+                      : tr('لم يُحدَّد موقع على الخريطة',
+                          'No location set on the map'),
                 ),
                 const SizedBox(height: 12),
                 Row(children: [
@@ -119,7 +125,7 @@ class _RestaurantCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: () => _showRestaurantForm(context, restaurant),
                       icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('تعديل'),
+                      label: Text(tr('تعديل', 'Edit')),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -127,7 +133,7 @@ class _RestaurantCard extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: () => _showMenuManager(context, restaurant),
                       icon: const Icon(Icons.menu_book_outlined, size: 16),
-                      label: const Text('القائمة'),
+                      label: Text(tr('القائمة', 'Menu')),
                     ),
                   ),
                 ]),
@@ -226,10 +232,15 @@ class _RestaurantFormState extends State<_RestaurantForm> {
     }
   }
 
-  static const _dayNames = {
-    1: 'الاثنين', 2: 'الثلاثاء', 3: 'الأربعاء', 4: 'الخميس',
-    5: 'الجمعة', 6: 'السبت', 7: 'الأحد',
-  };
+  static Map<int, String> get _dayNames => {
+        1: tr('الاثنين', 'Monday'),
+        2: tr('الثلاثاء', 'Tuesday'),
+        3: tr('الأربعاء', 'Wednesday'),
+        4: tr('الخميس', 'Thursday'),
+        5: tr('الجمعة', 'Friday'),
+        6: tr('السبت', 'Saturday'),
+        7: tr('الأحد', 'Sunday'),
+      };
 
   Future<void> _pickTime(
       int day, bool isOpenField, void Function(void Function()) setHrs) async {
@@ -264,7 +275,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
         onChanged: (v) =>
             setHrs(() => _hours[day] = d.copyWith(closed: v ?? false)),
       ),
-      const Text('مغلق', style: TextStyle(fontSize: 11.5)),
+      Text(tr('مغلق', 'Closed'), style: const TextStyle(fontSize: 11.5)),
       const Spacer(),
       if (d.closed)
         const Text('—', style: TextStyle(fontSize: 13, color: AppColors.textGray))
@@ -333,7 +344,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
           final n =
               await service.propagateRestaurantLocation(_restaurantId, _lat!, _lng!);
           if (n > 0 && mounted) {
-            showSuccess(context, 'حُدِّث الموقع في $n من الطلبات الجارية');
+            showSuccess(
+                context,
+                tr('حُدِّث الموقع في $n من الطلبات الجارية',
+                    'Location updated on $n active orders'));
           }
         } catch (_) {}
       }
@@ -365,17 +379,24 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  widget.existing == null ? 'إضافة مطعم' : 'تعديل المطعم',
+                  widget.existing == null
+                      ? tr('إضافة مطعم', 'Add restaurant')
+                      : tr('تعديل المطعم', 'Edit restaurant'),
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
-                _f(_emoji, 'رمز المطعم (Emoji)', isReq: false),
-                _f(_name, 'اسم المطعم'),
+                _f(_emoji, tr('رمز المطعم (Emoji)', 'Restaurant emoji'),
+                    isReq: false),
+                _f(_name, tr('اسم المطعم', 'Restaurant name')),
                 // اسم الفرع اختياري — يُملأ فقط للعلامات ذات الفروع المتعددة
                 // ليظهر للعميل «فطير ستيشن — العزيزية» بدل اسمين متطابقين.
-                _f(_branch, 'اسم الفرع (اختياري) — مثل: العزيزية', isReq: false),
+                _f(
+                    _branch,
+                    tr('اسم الفرع (اختياري) — مثل: العزيزية',
+                        'Branch name (optional) — e.g. Al Aziziyah'),
+                    isReq: false),
                 ImageUploadField(
-                  label: 'صورة المطعم',
+                  label: tr('صورة المطعم', 'Restaurant photo'),
                   imageUrl: _imageUrl,
                   pathBuilder: (ext) => StorageService.restaurantPath(_restaurantId, ext),
                   onChanged: (url) => setState(() => _imageUrl = url),

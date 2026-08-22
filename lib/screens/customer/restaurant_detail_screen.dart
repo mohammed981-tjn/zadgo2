@@ -446,7 +446,7 @@ class _AddOrCounter extends StatelessWidget {
               'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} '
                   '— الطلب الواحد من مطعم واحد.\nإفراغها والبدء من '
                   '${restaurant.name}؟',
-              'Your cart has items from ${cart.restaurantName ?? tr('مطعم آخر', 'another restaurant')} '
+              'Your cart has items from ${cart.restaurantName ?? 'another restaurant'} '
                   '— each order is from one restaurant.\nEmpty it and start '
                   'from ${restaurant.name}?'),
           confirmLabel: tr('إفراغ والبدء هنا', 'Empty and start here'),
@@ -470,8 +470,10 @@ class _AddOrCounter extends StatelessWidget {
         // «السلة» الدائم بالأسفل يقول الباقي.
         if (context.mounted && !_addHintShown) {
           _addHintShown = true;
-          showSuccess(context,
-              'أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «السلة» بالأسفل');
+          showSuccess(
+              context,
+              tr('أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «السلة» بالأسفل',
+                  'Added ✓ Keep browsing — check out once from "Cart" below'));
         }
       }
     }
@@ -496,7 +498,8 @@ class _AddOrCounter extends StatelessWidget {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           onPressed: addToCart,
-          child: Text(item.hasOptions ? 'أضف +' : 'أضف',
+          child: Text(
+              item.hasOptions ? tr('أضف +', 'Add +') : tr('أضف', 'Add'),
               style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
         ),
       );
@@ -611,8 +614,8 @@ void _showOptionsSheet(
                             const SizedBox(width: 6),
                             Text(
                                 item.optionGroups[g].multiSelect
-                                    ? 'اختياري'
-                                    : 'إلزامي',
+                                    ? tr('اختياري', 'Optional')
+                                    : tr('إلزامي', 'Required'),
                                 style: TextStyle(
                                     fontSize: 11.5,
                                     color: item.optionGroups[g].multiSelect
@@ -668,7 +671,8 @@ void _showOptionsSheet(
                           );
                       Navigator.pop(sheetCtx);
                     },
-                    child: Text('أضف للسلة — ${formatCurrency(unitPrice)}'),
+                    child: Text(tr('أضف للسلة — ${formatCurrency(unitPrice)}',
+                        'Add to cart — ${formatCurrency(unitPrice)}')),
                   ),
                 ),
               ],
