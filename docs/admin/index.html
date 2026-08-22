@@ -2586,8 +2586,12 @@ function openItemForm(itemId) {
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">
       <div class="field"><label>السعر (${SAR})</label>
         <input id="it_price" type="number" min="0" step="any" value="${Number(i?.price) || ''}"></div>
+      <!-- `Number(...)` لا `esc(...)`: الحقل رقمٌ فيجب أن يخرج رقماً مهما كان
+           المخزَّن. والقاعدة على أصناف المطعم لا تفحص أنواع الحقول، فمدير
+           مطعمٍ معدَّل البرمجية يكتب في «السعرات» نصّاً — وكان يُطبع خاماً
+           هنا وحده بين جيرانه، فيُنفَّذ في متصفّح المدير بصلاحيته هو. -->
       <div class="field"><label>السعرات (اختياري)</label>
-        <input id="it_kcal" type="number" min="0" step="1" value="${i?.kcal ?? ''}"></div>
+        <input id="it_kcal" type="number" min="0" step="1" value="${Number(i?.kcal) || ''}"></div>
     </div>
     <div class="field"><label>الوصف (اختياري)</label>
       <input id="it_desc" value="${esc(i?.description || '')}"></div>
