@@ -62,8 +62,12 @@ List<_FaqSection> get _sections => [
                 'The wallet is credit applied to your future orders. It grows through compensations when complaints are resolved, or platform rewards. See every transaction in "My account → Wallet transactions".')),
         _Faq(
             tr('متى يُعاد ثمن طلب أُلغي؟', 'When is a cancelled order refunded?'),
-            tr('إن كنت دفعت بالبطاقة وأُلغي الطلب قبل التحضير، يُعاد المبلغ إلى محفظتك ليُستخدم في طلبك التالي — يظهر كحركة «استرداد».',
-                'If you paid by card and the order was cancelled before preparation, the amount goes back to your wallet for your next order — it shows as a "Refund" transaction.')),
+            // مطابقة النص للمسار الفعلي (مراجعة 2026-08-22): ردّ البطاقة
+            // يُنفَّذ من بوابة الدفع إلى بطاقة العميل نفسها — لا إلى
+            // المحفظة؛ الوعد القديم كان يَعِد بما لا يقع فيولّد شكاوى.
+            // أما ما دُفع من رصيد المحفظة فيعود إليها فوراً.
+            tr('ما دفعتَه من رصيد محفظتك يعود إليها فوراً. وما دفعتَه بالبطاقة يُعيده فريقنا إلى بطاقتك نفسها، ويظهر في كشف بنكك خلال أيام عمل بحسب مصرفك.',
+                'Whatever you paid from your wallet balance returns to it immediately. Card payments are refunded by our team to the same card, appearing on your bank statement within a few business days depending on your bank.')),
       ]),
       _FaqSection(
           tr('الكوبونات والخصومات', 'Coupons & discounts'),

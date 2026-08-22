@@ -22,6 +22,24 @@ class FirebaseService {
   CollectionReference<Map<String, dynamic>> get _restaurants => _db.collection('restaurants');
   CollectionReference<Map<String, dynamic>> get _orders => _db.collection('orders');
   CollectionReference<Map<String, dynamic>> get _drivers => _db.collection('drivers');
+
+  /// مرآة الإسناد الرفيعة (م٥ — الدفعة الهيكلية): سرد `drivers` الكامل صار
+  /// للمدير والدعم وحدهما، والترشيح يقرأ هذه المجموعة التي لا تحمل اسماً
+  /// ولا جوالاً ولا مالاً. تُغذّى بالبثّ المزدوج من كل مواضع كتابة حقول
+  /// الإسناد — فتمتلئ وحدها مع أول نبضة من كل كابتن بلا ترحيل يدوي.
+  CollectionReference<Map<String, dynamic>> get _driversPublic =>
+      _db.collection('drivers_public');
+
+  /// كتابة استرشادية على المرآة — set-merge كي تُنشئ المستند إن غاب،
+  /// وفشلها مبتلَع عمداً: المرآة ترشيحٌ لا حُكم، والإسناد يعيد التحقق من
+  /// المستند المحمي داخل معاملته على كل حال، فلا نُفشل الكتابة الأصلية
+  /// (توفّر، موقع، حمولة) لأجل انعكاسها.
+  Future<void> _mirrorDriverDispatch(
+      String driverId, Map<String, dynamic> data) async {
+    try {
+      await _driversPublic.doc(driverId).set(data, SetOptions(merge: true));
+    } catch (_) {}
+  }
   CollectionReference<Map<String, dynamic>> get _complaints => _db.collection('complaints');
   CollectionReference<Map<String, dynamic>> get _adminSecrets =>
       _db.collection('admin_secrets');
@@ -871,17 +889,44 @@ class FirebaseService {
   Stream<models.Driver?> streamDriver(String driverId) => _drivers.doc(driverId).snapshots().map(
       (doc) => doc.exists && doc.data() != null ? models.Driver.fromMap(doc.data()!, doc.id) : null);
 
-  Future<void> addDriver(models.Driver d) => _drivers.doc(d.id).set(d.toMap());
-  Future<void> updateDriver(models.Driver d) => _drivers.doc(d.id).update(d.toMap());
-  Future<void> setDriverOnline(String id, bool isOnline) =>
-      _drivers.doc(id).update({'isOnline': isOnline});
+  /// حقول الإسناد من نموذج كابتن كامل — لبذر مرآة drivers_public وتحديثها
+  /// (م٥). isActive خارجها: يكتبه المدير والمشغّل من مساريهما المسمّيين،
+  /// وهذه الدالة تُستدعى أيضاً من جهاز الكابتن نفسه عند اعتماد طلبه
+  /// (ensureDriverDocFromApplication) وقاعدة المرآة تمنعه من isActive.
+  Map<String, dynamic> _dispatchFieldsOf(models.Driver d) => {
+        'isOnline': d.isOnline,
+        'isAvailable': d.isAvailable,
+        'activeOrders': d.activeOrders,
+        if (d.lat != null) 'lat': d.lat,
+        if (d.lng != null) 'lng': d.lng,
+        if (d.clusterLat != null) 'clusterLat': d.clusterLat,
+        if (d.clusterLng != null) 'clusterLng': d.clusterLng,
+      };
 
-  Future<void> updateDriverLocation(String driverId, double lat, double lng) =>
-      _drivers.doc(driverId).update({
-        'lat': lat,
-        'lng': lng,
-        'lastLocationUpdate': FieldValue.serverTimestamp(),
-      });
+  Future<void> addDriver(models.Driver d) async {
+    await _drivers.doc(d.id).set(d.toMap());
+    await _mirrorDriverDispatch(d.id, _dispatchFieldsOf(d));
+  }
+
+  Future<void> updateDriver(models.Driver d) async {
+    await _drivers.doc(d.id).update(d.toMap());
+    await _mirrorDriverDispatch(d.id, _dispatchFieldsOf(d));
+  }
+  Future<void> setDriverOnline(String id, bool isOnline) async {
+    await _drivers.doc(id).update({'isOnline': isOnline});
+    await _mirrorDriverDispatch(id, {'isOnline': isOnline});
+  }
+
+  Future<void> updateDriverLocation(
+      String driverId, double lat, double lng) async {
+    final loc = {
+      'lat': lat,
+      'lng': lng,
+      'lastLocationUpdate': FieldValue.serverTimestamp(),
+    };
+    await _drivers.doc(driverId).update(loc);
+    await _mirrorDriverDispatch(driverId, loc);
+  }
 
   // أُزيلت markPayoutDone: كانت تصفّر pendingPayout وفق النموذج القديم الذي
   // يفترض أن التطبيق هو المدين دائماً، وهو افتراض مقلوب للطلبات النقدية.
@@ -1595,6 +1640,7 @@ class FirebaseService {
     });
     batch.update(_drivers.doc(driverId), {'isAvailable': false});
     await batch.commit();
+    await _mirrorDriverDispatch(driverId, {'isAvailable': false});
     // إشعار السائق بالإسناد — قد يكون تطبيقه مغلقاً لحظتها.
     NotifyRelay.orderEvent(orderId, OrderEvent.assigned);
   }
@@ -1624,7 +1670,11 @@ class FirebaseService {
     // المحاولة، المصالحة، معالجات التعليق) دفعةً واحدة.
     if (order.scheduledStillEarly) return false;
 
-    final driversSnap = await _drivers.get();
+    // م٥ (الدفعة الهيكلية): الترشيح من المرآة الرفيعة drivers_public لا من
+    // سجلّ الكباتن الكامل — سردُه صار للمدير والدعم وحدهما، فقراءته هنا
+    // كانت سترتدّ برفضٍ في تطبيقَي المطعم والكابتن. المرآة استرشادية:
+    // الإسناد النهائي يعيد التحقق من المستند المحمي داخل المعاملة أدناه.
+    final driversSnap = await _driversPublic.get();
     final online = driversSnap.docs
         .map((doc) => models.Driver.fromMap(doc.data(), doc.id))
         // المحظور (isActive=false — بيد المدير أو مشغّل أسطوله) لا يُرشَّح
@@ -1714,39 +1764,36 @@ class FirebaseService {
             .take(_driverCandidatesCount)
             .toList();
 
-    // أثر معدل القبول (نفذ ٣): كان الرقم يُعرض للكابتن بلا أي أثر — حافز
-    // بلا مفعول يفقد معناه سريعاً. الآن يدخل الاختيار بين الأقرب: درجة
-    // مركّبة ثلثاها معدل القبول وثلثها التقييم (من ٥ إلى ٠..١) — القبول
-    // أثقل لأنه سلوكٌ تجاه المنصّة يومياً والتقييم انطباع عملاء يتجمّد
-    // بعد حين. ومن لا تاريخ عروض له يُحسب كاملاً (1.0) لا صفراً ظالماً —
-    // نفس مبدأ «—» في شاشة أرباحه. ولا مساس بالمال: الأجرة واحدة للجميع،
-    // الأثر في أولوية الترشيح وحدها (بند ج١ سليم).
-    pool.sort((a, b) {
-      double score(models.Driver d) =>
-          dispatchScore(acceptanceRate: d.acceptanceRate, rating: d.rating);
-      return score(b).compareTo(score(a));
-    });
     // الإسناد النهائي في معاملة ذرّية (دفعة ١، عطل السباق ١): كان batch يقرأ
     // المرشَّح متاحاً (قراءةٌ سابقة على المعاملة) ثم يُسنده، فطلبان يُسنَدان
-    // متزامنين يقرآن نفس السائق متاحاً فيُسنَد لكليهما (خرق سقف الحمولة). الآن
-    // نعيد قراءة مرشَّحي المجموعة (مرتَّبين سلفاً) **داخل المعاملة** ونُسند أوّل
-    // من يبقى متاحاً فعلاً؛ وطلبٌ أُسنِد من مسارٍ آخر لا يُدهَس (driverId موجود).
+    // متزامنين يقرآن نفس السائق متاحاً فيُسنَد لكليهما (خرق سقف الحمولة).
+    // نعيد قراءة مرشَّحي المجموعة **داخل المعاملة** من مستندات drivers
+    // المحميّة — وهنا (م٥) صارت هذه القراءةُ الحَكَمَ الوحيد: المرآة رشّحت
+    // بالمسافة فقط، والمستند المحمي يقرّر الإتاحة والاتصال والحظر ودرجة
+    // الترشيح (معدل القبول + التقييم — نفذ ٣: ثلثان للقبول لأنه سلوكٌ تجاه
+    // المنصّة يومياً وثلث للتقييم لأنه انطباعٌ يتجمّد؛ ومن لا تاريخ له
+    // كامل الدرجة لا صفرٌ ظالم). فتزوير المرآة لا يُسنِد محظوراً ولا
+    // يرفع درجة أحد؛ وطلبٌ أُسنِد من مسارٍ آخر لا يُدهَس (driverId موجود).
     final assignedId = await _db.runTransaction<String?>((tx) async {
       final orderSnap = await tx.get(_orders.doc(order.id));
       if (!orderSnap.exists || orderSnap.data() == null) return null;
       final existing = (orderSnap.data()!['driverId'] as String?) ?? '';
       if (existing.isNotEmpty) return null; // أُسنِد بالفعل — لا ازدواج
-      models.Driver? pick;
+      final live = <models.Driver>[];
       for (final cand in pool) {
         final ds = await tx.get(_drivers.doc(cand.id));
-        if (ds.exists &&
-            ds.data() != null &&
-            (ds.data()!['isAvailable'] as bool? ?? false)) {
-          pick = models.Driver.fromMap(ds.data()!, ds.id);
-          break;
+        if (ds.exists && ds.data() != null) {
+          final d = models.Driver.fromMap(ds.data()!, ds.id);
+          if (d.isAvailable && d.isOnline && d.isActive) live.add(d);
         }
       }
-      if (pick == null) return null; // سُبِق كل المرشَّحين — يُعاد لاحقاً
+      if (live.isEmpty) return null; // سُبِق كل المرشَّحين — يُعاد لاحقاً
+      live.sort((a, b) {
+        double score(models.Driver d) =>
+            dispatchScore(acceptanceRate: d.acceptanceRate, rating: d.rating);
+        return score(b).compareTo(score(a));
+      });
+      final pick = live.first;
       tx.update(_orders.doc(order.id), {
         'driverId': pick.id,
         'driverName': pick.name,
@@ -1768,6 +1815,11 @@ class FirebaseService {
       return pick.id;
     });
     if (assignedId == null) return false;
+    // انعكاس القفل على المرآة خارج المعاملة عمداً: لو مُنع لعطلٍ ما فلا
+    // يُفشل إسناداً صحيحاً — أقصى الضرر ترشيحٌ زائد تسقطه المعاملة التالية.
+    if (lockCandidate) {
+      await _mirrorDriverDispatch(assignedId, {'isAvailable': false});
+    }
     // إشعار السائق المرشَّح — تطبيقه قد يكون بالخلفية لحظة العرض.
     NotifyRelay.orderEvent(order.id, OrderEvent.assigned);
     return true;
@@ -1818,6 +1870,10 @@ class FirebaseService {
         });
       }
       await batch.commit();
+      for (final d in stuck) {
+        await _mirrorDriverDispatch(
+            d.id, {'isAvailable': true, 'activeOrders': 0});
+      }
       return stuck;
     } catch (_) {
       // صلاحية سرد ناقصة أو انقطاع — لا نُفشل الإسناد بسبب محاولة إصلاح.
@@ -1837,12 +1893,14 @@ class FirebaseService {
     double? clusterLat,
     double? clusterLng,
   }) async {
-    await _drivers.doc(driverId).update({
+    final load = {
       'activeOrders': activeOrders,
       'isAvailable': hasCapacity,
       'clusterLat': clusterLat,
       'clusterLng': clusterLng,
-    });
+    };
+    await _drivers.doc(driverId).update(load);
+    await _mirrorDriverDispatch(driverId, load);
   }
 
   /// سقف الطلبات المتزامنة كما ضبطه المدير (٣ افتراضاً) — يقرؤه تطبيق
@@ -2059,6 +2117,7 @@ class FirebaseService {
             await _drivers
                 .doc(deadDriverId)
                 .update({'isAvailable': true});
+            await _mirrorDriverDispatch(deadDriverId, {'isAvailable': true});
             reclaimed++;
             logAdminAction('order.reclaimOffer',
                 'استرجاع عرض ميت للطلب #${o.orderNumber} وإعادة ترشيحه',
@@ -2100,6 +2159,7 @@ class FirebaseService {
     if (id.isEmpty) return;
     try {
       await _drivers.doc(id).update({'isAvailable': true});
+      await _mirrorDriverDispatch(id, {'isAvailable': true});
     } catch (_) {
       // فشل التحرير لا يُفشل الإلغاء نفسه — المصالحة ستلتقطه لاحقاً.
     }
@@ -4032,6 +4092,10 @@ class FirebaseService {
           updates['isOnline'] = false;
         }
         await driverRef.update(updates);
+        if (updates.containsKey('isAvailable')) {
+          await _mirrorDriverDispatch(complaint.againstUid!,
+              {'isAvailable': false, 'isOnline': false});
+        }
       }
     }
 
@@ -4146,8 +4210,12 @@ class FirebaseService {
   // ═══════════════════════════════════════════════════════════════════
 
   /// حظر/تفعيل كابتنٍ من أسطوله: isActive وحده — يوقفه عن العروض ويعيده.
-  Future<void> operatorSetDriverActive(String driverId, bool active) =>
-      _drivers.doc(driverId).update({'isActive': active});
+  Future<void> operatorSetDriverActive(String driverId, bool active) async {
+    await _drivers.doc(driverId).update({'isActive': active});
+    // انعكاس الحظر على مرآة الإسناد (م٥) — القاعدة تتحقق من تبعية الكابتن
+    // عبر مستنده المحمي؛ وفشل الانعكاس غير حاسم: المعاملة ترفض المحظور.
+    await _mirrorDriverDispatch(driverId, {'isActive': active});
+  }
 
   /// فصل كابتن عن الأسطول («حذفٌ» من أسطول المشغّل لا من المنصّة):
   /// الحساب ودفاتره تبقى — سجلٌّ ماليّ لا يُمحى بقرار مشغّل؛ يعود الكابتن
