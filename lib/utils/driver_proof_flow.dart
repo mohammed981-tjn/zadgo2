@@ -118,11 +118,14 @@ class DriverProofFlow {
   /// تدفّق تأكيد الاستلام كاملاً: نطاق ← صورة ← تأكيد (مع مصارحة العُهدة
   /// للطلب النقدي) ← حفظ الصورة ← تغيير الحالة وقيد العُهدة.
   /// يُرجع true إن اكتمل الاستلام فعلاً.
+  /// [byScan]: وصل الكابتن لهذا التأكيد عبر مسح رمز المطعم الناجح — يُختم
+  /// في الوثيقة (ت٤) فيصير المسحُ أثراً محفوظاً لا مجرّد اختصار طريق.
   static Future<bool> confirmPickup(
     BuildContext context,
     FirebaseService service,
-    Order order,
-  ) async {
+    Order order, {
+    bool byScan = false,
+  }) async {
     // نفس مبدأ recordArrival: النطاق يُقاس على موقع المطعم الحالي لا لقطته.
     order = await service.withLiveRestaurantCoords(order);
     final err = await LocationGuard.checkNear(
@@ -184,7 +187,11 @@ class DriverProofFlow {
       // مؤذية؛ العكس كان يترك استلاماً بلا إثبات.
       final pos = await LocationGuard.currentPosition();
       await service.savePickupProof(
-          order: order, photo: photo, lat: pos.latitude, lng: pos.longitude);
+          order: order,
+          photo: photo,
+          lat: pos.latitude,
+          lng: pos.longitude,
+          byScan: byScan);
       await service.markPickedUpBySelf(order.id);
       return true;
     } catch (e) {

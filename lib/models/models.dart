@@ -180,21 +180,29 @@ extension OrderStatusExt on OrderStatus {
       };
 
   Color get color {
+    // ت١٧ (الفحص الشامل): كانت ٢١ لوناً من لوحة Material الخام صفرٌ منها
+    // من الهوية، وحالتان **متتاليتان** في الدورة (مُسنَد ← في الطريق:
+    // 3F51B5/303F9F) تباينهما ١٫٣١:١ فلا يُقرأ الانتقال لوناً. اللوحة
+    // الآن من عائلات الهوية (ذهبي/كحلي/أزرق الكابتن/بنفسجي الإدارة
+    // والدلاليان)، وكل جارتين في الدورة من عائلتين مختلفتين:
+    // انتظار(برتقالي) ← قبول(أزرق) ← طبخ(ذهبي) ← جاهز(كحلي) ←
+    // بحث(بنفسجي) ← مُسنَد(أزرق فاتح) ← استُلم(بنفسجي داكن) ←
+    // في الطريق(أزرق) ← سُلّم(أخضر النجاح).
     const map = {
-      OrderStatus.created: Color(0xFF607D8B),
-      OrderStatus.restaurantPending: Color(0xFFFF9800),
-      OrderStatus.restaurantAccepted: Color(0xFF2196F3),
-      OrderStatus.preparing: Color(0xFF9C27B0),
-      OrderStatus.readyForPickup: Color(0xFF00BCD4),
-      OrderStatus.searchingDriver: Color(0xFFFFC107),
-      OrderStatus.driverAssigned: Color(0xFF3F51B5),
-      OrderStatus.pickedUp: Color(0xFF673AB7),
-      OrderStatus.onTheWay: Color(0xFF303F9F),
-      OrderStatus.delivered: Color(0xFF4CAF50),
+      OrderStatus.created: Color(0xFF5F6470),
+      OrderStatus.restaurantPending: Color(0xFFEF6C00),
+      OrderStatus.restaurantAccepted: Color(0xFF12559E),
+      OrderStatus.preparing: Color(0xFFD99400),
+      OrderStatus.readyForPickup: Color(0xFF132C56),
+      OrderStatus.searchingDriver: Color(0xFF5E35B1),
+      OrderStatus.driverAssigned: Color(0xFF5C90D2),
+      OrderStatus.pickedUp: Color(0xFF4527A0),
+      OrderStatus.onTheWay: Color(0xFF12559E),
+      OrderStatus.delivered: Color(0xFF00D084),
       OrderStatus.restaurantRejected: Color(0xFF795548),
       OrderStatus.noDriverFound: Color(0xFF9E9E9E),
-      OrderStatus.cancelled: Color(0xFFF44336),
-      OrderStatus.refunded: Color(0xFF009688),
+      OrderStatus.cancelled: Color(0xFFE53935),
+      OrderStatus.refunded: Color(0xFF00838F),
     };
     return map[this] ?? Colors.grey;
   }
@@ -408,11 +416,26 @@ class SavedAddress {
   final double? lat;
   final double? lng;
 
+  /// ت٤٨: مبنى/دور/شقة — في حيّ المدينة (مبانٍ بلا أرقام وشوارع بلا
+  /// لافتات) كان الكابتن يتصل بالعميل في **كل** طلب. حقلٌ حرّ واحد
+  /// («عمارة الياسمين، الدور ٣، شقة ٥») لا ثلاثة حقول تُرهق الإدخال.
+  final String unit;
+
+  /// تعليمات دائمة على العنوان («البوابة الشرقية»، «اسأل الحارس») —
+  /// تُكتب مرةً وتصل الكابتن مع كل طلب، بدل إعادة كتابتها في الملاحظة.
+  final String notes;
+
+  /// «اتركه عند الباب» — المعيار العالمي منذ سنوات.
+  final bool leaveAtDoor;
+
   const SavedAddress({
     required this.label,
     required this.address,
     this.lat,
     this.lng,
+    this.unit = '',
+    this.notes = '',
+    this.leaveAtDoor = false,
   });
 
   factory SavedAddress.fromMap(Map<String, dynamic> map) => SavedAddress(
@@ -420,6 +443,9 @@ class SavedAddress {
         address: map['address'] as String? ?? '',
         lat: (map['lat'] as num?)?.toDouble(),
         lng: (map['lng'] as num?)?.toDouble(),
+        unit: map['unit'] as String? ?? '',
+        notes: map['notes'] as String? ?? '',
+        leaveAtDoor: map['leaveAtDoor'] as bool? ?? false,
       );
 
   Map<String, dynamic> toMap() => {
@@ -427,7 +453,14 @@ class SavedAddress {
         'address': address,
         'lat': lat,
         'lng': lng,
+        'unit': unit,
+        'notes': notes,
+        'leaveAtDoor': leaveAtDoor,
       };
+
+  /// نصّ التوصيل الكامل الذي يراه الكابتن: العنوان + الوحدة —
+  /// مصدر واحد كي لا تتفاوت الشاشات فيما تعرضه.
+  String get fullAddress => unit.trim().isEmpty ? address : '$address — $unit';
 
   /// عنوان بلا إحداثيات لا يصلح للطلب، لأن أجرة التوصيل تُحسب من المسافة.
   bool get hasLocation => lat != null && lng != null;
@@ -600,6 +633,20 @@ const kCuisines = [
   'هندي', 'فطائر ومعجنات', 'مخبوزات', 'فلافل', 'سلطات وصحي',
   'حلويات', 'عصائر', 'قهوة وشاي',
 ];
+
+/// ت٤٧: ترجمة عرضٍ لأسماء المطابخ — القيمة المخزَّنة تبقى عربية (بيانات
+/// وفلاتر)، والعرض وحده يُترجم. كانت أثمن ميزة في الوضع الإنجليزي
+/// (تصفّح مطاعم لا تعرف أسماءها) تعرض تصنيفاتها عربيةً كاملة.
+const kCuisinesEn = {
+  'سعودي': 'Saudi', 'مشاوي': 'Grills', 'مندي وحنيذ': 'Mandi & Haneeth',
+  'برجر': 'Burgers', 'دجاج مقلي': 'Fried chicken', 'شاورما': 'Shawarma',
+  'ساندويتشات': 'Sandwiches', 'بيتزا': 'Pizza',
+  'إيطالي ومكرونة': 'Italian & pasta', 'لبناني': 'Lebanese',
+  'سوري': 'Syrian', 'مصري': 'Egyptian', 'هندي': 'Indian',
+  'فطائر ومعجنات': 'Pies & pastries', 'مخبوزات': 'Bakery',
+  'فلافل': 'Falafel', 'سلطات وصحي': 'Salads & healthy',
+  'حلويات': 'Desserts', 'عصائر': 'Juices', 'قهوة وشاي': 'Coffee & tea',
+};
 
 /// جدول عمل يومٍ واحد للمطعم (ساعات العمل المجدولة — أبرز فجوة قبل
 /// الإطلاق: كان `isOpen` مفتاحاً يدوياً فقط، فيبقى المطعم «مفتوحاً» ليلاً
@@ -1148,6 +1195,11 @@ class Driver {
   /// العقد" (contract violations) المعتمد في تطبيقات التوصيل الكبرى.
   final int warningCount;
 
+  /// ت٣: عدّاد كشف الموقع المُحاكى — يكتبه جهاز الكابتن الرسمي لحظة
+  /// الرفض (نيّة مثبتة تقنياً بلا إيجابيات كاذبة)، والقاعدة تقيّده +1
+  /// حصراً فلا يصفّره صاحبه. القرار (حظر/تنبيه) للمدير بعينه.
+  final int mockLocationCount;
+
   /// عدّادا معدل القبول (نمط تويو/جاهز): مجموع العروض التي وصلته وما قبله
   /// منها. يُخزَّنان في المستند لا في ذاكرة الجلسة كي لا يُصفَّر المعدل مع
   /// كل إعادة تشغيل.
@@ -1227,6 +1279,7 @@ class Driver {
     this.lng,
     this.lastLocationUpdate,
     this.warningCount = 0,
+    this.mockLocationCount = 0,
     this.offersTotal = 0,
     this.offersAccepted = 0,
     this.referredByCode = '',
@@ -1260,6 +1313,7 @@ class Driver {
         lng: (map['lng'] as num?)?.toDouble(),
         lastLocationUpdate: (map['lastLocationUpdate'] as Timestamp?)?.toDate(),
         warningCount: (map['warningCount'] as num?)?.toInt() ?? 0,
+        mockLocationCount: (map['mockLocationCount'] as num?)?.toInt() ?? 0,
         offersTotal: (map['offersTotal'] as num?)?.toInt() ?? 0,
         offersAccepted: (map['offersAccepted'] as num?)?.toInt() ?? 0,
         referredByCode: map['referredByCode'] as String? ?? '',
@@ -1294,6 +1348,7 @@ class Driver {
         if (lastLocationUpdate != null)
           'lastLocationUpdate': Timestamp.fromDate(lastLocationUpdate!),
         'warningCount': warningCount,
+        'mockLocationCount': mockLocationCount,
         'offersTotal': offersTotal,
         'offersAccepted': offersAccepted,
         'referredByCode': referredByCode,
@@ -1558,6 +1613,11 @@ class IncentiveSettings {
   final int maxConcurrentCashOrders;
   final int cashNoShowLimit;
 
+  /// سقف قيمة وجبات الطلب الواحد (تحصين ح٥ 2026-08-22) — تحرسه القاعدة
+  /// عند الإنشاء لأن itemsTotal رقمٌ يدّعيه العميل ولا تستطيع القاعدة
+  /// جمع الأصناف. صفر = معطَّل (ج١).
+  final double maxOrderItemsTotal;
+
   /// نقطة التعادل اليومية (طلبات/يوم) من الدراسة المالية — الرقم الوحيد
   /// الذي طُلب من المالك مراقبته أسبوعياً. يضبطه المدير من اللوحة لا من
   /// الكود (ج١) لأنه يتغيّر مع كل تعديل على العمولة أو الرسم الثابت.
@@ -1619,6 +1679,7 @@ class IncentiveSettings {
     this.joinUrl = 'https://zadgo.co/join',
     this.dailyOrdersTarget = 0,
     this.firstCashOrderCap = 0,
+    this.maxOrderItemsTotal = 0,
     this.maxConcurrentCashOrders = 0,
     this.cashNoShowLimit = 0,
     this.customerReferralEnabled = false,
@@ -1694,6 +1755,8 @@ class IncentiveSettings {
           (map['dailyOrdersTarget'] as num?)?.toInt() ?? d.dailyOrdersTarget,
       firstCashOrderCap: (map['firstCashOrderCap'] as num?)?.toDouble() ??
           d.firstCashOrderCap,
+      maxOrderItemsTotal: (map['maxOrderItemsTotal'] as num?)?.toDouble() ??
+          d.maxOrderItemsTotal,
       maxConcurrentCashOrders:
           (map['maxConcurrentCashOrders'] as num?)?.toInt() ??
               d.maxConcurrentCashOrders,
@@ -1741,6 +1804,7 @@ class IncentiveSettings {
         'joinUrl': joinUrl,
         'dailyOrdersTarget': dailyOrdersTarget,
         'firstCashOrderCap': firstCashOrderCap,
+        'maxOrderItemsTotal': maxOrderItemsTotal,
         'maxConcurrentCashOrders': maxConcurrentCashOrders,
         'cashNoShowLimit': cashNoShowLimit,
         'customerReferralEnabled': customerReferralEnabled,
@@ -1775,6 +1839,7 @@ class IncentiveSettings {
     String? joinUrl,
     int? dailyOrdersTarget,
     double? firstCashOrderCap,
+    double? maxOrderItemsTotal,
     int? maxConcurrentCashOrders,
     int? cashNoShowLimit,
     bool? customerReferralEnabled,
@@ -1811,6 +1876,7 @@ class IncentiveSettings {
         joinUrl: joinUrl ?? this.joinUrl,
         dailyOrdersTarget: dailyOrdersTarget ?? this.dailyOrdersTarget,
         firstCashOrderCap: firstCashOrderCap ?? this.firstCashOrderCap,
+        maxOrderItemsTotal: maxOrderItemsTotal ?? this.maxOrderItemsTotal,
         maxConcurrentCashOrders:
             maxConcurrentCashOrders ?? this.maxConcurrentCashOrders,
         cashNoShowLimit: cashNoShowLimit ?? this.cashNoShowLimit,
@@ -2636,6 +2702,12 @@ class Order {
   /// دفعٌ من رصيده لا تخفيض للقيمة).
   double get payableTotal => grandTotal - discountAmount;
 
+  /// المبلغ النقدي الذي يحصّله الكابتن عند الباب — **حاسمٌ واحد** تستدعيه
+  /// الشاشات الأربع (ت٥٠): بطاقتا العرض كانتا تحسبانه بلا الإكرامية
+  /// بينما المذكرة وخريطة التوصيل تحسبانها، فيرى الكابتن رقمين مختلفين
+  /// لنفس الطلب في شاشتين متجاورتين ويتشوّش قبل القبول.
+  double get cashDueFromCustomer => payableTotal - walletUsed + driverTip;
+
   double get calculatedCommission =>
       itemsTotal * ((commissionPercent ?? 15) / 100);
 
@@ -2940,6 +3012,10 @@ class OrderProof {
   /// دائماً، وقيمته الكبيرة بيّنة «سلّم في مكان آخر» عند النزاع.
   final int? deliveryDistanceMeters;
 
+  /// ت٤: استُلم الطلب بمسح رمز المطعم — تواجهُ الجهازين في المكان
+  /// واللحظة، أقوى بيّنة استلام في النزاع.
+  final bool pickupByScan;
+
   const OrderProof({
     required this.orderId,
     required this.driverId,
@@ -2955,6 +3031,7 @@ class OrderProof {
     this.deliveryLat,
     this.deliveryLng,
     this.deliveryDistanceMeters,
+    this.pickupByScan = false,
   });
 
   factory OrderProof.fromMap(Map<String, dynamic> map, String id) => OrderProof(
@@ -2972,6 +3049,7 @@ class OrderProof {
         deliveryLat: (map['deliveryLat'] as num?)?.toDouble(),
         deliveryLng: (map['deliveryLng'] as num?)?.toDouble(),
         deliveryDistanceMeters: (map['deliveryDistanceMeters'] as num?)?.toInt(),
+        pickupByScan: map['pickupByScan'] as bool? ?? false,
       );
 }
 

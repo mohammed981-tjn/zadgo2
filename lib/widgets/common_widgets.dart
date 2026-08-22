@@ -366,6 +366,14 @@ class AppEmpty extends StatelessWidget {
     '💸': Icons.payments_outlined,
     '🔑': Icons.vpn_key_outlined,
     '🖼️': Icons.image_outlined,
+    // ت٤١ (الفحص الشامل): سبعة إيموجيات كانت خارج الخريطة فترتدّ صامتةً
+    // إلى «صندوق فارغ» لا صلة له بمحتواها — منها «مفضّلاتي» عند العميل.
+    '🗺️': Icons.map_outlined,
+    '📒': Icons.menu_book_outlined,
+    '🚚': Icons.local_shipping_outlined,
+    '💡': Icons.lightbulb_outline_rounded,
+    '🏪': Icons.storefront_outlined,
+    '⭐': Icons.star_outline_rounded,
   };
 
   @override
@@ -710,7 +718,9 @@ class WindowCapNotice extends StatelessWidget {
                   'This view covers the latest 500 orders'
                   '${trueTotal != null ? ' of $trueTotal' : ''}'
                   ' — pick a specific date range for complete figures.'),
-              style: const TextStyle(fontSize: 12, color: AppColors.textDark),
+              // ت١٥: هجرة الودجت المشترك للمقياس السباعي — كان 12 الحرّ
+              // آخر شذوذٍ في هذا الملف.
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textDark),
             ),
           ),
         ]),

@@ -112,7 +112,16 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/$/, "");
 
+  // السر المشترك (إن ضُبط): حاجز أولي أمام الاستهلاك العابر — ليس مصادقة
+  // حقيقية (يُشحن في التطبيق)، والترقية اللاحقة: التحقق من رمز Firebase.
+  const secret = Deno.env.get("AI_GATEWAY_SECRET");
+  const authorized = !secret || req.headers.get("x-app-secret") === secret;
+
   if (req.method === "GET" && path.endsWith("/health")) {
+    // ت٣٦ (الفحص الشامل): تفاصيل الحماية والمفاتيح كانت تُعرض للغريب قبل
+    // بوابة السر — عرضٌ لا يفيد إلا مهاجماً يجسّ الدفاعات. الفحص العام
+    // «حيّ/ميت» فقط، والتفاصيل لحامل السر.
+    if (!authorized) return json(200, { ok: true });
     return json(200, {
       ok: true,
       app: APP,
@@ -120,14 +129,11 @@ Deno.serve(async (req) => {
         gemini: !!Deno.env.get("GEMINI_API_KEY"),
         anthropic: !!Deno.env.get("ANTHROPIC_API_KEY"),
       },
-      secured: !!Deno.env.get("AI_GATEWAY_SECRET"),
+      secured: !!secret,
     });
   }
 
-  // السر المشترك (إن ضُبط): حاجز أولي أمام الاستهلاك العابر — ليس مصادقة
-  // حقيقية (يُشحن في التطبيق)، والترقية اللاحقة: التحقق من رمز Firebase.
-  const secret = Deno.env.get("AI_GATEWAY_SECRET");
-  if (secret && req.headers.get("x-app-secret") !== secret) {
+  if (!authorized) {
     return json(401, { error: "unauthorized" });
   }
 
@@ -165,15 +171,47 @@ Deno.serve(async (req) => {
   const model = String(body.model ?? "gemini-2.5-flash-lite");
   const maxTokens = Math.min(Number(body.max_tokens ?? 1024), 4096);
 
-  // الميزانية قبل كل شيء — 429 صريحة يفهمها العميل ويعرضها بلطف.
-  const { data: budget } = await supabase.rpc("ai_check_budget", { p_app: APP });
-  if (budget && budget.allowed === false) return json(429, { budget });
-
-  // هوية مجزّأة + بصمة طلب للتخزين المؤقت.
+  // هوية مجزّأة + بصمة طلب للتخزين المؤقت — تُحسبان قبل فحص الميزانية
+  // كي يحمل سجلُّ الرفض نفسَ بصمة الطلب المرفوض.
   const actorRef = body.actor_ref
     ? await sha256(`zadgo:${body.actor_ref}`)
     : null;
   const requestHash = await sha256(`${APP}|${feature}|${model}|${system}|${user}`);
+
+  // ت٣٣ (الفحص الشامل): حالتا «مخبَّأ» و«محجوب بالميزانية» لم تكونا
+  // تُكتبان أبداً — فلوحة القياس لا تعرف كم وفّر التخزين المؤقت ولا كم
+  // مرة عضّ السقف، وهما أهمّ رقمين في ضبط الإنفاق. الآن كلُّ مسارٍ
+  // يترك أثراً بحالته الحقيقية.
+  const logSideRequest = async (status: string) => {
+    const { data: id } = await supabase.rpc("ai_log_request", {
+      p_app: APP,
+      p_feature: feature,
+      p_input: { system, user },
+      p_actor_role: body.actor_role ?? null,
+      p_actor_ref: actorRef,
+      p_provider: model.startsWith("claude") ? "anthropic" : "google",
+      p_model: model,
+      p_prompt_version: body.prompt_version ?? "v1",
+      p_request_hash: requestHash,
+      p_locale: body.locale ?? "ar-SA",
+      p_meta: body.meta ?? {},
+    });
+    if (id) {
+      await supabase.rpc("ai_complete_request", {
+        p_id: id,
+        p_status: status,
+        p_cost_usd: 0,
+        p_latency_ms: 0,
+      });
+    }
+  };
+
+  // الميزانية قبل كل شيء — 429 صريحة يفهمها العميل ويعرضها بلطف.
+  const { data: budget } = await supabase.rpc("ai_check_budget", { p_app: APP });
+  if (budget && budget.allowed === false) {
+    await logSideRequest("blocked").catch(() => {});
+    return json(429, { budget });
+  }
 
   if (body.use_cache !== false) {
     const { data: cached } = await supabase.rpc("ai_find_cached", {
@@ -181,6 +219,7 @@ Deno.serve(async (req) => {
       p_hash: requestHash,
     });
     if (cached?.text) {
+      await logSideRequest("cached").catch(() => {});
       return json(200, {
         request_id: "",
         cached: true,

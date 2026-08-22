@@ -29,6 +29,9 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'drivers/drv_other'), { balance: 0, totalEarnings: 0, warningCount: 0, operatorId: '' });
   const mk = (id, o) => setDoc(doc(db, 'orders/' + id), {
     customerId: 'cust1', restaurantId: 'R1', driverShare: 10, driverTip: 2,
+    // itemsTotal لازمة الآن: عُهدة الطلب تُشتق منها في القاعدة (م١٨)
+    // كما يشتقّها النموذج — والطلب الحقيقي يكتبها دائماً عند الإنشاء.
+    itemsTotal: 40, appShare: 0,
     custodyDebited: false, paymentMethod: 'card', walletUsed: 0, discountAmount: 0, ...o });
   await mk('od_ready', { driverId: 'drv_cust', status: 'readyForPickup', paymentMethod: 'cash' });
   await mk('od_ontheway', { driverId: 'drv_del', status: 'onTheWay' });

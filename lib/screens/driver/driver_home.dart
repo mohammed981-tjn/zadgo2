@@ -75,6 +75,10 @@ class _DriverHomeState extends State<DriverHome> {
     // طلب إذن الموقع مبكراً حتى لا يصطدم به السائق أول مرة وهو مستعجل
     // على تأكيد استلام. الفشل هنا مقبول بصمت — الحارس سيعيد الطلب عند الحاجة.
     LocationGuard.currentPosition().then((_) {}).catchError((_) {});
+    // ت٣: حقن مسجّل واقعة الموقع المُحاكى — كانت الإشارة تتبخّر بمجرد
+    // إطفاء الكابتن لتطبيق الموقع الوهمي وإعادة المحاولة.
+    LocationGuard.onMockedLocation =
+        () => context.read<FirebaseService>().recordMockLocationIncident();
     _locationTimer = Timer.periodic(const Duration(seconds: 8), (_) => _pushLocation());
     // سقف الحمولة من إعدادات الإدارة — يُقرأ مرة عند الفتح لا مع كل تدفّق.
     context.read<FirebaseService>().maxOrdersPerDriver().then((v) {
@@ -663,8 +667,8 @@ class _OfferBannerState extends State<_OfferBanner> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                    tr('نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
-                        'Cash — you collect ${formatCurrency(o.payableTotal - o.walletUsed)} from the customer'),
+                    tr('نقدي — تستلم من العميل ${formatCurrency(o.cashDueFromCustomer)}',
+                        'Cash — you collect ${formatCurrency(o.cashDueFromCustomer)} from the customer'),
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13.5,
@@ -1243,8 +1247,8 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
-                tr('نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
-                    'Cash — you collect ${formatCurrency(o.payableTotal - o.walletUsed)} from the customer'),
+                tr('نقدي — تستلم من العميل ${formatCurrency(o.cashDueFromCustomer)}',
+                    'Cash — you collect ${formatCurrency(o.cashDueFromCustomer)} from the customer'),
                 style: const TextStyle(
                     fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
@@ -2043,7 +2047,12 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               ]),
         ),
       ),
-    );
+    // ت٥٤: التخلّص من متحكّمَي الورقة بعد إغلاقها — كانا يتسرّبان مع
+    // كل فتحٍ لطلب السحب.
+    ).whenComplete(() {
+      amountCtrl.dispose();
+      methodCtrl.dispose();
+    });
   }
 
   /// قنوات شحن المحفظة في المرحلة الحالية: تسليم نقدي أو تحويل بنكي تقيّده

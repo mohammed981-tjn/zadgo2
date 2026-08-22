@@ -328,31 +328,42 @@ class _RestaurantFormState extends State<_RestaurantForm> {
       lat: _lat,
       lng: _lng,
     );
-    if (widget.existing == null) {
-      await service.addRestaurant(r);
-    } else {
-      await service.updateRestaurant(r);
-      // موقع مصحَّح يلحق بالطلبات الجارية فوراً (ملاحظة المالك: سائق طلبٍ
-      // قائم ظل يُقاد للموقع القديم بعد التصحيح — لقطة الطلب لا تتحدث
-      // وحدها). فشل النشر لا يُفشل الحفظ: القراءة الحيّة في شاشات السائق
-      // خط الدفاع الثاني.
-      final moved = _lat != null &&
-          _lng != null &&
-          (widget.existing!.lat != _lat || widget.existing!.lng != _lng);
-      if (moved) {
-        try {
-          final n =
-              await service.propagateRestaurantLocation(_restaurantId, _lat!, _lng!);
-          if (n > 0 && mounted) {
-            showSuccess(
-                context,
-                tr('حُدِّث الموقع في $n من الطلبات الجارية',
-                    'Location updated on $n active orders'));
-          }
-        } catch (_) {}
+    // ت٥١: فشل الحفظ كان يترك الورقة على دوّارة أبدية — الزر معطّل ولا
+    // رسالة ولا إغلاق، فيُغلقها المدير يدوياً ولا يعرف أحُفظ أم لا.
+    try {
+      if (widget.existing == null) {
+        await service.addRestaurant(r);
+      } else {
+        await service.updateRestaurant(r);
+        // موقع مصحَّح يلحق بالطلبات الجارية فوراً (ملاحظة المالك: سائق طلبٍ
+        // قائم ظل يُقاد للموقع القديم بعد التصحيح — لقطة الطلب لا تتحدث
+        // وحدها). فشل النشر لا يُفشل الحفظ: القراءة الحيّة في شاشات السائق
+        // خط الدفاع الثاني.
+        final moved = _lat != null &&
+            _lng != null &&
+            (widget.existing!.lat != _lat || widget.existing!.lng != _lng);
+        if (moved) {
+          try {
+            final n =
+                await service.propagateRestaurantLocation(_restaurantId, _lat!, _lng!);
+            if (n > 0 && mounted) {
+              showSuccess(
+                  context,
+                  tr('حُدِّث الموقع في $n من الطلبات الجارية',
+                      'Location updated on $n active orders'));
+            }
+          } catch (_) {}
+        }
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loading = false);
+        showError(context,
+            tr('تعذّر الحفظ — تحقّق من الاتصال وأعد المحاولة',
+                'Save failed — check your connection and try again'));
       }
     }
-    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -803,7 +814,8 @@ class MenuManagerScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    // ت٥٤: التخلّص من متحكّم حوار الفئة بعد إغلاقه.
+    ).then((_) => ctrl.dispose());
   }
 }
 
@@ -1059,8 +1071,13 @@ class _ItemFormState extends State<_ItemForm> {
       ),
     );
 
-    if (saved != true) return;
+    // ت٥٤: قراءة الاسم قبل التخلّص من المتحكّمات الثلاثة — كانت تتسرّب
+    // مع كل فتحٍ لحوار المجموعات على جهازٍ يبقى مفتوحاً طوال الدوام.
     final name = nameCtrl.text.trim();
+    nameCtrl.dispose();
+    optNameCtrl.dispose();
+    optDeltaCtrl.dispose();
+    if (saved != true) return;
     if (name.isEmpty || options.isEmpty) {
       if (mounted) {
         showError(
@@ -1103,12 +1120,22 @@ class _ItemFormState extends State<_ItemForm> {
       kcal: int.tryParse(_kcal.text.trim()),
       optionGroups: _optionGroups,
     );
-    if (widget.existing == null) {
-      await service.addMenuItem(item);
-    } else {
-      await service.updateMenuItem(item);
+    // ت٥١: نفس معالجة فشل حفظ المطعم أعلاه — لا دوّارة أبدية بلا خبر.
+    try {
+      if (widget.existing == null) {
+        await service.addMenuItem(item);
+      } else {
+        await service.updateMenuItem(item);
+      }
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loading = false);
+        showError(context,
+            tr('تعذّر الحفظ — تحقّق من الاتصال وأعد المحاولة',
+                'Save failed — check your connection and try again'));
+      }
     }
-    if (mounted) Navigator.pop(context);
   }
 
   @override

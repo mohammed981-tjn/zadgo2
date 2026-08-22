@@ -107,8 +107,11 @@ ${resolutionDraft != null && resolutionDraft.trim().isNotEmpty ? 'الإجراء
   }) {
     final prompt = '''
 اكتب وصفاً شهياً قصيراً لصنف في منيو مطعم سعودي، بالعربية، في 10 إلى
-18 كلمة (جملة أو جملتان): يصف المكونات أو الطعم أو التحضير بصدق، بلا
-مبالغات فارغة، وبلا سعر وبلا رموز تعبيرية.
+18 كلمة (جملة أو جملتان): يصف الطعم أو القوام أو طريقة التقديم بصدق،
+بلا مبالغات فارغة، وبلا سعر وبلا رموز تعبيرية.
+قاعدة صارمة: لا تذكر مكوّناً محدداً (ثوم، مخلل، صوص بعينه...) لا يظهر
+في اسم الصنف نفسه — وصفة المطعم قد تخلو منه، واختلاق مكوّنٍ في تطبيق
+طعام بابُ تحسّسٍ ومسؤولية. صف الانطباع العام لا قائمة مكوّنات مفترضة.
 اسم الصنف: $dishName${category != null && category.trim().isNotEmpty ? '\nتصنيفه في المنيو: $category' : ''}
 أعد الوصف وحده بلا شرح.''';
     return _generate([Content.text(prompt)]);
@@ -118,15 +121,25 @@ ${resolutionDraft != null && resolutionDraft.trim().isNotEmpty ? 'الإجراء
   /// فشل تعرض التفاصيل التقنية — أول اختبار ميداني (2026-08-16) علّمنا
   /// أن رسالة لطيفة بلا تفاصيل تعمي التشخيص، والمدير قناتنا الوحيدة
   /// لقراءة الخطأ (لا سجلات جهاز عن بعد).
+  /// الطراز الذي أجاب فعلاً في آخر توليد ناجح — يُختم في سجلّ التغذية
+  /// الراجعة (ت٣٢): زوج تدريبٍ بلا اسم طرازه لا يصلح لمقارنة طرازٍ بطراز.
+  static String? lastServedModel;
+
   static Future<String> _generate(List<Content> content) async {
     Object? lastError;
     for (final model in const [_primaryModel, _fallbackModel]) {
       try {
-        final res = await _modelFor(model).generateContent(content);
+        // ت٣٧: مهلة صريحة — بلا حدٍّ كان الزر يبقى دائراً بلا نهاية على
+        // شبكة رديئة فيُظنّ التطبيق متجمّداً، بينما الشاشة الشقيقة
+        // (التحقق من الدفع) تضبط مهلتها صراحةً.
+        final res = await _modelFor(model)
+            .generateContent(content)
+            .timeout(const Duration(seconds: 30));
         final text = res.text?.trim();
         if (text == null || text.isEmpty) {
           throw Exception('لم يصل ردّ — حاول مجدداً');
         }
+        lastServedModel = model;
         return text;
       } catch (e) {
         debugPrint('AiAssist ($model) error: $e');

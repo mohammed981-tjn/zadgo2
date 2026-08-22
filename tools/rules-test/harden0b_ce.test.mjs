@@ -18,7 +18,7 @@ const t = async (name, fn) => {
 
 // طلب صالح كامل (يمرّ كل شروط الإنشاء الأخرى) لعزل الفحص المطلوب.
 const order = (over = {}) => ({
-  customerId: 'cust1', restaurantId: 'R1', paymentMethod: 'card', paymentId: '',
+  customerId: 'cust1', restaurantId: 'R1', paymentMethod: 'cash', paymentId: '',
   isPaid: false, discountAmount: 0, walletUsed: 0, driverTip: 0,
   itemsTotal: 40, status: 'restaurantPending', ...over,
 });
@@ -43,9 +43,9 @@ await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(db, 'coupons/REL_' + s), { isActive: true, type: 'fixed', value: 10, usedCount: 3, usageLimit: 0, perUserLimit: 0, restaurantId: '', minOrderTotal: 0 });
     await setDoc(doc(db, 'coupon_usages/REL_' + s + '_cust1'), { code: 'REL_' + s, userId: 'cust1', count: 1, lastOrderId: 'relord_' + s });
   }
-  await setDoc(doc(db, 'orders/relord_A'), { customerId: 'cust1', couponCode: 'REL_A', status: 'cancelled', couponReleased: false });
-  await setDoc(doc(db, 'orders/relord_B'), { customerId: 'cust1', couponCode: 'REL_B', status: 'cancelled', couponReleased: true });
-  await setDoc(doc(db, 'orders/relord_C'), { customerId: 'cust1', couponCode: 'REL_C', status: 'cancelled', couponReleased: true });
+  await setDoc(doc(db, 'orders/relord_A'), { customerId: 'cust1', couponCode: 'REL_A', status: 'cancelled', couponReleased: false, discountAmount: 10 });
+  await setDoc(doc(db, 'orders/relord_B'), { customerId: 'cust1', couponCode: 'REL_B', status: 'cancelled', couponReleased: true, discountAmount: 10 });
+  await setDoc(doc(db, 'orders/relord_C'), { customerId: 'cust1', couponCode: 'REL_C', status: 'cancelled', couponReleased: true, discountAmount: 10 });
 });
 
 const cust1 = env.authenticatedContext('cust1').firestore();

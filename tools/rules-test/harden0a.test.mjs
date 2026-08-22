@@ -25,7 +25,7 @@ const t = async (name, fn) => {
 
 // طلب صالح كامل يمرّ كل شروط الإنشاء (غير نقدي، غير مدفوع، بلا خصم/محفظة).
 const baseOrder = (uid, over = {}) => ({
-  customerId: uid, restaurantId: 'R1', paymentMethod: 'card', paymentId: '',
+  customerId: uid, restaurantId: 'R1', paymentMethod: 'cash', paymentId: '',
   isPaid: false, discountAmount: 0, walletUsed: 0, driverTip: 0,
   itemsTotal: 40, status: 'restaurantPending', ...over,
 });

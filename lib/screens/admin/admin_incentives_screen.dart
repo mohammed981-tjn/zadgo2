@@ -136,7 +136,31 @@ class _BodyState extends State<_Body> {
     // (سبقنا جهاز آخر إليها) لا فشلاً.
     try {
       if (s.referralEnabled) {
+        // م٢٦: سقف الداعي الشهري **منعٌ آليّ هنا** (الصرف اليدوي يبقى
+        // تنبيهاً — القرار المالي للمدير): يُحصى من المُحالين المختومين
+        // الذين انضموا هذا الشهر لنفس الداعي، ويُحدَّث أثناء المسح نفسه
+        // كي لا يتجاوز مسحٌ واحد السقفَ دفعةً واحدة.
+        final monthStart =
+            DateTime(DateTime.now().year, DateTime.now().month);
+        final codeOf = {
+          for (final d in widget.drivers) d.referralCode: d.id
+        };
+        final paidThisMonth = <String, int>{};
+        for (final d in widget.drivers) {
+          if (d.referralRewarded &&
+              d.referredByCode.isNotEmpty &&
+              (d.createdAt?.isAfter(monthStart) ?? false)) {
+            final rid = codeOf[d.referredByCode];
+            if (rid != null) {
+              paidThisMonth[rid] = (paidThisMonth[rid] ?? 0) + 1;
+            }
+          }
+        }
         for (final r in eligibleReferrals(s, widget.drivers, delivered)) {
+          if (s.referralMonthlyCap > 0 &&
+              (paidThisMonth[r.referrer.id] ?? 0) >= s.referralMonthlyCap) {
+            continue; // بلغ سقفه — يبقى للصرف اليدوي إن أراده المدير.
+          }
           try {
             await service.payReferralBonus(
               referrer: r.referrer,
@@ -145,6 +169,8 @@ class _BodyState extends State<_Body> {
               refereeAmount: s.refereeBonus,
             );
             paid++;
+            paidThisMonth[r.referrer.id] =
+                (paidThisMonth[r.referrer.id] ?? 0) + 1;
           } catch (_) {
             // يبقى المستحقّ ظاهراً للصرف اليدوي؛ ونكمل على بقية القائمة.
           }
@@ -239,19 +265,28 @@ List<_ReferralRow> referralRows(
     if (referrer == null || referrer.id == referee.id) continue;
 
     final joined = referee.createdAt;
-    final deadline = joined?.add(Duration(days: s.referralWindowDays));
+    // م٢٢ (فحص مساعد الويب): «بلا تاريخ انضمام» كان يعني نافذةً مفتوحة
+    // للأبد — فمحوُ التاريخ (أو مسارُ إنشاءٍ نسي كتابته) يجعل الشرط
+    // يُستوفى متى شاء صاحبه. الآن: بلا تاريخ = غير مستحق حتى يصحّحه
+    // المدير، وتظهر صفراً هنا فيَبين الخلل بدل أن يُصرف عليه.
+    if (joined == null) {
+      rows.add(_ReferralRow(
+          referrer: referrer, referee: referee, count: 0, expired: false));
+      continue;
+    }
+    final deadline = joined.add(Duration(days: s.referralWindowDays));
     final count = delivered
         .where((o) =>
             o.driverId == referee.id &&
-            (joined == null || !o.createdAt.isBefore(joined)) &&
-            (deadline == null || !o.createdAt.isAfter(deadline)))
+            !o.createdAt.isBefore(joined) &&
+            !o.createdAt.isAfter(deadline))
         .length;
 
     rows.add(_ReferralRow(
       referrer: referrer,
       referee: referee,
       count: count,
-      expired: deadline != null && now.isAfter(deadline),
+      expired: now.isAfter(deadline),
     ));
   }
   rows.sort((a, b) => b.count.compareTo(a.count));
@@ -261,7 +296,18 @@ List<_ReferralRow> referralRows(
 List<_ReferralRow> eligibleReferrals(
         IncentiveSettings s, List<Driver> drivers, List<Order> delivered) =>
     referralRows(s, drivers, delivered)
-        .where((r) => !r.expired && r.count >= s.referralDeliveries)
+        // ت٥٢: «صفر توصيلات» كان يجعل **كل** حامل كودٍ مستحقاً فوراً —
+        // ومع الصرف التلقائي يُصرف بلا مراجعة. الصفر الآن يعطّل الاستحقاق
+        // (نظير حارس إحالة العميل حرفاً) حتى يُضبط شرطٌ حقيقي.
+        .where((r) =>
+            s.referralDeliveries > 0 &&
+            !r.expired &&
+            r.count >= s.referralDeliveries)
+        // م٢٦: تمايز الطرفين بالجوّال — جوّال واحد لحسابين ليس إحالةً بل
+        // الشخص نفسه؛ يسقط من الاستحقاق ويبقى في القائمة العامة ليَبين.
+        .where((r) =>
+            r.referrer.phone.trim().isEmpty ||
+            r.referrer.phone.trim() != r.referee.phone.trim())
         .toList();
 
 // ————— إحالة العميل (دفعة ٥) — نظير دوال السائق تماماً، لكن على العملاء
@@ -318,6 +364,10 @@ List<_CustomerReferralRow> eligibleCustomerReferrals(
             !r.expired &&
             s.customerReferralOrders > 0 &&
             r.count >= s.customerReferralOrders)
+        // م٢٦: نفس تمايز الجوّال المطبَّق على إحالة السائق أعلاه.
+        .where((r) =>
+            r.referrer.phone.trim().isEmpty ||
+            r.referrer.phone.trim() != r.referee.phone.trim())
         .toList();
 
 /// قسم نموّ العميل في لوحة الحوافز — حالة الإحالة والكاش باك وعدد المستحقّين،
@@ -376,10 +426,16 @@ class _CustomerGrowthSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
+                  // ت٤٦ (كشفٌ لا حكم): الكنس يرى طلبات نافذة اللوحة فقط —
+                  // طلبٌ مسلَّم أقدم من النافذة يخرج من الصرف الآلي بصمت،
+                  // فالإفصاح هنا أصدق من إيهامٍ بتغطية كاملة.
                   tr('الكاش باك ${s.cashbackPercent.toStringAsFixed(1)}٪ يُصرف عن '
-                          'كل طلبٍ مسلَّم عند الكنس',
+                          'كل طلبٍ مسلَّم ضمن نافذة اللوحة (${s.referralWindowDays} يوماً) '
+                          'عند الكنس — الأقدم يُصرف يدوياً من محفظة العميل إن لزم',
                       'Cashback of ${s.cashbackPercent.toStringAsFixed(1)}% is '
-                          'paid for every delivered order during the sweep'),
+                          'paid for every delivered order within the panel window '
+                          '(${s.referralWindowDays} days) during the sweep — older '
+                          "ones need a manual wallet credit if due"),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textGray)),
             ),
@@ -578,7 +634,7 @@ class _SettingsFormState extends State<_SettingsForm> {
   late final TextEditingController _referrer, _referee, _deliveries,
       _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions,
       _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget,
-      _cashCap, _cashConcurrent, _noShowLimit,
+      _cashCap, _cashConcurrent, _noShowLimit, _maxItemsTotal,
       _custReferrer, _custReferee, _custRefOrders, _custRefWindow,
       _cashbackPct, _cashbackMax;
   late bool _autoPay;
@@ -618,6 +674,8 @@ class _SettingsFormState extends State<_SettingsForm> {
     _cashConcurrent =
         TextEditingController(text: '${s.maxConcurrentCashOrders}');
     _noShowLimit = TextEditingController(text: '${s.cashNoShowLimit}');
+    _maxItemsTotal =
+        TextEditingController(text: s.maxOrderItemsTotal.toStringAsFixed(0));
     _custRefOn = s.customerReferralEnabled;
     _custReferrer =
         TextEditingController(text: s.customerReferrerBonus.toStringAsFixed(0));
@@ -647,7 +705,7 @@ class _SettingsFormState extends State<_SettingsForm> {
       _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
       _maxLoad, _stackKm, _compPct, _tipOptions,
       _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget,
-      _cashCap, _cashConcurrent, _noShowLimit,
+      _cashCap, _cashConcurrent, _noShowLimit, _maxItemsTotal,
       _custReferrer, _custReferee, _custRefOrders, _custRefWindow,
       _cashbackPct, _cashbackMax,
     ]) {
@@ -691,9 +749,15 @@ class _SettingsFormState extends State<_SettingsForm> {
               referralEnabled: _referralOn,
               referrerBonus: double.tryParse(_referrer.text.trim()) ?? 0,
               refereeBonus: double.tryParse(_referee.text.trim()) ?? 0,
-              referralDeliveries: int.tryParse(_deliveries.text.trim()) ?? 1,
-              referralWindowDays: int.tryParse(_windowDays.text.trim()) ?? 30,
-              referralMonthlyCap: int.tryParse(_cap.text.trim()) ?? 3,
+              // ت٥٢: حدود مدى تمنع رقماً شاذاً بغلطة إدخال — الشرط ١..٥٠٠
+              // (صفره يعطّل الاستحقاق في المرشِّح لا هنا)، والنافذة يوم
+              // إلى سنة، والسقف ٠ (بلا سقف آلي) إلى ١٠٠٠.
+              referralDeliveries:
+                  (int.tryParse(_deliveries.text.trim()) ?? 1).clamp(0, 500),
+              referralWindowDays:
+                  (int.tryParse(_windowDays.text.trim()) ?? 30).clamp(1, 365),
+              referralMonthlyCap:
+                  (int.tryParse(_cap.text.trim()) ?? 3).clamp(0, 1000),
               challengeEnabled: _challengeOn,
               challengeWeekdays: _days,
               tiers: tiers,
@@ -731,6 +795,10 @@ class _SettingsFormState extends State<_SettingsForm> {
                   (int.tryParse(_cashConcurrent.text.trim()) ?? 0).clamp(0, 20),
               cashNoShowLimit:
                   (int.tryParse(_noShowLimit.text.trim()) ?? 0).clamp(0, 50),
+              // ح٥: سقف قيمة وجبات الطلب — تحرسه القاعدة، صفر يعطّله.
+              maxOrderItemsTotal:
+                  (double.tryParse(_maxItemsTotal.text.trim()) ?? 0)
+                      .clamp(0.0, 100000.0),
               // نموّ العميل (دفعة ٥) — صفر/تعطيل يوقفه (ج١)، وحرّاس مدى:
               // نسبة الكاش باك ٠..٥٠٪ (فوقها خطأ إدخال يستنزف)، والسقف ≥ صفر.
               customerReferralEnabled: _custRefOn,
@@ -1048,6 +1116,10 @@ class _SettingsFormState extends State<_SettingsForm> {
                 child: _num(_cashConcurrent,
                     tr('حد النقدي المتزامن', 'Concurrent cash limit'))),
           ]),
+          const SizedBox(height: 8),
+          _num(_maxItemsTotal,
+              tr('سقف قيمة وجبات الطلب الواحد (ر.س — صفر يعطّل)',
+                  'Max items total per order (SAR — 0 disables)')),
           const SizedBox(height: 10),
           _num(
               _noShowLimit,

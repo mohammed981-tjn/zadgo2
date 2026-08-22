@@ -443,7 +443,12 @@ class _LiveTrackingCard extends StatelessWidget {
             order.walletUsed > 0
                 ? tr('تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً',
                     'Order cancelled — your wallet credit (${order.walletUsed.toStringAsFixed(0)} SAR) will be returned by support soon')
-                : tr('تم إلغاء الطلب', 'Order cancelled'));
+                // ح٧: صدق الرسالة لصاحب البطاقة أيضاً — الاسترداد يدويّ
+                // عبر الإدارة، فلا يُترك يظن المبلغ يعود وحده فوراً.
+                : (order.paymentId ?? '').isNotEmpty
+                    ? tr('تم إلغاء الطلب — مبلغ بطاقتك يعالجه فريق الدعم ويُعاد إليك',
+                        'Order cancelled — your card payment is processed by support and returned to you')
+                    : tr('تم إلغاء الطلب', 'Order cancelled'));
       }
     } catch (_) {
       if (context.mounted) {
@@ -926,7 +931,12 @@ class _OrderCard extends StatelessWidget {
             order.walletUsed > 0
                 ? tr('تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً',
                     'Order cancelled — your wallet credit (${order.walletUsed.toStringAsFixed(0)} SAR) will be returned by support soon')
-                : tr('تم إلغاء الطلب', 'Order cancelled'));
+                // ح٧: صدق الرسالة لصاحب البطاقة أيضاً — الاسترداد يدويّ
+                // عبر الإدارة، فلا يُترك يظن المبلغ يعود وحده فوراً.
+                : (order.paymentId ?? '').isNotEmpty
+                    ? tr('تم إلغاء الطلب — مبلغ بطاقتك يعالجه فريق الدعم ويُعاد إليك',
+                        'Order cancelled — your card payment is processed by support and returned to you')
+                    : tr('تم إلغاء الطلب', 'Order cancelled'));
       }
     } catch (_) {
       if (context.mounted) {
@@ -954,6 +964,9 @@ class _OrderCard extends StatelessWidget {
 
   void _showRateDialog(BuildContext context, FirebaseService service, Order o) {
     double orderRating = 5, driverRating = 5;
+    // ت٤٢: حالة إرسالٍ ظاهرة — كان الحوار يبدو ميتاً عند الضغط، وفشل
+    // الإرسال لا يُغلق ولا يُخبر فيظنّ العميل تقييمه وصل وهو لم يصل.
+    var sending = false;
     final reviewCtrl = TextEditingController();
     showDialog(
       context: context,
@@ -988,25 +1001,48 @@ class _OrderCard extends StatelessWidget {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
+                onPressed: sending ? null : () => Navigator.pop(ctx),
                 child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
-              onPressed: () async {
-                await service.rateOrder(
-                  orderId: o.id,
-                  driverId: o.driverId ?? '',
-                  orderRating: orderRating,
-                  driverRating: driverRating,
-                  review: reviewCtrl.text.trim().isEmpty ? null : reviewCtrl.text.trim(),
-                  restaurantId: o.restaurantId,
-                );
-                if (context.mounted) Navigator.pop(ctx);
-              },
-              child: Text(tr('إرسال', 'Submit')),
+              onPressed: sending
+                  ? null
+                  : () async {
+                      setState(() => sending = true);
+                      try {
+                        await service.rateOrder(
+                          orderId: o.id,
+                          driverId: o.driverId ?? '',
+                          orderRating: orderRating,
+                          driverRating: driverRating,
+                          review: reviewCtrl.text.trim().isEmpty
+                              ? null
+                              : reviewCtrl.text.trim(),
+                          restaurantId: o.restaurantId,
+                        );
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      } catch (_) {
+                        // يبقى الحوار مفتوحاً بنصّه — يجرّب ثانيةً بلا
+                        // إعادة كتابة، ويعرف أن التقييم لم يُرسل.
+                        if (ctx.mounted) {
+                          setState(() => sending = false);
+                          showError(
+                              ctx,
+                              tr('تعذّر إرسال التقييم — أعد المحاولة',
+                                  'Couldn\'t submit the rating — try again'));
+                        }
+                      }
+                    },
+              child: sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text(tr('إرسال', 'Submit')),
             ),
           ],
         ),
       ),
-    );
+    // ت٥٤: التخلّص من المتحكّم بعد إغلاق الحوار — كان يتسرّب مع كل فتح.
+    ).then((_) => reviewCtrl.dispose());
   }
 }

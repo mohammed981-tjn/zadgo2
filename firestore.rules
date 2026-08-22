@@ -42,10 +42,21 @@ service cloud.firestore {
       return exists(p) ? get(p).data.get('firstCashOrderCap', 0) : 0;
     }
 
+    /// سقف قيمة وجبات الطلب الواحد (ح٥) — يضبطه المدير، صفر = معطَّل.
+    function maxOrderItemsTotal() {
+      let p = /databases/$(database)/documents/delivery_settings/incentives;
+      return exists(p) ? get(p).data.get('maxOrderItemsTotal', 0) : 0;
+    }
+
     function hasRole(role) {
       return isSignedIn() &&
           exists(/databases/$(database)/documents/users/$(currentUid())) &&
-          userData().role == role;
+          userData().role == role &&
+          // م١١ (فحص مساعد الويب): «إيقاف الحساب» كان تجميل واجهة —
+          // الموقوف يحتفظ بكل ما يمنحه دوره. الافتراض «مفعَّل» (د٣:
+          // حسابات قديمة بلا الحقل لا تنقطع). لا يمسّ صفة المدير
+          // الموقَّعة — سحبها من ورشة GitHub.
+          userData().get('isActive', true) != false;
     }
 
     /// صفة المدير — **الادّعاء الموقّع وحده** (بند ١٢-ب، أُغلق المسار القديم
@@ -129,12 +140,22 @@ service cloud.firestore {
       //     الاستلام في فرع الكابتن (لا حرّاً)، وإلا تخطّى الكابتن القيد (C2).
       //   • operatorId/operatorShare: مال مشغّل الأسطول (H1) — يكتبهما الكابتن
       //     لحظة التسليم مقيَّدين بتبعيّته الفعلية والحصّة المحسوبة (فرع الكابتن).
+      //   • paymentMethod/paymentId/cardAmountHalalas (فحص مساعد الويب ح١):
+      //     قلبُ «نقدي» إلى «إلكتروني» بعد الإنشاء كان يُسقط العُهدة عن
+      //     الكابتن ويوهم المذكرة بأن الطلب مدفوع — وسيلة الدفع تتجمّد.
+      //   • itemsTotal (ح٥): مدخل حارسَي الكوبون — حرّاً كان يضخَّم فيمرّ
+      //     كوبون المئة على طلبِ الخمسة عشر.
+      //   • cardRefundPending (ح٧): نظير walletRefundPending لردود البطاقة.
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
               'restaurantCompensation', 'restaurantChargeback', 'driverTip',
-              'commissionPercent', 'walletRefundPending',
+              'commissionPercent', 'walletRefundPending', 'cardRefundPending',
               'walletUsed', 'discountAmount', 'custodyDebited',
-              'operatorId', 'operatorShare'];
+              'operatorId', 'operatorShare',
+              'paymentMethod', 'paymentId', 'cardAmountHalalas',
+              // م٣/م٢٣: اسم الكوبون يُثبَّت لحظة الإنشاء (تلفيق الإرجاع)،
+              // وعلم «تعذّر التسليم» بيّنةُ الكابتن لا يمحوها العميل.
+              'itemsTotal', 'couponCode', 'deliveryFailed'];
     }
 
     /// القائمة نفسها بلا operatorId (دفعة ٨ — ختم التبعية عند الإسناد):
@@ -145,9 +166,11 @@ service cloud.firestore {
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
               'restaurantCompensation', 'restaurantChargeback', 'driverTip',
-              'commissionPercent', 'walletRefundPending',
+              'commissionPercent', 'walletRefundPending', 'cardRefundPending',
               'walletUsed', 'discountAmount', 'custodyDebited',
-              'operatorShare'];
+              'operatorShare',
+              'paymentMethod', 'paymentId', 'cardAmountHalalas',
+              'itemsTotal', 'couponCode', 'deliveryFailed'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
@@ -381,7 +404,10 @@ service cloud.firestore {
                 // للمدير وحده فلا يُعاد ضبطه ليُصرف مرتين.
                 !changedKeys().hasAny(['role', 'isActive', 'restaurantId',
                     'cashTrusted', 'cashBlocked', 'cashNoShowCount',
-                    'referredByCode', 'referralRewarded']) &&
+                    'referredByCode', 'referralRewarded',
+                    // م٢٦ (فحص مساعد الويب): تاريخ الإنشاء أساس نافذة
+                    // إحالة العميل — تحريره يفتحها بأثر رجعي.
+                    'createdAt']) &&
                 // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
                 // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
                 // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
@@ -422,7 +448,10 @@ service cloud.firestore {
       // العدّادين) يبقى: التطبيق يخزّن المتوسط مقرَّباً لخانة عشرية.
       allow update: if isAdmin() ||
           (isRestaurantManagerOf(restaurantId) &&
-              !changedKeys().hasAny(['commissionPercent'])) ||
+              // ح٣: commissionFreeUntil كانت حرّةً — مدير مطعمٍ يكتب
+              // «مجاني حتى سنة ٣٠٠٠» فيعفي نفسه من العمولة للأبد.
+              !changedKeys().hasAny(['commissionPercent',
+                                     'commissionFreeUntil'])) ||
           (isCustomer() &&
               changedKeys().hasOnly(['rating', 'ratingCount', 'ratingOrderId']) &&
               request.resource.data.get('ratingOrderId', '') != '' &&
@@ -532,7 +561,24 @@ service cloud.firestore {
               (userData().get('cashBlocked', false) != true &&
                   (userData().get('cashTrusted', false) == true ||
                       firstCashCap() <= 0 ||
-                      request.resource.data.get('total', 0) <= firstCashCap()))) &&
+                      // ح٦ (فحص مساعد الويب): كان يقرأ get('total',0) —
+                      // حقلاً لا يكتبه أي مسار، فالسقف ميتٌ دائماً (0 ≤ أي
+                      // سقف). الإجمالي يُركَّب مما يُكتب فعلاً.
+                      (request.resource.data.get('itemsTotal', 0) +
+                          request.resource.data.get('driverShare', 0) +
+                          request.resource.data.get('appShare', 0) -
+                          request.resource.data.get('discountAmount', 0)) <=
+                          firstCashCap()))) &&
+          // ح١(ب): غير النقدي يستلزم سنداً لحظة الإنشاء — دفعة بطاقة موثَّقة
+          // أو رصيد محفظة — وإلا طُبعت للكابتن مذكرة «مدفوع، لا تحصيل» عن
+          // طلبٍ لم يدفع أحد فيه شيئاً (وهو التفافٌ كامل على درع النقد).
+          (request.resource.data.get('paymentMethod', '') == 'cash' ||
+              request.resource.data.get('paymentId', '') != '' ||
+              request.resource.data.walletUsed > 0) &&
+          // ح٥: قيمة الوجبات عاقلة وسقفها بيد المدير (صفر = معطَّل، بند ج١)
+          request.resource.data.get('itemsTotal', 0) >= 0 &&
+          (maxOrderItemsTotal() <= 0 ||
+              request.resource.data.get('itemsTotal', 0) <= maxOrderItemsTotal()) &&
           (request.resource.data.get('paymentId', '') == '' ||
               (exists(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)) &&
                get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid() &&
@@ -620,60 +666,29 @@ service cloud.firestore {
                                 resource.data.status in ['created',
                                     'restaurantPending', 'restaurantAccepted']))) ||
                     (changedKeys().hasOnly(['status', 'updatedAt',
-                            'statusChangedAt', 'walletRefundPending']) &&
-                        request.resource.data.walletRefundPending == true &&
+                            'statusChangedAt', 'walletRefundPending',
+                            'cardRefundPending']) &&
+                        changedKeys().hasAny(['walletRefundPending',
+                            'cardRefundPending']) &&
                         request.resource.data.status == 'cancelled' &&
                         resource.data.status in ['created',
                             'restaurantPending', 'restaurantAccepted'] &&
-                        resource.data.get('walletUsed', 0) > 0))) ||
-            // السائق المُسنَد يكتب isPaid وplatformCommission وحدهما من
-            // الحقول المالية (عند التسليم markOrderDelivered)، فقائمته =
-            // orderMoneyKeys() ناقص هذين. كانت تنقصها restaurantCompensation
-            // وrestaurantChargeback وcommissionPercent، فسائقٌ معدَّل على
-            // طلبه المُسنَد كان يصفّر تعويض المطعم أو يخفّض عمولة المنصّة (د١).
+                        (!changedKeys().hasAny(['walletRefundPending']) ||
+                            (request.resource.data.walletRefundPending == true &&
+                                resource.data.get('walletUsed', 0) > 0)) &&
+                        // ح٧: طلبُ بطاقةٍ يُلغى — الشحن وقع قبل الإنشاء
+                        // فيُختم ردٌّ معلّق يظهر في طابور لوحة المدير.
+                        (!changedKeys().hasAny(['cardRefundPending']) ||
+                            (request.resource.data.cardRefundPending == true &&
+                                resource.data.get('paymentId', '') != ''))))) ||
+            // السائق المُسنَد على طلبه: **قائمة سماح صريحة** (أمر المالك
+            // 2026-08-22 — العلاج الجذري) بمفاتيح دورته الستة عشر حصراً؛
+            // من المال لا يكتب إلا isPaid وplatformCommission (التسليم)
+            // وoperatorShare (محروسة القيمة والتوقيت) — والحقل المالي
+            // الجديد يولد ممنوعاً عنه تلقائياً (د١). التفصيل في
+            // captainOrderWriteOk() أدناه.
             (resource.data.driverId == currentUid() &&
-                !changedKeys().hasAny(['items', 'driverShare', 'appShare',
-                                       'customerId', 'restaurantId',
-                                       'orderNumber', 'driverTip',
-                                       'restaurantCompensation',
-                                       'restaurantChargeback',
-                                       'commissionPercent',
-                                       'walletUsed', 'discountAmount']) &&
-                // مصفوفة انتقالات حالة الكابتن (ثغرة H3): الحالتان الوحيدتان
-                // اللتان يكتبهما تطبيق الكابتن هما الاستلام (→onTheWay) والتسليم
-                // (→delivered من onTheWay). أي كتابة لا تمسّ الحالة تمرّ (وصولٌ
-                // للمطعم، قبول/رفض العرض، تعذّر التسليم — كلها بلا status).
-                // بلا هذا القيد كان الكابتن يكتب delivered من أي مكان فيقبض
-                // أجرته دون وصول الطعام. (نمط مصفوفة المطعم أدناه.)
-                (!changedKeys().hasAny(['status']) ||
-                    (request.resource.data.status == 'onTheWay' &&
-                        resource.data.status in ['readyForPickup',
-                            'searchingDriver', 'driverAssigned', 'pickedUp']) ||
-                    (request.resource.data.status == 'delivered' &&
-                        resource.data.status == 'onTheWay')) &&
-                // عُهدة النقد (ثغرة C2): custodyDebited لا يُرفع إلا مقروناً
-                // بانتقال الاستلام نفسه. كان الكابتن يرفعه قبل الاستلام
-                // فيتخطّى markPickedUpBySelf قيدَ العُهدة (needsCustody=false)
-                // ويحصّل كامل النقد بلا قيدٍ عليه.
-                (!changedKeys().hasAny(['custodyDebited']) ||
-                    (request.resource.data.get('custodyDebited', false) == true &&
-                        resource.data.get('custodyDebited', false) == false &&
-                        request.resource.data.status == 'onTheWay' &&
-                        resource.data.status in ['readyForPickup',
-                            'searchingDriver', 'driverAssigned', 'pickedUp'])) &&
-                // مال المشغّل (ثغرة H1، بند د١ — عُمّم في دفعة ٨): operatorId
-                // يطابق تبعيّة السائق المُسنَد في الكتابة نفسها (لا الكاتب)،
-                // ويُجرَّد مع تجريد driverId — فلا نسبةَ لمشغّلٍ آخر، ولا
-                // تصفيرَ تبعيةٍ عند التسليم يُسقط الحصّة. وoperatorShare يبقى
-                // بالحصّة المحسوبة (±0.01 دفاعٌ ضد انحراف الفاصلة).
-                (!changedKeys().hasAny(['operatorId', 'driverId']) ||
-                    operatorIdMatchesAssignedDriver()) &&
-                (!changedKeys().hasAny(['operatorShare']) ||
-                    (myOperatorId() != '' &&
-                        request.resource.data.get('operatorShare', 0) >=
-                            expectedOperatorShare(resource.data.get('driverShare', 0)) - 0.01 &&
-                        request.resource.data.get('operatorShare', 0) <=
-                            expectedOperatorShare(resource.data.get('driverShare', 0)) + 0.01))) ||
+                captainOrderWriteOk()) ||
             // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
             // بعد رفضه إياه — يمرّره جهازُه تلقائياً لأقرب سائق آخر
             // (driverId لغيره). كان الشرط يُلزم أن يكون المعرّف الجديد هو
@@ -682,7 +697,14 @@ service cloud.firestore {
             // مُسنَد لغيره ما زال ممنوعاً (الشرط driverId == null)، والإسناد
             // لغيره صار مجرد «عرض» يملك صاحبه رفضه (driverAcknowledged).
             (resource.data.driverId == null && isDriver() &&
-                !changedKeys().hasAny(assignSafeMoneyKeys()) &&
+                // ح٢(ب) (فحص مساعد الويب): كان الفرع بلا قائمة حقول ولا
+                // مصفوفة حالات، فكابتنٌ يُسند طلباً بلا سائق لنفسه ويقفزه
+                // إلى «مُسلَّم» فيقبض أجرة طعامٍ لم يخرج من المطعم — أو يلفّ
+                // طلبه المُسلَّم (بعد خلع اسمه) ليقبضها مرة أخرى. الآن:
+                // مفاتيح الإسناد الذاتي حصراً — لا حالة ولا مال من هنا أبداً.
+                changedKeys().hasOnly(['driverId', 'driverName',
+                    'driverPhone', 'driverAcknowledged', 'operatorId',
+                    'updatedAt']) &&
                 // دفعة ٨: قبول الطلب يختم تبعيّة قابله (محروسة بالمطابقة)
                 // — والحارس يشتعل مع تغيّر driverId نفسه: بدونه بقيت نسبةُ
                 // المشغّل القديمة على كابتنٍ جديد بلا فحص.
@@ -696,14 +718,22 @@ service cloud.firestore {
             // delivered/cancelled ليست له. وعلم ردّ الرصيد لا يُرفع إلا
             // بشكله الحرفي: رفضٌ لطلبٍ دُفع من المحفظة فعلاً.
             (isRestaurantManagerOf(resource.data.restaurantId) &&
-                !changedKeys().hasAny(assignSafeMoneyKeys()) &&
+                // م١ (فحص مساعد الويب — أُثبت بالمحاكي): walletRefundPending
+                // ضمن الحقول المالية الممنوعة، فكان استثناء الرفض أدناه كوداً
+                // ميتاً — المطعم لا يستطيع رفض أي طلبٍ دُفع من محفظة. البديل
+                // الحرفي لشكل الرفض وحده يمرّ، وشرطا العلم أدناه يحرسانه.
+                (!changedKeys().hasAny(assignSafeMoneyKeys()) ||
+                    changedKeys().hasOnly(['status', 'updatedAt',
+                        'statusChangedAt', 'rejectionReason',
+                        'walletRefundPending', 'cardRefundPending'])) &&
                 // دفعة ٨: الإسناد التلقائي من جهاز المطعم يختم تبعيّة السائق
                 // المُسنَد — محروسةً بمطابقة مستنده، فلا اختلاق نسبةِ مشغّل.
                 (!changedKeys().hasAny(['operatorId', 'driverId']) ||
                     operatorIdMatchesAssignedDriver()) &&
                 changedKeys().hasOnly(['status', 'updatedAt',
                     'statusChangedAt', 'rejectionReason',
-                    'walletRefundPending', 'restaurantHandoverAt',
+                    'walletRefundPending', 'cardRefundPending',
+                    'restaurantHandoverAt',
                     'driverId', 'driverName', 'driverPhone',
                     'driverAcknowledged', 'operatorId',
                     // يوم المطعم (2026-08-20): دقائق التحضير عند القبول،
@@ -711,14 +741,28 @@ service cloud.firestore {
                     'prepMinutes', 'restaurantReply',
                     'restaurantRepliedAt']) &&
                 (!changedKeys().hasAny(['status']) ||
-                    request.resource.data.status in ['restaurantAccepted',
+                    (request.resource.data.status in ['restaurantAccepted',
                         'preparing', 'readyForPickup', 'searchingDriver',
                         'driverAssigned', 'noDriverFound',
-                        'restaurantRejected']) &&
+                        'restaurantRejected'] &&
+                     // م٢ (فحص مساعد الويب — أُثبت بالمحاكي): بلا فحص
+                     // المصدر كان مطعمٌ معدَّل يرجع بالمُسلَّم إلى «جاهز»
+                     // ومعه كابتن يختاره (طريق ثانٍ لحلقة سكّ المال)، أو
+                     // بالملغى إلى «قيد التحضير» فيفسد عدّادات اليوم.
+                     resource.data.status in ['created',
+                        'restaurantPending', 'restaurantAccepted',
+                        'preparing', 'readyForPickup', 'searchingDriver',
+                        'driverAssigned', 'noDriverFound'])) &&
                 (!changedKeys().hasAny(['walletRefundPending']) ||
                     (request.resource.data.walletRefundPending == true &&
                         request.resource.data.status == 'restaurantRejected' &&
                         resource.data.get('walletUsed', 0) > 0)) &&
+                // ح٧: ردّ البطاقة نظير ردّ المحفظة — علمٌ عند الرفض حين
+                // للطلب دفعةُ بطاقة، يلتقطه طابور «ردود بطاقة معلّقة».
+                (!changedKeys().hasAny(['cardRefundPending']) ||
+                    (request.resource.data.cardRefundPending == true &&
+                        request.resource.data.status == 'restaurantRejected' &&
+                        resource.data.get('paymentId', '') != '')) &&
                 // ختم التسليم لا يُصطنع قبل أوانه: يقع والطلب «جاهز
                 // للاستلام» أو بعدها (سباق ضغطة الكابتن المشروع)، لا
                 // على طلبٍ ما زال يُطبخ.
@@ -731,13 +775,15 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // drivers — جلب مستند سائق واحد لأي مسجَّل (تتبّع الطلب عند العميل)،
-    // أما **سرد** القائمة فمقصور على من يحتاجه فعلاً: المدير (التقارير
-    // والمتابعة)، والمطعم والسائق (الإسناد التلقائي لأقرب متاح). فُصل
-    // get عن list تمهيداً لتفعيل المصادقة المجهولة لصفحة /join: بدون
-    // الفصل كان رمز مجهول واحد يكفي لسرد أسماء الكباتن وجوالاتهم
-    // وإحداثياتهم الحية وأرباحهم من سطر أوامر — والعميل لا يسرد
-    // السائقين في أي شاشة أصلاً فلا ينكسر شيء.
+    // drivers — جلب مستند سائق واحد لأي مسجَّل (تتبّع الطلب عند العميل،
+    // وإعادة تحقق الإسناد داخل معاملته)، أما **سرد** القائمة الكاملة
+    // فمحصور بالمدير والدعم (م٥ — الدفعة الهيكلية 2026-08-22): كان السرد
+    // مباحاً للكابتن ومدير المطعم لأن الإسناد التلقائي يحتاج «أقرب متاح»،
+    // فصار أي كابتن أو مطعم شريك يسحب كل المستندات — الأسماء والجوالات
+    // والأرصدة والأرباح والإحداثيات الحية — قائمةَ تجنيدٍ لمنافس وكشفَ
+    // مالٍ بين زملاء. الإسناد الآن يرشّح من المرآة الرفيعة drivers_public
+    // (أدناه) ثم يعيد التحقق من هذا المستند المحمي جلباً مفرداً داخل
+    // المعاملة — فلا يحتاج غيرُ المدير سردَ هذه المجموعة أصلاً.
     //
     // الكتابة كانت مفتوحة لأي سائق على مستند أي سائق آخر (isDriver() وحدها)،
     // ما يعني أن سائقاً واحداً كان بإمكانه تعديل أرباح زميله ومستحقّاته
@@ -754,8 +800,7 @@ service cloud.firestore {
       // مشغّل الأسطول يسرد كباتنه **حصراً**: القاعدة تُقيَّم لكل مستند، فشرط
       // `operatorId == uid` يجعل أي استعلامٍ غير مقيَّد به يفشل تلقائياً —
       // فلا يرى المشغّل كابتناً ليس تابعاً له (roles-design §ثانياً/٥).
-      allow list: if isAdmin() || isSupport() || isDriver() ||
-          hasRole('restaurantManager') ||
+      allow list: if isAdmin() || isSupport() ||
           (isFleetOperator() &&
               resource.data.get('operatorId', '') == currentUid());
       // إنشاء مستند السائق: يبدأ بأرصدة صفرية إلزاماً. بلا هذا القيد كان
@@ -791,7 +836,34 @@ service cloud.firestore {
                      'lastChallengeWindow',
                      // تبعيّة المشغّل وحصّته يضبطهما المدير وحده (بند ج١/د١):
                      // لا يدّعي كابتنٌ تبعيةً لمشغّل أو يفكّها أو يرفع حصّته.
-                     'operatorId', 'operatorDriverShare']) &&
+                     'operatorId', 'operatorDriverShare',
+                     // م٢٢ (فحص مساعد الويب): تاريخ الانضمام أساسُ نافذة
+                     // شرط الإحالة — محوُه كان يفتحها للأبد. المدير يصحّحه.
+                     'createdAt',
+                     // م٢٠: علم الحظر بيد المدير ومشغّل الأسطول لا الكابتن.
+                     'isActive']) &&
+                // م٢٠ (فحص مساعد الويب): عدّادا معدل القبول يتحركان +1
+                // حصراً (لا تصفير يجمّل المعدل الذي يوزّع رزق الكباتن)،
+                // والحمولة تتحرك درجةً درجة في مداها — لا «صفر» دائم
+                // يقفز به فوق سقف الحمولة الصارم.
+                // ت٣: عدّاد الموقع المُحاكى تصاعدي +1 حصراً — إشارة
+                // نيّةٍ يكتبها جهازه الرسمي، ولا يصفّرها صاحبها؛ التصحيح
+                // (إن لزم) للمدير.
+                (!changedKeys().hasAny(['mockLocationCount']) ||
+                    request.resource.data.get('mockLocationCount', 0) ==
+                        resource.data.get('mockLocationCount', 0) + 1) &&
+                (!changedKeys().hasAny(['offersTotal']) ||
+                    request.resource.data.get('offersTotal', 0) ==
+                        resource.data.get('offersTotal', 0) + 1) &&
+                (!changedKeys().hasAny(['offersAccepted']) ||
+                    request.resource.data.get('offersAccepted', 0) ==
+                        resource.data.get('offersAccepted', 0) + 1) &&
+                // الحمولة (activeOrders) تبقى بثّاً استرشادياً من جهازه —
+                // م٢٠ عولجت من الجذر: الترشيح يشتقّها من الطلبات الفعلية
+                // (autoAssign) فتزويرها لا يقفز به فوق السقف الصارم.
+                (!changedKeys().hasAny(['activeOrders']) ||
+                    (request.resource.data.get('activeOrders', 0) >= 0 &&
+                        request.resource.data.get('activeOrders', 0) <= 50)) &&
                 // رصيد الكابتن (دفعة ٠-ب، C1/H2): لم يعد مكشوفاً — أي تغيير في
                 // balance يستلزم حركة دفتر مطابقة تُنشأ في نفس الدفعة (انظر
                 // ledgerBackedBalance). فلا يصفّر دَينه ولا يضخّم مستحقّه.
@@ -802,7 +874,12 @@ service cloud.firestore {
             // يسمح به لأي مصادَقٍ بلا دور «عميل» — بمن فيهم المصادَق مجهولاً
             // من صفحة الانضمام — فيعطّل منافساً أو يدفعه لطلبات وهو غير جاهز.
             // حصرناه بالأدوار الثلاثة الفعلية فأُغلق باب المجهول دون كسر الإسناد.
-            ((isDriver() || isAdmin() || hasRole('restaurantManager')) &&
+            // م٢١ (فحص مساعد الويب): كان أي كابتن يقلب توفّر كل زملائه
+            // بكتابةٍ واحدة (احتكار العروض أو شلّ الإسناد كله). الكابتن
+            // على مستنده عبر فرعه أعلاه؛ وقلبُ الغير لجهاز المطعم (الإسناد
+            // التلقائي) والمدير — وجهاز الكابتن عند إعادة الترشيح يمرّر
+            // الإسناد بلا قفلِ مرشَّحٍ (lockCandidate=false في الخدمة).
+            ((isAdmin() || hasRole('restaurantManager')) &&
                 changedKeys().hasOnly(['isAvailable'])) ||
             // مشغّل الأسطول على كباتنه **حصراً** (دفعة ٨ — roles-design §ثانياً):
             // ثلاث صلاحيات مسمّاة لا «كل شيء»:
@@ -865,6 +942,52 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // drivers_public — مرآة الإسناد الرفيعة (م٥): حقول الترشيح وحدها —
+    // متصل/متاح/محظور والحمولة والإحداثيات ومرساة العنقود. **لا اسم ولا
+    // جوال ولا ريال واحد** (حتى الاسم الذي اقترحته المذكّرة أسقطناه:
+    // الترشيح لا يحتاجه، وما لا يُكتب لا يتسرّب). يقرؤها أي مسجَّل لأن
+    // الإسناد يعمل من جهاز المطعم والكابتن — لا خادم بعد.
+    //
+    // لماذا يؤتمن الكابتن على مرآته؟ لأنها **استرشادية بالتصميم**: تزويرها
+    // لا يكسبه إلا دخول قائمة المرشّحين، والإسناد النهائي يعيد التحقق من
+    // مستند drivers المحمي داخل المعاملة الذرّية (متاح + متصل + غير
+    // محظور) — فمحظورٌ زوّر مرآته لا يُسنَد له طلبٌ أبداً، غايته إهدار
+    // مقعد ترشيح. والحقول المقرِّرة للرزق (التقييم ومعدل القبول) ليست في
+    // المرآة أصلاً — تُقرأ من المستند المحمي لحظة الاختيار.
+    // ---------------------------------------------------------------------
+    match /drivers_public/{driverId} {
+      allow get, list: if isSignedIn();
+      // الكابتن يبثّ استرشادياته على مرآته هو، بقائمة حقول مغلقة —
+      // isActive خارجها: الحظر بيد المدير ومشغّل الأسطول لا المحظور.
+      allow create: if isSignedIn() && (
+            isAdmin() ||
+            (isDriver() && currentUid() == driverId &&
+                request.resource.data.keys().hasOnly(
+                    ['isOnline', 'isAvailable', 'activeOrders',
+                     'lat', 'lng', 'clusterLat', 'clusterLng',
+                     'lastLocationUpdate'])) ||
+            // جهاز المطعم قد يقفل مرشَّحاً لا مرآة له بعد (set-merge يُنشئ).
+            (hasRole('restaurantManager') &&
+                request.resource.data.keys().hasOnly(['isAvailable'])));
+      allow update: if isAdmin() ||
+            (isDriver() && currentUid() == driverId &&
+                changedKeys().hasOnly(
+                    ['isOnline', 'isAvailable', 'activeOrders',
+                     'lat', 'lng', 'clusterLat', 'clusterLng',
+                     'lastLocationUpdate'])) ||
+            // قفل المرشَّح وتحريره أثناء الإسناد — نظير فرع drivers (م٢١).
+            (hasRole('restaurantManager') &&
+                changedKeys().hasOnly(['isAvailable'])) ||
+            // مشغّل الأسطول يعكس حظر كابتنه على المرآة — التبعية تُفحص من
+            // المستند المحمي لا من ادّعاءٍ على المرآة نفسها.
+            (isFleetOperator() &&
+                changedKeys().hasOnly(['isActive']) &&
+                get(/databases/$(database)/documents/drivers/$(driverId))
+                    .data.get('operatorId', '') == currentUid());
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
     // fleet_operators — ملف مشغّل الأسطول ودفتره (دفعة «ابدأ المشغل»).
     //   • القراءة: المدير والدعم، والمشغّل مستنده هو فقط. **حُذف السائق**
     //     (دفعة ٢): الملف يحمل رصيد المشغّل ورسمه الشهري ونسبته — مالٌ خاصّ
@@ -913,7 +1036,11 @@ service cloud.firestore {
                     ['orderCustody', 'deliveryCash', 'deliveryOnline'] &&
                 request.resource.data.get('orderId', '') != '' &&
                 existsAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
-                getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.get('driverId', '') == currentUid()) ||
+                getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.get('driverId', '') == currentUid() &&
+                // م١٨ (فحص مساعد الويب): المبلغ كان حرّاً تماماً — والذراع
+                // الخادمية تشتقّ الرصيد من مجموع الدفتر. يُسقَف بنوعه من
+                // قيم الطلب نفسه فلا سكَّ لمبلغٍ منتفخ باسم طلبٍ حقيقي.
+                driverTxAmountOk()) ||
             // تسوية المشغّل (دفعة ٨): نوعٌ واحد مسمّى، باسمه (createdBy)،
             // وعلى كابتنٍ تابعٍ له — وقاعدة drivers تربطها بتغيّر الرصيد
             // المطابق ذرّياً، فلا حركةَ تجميلٍ ولا تحريكَ رصيدٍ بلا أثر.
@@ -980,6 +1107,17 @@ service cloud.firestore {
     // (استعلام المستخدم عن شكاواه هو) كانت سترفض حتى لصاحبها.
     // ---------------------------------------------------------------------
     match /complaints/{complaintId} {
+      // م٢٤ (النصف المتبقّي من القواعد): مُنشئ الشكوى المربوطة بطلبٍ لا بد
+      // أن يكون طرفاً فيه — عميلَه أو موصِّله أو مديرَ مطعمه. بلا هذا كان
+      // أي مسجَّل يفتح شكوى على طلب غريبٍ عرف معرّفه فيضجّ صندوق الإدارة
+      // بوقائع ملفَّقة. (المال كان سليماً أصلاً: الاسترداد يُصرف لعميل
+      // الطلب الحقيقي لا لمقدّم الشكوى — هذا سدّ بابِ الإزعاج والتلفيق.)
+      function complaintOrderPartyOk() {
+        let o = get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data;
+        return o.get('customerId', '') == currentUid() ||
+            o.get('driverId', '') == currentUid() ||
+            isRestaurantManagerOf(o.get('restaurantId', ''));
+      }
       allow get: if isSignedIn() && (
             isAdmin() || isSupport() ||
             resource.data.customerId == currentUid() ||
@@ -998,6 +1136,11 @@ service cloud.firestore {
           );
       allow create: if isSignedIn() &&
           request.resource.data.submittedByUid == currentUid() &&
+          // تذكرة عامة (orderId فارغ — «تواصل معنا») تمرّ بلا ربط؛ وشكوى
+          // الطلب لطرفٍ فيه حصراً (م٢٤ أعلاه). الإدارة والدعم بلا قيد.
+          (request.resource.data.get('orderId', '') == '' ||
+              isAdmin() || isSupport() ||
+              complaintOrderPartyOk()) &&
           // صورة الشكوى Blob داخل المستند (2026-08-20): تُحرَس حجماً كنمط
           // order_proofs — <٤٠٠ك يبقي المستند دون حدّ فايرستور ويمنع
           // إساءة التخزين. اختيارية: شكوى بلا صورة تمرّ كما كانت.
@@ -1091,17 +1234,52 @@ service cloud.firestore {
     //   • القراءة: المدير (شاشة حسم الشكاوى) والسائق صاحبها.
     //   • الحذف: ممنوع — وثيقة نزاع لا تُمحى.
     // ---------------------------------------------------------------------
+    // (شُدِّدت بفحص مساعد الويب ح٤ 2026-08-22): كانت الكتابة «صاحب الوثيقة»
+    // بلا ربطٍ بالطلب — فالعميل (الذي يعرف معرّف طلبه قبل إنشائه) أو مدير
+    // المطعم يسبق الكابتن ويحتلّ الوثيقة فيشلّ استلامه وتسليمه؛ والكابتن
+    // يعيد كتابة بيّنة النزاع بعد الشكوى؛ وأي مسجَّل (حتى الهوية المجهولة)
+    // يملأ مستندات ميغابايتية على فاتورتنا. الآن: كابتن الطلب الفعلي حصراً،
+    // وكل محطةٍ تُكتب مرةً واحدة لا تُعاد، والصور مسقوفة كنمط الشكاوى.
     match /order_proofs/{orderId} {
       allow get, list: if isSignedIn() && (
             isAdmin() || resource.data.driverId == currentUid()
           );
-      allow create: if isSignedIn() && (
-            isAdmin() || request.resource.data.driverId == currentUid()
+      allow create: if isAdmin() || (isDriver() &&
+            request.resource.data.driverId == currentUid() &&
+            get(/databases/$(database)/documents/orders/$(orderId))
+                .data.get('driverId', '') == currentUid() &&
+            (!request.resource.data.keys().hasAny(['pickupPhoto']) ||
+                (request.resource.data.pickupPhoto is bytes &&
+                    request.resource.data.pickupPhoto.size() < 400000)) &&
+            (!request.resource.data.keys().hasAny(['deliveryPhoto']) ||
+                (request.resource.data.deliveryPhoto is bytes &&
+                    request.resource.data.deliveryPhoto.size() < 400000))
           );
-      allow update: if isSignedIn() && (
-            isAdmin() ||
-            (resource.data.driverId == currentUid() &&
-                request.resource.data.driverId == currentUid())
+      allow update: if isAdmin() || (isDriver() &&
+            resource.data.driverId == currentUid() &&
+            request.resource.data.driverId == currentUid() &&
+            get(/databases/$(database)/documents/orders/$(orderId))
+                .data.get('driverId', '') == currentUid() &&
+            // كل محطة تُكتب مرةً واحدة — بيّنة النزاع لا يُعاد تحريرها
+            // بعد الشكوى (منع الحذف بلا منع الكتابة فوقها كان تجميلاً).
+            (!changedKeys().hasAny(['arrivedAt', 'arrivedLat',
+                    'arrivedLng']) ||
+                !('arrivedAt' in resource.data)) &&
+            // ت٤: ختم «استُلم بالمسح» ضمن محطة الاستلام — يوثّق أن نتيجة
+            // مسح رمز المطعم صارت أثراً محفوظاً لا شعوراً بالتوثيق.
+            (!changedKeys().hasAny(['pickupAt', 'pickupLat', 'pickupLng',
+                    'pickupPhoto', 'pickupByScan']) ||
+                !('pickupAt' in resource.data)) &&
+            (!changedKeys().hasAny(['deliveryAt', 'deliveryLat',
+                    'deliveryLng', 'deliveryPhoto',
+                    'deliveryDistanceMeters']) ||
+                !('deliveryAt' in resource.data)) &&
+            (!changedKeys().hasAny(['pickupPhoto']) ||
+                (request.resource.data.pickupPhoto is bytes &&
+                    request.resource.data.pickupPhoto.size() < 400000)) &&
+            (!changedKeys().hasAny(['deliveryPhoto']) ||
+                (request.resource.data.deliveryPhoto is bytes &&
+                    request.resource.data.deliveryPhoto.size() < 400000))
           );
       allow delete: if false;
     }
@@ -1410,7 +1588,24 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
     match /banners/{bannerId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin();
+      // ت٢٨ (الفحص الشامل): مساحتك الإعلانية بلا قياس — لا انطباعات ولا
+      // نقرات، فلا تسعير ولا إثبات للمطعم الدافع. العدّادان يزيدهما جهاز
+      // العميل +١ حصراً دون مسّ أي حقل آخر. **استرشاديان لا ماليان**:
+      // عميل معدَّل يستطيع تضخيمهما — يكفيان دليلَ حجمٍ نسبيّ بين البنرات،
+      // والقياس الموثّق خادميٌّ يوم يلزم.
+      allow update: if isAdmin() || (
+            isSignedIn() && (
+              (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['impressions']) &&
+                  request.resource.data.get('impressions', 0) ==
+                      resource.data.get('impressions', 0) + 1) ||
+              (request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['clicks']) &&
+                  request.resource.data.get('clicks', 0) ==
+                      resource.data.get('clicks', 0) + 1)
+            )
+          );
+      allow create, delete: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
@@ -1439,6 +1634,95 @@ service cloud.firestore {
     // نفذ ٢): الإنقاص الحرّ يعني إعادة تعبئة أكواد مستنفدة وإعادة استخدام
     // «مرة واحدة لكل عميل» بلا حدّ. فيُقيَّد بواقعة قابلة للتحقق: سجلُّ
     // استخدام المستخدم نفسه يشير لطلبٍ **ملغى فعلاً** بهذا الكود وباسمه.
+    /// فرع الكابتن المُسنَد على طلبه — استُخرج دالةً تحسب مفاتيح التغيير
+    /// **مرةً واحدة** (let): كانت القاعدة تعيد حساب diff ~١٥ مرة فتخترق
+    /// سقف تقييم القواعد (١٠٠٠ تعبير) وترفض قيد العُهدة المشروع — أمسكه
+    /// فحص harden0b_a. الحرّاس: منع خلع الاسم عن المنتهي (ح٢أ)، مصفوفة
+    /// الحالات (H3)، قِران العُهدة بانتقال الاستلام (C2)، قِران حصّة
+    /// المشغّل بانتقال التسليم وقيمتها المحسوبة (H1/م١٣)، ومطابقة
+    /// التبعية (دفعة ٨).
+    ///
+    /// **قائمة سماح لا قائمة منع** (العلاج الجذري — أمر المالك 2026-08-22):
+    /// كانت قائمة منعٍ بـ٢١ حقلاً محظوراً، وكل حقلٍ ماليٍّ جديد يولد
+    /// **مكشوفاً** حتى يتذكّر أحدٌ إضافته إليها — وهكذا تسرّبت paymentMethod
+    /// (ح١) وisRated (م١٩) أصلاً. الآن المفاتيح الستة عشر التي يكتبها
+    /// جهاز الكابتن فعلاً (دورة التسليم، قيد العُهدة، تجريد الرفض، تعذّر
+    /// التسليم، ختم الوصول) هي **كلُّ** المباح — والحقل الجديد يولد
+    /// ممنوعاً تلقائياً حتى يُضاف هنا قصداً.
+    function captainOrderWriteOk() {
+      let ck = request.resource.data.diff(resource.data).affectedKeys();
+      let rd = request.resource.data;
+      let cur = resource.data;
+      return ck.hasOnly(['status', 'updatedAt', 'statusChangedAt',
+                 'custodyDebited', 'isPaid', 'platformCommission',
+                 'operatorShare', 'driverAcknowledged',
+                 'driverId', 'driverName', 'driverPhone', 'operatorId',
+                 'deliveryFailed', 'undeliveredAt', 'undeliveredReason',
+                 'arrivedAtRestaurantAt']) &&
+             (!ck.hasAny(['driverId']) ||
+                 !(cur.status in ['delivered', 'cancelled', 'refunded'])) &&
+             (!ck.hasAny(['status']) ||
+                 (rd.status == 'onTheWay' &&
+                     cur.status in ['readyForPickup', 'searchingDriver',
+                         'driverAssigned', 'pickedUp']) ||
+                 (rd.status == 'delivered' && cur.status == 'onTheWay')) &&
+             (!ck.hasAny(['custodyDebited']) ||
+                 (rd.get('custodyDebited', false) == true &&
+                     cur.get('custodyDebited', false) == false &&
+                     rd.status == 'onTheWay' &&
+                     cur.status in ['readyForPickup', 'searchingDriver',
+                         'driverAssigned', 'pickedUp'])) &&
+             (!ck.hasAny(['operatorShare']) ||
+                 (rd.status == 'delivered' && cur.status == 'onTheWay' &&
+                     myOperatorId() != '' &&
+                     rd.get('operatorShare', 0) >=
+                         expectedOperatorShare(cur.get('driverShare', 0)) - 0.01 &&
+                     rd.get('operatorShare', 0) <=
+                         expectedOperatorShare(cur.get('driverShare', 0)) + 0.01)) &&
+             (!ck.hasAny(['operatorId', 'driverId']) ||
+                 operatorIdMatchesAssignedDriver()) &&
+             // ت٢ (الفحص الشامل): علم «تعذّر التسليم» يقود لعدّاد حظر
+             // النقد على العميل — الكابتن يرفعه (true) على توصيلةٍ جارية
+             // حصراً، ولا يمحوه ولا يرفعه على طلبٍ منتهٍ بأثر رجعي؛
+             // المحو والتصحيح للمدير وحده.
+             (!ck.hasAny(['deliveryFailed']) ||
+                 (rd.get('deliveryFailed', false) == true &&
+                     cur.status in ['readyForPickup', 'searchingDriver',
+                         'driverAssigned', 'pickedUp', 'onTheWay']));
+    }
+
+    /// م١٨: سقف مبلغ حركة الكابتن بنوعها من قيم طلبها — قراءةٌ واحدة
+    /// (getAfter) تُشتق منها العُهدة كما يشتقّها النموذج حرفياً
+    /// (custodyAmount getter — **ليست حقلاً مخزَّناً**): الوجبات + رسم
+    /// المنصّة − المحفظة − الخصم. الضغط في دالةٍ واحدة مقصود: سقف تقييم
+    /// القواعد ١٠٠٠ تعبيرٍ للدفعة، وتكرار getAfter فجّره في فحص العُهدة.
+    function driverTxAmountOk() {
+      let d = request.resource.data;
+      let o = getAfter(/databases/$(database)/documents/orders/$(d.orderId)).data;
+      let custody = o.get('itemsTotal', 0) + o.get('appShare', 0) -
+          o.get('walletUsed', 0) - o.get('discountAmount', 0);
+      return (d.type == 'orderCustody' &&
+                 d.amount <= 0 && d.amount >= -custody) ||
+             (d.type == 'deliveryCash' &&
+                 d.amount <= 0 &&
+                 d.amount >= -(custody + o.get('driverShare', 0))) ||
+             (d.type == 'deliveryOnline' &&
+                 d.amount >= 0 &&
+                 d.amount <= o.get('driverShare', 0) + o.get('driverTip', 0));
+    }
+
+    /// م٤ (فحص مساعد الويب): زيادة عدّاد الكوبون كانت متاحة لأي مسجَّل
+    /// (حتى الهوية المجهولة) بلا أي شراء — فيحرق منافسٌ حملة «أول ١٠٠٠
+    /// طلب» مجاناً. الربط: نفس دفعة الزيادة تكتب علامة استخدامٍ للكاتب
+    /// يشير آخرُ طلبها لطلبٍ له بهذا الكود وبخصمٍ فعلي.
+    function couponUseBacked(code) {
+      let u = getAfter(/databases/$(database)/documents/coupon_usages/$(code + '_' + currentUid())).data;
+      let o = getAfter(/databases/$(database)/documents/orders/$(u.lastOrderId)).data;
+      return o.get('customerId', '') == currentUid() &&
+             o.get('couponCode', '') == code &&
+             o.get('discountAmount', 0) > 0;
+    }
+
     function couponReleaseJustified(code) {
       let usage = get(/databases/$(database)/documents/coupon_usages/$(code + '_' + currentUid())).data;
       let orderPath = /databases/$(database)/documents/orders/$(usage.lastOrderId);
@@ -1450,6 +1734,11 @@ service cloud.firestore {
              // ويُرفع ختمه couponReleased في هذه الدفعة نفسها — فمحاولةٌ ثانية
              // ترى الختم ملتزَماً true فتُرفض، فلا يُعاد فتح كوبونٍ مستنفَد بالتكرار.
              order.get('couponReleased', false) != true &&
+             // م٣ (فحص مساعد الويب): طلبٌ حمل كوداً بخصمٍ صفر كان يكفي
+             // لتلفيق «واقعة إرجاع» تُنقص العدّاد — الآن لا إرجاع إلا لما
+             // قُيّد استخدامه بخصمٍ حقيقي عند الإنشاء (وذلك المسار نفسه
+             // زاد العدّاد، فالإرجاع يعيده لا يسكّ حصصاً).
+             order.get('discountAmount', 0) > 0 &&
              getAfter(orderPath).data.get('couponReleased', false) == true;
     }
 
@@ -1466,6 +1755,7 @@ service cloud.firestore {
             isSignedIn() &&
             changedKeys().hasOnly(['usedCount']) &&
             request.resource.data.usedCount == resource.data.usedCount + 1 &&
+            couponUseBacked(code) &&
             resource.data.get('isActive', false) == true &&
             (resource.data.get('expiresAt', null) == null ||
                 request.time < resource.data.get('expiresAt', null)) &&
@@ -1582,28 +1872,25 @@ service cloud.firestore {
       // «الأسطول يضيف والإدارة توافق» (أمر المالك 2026-08-22 على نمط
       // جاهز/هنقرستيشن): المدير وحده يختمه مستهلَكاً لحظة اعتماد طلب
       // الانضمام، فلا يلتحق كابتن بأسطولٍ دون فحص مستنداته.
+      // ت١ (الفحص الشامل): كان الختم «مستخدَماً» يمرّ **بلا اسم مستهلِك**
+      // (تسامُح نسخ قديمة تختم على خطوتين)، فمن رأى الكود — لقطة شاشة،
+      // ورقة مطبوعة، هوية مجهولة من صفحة الانضمام — يحرقه فيُحرم صاحبه
+      // بلا أثر يدلّ على الفاعل. وفرعُ «الحاق الاسم بكودٍ مستخدَمٍ بلا
+      // مالك» كان باب انتحال. الآن: الاستهلاك ذرّي — الختم واسم المستهلِك
+      // في نفس الكتابة حصراً، والنسخ الحالية كلها تفعل ذلك أصلاً (بيانات
+      // التجربة تُصفَّر قبل الإطلاق فلا كود قديم بلا مالك يعنينا).
       allow update: if isAdmin() || (
-            isSignedIn() && resource.data.get('operatorId', '') == '' && (
-              (resource.data.isUsed == false &&
-                  // الكود المنتهي لا يُستهلك حتى بالكتابة المباشرة — فحص
-                  // الصلاحية هنا لا في التطبيق وحده.
-                  (!('expiresAt' in resource.data) ||
-                      resource.data.expiresAt == null ||
-                      request.time < resource.data.expiresAt) &&
-                  request.resource.data.isUsed == true &&
-                  // الختم باسم المستهلِك يقع في نفس المعاملة (النسخة
-                  // الحالية)، أو في خطوة تالية (نسخ أقدم) — كلاهما مقبول
-                  // أثناء انتشار التحديث، والمعرّف لا يكون لغير الكاتب.
-                  (!('usedByUid' in request.resource.data.diff(resource.data).affectedKeys()) ||
-                      request.resource.data.usedByUid == currentUid()) &&
-                  request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['isUsed', 'usedAt', 'usedByUid', 'usedByName'])) ||
-              (resource.data.isUsed == true &&
-                  request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedByUid', 'usedByName']) &&
-                  request.resource.data.usedByUid == currentUid() &&
-                  (!('usedByUid' in resource.data) || resource.data.usedByUid == null ||
-                      resource.data.usedByUid == currentUid()))
-            )
+            isSignedIn() && resource.data.get('operatorId', '') == '' &&
+            resource.data.isUsed == false &&
+            // الكود المنتهي لا يُستهلك حتى بالكتابة المباشرة — فحص
+            // الصلاحية هنا لا في التطبيق وحده.
+            (!('expiresAt' in resource.data) ||
+                resource.data.expiresAt == null ||
+                request.time < resource.data.expiresAt) &&
+            request.resource.data.isUsed == true &&
+            request.resource.data.usedByUid == currentUid() &&
+            request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['isUsed', 'usedAt', 'usedByUid', 'usedByName'])
           );
     }
   }

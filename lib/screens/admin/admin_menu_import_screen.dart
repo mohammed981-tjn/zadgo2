@@ -225,15 +225,23 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
     setState(() => _importing = true);
     try {
-      await context.read<FirebaseService>().importMenu(
+      final result = await context.read<FirebaseService>().importMenu(
             restaurantId: widget.restaurantId,
             categories: cats,
             items: items,
             replaceExisting: _replaceExisting,
           );
       if (mounted) {
-        showSuccess(context, tr('تم استيراد ${items.length} صنفاً بنجاح',
-            'Imported ${items.length} items successfully'));
+        // ت٣٨: رسالة صادقة بما كُتب وما تُخطّي — «استيرادٌ» أعاد كتابة
+        // لا شيء لأن كل الأصناف مكرّرة يجب أن يُقال صراحةً.
+        showSuccess(
+            context,
+            result.skipped == 0
+                ? tr('تم استيراد ${result.imported} صنفاً بنجاح',
+                    'Imported ${result.imported} items successfully')
+                : tr(
+                    'استُورد ${result.imported} صنفاً، وتُخُطّي ${result.skipped} مكرّراً موجوداً مسبقاً',
+                    'Imported ${result.imported} items; skipped ${result.skipped} duplicates already in the menu'));
         Navigator.pop(context);
       }
     } catch (_) {

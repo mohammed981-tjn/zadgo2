@@ -68,15 +68,29 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     if (text.isEmpty) return;
     _chatCtrl.clear();
     final service = context.read<FirebaseService>();
-    await service.sendComplaintChatMessage(ChatMessage(
-      id: const Uuid().v4(),
-      orderId: widget.complaint.id,
-      senderId: adminUid,
-      senderName: adminName,
-      senderRole: UserRole.admin.name,
-      text: text,
-      createdAt: DateTime.now(),
-    ));
+    // ت٦: الدور الحقيقي للمرسل لا «مدير» مبرمَجاً — ردّ موظف الدعم كان
+    // يُسجَّل مديراً فيكذب الفرزُ بالدور ويُنسب الردّ لغير صاحبه.
+    final senderRole = context.read<app_auth.AuthProvider>().user?.role ??
+        UserRole.admin;
+    try {
+      await service.sendComplaintChatMessage(ChatMessage(
+        id: const Uuid().v4(),
+        orderId: widget.complaint.id,
+        senderId: adminUid,
+        senderName: adminName,
+        senderRole: senderRole.name,
+        text: text,
+        createdAt: DateTime.now(),
+      ));
+    } catch (_) {
+      // ت٦: فشل الإرسال كان يبتلع النص بلا أثر — يُعاد للخانة مع رسالة.
+      if (mounted) {
+        _chatCtrl.text = text;
+        showError(context,
+            tr('تعذّر إرسال الرسالة — النص محفوظ في الخانة، أعد المحاولة',
+                'Couldn\'t send — your text is back in the box, try again'));
+      }
+    }
   }
 
   Future<void> _showResolveDialog(BuildContext context, Order order) async {
@@ -222,6 +236,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 ),
                 const Divider(height: 24),
               ],
+              // م٧ (فحص مساعد الويب): الشكاوى تُقدَّم غالباً على طلبات
+              // **مُسلَّمة** — نقلُها كان يمحو دَين حامل النقد ويقيّده على
+              // بريء. المنتقي يظهر للطلب النشط وحده (والخدمة تحرسه أيضاً).
+              if (!order.status.isActive)
+                Text(
+                    tr('الطلب منتهٍ (${order.status.label}) — لا يُنقل لسائق آخر.',
+                        'Order is finished (${order.status.label}) — it can\'t be reassigned.'),
+                    style: const TextStyle(
+                        fontSize: 12.5, color: AppColors.textGray))
+              else ...[
               Text(
                   tr('نقل الطلب لسائق آخر (اختياري)',
                       'Reassign the order to another driver (optional)'),
@@ -251,6 +275,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   );
                 },
               ),
+              ],
             ]),
           ),
           actions: [
@@ -316,6 +341,11 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
       finalText: finalText,
       outcome: outcome,
       context: widget.complaint.type.name,
+      // ت٣٢: الضلع الثاني للمنجم — المدخل والطراز وإصدار التلقين، وبلاها
+      // لا يُبنى زوج تدريب ولا تُقارن الطرازات بعد أشهر الجمع.
+      input: widget.complaint.description,
+      model: AiAssist.lastServedModel,
+      promptVersion: 'complaintReply-v2',
     );
   }
 
@@ -623,7 +653,10 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                     }
                     return Column(
                       children: messages.map((m) {
-                        final isAdmin = m.senderRole == UserRole.admin.name;
+                        // ت٦: فقاعة «فريق المنصّة» تشمل الدعم لا المدير
+                        // وحده — وإلا اصطفّ ردّ الدعم مع رسائل الشاكي.
+                        final isAdmin = m.senderRole == UserRole.admin.name ||
+                            m.senderRole == UserRole.support.name;
                         return Align(
                           alignment: isAdmin ? Alignment.centerRight : Alignment.centerLeft,
                           child: Container(
@@ -807,6 +840,13 @@ class _ProofTimeline extends StatelessWidget {
                     icon: Icons.shopping_bag_outlined,
                     text: tr('استلام الطلب: ${_fmt(proof.pickupAt)}',
                         'Order pickup: ${_fmt(proof.pickupAt)}')),
+                // ت٤/ت٣٩: ختم المسح — تواجهُ جهازَي الكابتن والمطعم في
+                // المكان واللحظة، أقوى بيّنة استلام تُعرض في النزاع.
+                if (proof.pickupByScan)
+                  InfoRow(
+                      icon: Icons.qr_code_2_rounded,
+                      text: tr('استُلم بمسح رمز المطعم ✓',
+                          "Picked up by scanning the restaurant's code ✓")),
                 InfoRow(
                     icon: Icons.done_all_rounded,
                     text: tr('تسليم للعميل: ${_fmt(proof.deliveryAt)}',

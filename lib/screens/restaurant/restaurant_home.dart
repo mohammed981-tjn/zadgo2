@@ -864,6 +864,9 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         ],
       ),
     );
+    // ت٥٤: التخلّص من متحكّم الحوار — يتراكم التسريب في أطول الجلسات
+    // عمراً: جهاز المطعم المفتوح طوال الدوام.
+    ctrl.dispose();
     if (reason == null || !context.mounted) return;
     setState(() => _actionLoading = true);
     try {

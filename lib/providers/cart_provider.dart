@@ -107,6 +107,21 @@ class CartProvider extends ChangeNotifier {
       final raw = prefs.getString(_prefsKey);
       if (raw == null || raw.isEmpty) { _restored = true; return; }
       final map = jsonDecode(raw) as Map<String, dynamic>;
+      // م٢٥ (فحص مساعد الويب): سلة محفوظة بلا صلاحية كانت تجمّد أسعار
+      // القائمة إلى الأبد — أصناف عرضٍ منتهٍ تُطلب بعد أسبوع بسعر الأمس
+      // وتُطبخ وتُسوَّى عليه. سلةٌ أقدم من ١٢ ساعة تسقط: من جادّ في طلبه
+      // يعيد بناءها بدقيقة وبأسعار اليوم.
+      final savedAtMs = (map['savedAt'] as num?)?.toInt();
+      if (savedAtMs == null ||
+          DateTime.now()
+                  .difference(
+                      DateTime.fromMillisecondsSinceEpoch(savedAtMs))
+                  .inHours >=
+              12) {
+        await prefs.remove(_prefsKey);
+        _restored = true;
+        return;
+      }
       _restaurantId = map['restaurantId'] as String?;
       _restaurantName = map['restaurantName'] as String?;
       _restaurantEmoji = map['restaurantEmoji'] as String?;
@@ -144,6 +159,7 @@ class CartProvider extends ChangeNotifier {
         return;
       }
       final map = {
+        'savedAt': DateTime.now().millisecondsSinceEpoch,
         'restaurantId': _restaurantId,
         'restaurantName': _restaurantName,
         'restaurantEmoji': _restaurantEmoji,
