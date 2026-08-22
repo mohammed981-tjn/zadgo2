@@ -135,9 +135,16 @@ class AppError extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
+          // إرشاد بحسب نوع الخطأ لا نصيحة واحدة للجميع: «تحقق من اتصالك»
+          // على خطأ صلاحيات (permission-denied) ضلّلت المالك فعلياً —
+          // ظنّها انقطاع شبكة بينما السبب نسخة تطبيق أحدث من القواعد
+          // المنشورة أو صلاحية ناقصة (ملاحظته 2026-08-22).
           Text(
-            tr('تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى',
-                'Check your internet connection and try again'),
+            _errorCode(error) == 'permission-denied'
+                ? tr('صلاحية مرفوضة — حدّث التطبيق لآخر نسخة، وإن استمرّ فأبلغ الإدارة',
+                    'Permission denied — update the app to the latest version; if it persists, contact admin')
+                : tr('تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى',
+                    'Check your internet connection and try again'),
             style: const TextStyle(fontSize: 13.5, color: AppColors.textGray),
             textAlign: TextAlign.center,
           ),

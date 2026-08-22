@@ -376,69 +376,7 @@ class _CaptainCard extends StatelessWidget {
     }
   }
 
-  Future<void> _settle(BuildContext context) =>
-      showOperatorSettleDialog(context, driver);
 
-  void _showLedger(BuildContext context) {
-    final service = context.read<FirebaseService>();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        builder: (ctx, scroll) => Column(children: [
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Text(
-                tr('دفتر ${driver.name}', '${driver.name}\'s ledger'),
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            child: AppStreamBuilder<List<DriverTransaction>>(
-              stream: () => service.streamDriverTransactions(driver.id),
-              builder: (ctx, txs) {
-                if (txs.isEmpty) {
-                  return AppEmpty(
-                      emoji: '📒',
-                      title: tr('لا حركات بعد', 'No transactions yet'));
-                }
-                return ListView.builder(
-                  controller: scroll,
-                  itemCount: txs.length,
-                  itemBuilder: (_, i) {
-                    final t = txs[i];
-                    return ListTile(
-                      dense: true,
-                      leading: Icon(t.type.icon,
-                          size: 20,
-                          color: t.amount >= 0
-                              ? AppColors.success
-                              : AppColors.error),
-                      title: Text(t.type.label,
-                          style: const TextStyle(fontSize: 13)),
-                      subtitle: (t.note ?? '').isEmpty
-                          ? null
-                          : Text(t.note!,
-                              style: const TextStyle(fontSize: 11.5)),
-                      trailing: Text(formatCurrency(t.amount),
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: t.amount >= 0
-                                  ? AppColors.success
-                                  : AppColors.error)),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ]),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -517,25 +455,18 @@ class _CaptainCard extends StatelessWidget {
               switch (v) {
                 case 'toggle':
                   _toggleActive(context);
-                case 'settle':
-                  _settle(context);
-                case 'ledger':
-                  _showLedger(context);
                 case 'release':
                   _release(context);
               }
             },
+            // التشغيل فقط — التسوية والدفتر في تبويب «المال» حصراً
+            // (ملاحظة المالك 2026-08-22: تكرارهما في تبويبين يشوّش).
             itemBuilder: (_) => [
               PopupMenuItem(
                   value: 'toggle',
                   child: Text(d.isActive
                       ? tr('حظر مؤقت', 'Suspend')
                       : tr('إعادة تفعيل', 'Reactivate'))),
-              PopupMenuItem(
-                  value: 'settle',
-                  child: Text(tr('تسوية مالية', 'Settle balance'))),
-              PopupMenuItem(
-                  value: 'ledger', child: Text(tr('دفتر الحركات', 'Ledger'))),
               PopupMenuItem(
                   value: 'release',
                   child: Text(tr('فصل عن أسطولي', 'Remove from fleet'),
@@ -559,7 +490,69 @@ class _CaptainCard extends StatelessWidget {
       );
 }
 
-/// حوار التسوية المالية — مشترك بين تبويبَي الكباتن والمال.
+/// دفتر حركات الكابتن — يُفتح من سطر الكابتن في تبويب «المال».
+void showDriverLedgerSheet(BuildContext context, Driver driver) {
+  final service = context.read<FirebaseService>();
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      builder: (ctx, scroll) => Column(children: [
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Text(
+              tr('دفتر ${driver.name}', '${driver.name}\'s ledger'),
+              style: const TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.bold)),
+        ),
+        Expanded(
+          child: AppStreamBuilder<List<DriverTransaction>>(
+            stream: () => service.streamDriverTransactions(driver.id),
+            builder: (ctx, txs) {
+              if (txs.isEmpty) {
+                return AppEmpty(
+                    emoji: '📒',
+                    title: tr('لا حركات بعد', 'No transactions yet'));
+              }
+              return ListView.builder(
+                controller: scroll,
+                itemCount: txs.length,
+                itemBuilder: (_, i) {
+                  final t = txs[i];
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(t.type.icon,
+                        size: 20,
+                        color: t.amount >= 0
+                            ? AppColors.success
+                            : AppColors.error),
+                    title: Text(t.type.label,
+                        style: const TextStyle(fontSize: 13)),
+                    subtitle: (t.note ?? '').isEmpty
+                        ? null
+                        : Text(t.note!,
+                            style: const TextStyle(fontSize: 11.5)),
+                    trailing: Text(formatCurrency(t.amount),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: t.amount >= 0
+                                ? AppColors.success
+                                : AppColors.error)),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ]),
+    ),
+  );
+}
+
+/// حوار التسوية المالية — يُفتح من تبويب «المال» حصراً.
 ///
 /// الاتجاهان صريحان بلا إشارات جبرية تُغلط: «استلمتُ نقداً من الكابتن»
 /// يرفع رصيده (يسدّد دَينه)، و«دفعتُ للكابتن» ينقصه (صرف مستحقّه) —
@@ -926,12 +919,13 @@ class _MoneyTab extends StatelessWidget {
         ...drivers.map((d) => Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
+                onTap: () => showDriverLedgerSheet(context, d),
                 title: Text(d.name,
                     style: const TextStyle(
                         fontSize: 13.5, fontWeight: FontWeight.w600)),
                 subtitle: Text(
-                    tr('${d.totalDeliveries} توصيلة',
-                        '${d.totalDeliveries} deliveries'),
+                    tr('${d.totalDeliveries} توصيلة — اضغط لدفتر الحركات',
+                        '${d.totalDeliveries} deliveries — tap for the ledger'),
                     style: const TextStyle(fontSize: 11.5)),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   Text(formatCurrency(d.balance),
