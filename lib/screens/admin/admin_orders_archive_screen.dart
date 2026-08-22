@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -27,11 +28,11 @@ enum _StatusGroup { all, active, delivered, cancelled, failed }
 
 extension _StatusGroupExt on _StatusGroup {
   String get label => switch (this) {
-        _StatusGroup.all => 'الكل',
-        _StatusGroup.active => 'جارية',
-        _StatusGroup.delivered => 'مكتملة',
-        _StatusGroup.cancelled => 'ملغاة',
-        _StatusGroup.failed => 'متعثّرة',
+        _StatusGroup.all => tr('الكل', 'All'),
+        _StatusGroup.active => tr('جارية', 'Active'),
+        _StatusGroup.delivered => tr('مكتملة', 'Delivered'),
+        _StatusGroup.cancelled => tr('ملغاة', 'Cancelled'),
+        _StatusGroup.failed => tr('متعثّرة', 'Failed'),
       };
 
   bool matches(OrderStatus s) => switch (this) {
@@ -104,7 +105,10 @@ class _AdminOrdersArchiveScreenState extends State<AdminOrdersArchiveScreen> {
       final found = await service.findOrdersByNumber(_query);
       if (mounted) setState(() => _deepResults = found);
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر البحث في الأرشيف الكامل');
+      if (mounted) {
+        showError(context, tr('تعذّر البحث في الأرشيف الكامل',
+            'Could not search the full archive'));
+      }
     } finally {
       if (mounted) setState(() => _deepSearching = false);
     }
@@ -154,9 +158,12 @@ class _AdminOrdersArchiveScreenState extends State<AdminOrdersArchiveScreen> {
             color: context.flavorColors.primary.withOpacity(0.06),
             child: Text(
               shown.isEmpty
-                  ? 'لا نتائج'
-                  : '${shown.length} طلب • إجمالي قيمتها ${formatCurrency(total)}'
-                      '${showDeep ? ' (من الأرشيف الكامل)' : ''}',
+                  ? tr('لا نتائج', 'No results')
+                  : tr(
+                      '${shown.length} طلب • إجمالي قيمتها ${formatCurrency(total)}'
+                          '${showDeep ? ' (من الأرشيف الكامل)' : ''}',
+                      '${shown.length} orders • total value ${formatCurrency(total)}'
+                          '${showDeep ? ' (from the full archive)' : ''}'),
               style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.w700,
@@ -170,11 +177,13 @@ class _AdminOrdersArchiveScreenState extends State<AdminOrdersArchiveScreen> {
                     AppEmpty(
                       emoji: '🔍',
                       title: _query.isEmpty
-                          ? 'لا طلبات ضمن هذا الفلتر'
-                          : 'لا نتائج لبحثك ضمن آخر ٥٠٠ طلب',
+                          ? tr('لا طلبات ضمن هذا الفلتر', 'No orders match this filter')
+                          : tr('لا نتائج لبحثك ضمن آخر ٥٠٠ طلب',
+                              'No results for your search in the latest 500 orders'),
                       subtitle: _query.isEmpty
                           ? null
-                          : 'الطلب قد يكون أقدم من ذلك — ابحث في الأرشيف الكامل برقمه',
+                          : tr('الطلب قد يكون أقدم من ذلك — ابحث في الأرشيف الكامل برقمه',
+                              'The order may be older than that — search the full archive by its number'),
                     ),
                     if (_query.isNotEmpty)
                       Center(
@@ -190,8 +199,9 @@ class _AdminOrdersArchiveScreenState extends State<AdminOrdersArchiveScreen> {
                                   onPressed: _deepSearch,
                                   icon: const Icon(Icons.travel_explore_rounded,
                                       size: 18),
-                                  label: const Text(
-                                      'ابحث في الأرشيف الكامل برقم الطلب'),
+                                  label: Text(tr(
+                                      'ابحث في الأرشيف الكامل برقم الطلب',
+                                      'Search the full archive by order number')),
                                 ),
                         ),
                       ),
@@ -222,7 +232,8 @@ class _SearchBar extends StatelessWidget {
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
             isDense: true,
-            hintText: 'ابحث برقم الطلب أو العميل أو الجوال أو المطعم…',
+            hintText: tr('ابحث برقم الطلب أو العميل أو الجوال أو المطعم…',
+                'Search by order number, customer, phone or restaurant…'),
             hintStyle: const TextStyle(fontSize: 13.5),
             prefixIcon: const Icon(Icons.search_rounded, size: 20),
             suffixIcon: controller.text.isEmpty
@@ -287,11 +298,11 @@ class _FilterChips extends StatelessWidget {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
-            for (final (label, days) in const [
-              ('اليوم', 1),
-              ('٧ أيام', 7),
-              ('٣٠ يوماً', 30),
-              ('كل الفترات', 0),
+            for (final (label, days) in [
+              (tr('اليوم', 'Today'), 1),
+              (tr('٧ أيام', '7 days'), 7),
+              (tr('٣٠ يوماً', '30 days'), 30),
+              (tr('كل الفترات', 'All time'), 0),
             ])
               chip(label, (days == 0 ? null : days) == periodDays,
                   () => onPeriod(days == 0 ? null : days)),
@@ -380,7 +391,7 @@ class _ArchiveCard extends StatelessWidget {
                   InfoRow(
                       icon: Icons.delivery_dining_outlined,
                       text: (o.driverName ?? '').trim().isEmpty
-                          ? 'بلا سائق'
+                          ? tr('بلا سائق', 'No driver')
                           : o.driverName!),
                   if (o.items.isNotEmpty) ...[
                     const SizedBox(height: 2),
@@ -404,7 +415,8 @@ class _ArchiveCard extends StatelessWidget {
                         color: AppColors.error.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text('السبب: ${o.rejectionReason}',
+                      child: Text(tr('السبب: ${o.rejectionReason}',
+                              'Reason: ${o.rejectionReason}'),
                           style: const TextStyle(
                               fontSize: 12.5, color: AppColors.error)),
                     ),
@@ -433,7 +445,7 @@ class _ArchiveCard extends StatelessWidget {
                   Wrap(spacing: 8, runSpacing: 8, children: [
                     _pill(
                       icon: Icons.receipt_long_outlined,
-                      label: 'الفاتورة',
+                      label: tr('الفاتورة', 'Receipt'),
                       color: AppColors.primary,
                       onTap: () => Navigator.push(
                           context,
@@ -442,7 +454,7 @@ class _ArchiveCard extends StatelessWidget {
                     ),
                     _pill(
                       icon: Icons.chat_bubble_outline,
-                      label: 'المحادثة',
+                      label: tr('المحادثة', 'Chat'),
                       color: AppColors.secondary,
                       onTap: () => Navigator.push(
                           context,
@@ -452,7 +464,7 @@ class _ArchiveCard extends StatelessWidget {
                     if (o.restaurantLat != null || o.deliveryLat != null)
                       _pill(
                         icon: Icons.map_outlined,
-                        label: 'الخريطة',
+                        label: tr('الخريطة', 'Map'),
                         color: AppColors.secondary,
                         onTap: () => Navigator.push(
                             context,

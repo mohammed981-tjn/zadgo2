@@ -18,6 +18,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -32,11 +33,14 @@ class AdminDriverApplicationsScreen extends StatelessWidget {
       stream: service.streamDriverApplications,
       builder: (ctx, apps) {
         if (apps.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
             emoji: '📋',
-            title: 'لا طلبات انضمام بعد',
-            subtitle: 'تصل هنا من صفحة التسجيل على الموقع '
+            title: tr('لا طلبات انضمام بعد', 'No join applications yet'),
+            subtitle: tr(
+                'تصل هنا من صفحة التسجيل على الموقع '
                 '(zadgo.co/join) بعد رفع المستندات',
+                'They arrive here from the website sign-up page '
+                '(zadgo.co/join) after documents are uploaded'),
           );
         }
         final pending = apps
@@ -56,7 +60,8 @@ class AdminDriverApplicationsScreen extends StatelessWidget {
                 const Icon(Icons.pending_actions_rounded,
                     color: AppColors.warning, size: 20),
                 const SizedBox(width: 8),
-                Text('$pending طلب بانتظار مراجعتك',
+                Text(tr('$pending طلب بانتظار مراجعتك',
+                        '$pending applications awaiting your review'),
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 13.5)),
               ]),
@@ -87,11 +92,13 @@ class _AppCard extends StatelessWidget {
         subtitle: Text(
           [
             app.phone,
-            '$docsCount مستند',
-            if (app.source == 'app') 'من التطبيق 📱',
-            if (app.referredByCode.isNotEmpty) 'دعوة ${app.referredByCode}',
+            tr('$docsCount مستند', '$docsCount documents'),
+            if (app.source == 'app') tr('من التطبيق 📱', 'From the app 📱'),
+            if (app.referredByCode.isNotEmpty)
+              tr('دعوة ${app.referredByCode}', 'Referral ${app.referredByCode}'),
             if (app.missingRequired.isNotEmpty)
-              'ناقص ${app.missingRequired.length}',
+              tr('ناقص ${app.missingRequired.length}',
+                  '${app.missingRequired.length} missing'),
           ].join(' • '),
           style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
         ),
@@ -127,18 +134,19 @@ class _AppDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('البيانات',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(tr('البيانات', 'Details'),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              _field('الجوال', app.phone, copyable: true),
-              _field('البريد', app.email, copyable: true),
-              _field('الهوية/الإقامة', app.nationalId, copyable: true),
-              _field('المركبة',
+              _field(tr('الجوال', 'Phone'), app.phone, copyable: true),
+              _field(tr('البريد', 'Email'), app.email, copyable: true),
+              _field(tr('الهوية/الإقامة', 'National/residency ID'),
+                  app.nationalId, copyable: true),
+              _field(tr('المركبة', 'Vehicle'),
                   [app.vehicleType, app.vehiclePlate]
                       .where((e) => e.isNotEmpty)
                       .join(' — ')),
               if (app.referredByCode.isNotEmpty)
-                _field('كود الداعي', app.referredByCode),
+                _field(tr('كود الداعي', 'Referrer code'), app.referredByCode),
             ]),
           ),
         ),
@@ -157,8 +165,11 @@ class _AppDetailScreen extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                    'مستندات إلزامية ناقصة: '
-                    '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}',
+                    tr(
+                        'مستندات إلزامية ناقصة: '
+                            '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}',
+                        'Missing required documents: '
+                            '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join(', ')}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.error)),
               ),
@@ -167,7 +178,7 @@ class _AppDetailScreen extends StatelessWidget {
         ],
 
         const SizedBox(height: 14),
-        const SectionHeader(title: 'المستندات — اضغط للتكبير'),
+        SectionHeader(title: tr('المستندات — اضغط للتكبير', 'Documents — tap to zoom')),
         ...DriverApplication.docLabels.entries.map((e) {
           final url = app.documents[e.key] ?? '';
           if (url.isEmpty) return const SizedBox.shrink();
@@ -175,7 +186,7 @@ class _AppDetailScreen extends StatelessWidget {
         }),
         if (app.vehiclePhotos.isNotEmpty) ...[
           const SizedBox(height: 8),
-          const SectionHeader(title: 'صور المركبة'),
+          SectionHeader(title: tr('صور المركبة', 'Vehicle photos')),
           SizedBox(
             height: 110,
             child: ListView.separated(
@@ -184,7 +195,9 @@ class _AppDetailScreen extends StatelessWidget {
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, i) => GestureDetector(
                 onTap: () => _openViewer(
-                    context, 'صورة المركبة ${i + 1}', app.vehiclePhotos[i]),
+                    context,
+                    tr('صورة المركبة ${i + 1}', 'Vehicle photo ${i + 1}'),
+                    app.vehiclePhotos[i]),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: _DocThumb(
@@ -203,8 +216,8 @@ class _AppDetailScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(children: [
-                const Text('كود التسجيل الصادر',
-                    style: TextStyle(
+                Text(tr('كود التسجيل الصادر', 'Issued registration code'),
+                    style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.success)),
                 const SizedBox(height: 6),
@@ -219,15 +232,17 @@ class _AppDetailScreen extends StatelessWidget {
                     onPressed: () async {
                       await Clipboard.setData(
                           ClipboardData(text: app.issuedCode));
-                      if (context.mounted) showSuccess(context, 'نُسخ الكود');
+                      if (context.mounted) {
+                        showSuccess(context, tr('نُسخ الكود', 'Code copied'));
+                      }
                     },
                     icon: const Icon(Icons.copy_outlined, size: 16),
-                    label: const Text('نسخ'),
+                    label: Text(tr('نسخ', 'Copy')),
                   ),
                   TextButton.icon(
                     onPressed: () => Share.share(_codeMessage(app)),
                     icon: const Icon(Icons.share_outlined, size: 16),
-                    label: const Text('إرسال للكابتن'),
+                    label: Text(tr('إرسال للكابتن', 'Send to captain')),
                   ),
                 ]),
               ]),
@@ -242,7 +257,8 @@ class _AppDetailScreen extends StatelessWidget {
             color: AppColors.errorLight,
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: Text('سبب الرفض: ${app.reviewNote}',
+              child: Text(tr('سبب الرفض: ${app.reviewNote}',
+                      'Rejection reason: ${app.reviewNote}'),
                   style: const TextStyle(fontSize: 13.5)),
             ),
           ),
@@ -259,8 +275,10 @@ class _AppDetailScreen extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.verified_outlined),
               label: Text(app.source == 'app'
-                  ? 'اعتماد مباشر — يفتح تطبيقه فوراً'
-                  : 'قبول وإصدار كود التسجيل'),
+                  ? tr('اعتماد مباشر — يفتح تطبيقه فوراً',
+                      'Direct approval — opens their app instantly')
+                  : tr('قبول وإصدار كود التسجيل',
+                      'Approve and issue registration code')),
               style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.success),
               onPressed: () => app.source == 'app'
@@ -273,7 +291,7 @@ class _AppDetailScreen extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               icon: const Icon(Icons.block_outlined, size: 18),
-              label: const Text('رفض الطلب'),
+              label: Text(tr('رفض الطلب', 'Reject application')),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: const BorderSide(color: AppColors.error),
@@ -321,28 +339,32 @@ class _AppDetailScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setLocal) => AlertDialog(
-          title: const Text('قبول الطلب'),
+          title: Text(tr('قبول الطلب', 'Approve application')),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             if (missing.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(
-                    '⚠️ ناقص: '
-                    '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}',
+                    tr(
+                        '⚠️ ناقص: '
+                            '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}',
+                        '⚠️ Missing: '
+                            '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join(', ')}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.error)),
               ),
-            const Text('يُصدَر كود تسجيل للكابتن بصلاحية:',
-                style: TextStyle(fontSize: 13.5)),
+            Text(tr('يُصدَر كود تسجيل للكابتن بصلاحية:',
+                    'A registration code is issued to the captain, valid for:'),
+                style: const TextStyle(fontSize: 13.5)),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
               value: days,
               isDense: true,
-              items: const [
-                DropdownMenuItem(value: 1, child: Text('٢٤ ساعة')),
-                DropdownMenuItem(value: 7, child: Text('٧ أيام')),
-                DropdownMenuItem(value: 30, child: Text('٣٠ يوماً')),
-                DropdownMenuItem(value: 0, child: Text('بلا انتهاء')),
+              items: [
+                DropdownMenuItem(value: 1, child: Text(tr('٢٤ ساعة', '24 hours'))),
+                DropdownMenuItem(value: 7, child: Text(tr('٧ أيام', '7 days'))),
+                DropdownMenuItem(value: 30, child: Text(tr('٣٠ يوماً', '30 days'))),
+                DropdownMenuItem(value: 0, child: Text(tr('بلا انتهاء', 'No expiry'))),
               ],
               onChanged: (v) => setLocal(() => days = v ?? 7),
             ),
@@ -350,12 +372,12 @@ class _AppDetailScreen extends StatelessWidget {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx2, false),
-                child: const Text('إلغاء')),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
                 onPressed: () => Navigator.pop(ctx2, true),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success),
-                child: const Text('قبول')),
+                child: Text(tr('قبول', 'Approve'))),
           ],
         ),
       ),
@@ -368,11 +390,14 @@ class _AppDetailScreen extends StatelessWidget {
         validity: days == 0 ? null : Duration(days: days),
       );
       if (!context.mounted) return;
-      showSuccess(context, 'صدر الكود ${entry.code}');
+      showSuccess(context, tr('صدر الكود ${entry.code}',
+          'Code ${entry.code} issued'));
       // الرجوع للقائمة: البطاقة المحدَّثة تحمل الكود ليُرسل من تفاصيلها.
       Navigator.pop(context);
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر إصدار الكود');
+      if (context.mounted) {
+        showError(context, tr('تعذّر إصدار الكود', 'Could not issue the code'));
+      }
     }
   }
 
@@ -380,23 +405,31 @@ class _AppDetailScreen extends StatelessWidget {
       List<String> missing) async {
     final ok = await showConfirmDialog(
       context,
-      title: 'اعتماد مباشر',
-      content: '${missing.isNotEmpty ? '⚠️ ناقص: '
-              '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}\n\n' : ''}'
-          'يُمنح ${app.name} دور الكابتن فوراً وينفتح تطبيقه من شاشة '
-          'الانتظار — بلا كود.',
-      confirmLabel: 'اعتماد',
+      title: tr('اعتماد مباشر', 'Direct approval'),
+      content: tr(
+          '${missing.isNotEmpty ? '⚠️ ناقص: '
+                  '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join('، ')}\n\n' : ''}'
+              'يُمنح ${app.name} دور الكابتن فوراً وينفتح تطبيقه من شاشة '
+              'الانتظار — بلا كود.',
+          '${missing.isNotEmpty ? '⚠️ Missing: '
+                  '${missing.map((k) => DriverApplication.docLabels[k] ?? k).join(', ')}\n\n' : ''}'
+              '${app.name} is granted the captain role immediately and their app opens '
+              'from the waiting screen — no code needed.'),
+      confirmLabel: tr('اعتماد', 'Approve'),
       confirmColor: AppColors.success,
     );
     if (ok != true || !context.mounted) return;
     try {
       await service.approveDriverApplicationDirect(app);
       if (context.mounted) {
-        showSuccess(context, 'اعتُمد ${app.name} — تطبيقه انفتح الآن');
+        showSuccess(context, tr('اعتُمد ${app.name} — تطبيقه انفتح الآن',
+            '${app.name} approved — their app is now open'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر الاعتماد');
+      if (context.mounted) {
+        showError(context, tr('تعذّر الاعتماد', 'Approval failed'));
+      }
     }
   }
 
@@ -405,41 +438,45 @@ class _AppDetailScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('رفض الطلب'),
+        title: Text(tr('رفض الطلب', 'Reject application')),
         content: TextField(
           controller: ctrl,
           maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'السبب',
-            hintText: 'رخصة القيادة منتهية — يُعاد التقديم بعد تجديدها',
+          decoration: InputDecoration(
+            labelText: tr('السبب', 'Reason'),
+            hintText: tr('رخصة القيادة منتهية — يُعاد التقديم بعد تجديدها',
+                'Driving license expired — reapply after renewing it'),
           ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('إلغاء')),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-              child: const Text('رفض')),
+              child: Text(tr('رفض', 'Reject'))),
         ],
       ),
     );
     if (ok != true || !context.mounted) return;
     final note = ctrl.text.trim();
     if (note.isEmpty) {
-      showError(context, 'اكتب سبب الرفض — يُرسَل للمتقدّم');
+      showError(context, tr('اكتب سبب الرفض — يُرسَل للمتقدّم',
+          'Write a rejection reason — it is sent to the applicant'));
       return;
     }
     try {
       await service.rejectDriverApplication(
           applicationId: app.id, note: note);
       if (context.mounted) {
-        showSuccess(context, 'رُفض الطلب');
+        showSuccess(context, tr('رُفض الطلب', 'Application rejected'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر الرفض');
+      if (context.mounted) {
+        showError(context, tr('تعذّر الرفض', 'Rejection failed'));
+      }
     }
   }
 }
@@ -536,8 +573,8 @@ class _DocViewer extends StatelessWidget {
           const Icon(Icons.broken_image_outlined,
               color: Colors.white54, size: 48),
           const SizedBox(height: 12),
-          const Text('تعذّر تحميل المستند',
-              style: TextStyle(color: Colors.white70)),
+          Text(tr('تعذّر تحميل المستند', 'Could not load the document'),
+              style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 6),
           SelectableText(url,
               textAlign: TextAlign.center,
@@ -558,7 +595,7 @@ class _DocViewer extends StatelessWidget {
           // المشاركة للروابط فقط — معرّف Blob لا يفتح شيئاً خارج التطبيق.
           if (isNetwork)
             IconButton(
-              tooltip: 'مشاركة الرابط',
+              tooltip: tr('مشاركة الرابط', 'Share link'),
               icon: const Icon(Icons.share_outlined),
               onPressed: () => Share.share(url),
             ),

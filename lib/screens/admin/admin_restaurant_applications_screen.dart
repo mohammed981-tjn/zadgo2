@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -25,11 +26,14 @@ class AdminRestaurantApplicationsScreen extends StatelessWidget {
       stream: service.streamRestaurantApplications,
       builder: (ctx, apps) {
         if (apps.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
             emoji: '🏪',
-            title: 'لا طلبات مطاعم بعد',
-            subtitle: 'تصل هنا حين يسجّل صاحب مطعم من تطبيق المطعم '
+            title: tr('لا طلبات مطاعم بعد', 'No restaurant applications yet'),
+            subtitle: tr(
+                'تصل هنا حين يسجّل صاحب مطعم من تطبيق المطعم '
                 '(«سجّل مطعمك من هنا»)',
+                'They arrive here when a restaurant owner signs up from the restaurant app '
+                '("Register your restaurant here")'),
           );
         }
         final pending = apps
@@ -49,7 +53,8 @@ class AdminRestaurantApplicationsScreen extends StatelessWidget {
                 const Icon(Icons.pending_actions_rounded,
                     color: AppColors.warning, size: 20),
                 const SizedBox(width: 8),
-                Text('$pending طلب بانتظار مراجعتك',
+                Text(tr('$pending طلب بانتظار مراجعتك',
+                        '$pending applications awaiting your review'),
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 13.5)),
               ]),
@@ -81,9 +86,11 @@ class _AppCard extends StatelessWidget {
           [
             app.ownerName,
             app.phone,
-            '${app.documents.length} مستند',
+            tr('${app.documents.length} مستند',
+                '${app.documents.length} documents'),
             if (app.missingRequired.isNotEmpty)
-              'ناقص ${app.missingRequired.length}',
+              tr('ناقص ${app.missingRequired.length}',
+                  '${app.missingRequired.length} missing'),
           ].where((e) => e.isNotEmpty).join(' • '),
           style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
         ),
@@ -120,14 +127,14 @@ class _AppDetailScreen extends StatelessWidget {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('البيانات',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(tr('البيانات', 'Details'),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  _field('المالك', app.ownerName),
-                  _field('الجوال', app.phone, copyable: true),
-                  _field('البريد', app.email, copyable: true),
-                  _field('الحي', app.district),
-                  _field('الوصف', app.description),
+                  _field(tr('المالك', 'Owner'), app.ownerName),
+                  _field(tr('الجوال', 'Phone'), app.phone, copyable: true),
+                  _field(tr('البريد', 'Email'), app.email, copyable: true),
+                  _field(tr('الحي', 'District'), app.district),
+                  _field(tr('الوصف', 'Description'), app.description),
                 ]),
           ),
         ),
@@ -145,8 +152,11 @@ class _AppDetailScreen extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                    'مستندات إلزامية ناقصة: '
-                    '${missing.map((k) => RestaurantApplication.docLabels[k] ?? k).join('، ')}',
+                    tr(
+                        'مستندات إلزامية ناقصة: '
+                            '${missing.map((k) => RestaurantApplication.docLabels[k] ?? k).join('، ')}',
+                        'Missing required documents: '
+                            '${missing.map((k) => RestaurantApplication.docLabels[k] ?? k).join(', ')}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.error)),
               ),
@@ -154,7 +164,7 @@ class _AppDetailScreen extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 14),
-        const SectionHeader(title: 'المستندات — اضغط للتكبير'),
+        SectionHeader(title: tr('المستندات — اضغط للتكبير', 'Documents — tap to zoom')),
         ...RestaurantApplication.docLabels.entries.map((e) {
           final ref = app.documents[e.key] ?? '';
           if (ref.isEmpty) return const SizedBox.shrink();
@@ -182,7 +192,8 @@ class _AppDetailScreen extends StatelessWidget {
             color: AppColors.errorLight,
             child: Padding(
               padding: const EdgeInsets.all(14),
-              child: Text('سبب الرفض: ${app.reviewNote}',
+              child: Text(tr('سبب الرفض: ${app.reviewNote}',
+                      'Rejection reason: ${app.reviewNote}'),
                   style: const TextStyle(fontSize: 13.5)),
             ),
           ),
@@ -194,7 +205,8 @@ class _AppDetailScreen extends StatelessWidget {
             height: 50,
             child: ElevatedButton.icon(
               icon: const Icon(Icons.verified_outlined),
-              label: const Text('اعتماد وربط بمطعم — يفتح تطبيقه فوراً'),
+              label: Text(tr('اعتماد وربط بمطعم — يفتح تطبيقه فوراً',
+                  'Approve and link to a restaurant — opens their app instantly')),
               style:
                   ElevatedButton.styleFrom(backgroundColor: AppColors.success),
               onPressed: () => _approve(context, service, missing),
@@ -205,7 +217,7 @@ class _AppDetailScreen extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               icon: const Icon(Icons.block_outlined, size: 18),
-              label: const Text('رفض الطلب'),
+              label: Text(tr('رفض الطلب', 'Reject application')),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: const BorderSide(color: AppColors.error),
@@ -250,28 +262,34 @@ class _AppDetailScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setLocal) => AlertDialog(
-          title: const Text('اعتماد وربط بمطعم'),
+          title: Text(tr('اعتماد وربط بمطعم', 'Approve and link to a restaurant')),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             if (missing.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Text(
-                    '⚠️ ناقص: '
-                    '${missing.map((k) => RestaurantApplication.docLabels[k] ?? k).join('، ')}',
+                    tr(
+                        '⚠️ ناقص: '
+                            '${missing.map((k) => RestaurantApplication.docLabels[k] ?? k).join('، ')}',
+                        '⚠️ Missing: '
+                            '${missing.map((k) => RestaurantApplication.docLabels[k] ?? k).join(', ')}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.error)),
               ),
-            const Text(
-                'اختر المطعم الذي يُربط به هذا الحساب — أنشئه أولاً من '
-                'شاشة «المطاعم» إن لم يوجد.',
-                style: TextStyle(fontSize: 13)),
+            Text(
+                tr(
+                    'اختر المطعم الذي يُربط به هذا الحساب — أنشئه أولاً من '
+                    'شاشة «المطاعم» إن لم يوجد.',
+                    'Pick the restaurant to link this account to — create it first from '
+                    'the Restaurants screen if it does not exist.'),
+                style: const TextStyle(fontSize: 13)),
             const SizedBox(height: 10),
             StreamBuilder<List<Restaurant>>(
               stream: service.streamRestaurants(),
               builder: (c, snap) => DropdownButtonFormField<String>(
                 value: restaurantId,
                 isExpanded: true,
-                decoration: const InputDecoration(labelText: 'المطعم'),
+                decoration: InputDecoration(labelText: tr('المطعم', 'Restaurant')),
                 items: (snap.data ?? const [])
                     .map((r) => DropdownMenuItem(
                           value: r.id,
@@ -286,19 +304,20 @@ class _AppDetailScreen extends StatelessWidget {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx2, false),
-                child: const Text('إلغاء')),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
                 onPressed: () => Navigator.pop(ctx2, true),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success),
-                child: const Text('اعتماد')),
+                child: Text(tr('اعتماد', 'Approve'))),
           ],
         ),
       ),
     );
     if (ok != true || !context.mounted) return;
     if (restaurantId == null) {
-      showError(context, 'اختر المطعم أولاً — أو أنشئه من شاشة المطاعم');
+      showError(context, tr('اختر المطعم أولاً — أو أنشئه من شاشة المطاعم',
+          'Pick the restaurant first — or create it from the Restaurants screen'));
       return;
     }
     try {
@@ -306,11 +325,14 @@ class _AppDetailScreen extends StatelessWidget {
           application: app, restaurantId: restaurantId!);
       if (context.mounted) {
         showSuccess(context,
-            'اعتُمد ${app.restaurantName} — تطبيق صاحبه انفتح الآن');
+            tr('اعتُمد ${app.restaurantName} — تطبيق صاحبه انفتح الآن',
+                '${app.restaurantName} approved — the owner\'s app is now open'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر الاعتماد');
+      if (context.mounted) {
+        showError(context, tr('تعذّر الاعتماد', 'Approval failed'));
+      }
     }
   }
 
@@ -319,41 +341,45 @@ class _AppDetailScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('رفض الطلب'),
+        title: Text(tr('رفض الطلب', 'Reject application')),
         content: TextField(
           controller: ctrl,
           maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'السبب',
-            hintText: 'السجل التجاري منتهٍ — يُعاد التقديم بعد تجديده',
+          decoration: InputDecoration(
+            labelText: tr('السبب', 'Reason'),
+            hintText: tr('السجل التجاري منتهٍ — يُعاد التقديم بعد تجديده',
+                'Commercial registration expired — reapply after renewing it'),
           ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('إلغاء')),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-              child: const Text('رفض')),
+              child: Text(tr('رفض', 'Reject'))),
         ],
       ),
     );
     if (ok != true || !context.mounted) return;
     final note = ctrl.text.trim();
     if (note.isEmpty) {
-      showError(context, 'اكتب سبب الرفض — يظهر للمتقدّم في تطبيقه');
+      showError(context, tr('اكتب سبب الرفض — يظهر للمتقدّم في تطبيقه',
+          'Write a rejection reason — the applicant sees it in their app'));
       return;
     }
     try {
       await service.rejectRestaurantApplication(
           applicationId: app.id, note: note);
       if (context.mounted) {
-        showSuccess(context, 'رُفض الطلب');
+        showSuccess(context, tr('رُفض الطلب', 'Application rejected'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر الرفض');
+      if (context.mounted) {
+        showError(context, tr('تعذّر الرفض', 'Rejection failed'));
+      }
     }
   }
 }
@@ -422,8 +448,8 @@ class _DocViewer extends StatelessWidget {
               }
               final bytes = snap.data;
               if (bytes == null) {
-                return const Text('تعذّر تحميل المستند',
-                    style: TextStyle(color: Colors.white70));
+                return Text(tr('تعذّر تحميل المستند', 'Could not load the document'),
+                    style: const TextStyle(color: Colors.white70));
               }
               return Image.memory(bytes, fit: BoxFit.contain);
             },

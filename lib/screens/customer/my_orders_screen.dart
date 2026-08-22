@@ -128,32 +128,44 @@ class _LiveTrackingCard extends StatelessWidget {
 
   /// ماذا يحدث الآن — بلغة الناس.
   (String, String) get _headline => switch (order.status) {
-        OrderStatus.created ||
-        OrderStatus.restaurantPending =>
-          ('أرسلنا طلبك للمطعم', 'ننتظر تأكيده — عادةً خلال دقائق'),
+        OrderStatus.created || OrderStatus.restaurantPending => (
+            tr('أرسلنا طلبك للمطعم', 'Order sent to the restaurant'),
+            tr('ننتظر تأكيده — عادةً خلال دقائق',
+                'Waiting for confirmation — usually within minutes')
+          ),
         // دقائق التحضير (يوم المطعم): المطعم اختارها لحظة القبول، فتحلّ
         // محلّ العبارة العامة — جوابٌ حقيقي على «كم بقي؟» في وقت المطبخ
         // الذي كان أعمى قبل تحرّك الكابتن.
         OrderStatus.restaurantAccepted => (
-            'المطعم قَبِل طلبك',
+            tr('المطعم قَبِل طلبك', 'The restaurant accepted your order'),
             order.prepMinutes != null
-                ? 'التحضير يستغرق نحو ${order.prepMinutes} دقيقة'
-                : 'سيبدأ التحضير الآن'
+                ? tr('التحضير يستغرق نحو ${order.prepMinutes} دقيقة',
+                    'Prep takes about ${order.prepMinutes} minutes')
+                : tr('سيبدأ التحضير الآن', 'Prep is starting now')
           ),
         OrderStatus.preparing => (
-            'طلبك قيد التحضير',
+            tr('طلبك قيد التحضير', 'Your order is being prepared'),
             order.prepMinutes != null
-                ? 'نحو ${order.prepMinutes} دقيقة في المطبخ 👨‍🍳'
-                : 'رائحته تفوح من المطبخ 👨‍🍳'
+                ? tr('نحو ${order.prepMinutes} دقيقة في المطبخ 👨‍🍳',
+                    'About ${order.prepMinutes} minutes in the kitchen 👨‍🍳')
+                : tr('رائحته تفوح من المطبخ 👨‍🍳',
+                    'Smells great from the kitchen 👨‍🍳')
           ),
-        OrderStatus.readyForPickup ||
-        OrderStatus.searchingDriver =>
-          ('طلبك جاهز', 'نبحث عن كابتن قريب ليأخذه'),
-        OrderStatus.driverAssigned =>
-          ('الكابتن في طريقه للمطعم', 'سيستلم طلبك ثم ينطلق إليك'),
-        OrderStatus.pickedUp ||
-        OrderStatus.onTheWay =>
-          ('الكابتن في الطريق إليك', 'استعدّ لاستلام طلبك 🛵'),
+        OrderStatus.readyForPickup || OrderStatus.searchingDriver => (
+            tr('طلبك جاهز', 'Your order is ready'),
+            tr('نبحث عن كابتن قريب ليأخذه',
+                'Finding a nearby captain to pick it up')
+          ),
+        OrderStatus.driverAssigned => (
+            tr('الكابتن في طريقه للمطعم',
+                'The captain is heading to the restaurant'),
+            tr('سيستلم طلبك ثم ينطلق إليك',
+                'They\'ll pick up your order and head your way')
+          ),
+        OrderStatus.pickedUp || OrderStatus.onTheWay => (
+            tr('الكابتن في الطريق إليك', 'The captain is on the way to you'),
+            tr('استعدّ لاستلام طلبك 🛵', 'Get ready to receive your order 🛵')
+          ),
         _ => (order.status.label, ''),
       };
 
@@ -187,7 +199,7 @@ class _LiveTrackingCard extends StatelessWidget {
     final mins = (km / 20 * 60).round();
     final lo = (mins + 2).clamp(3, 90);
     final hi = (mins + 8).clamp(6, 120);
-    return '$lo–$hi دقيقة';
+    return tr('$lo–$hi دقيقة', '$lo–$hi min');
   }
 
   @override
@@ -226,7 +238,9 @@ class _LiveTrackingCard extends StatelessWidget {
                 const Icon(Icons.schedule_rounded,
                     size: 15, color: AppColors.primaryDark),
                 const SizedBox(width: 6),
-                Text('توصيلك مجدول: ${formatDateTime(order.scheduledFor!)}',
+                Text(
+                    tr('توصيلك مجدول: ${formatDateTime(order.scheduledFor!)}',
+                        'Delivery scheduled: ${formatDateTime(order.scheduledFor!)}'),
                     style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.bold,
@@ -289,7 +303,8 @@ class _LiveTrackingCard extends StatelessWidget {
                         final r = routeSnap.data;
                         final showKm = r?.distanceKm ?? km;
                         final etaText = r != null
-                            ? '${(r.durationMinutes + 2).round()}–${(r.durationMinutes + 8).round()} دقيقة'
+                            ? tr('${(r.durationMinutes + 2).round()}–${(r.durationMinutes + 8).round()} دقيقة',
+                                '${(r.durationMinutes + 2).round()}–${(r.durationMinutes + 8).round()} min')
                             : _eta(km);
                         return Row(children: [
                           const Icon(Icons.schedule_rounded,
@@ -302,8 +317,11 @@ class _LiveTrackingCard extends StatelessWidget {
                                   color: AppColors.primaryDark)),
                           const SizedBox(width: 10),
                           Text(
-                              'يبعد عنك ${showKm.toStringAsFixed(1)} كم'
-                              '${r != null ? " طريقاً" : ""}',
+                              tr(
+                                  'يبعد عنك ${showKm.toStringAsFixed(1)} كم'
+                                      '${r != null ? " طريقاً" : ""}',
+                                  '${showKm.toStringAsFixed(1)} km away'
+                                      '${r != null ? " by road" : ""}'),
                               style: const TextStyle(
                                   fontSize: 12.5, color: AppColors.textGray)),
                         ]);
@@ -330,7 +348,7 @@ class _LiveTrackingCard extends StatelessWidget {
                     MaterialPageRoute(
                         builder: (_) => OrderMapScreen(order: order))),
                 icon: const Icon(Icons.map_outlined, size: 18),
-                label: const Text('الخريطة'),
+                label: Text(tr('الخريطة', 'Map')),
               ),
             ),
             const SizedBox(width: 10),
@@ -341,7 +359,7 @@ class _LiveTrackingCard extends StatelessWidget {
                     MaterialPageRoute(
                         builder: (_) => OrderReceiptScreen(order: order))),
                 icon: const Icon(Icons.receipt_long_outlined, size: 18),
-                label: const Text('الفاتورة'),
+                label: Text(tr('الفاتورة', 'Receipt')),
               ),
             ),
           ]),
@@ -372,10 +390,14 @@ class _LiveTrackingCard extends StatelessWidget {
                   border:
                       Border.all(color: AppColors.warning.withOpacity(0.4)),
                 ),
-                child: const Text(
-                  'المطعم لم يؤكد طلبك بعد — نتابع الأمر، ويمكنك الإلغاء '
-                  'مجاناً الآن إن لم ترغب بالانتظار.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textDark),
+                child: Text(
+                  tr(
+                      'المطعم لم يؤكد طلبك بعد — نتابع الأمر، ويمكنك الإلغاء '
+                      'مجاناً الآن إن لم ترغب بالانتظار.',
+                      'The restaurant hasn\'t confirmed your order yet — we\'re '
+                      'on it, and you can cancel for free now if you\'d rather '
+                      'not wait.'),
+                  style: const TextStyle(fontSize: 12, color: AppColors.textDark),
                 ),
               ),
             ],
@@ -391,7 +413,7 @@ class _LiveTrackingCard extends StatelessWidget {
                   side: BorderSide(color: AppColors.error.withOpacity(0.6)),
                 ),
                 icon: const Icon(Icons.cancel_outlined, size: 18),
-                label: const Text('إلغاء الطلب'),
+                label: Text(tr('إلغاء الطلب', 'Cancel order')),
               ),
             ),
           ],
@@ -404,9 +426,10 @@ class _LiveTrackingCard extends StatelessWidget {
     final service = context.read<FirebaseService>();
     final ok = await showConfirmDialog(
       context,
-      title: 'إلغاء الطلب',
-      content: 'هل تريد إلغاء طلبك #${order.orderNumber}؟',
-      confirmLabel: 'إلغاء الطلب',
+      title: tr('إلغاء الطلب', 'Cancel order'),
+      content: tr('هل تريد إلغاء طلبك #${order.orderNumber}؟',
+          'Cancel your order #${order.orderNumber}?'),
+      confirmLabel: tr('إلغاء الطلب', 'Cancel order'),
       confirmColor: AppColors.error,
     );
     if (ok != true || !context.mounted) return;
@@ -418,12 +441,16 @@ class _LiveTrackingCard extends StatelessWidget {
         showSuccess(
             context,
             order.walletUsed > 0
-                ? 'تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً'
-                : 'تم إلغاء الطلب');
+                ? tr('تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً',
+                    'Order cancelled — your wallet credit (${order.walletUsed.toStringAsFixed(0)} SAR) will be returned by support soon')
+                : tr('تم إلغاء الطلب', 'Order cancelled'));
       }
     } catch (_) {
       if (context.mounted) {
-        showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
+        showError(
+            context,
+            tr('تعذّر الإلغاء — قد يكون التحضير قد بدأ',
+                'Couldn\'t cancel — prep may have already started'));
       }
     }
   }
@@ -489,19 +516,19 @@ class _RoadBar extends StatelessWidget {
                       size: 18, color: AppColors.dark),
                 ),
               ),
-              const Positioned(
+              Positioned(
                 bottom: 0,
                 right: 2,
-                child: Text('المطعم',
-                    style:
-                        TextStyle(fontSize: 10.5, color: AppColors.textGray)),
+                child: Text(tr('المطعم', 'Restaurant'),
+                    style: const TextStyle(
+                        fontSize: 10.5, color: AppColors.textGray)),
               ),
-              const Positioned(
+              Positioned(
                 bottom: 0,
                 left: 2,
-                child: Text('موقعك',
-                    style:
-                        TextStyle(fontSize: 10.5, color: AppColors.textGray)),
+                child: Text(tr('موقعك', 'You'),
+                    style: const TextStyle(
+                        fontSize: 10.5, color: AppColors.textGray)),
               ),
             ]),
           );
@@ -541,15 +568,17 @@ class _DriverStrip extends StatelessWidget {
                           fontWeight: FontWeight.w700, fontSize: 14.5)),
                   Text(
                     driver.ratingCount > 0
-                        ? '⭐ ${driver.rating.toStringAsFixed(1)} · ${driver.totalDeliveries} توصيلة'
-                        : 'كابتن جديد · ${driver.totalDeliveries} توصيلة',
+                        ? tr('⭐ ${driver.rating.toStringAsFixed(1)} · ${driver.totalDeliveries} توصيلة',
+                            '⭐ ${driver.rating.toStringAsFixed(1)} · ${driver.totalDeliveries} deliveries')
+                        : tr('كابتن جديد · ${driver.totalDeliveries} توصيلة',
+                            'New captain · ${driver.totalDeliveries} deliveries'),
                     style: const TextStyle(
                         fontSize: 11.5, color: AppColors.textGray),
                   ),
                 ]),
           ),
           IconButton(
-            tooltip: 'محادثة',
+            tooltip: tr('محادثة', 'Chat'),
             icon: const Icon(Icons.chat_bubble_outline,
                 color: AppColors.secondary),
             onPressed: () => Navigator.push(context,
@@ -557,7 +586,7 @@ class _DriverStrip extends StatelessWidget {
           ),
           if (driver.phone.trim().isNotEmpty)
             IconButton(
-              tooltip: 'اتصال',
+              tooltip: tr('اتصال', 'Call'),
               icon: const Icon(Icons.phone, color: AppColors.success),
               onPressed: () => callPhone(context, driver.phone),
             ),
@@ -657,7 +686,7 @@ class _OrderCard extends StatelessWidget {
                     Text(
                       order.items
                           .map((i) => '${i.name} ×${i.quantity}')
-                          .join('، '),
+                          .join(tr('، ', ', ')),
                       style: const TextStyle(
                           fontSize: 12.5,
                           color: AppColors.textGray,
@@ -718,7 +747,7 @@ class _OrderCard extends StatelessWidget {
                     if (!order.status.isActive)
                       _pill(
                         icon: Icons.replay_rounded,
-                        label: 'اطلب مجدداً',
+                        label: tr('اطلب مجدداً', 'Order again'),
                         color: AppColors.dark,
                         filled: true,
                         onTap: () => _reorder(context),
@@ -727,7 +756,7 @@ class _OrderCard extends StatelessWidget {
                         !order.isRated)
                       _pill(
                         icon: Icons.star_rounded,
-                        label: 'قيّم الطلب',
+                        label: tr('قيّم الطلب', 'Rate order'),
                         color: AppColors.warning,
                         filled: true,
                         onTap: () =>
@@ -737,7 +766,7 @@ class _OrderCard extends StatelessWidget {
                     if (order.canCustomerCancel)
                       _pill(
                         icon: Icons.cancel_outlined,
-                        label: 'إلغاء الطلب',
+                        label: tr('إلغاء الطلب', 'Cancel order'),
                         color: AppColors.error,
                         onTap: () => _cancelOrder(context, service),
                       ),
@@ -754,8 +783,9 @@ class _OrderCard extends StatelessWidget {
                               ? Icons.timer_outlined
                               : Icons.report_problem_outlined,
                           label: left == null
-                              ? 'شكوى'
-                              : 'شكوى — ${formatRemaining(left)}',
+                              ? tr('شكوى', 'Complaint')
+                              : tr('شكوى — ${formatRemaining(left)}',
+                                  'Complaint — ${formatRemaining(left)}'),
                           color: color,
                           onTap: () => _openComplaint(context, auth),
                         );
@@ -770,7 +800,8 @@ class _OrderCard extends StatelessWidget {
                             color: AppColors.warning, size: 16),
                         const SizedBox(width: 4),
                         Text(
-                            'تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
+                            tr('تقييمك: ${order.customerRating!.toStringAsFixed(1)}',
+                                'Your rating: ${order.customerRating!.toStringAsFixed(1)}'),
                             style: const TextStyle(
                                 fontSize: 12.5, color: AppColors.textGray)),
                       ]),
@@ -790,17 +821,19 @@ class _OrderCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                            'ردّ المطعم: ${order.restaurantReply!.trim()}',
+                            tr('ردّ المطعم: ${order.restaurantReply!.trim()}',
+                                'Restaurant\'s reply: ${order.restaurantReply!.trim()}'),
                             style: const TextStyle(
                                 fontSize: 12.5, color: AppColors.textDark)),
                       ),
                     ),
                   if (order.status.isActive && !order.canCustomerCancel)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                          'بدأ تحضير طلبك — للإلغاء تواصل مع الإدارة',
-                          style: TextStyle(
+                          tr('بدأ تحضير طلبك — للإلغاء تواصل مع الإدارة',
+                              'Prep has started — contact support to cancel'),
+                          style: const TextStyle(
                               fontSize: 11.5, color: AppColors.textGray)),
                     ),
                 ],
@@ -876,9 +909,10 @@ class _OrderCard extends StatelessWidget {
   Future<void> _cancelOrder(BuildContext context, FirebaseService service) async {
     final ok = await showConfirmDialog(
       context,
-      title: 'إلغاء الطلب',
-      content: 'هل تريد إلغاء طلبك #${order.orderNumber}؟',
-      confirmLabel: 'إلغاء الطلب',
+      title: tr('إلغاء الطلب', 'Cancel order'),
+      content: tr('هل تريد إلغاء طلبك #${order.orderNumber}؟',
+          'Cancel your order #${order.orderNumber}?'),
+      confirmLabel: tr('إلغاء الطلب', 'Cancel order'),
       confirmColor: AppColors.error,
     );
     if (ok != true || !context.mounted) return;
@@ -890,12 +924,16 @@ class _OrderCard extends StatelessWidget {
         showSuccess(
             context,
             order.walletUsed > 0
-                ? 'تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً'
-                : 'تم إلغاء الطلب');
+                ? tr('تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً',
+                    'Order cancelled — your wallet credit (${order.walletUsed.toStringAsFixed(0)} SAR) will be returned by support soon')
+                : tr('تم إلغاء الطلب', 'Order cancelled'));
       }
     } catch (_) {
       if (context.mounted) {
-        showError(context, 'تعذّر الإلغاء — قد يكون التحضير قد بدأ');
+        showError(
+            context,
+            tr('تعذّر الإلغاء — قد يكون التحضير قد بدأ',
+                'Couldn\'t cancel — prep may have already started'));
       }
     }
   }
@@ -921,10 +959,10 @@ class _OrderCard extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setState) => AlertDialog(
-          title: const Text('قيّم تجربتك'),
+          title: Text(tr('قيّم تجربتك', 'Rate your experience')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text('جودة الطلب'),
+              Text(tr('جودة الطلب', 'Order quality')),
               RatingBar.builder(
                 initialRating: 5,
                 itemCount: 5,
@@ -932,7 +970,7 @@ class _OrderCard extends StatelessWidget {
                 onRatingUpdate: (r) => orderRating = r,
               ),
               const SizedBox(height: 12),
-              const Text('أداء السائق'),
+              Text(tr('أداء السائق', 'Driver performance')),
               RatingBar.builder(
                 initialRating: 5,
                 itemCount: 5,
@@ -942,13 +980,16 @@ class _OrderCard extends StatelessWidget {
               const SizedBox(height: 12),
               TextField(
                 controller: reviewCtrl,
-                decoration: const InputDecoration(labelText: 'تعليقك (اختياري)'),
+                decoration: InputDecoration(
+                    labelText: tr('تعليقك (اختياري)', 'Your comment (optional)')),
                 maxLines: 2,
               ),
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
               onPressed: () async {
                 await service.rateOrder(
@@ -961,7 +1002,7 @@ class _OrderCard extends StatelessWidget {
                 );
                 if (context.mounted) Navigator.pop(ctx);
               },
-              child: const Text('إرسال'),
+              child: Text(tr('إرسال', 'Submit')),
             ),
           ],
         ),

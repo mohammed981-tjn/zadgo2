@@ -401,23 +401,37 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                   pathBuilder: (ext) => StorageService.restaurantPath(_restaurantId, ext),
                   onChanged: (url) => setState(() => _imageUrl = url),
                 ),
-                _f(_desc, 'وصف المطعم'),
-                _f(_phone, 'رقم الهاتف', type: TextInputType.phone),
-                _f(_addr, 'العنوان'),
+                _f(_desc, tr('وصف المطعم', 'Restaurant description')),
+                _f(_phone, tr('رقم الهاتف', 'Phone number'),
+                    type: TextInputType.phone),
+                _f(_addr, tr('العنوان', 'Address')),
                 Row(children: [
-                  Expanded(child: _f(_min, 'الحد الأدنى', type: TextInputType.number, validator: validatePrice)),
+                  Expanded(
+                      child: _f(_min, tr('الحد الأدنى', 'Minimum order'),
+                          type: TextInputType.number, validator: validatePrice)),
                   const SizedBox(width: 10),
-                  Expanded(child: _f(_time, 'وقت التوصيل (دقيقة)', type: TextInputType.number)),
+                  Expanded(
+                      child: _f(
+                          _time, tr('وقت التوصيل (دقيقة)', 'Delivery time (min)'),
+                          type: TextInputType.number)),
                 ]),
-                _f(_commission, 'نسبة عمولة المنصّة ٪ (0 = بلا عمولة)',
+                _f(
+                    _commission,
+                    tr('نسبة عمولة المنصّة ٪ (0 = بلا عمولة)',
+                        'Platform commission % (0 = none)'),
                     type: TextInputType.number),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
-                      'اضبط النسبة المتفَّق عليها هنا، وحدّد أدناه «مجاني حتى» '
-                      'تاريخَ انتهاء الإعفاء — تبقى العمولة صفراً حتى ذلك '
-                      'اليوم ثم تسري النسبة تلقائياً. الدفاتر السابقة لا تتحرك.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                      tr('اضبط النسبة المتفَّق عليها هنا، وحدّد أدناه «مجاني حتى» '
+                              'تاريخَ انتهاء الإعفاء — تبقى العمولة صفراً حتى ذلك '
+                              'اليوم ثم تسري النسبة تلقائياً. الدفاتر السابقة لا تتحرك.',
+                          'Set the agreed rate here, and pick a "free until" date '
+                              'below for the exemption — commission stays at zero '
+                              'until that day, then the rate applies automatically. '
+                              'Past ledgers are untouched.'),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textGray)),
                 ),
                 // «مجاني حتى» (العمولة التلقائية): تختار التاريخ مرة واحدة يوم
                 // التوقيع، فينتهي الإعفاء وحده في موعده بلا متابعة يدوية.
@@ -453,8 +467,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                           ? AppColors.success
                           : null),
                   label: Text(_commissionFreeUntil != null
-                      ? 'عمولة صفر حتى ${_commissionFreeUntil!.year}/${_commissionFreeUntil!.month}/${_commissionFreeUntil!.day} (اضغط للتعديل)'
-                      : 'مجاني حتى تاريخ (اختياري — للإعفاء المؤقت)'),
+                      ? tr('عمولة صفر حتى ${_commissionFreeUntil!.year}/${_commissionFreeUntil!.month}/${_commissionFreeUntil!.day} (اضغط للتعديل)',
+                          'Zero commission until ${_commissionFreeUntil!.year}/${_commissionFreeUntil!.month}/${_commissionFreeUntil!.day} (tap to edit)')
+                      : tr('مجاني حتى تاريخ (اختياري — للإعفاء المؤقت)',
+                          'Free until a date (optional — temporary exemption)')),
                 ),
                 if (_commissionFreeUntil != null)
                   Align(
@@ -463,15 +479,17 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                       onPressed: () =>
                           setState(() => _commissionFreeUntil = null),
                       icon: const Icon(Icons.close, size: 15),
-                      label: const Text('إلغاء الإعفاء',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(tr('إلغاء الإعفاء', 'Cancel exemption'),
+                          style: const TextStyle(fontSize: 12)),
                     ),
                   ),
                 const SizedBox(height: 8),
-                const Align(
+                Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: Text('المطابخ (تصنيف كيتا — يظهر في فلتر العميل)',
-                      style: TextStyle(
+                  child: Text(
+                      tr('المطابخ (تصنيف كيتا — يظهر في فلتر العميل)',
+                          "Cuisines (Keeta's taxonomy — shown in the customer filter)"),
+                      style: const TextStyle(
                           fontSize: 13.5, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(height: 6),
@@ -491,17 +509,22 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Align(
+                Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: Text('مستوى الأسعار (لفلتر العميل)',
-                      style: TextStyle(
+                  child: Text(
+                      tr('مستوى الأسعار (لفلتر العميل)',
+                          'Price level (for the customer filter)'),
+                      style: const TextStyle(
                           fontSize: 13.5, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(height: 6),
                 StatefulBuilder(
                   builder: (ctx, setPrice) => Wrap(spacing: 6, children: [
                     for (final (lvl, label) in [
-                      (0, 'بلا'), (1, '\$ اقتصادي'), (2, '\$\$ متوسط'), (3, '\$\$\$ مرتفع')
+                      (0, tr('بلا', 'None')),
+                      (1, tr('\$ اقتصادي', '\$ budget')),
+                      (2, tr('\$\$ متوسط', '\$\$ mid-range')),
+                      (3, tr('\$\$\$ مرتفع', '\$\$\$ high-end'))
                     ])
                       ChoiceChip(
                         label:
@@ -519,13 +542,16 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         dense: true,
-                        title: const Text('ساعات عمل مجدولة',
-                            style: TextStyle(
+                        title: Text(tr('ساعات عمل مجدولة', 'Scheduled hours'),
+                            style: const TextStyle(
                                 fontSize: 13.5, fontWeight: FontWeight.w700)),
-                        subtitle: const Text(
-                            'يفتح ويغلق المطعم تلقائياً حسب اليوم والساعة. '
-                            'المفتاح اليدوي يبقى سيّداً لإغلاقٍ طارئ.',
-                            style: TextStyle(fontSize: 11.5)),
+                        subtitle: Text(
+                            tr('يفتح ويغلق المطعم تلقائياً حسب اليوم والساعة. '
+                                    'المفتاح اليدوي يبقى سيّداً لإغلاقٍ طارئ.',
+                                'The restaurant opens and closes automatically by '
+                                    'day and hour. The manual switch still wins '
+                                    'for an emergency close.'),
+                            style: const TextStyle(fontSize: 11.5)),
                         value: _useSchedule,
                         onChanged: (v) => setHrs(() {
                           _useSchedule = v;
@@ -553,8 +579,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                   icon: Icon(_lat != null ? Icons.check_circle : Icons.map_outlined,
                       color: _lat != null ? AppColors.success : null),
                   label: Text(_lat != null
-                      ? 'الموقع محدد ✓ (اضغط للتعديل)'
-                      : 'اختر موقع المطعم من الخريطة'),
+                      ? tr('الموقع محدد ✓ (اضغط للتعديل)',
+                          'Location set ✓ (tap to edit)')
+                      : tr('اختر موقع المطعم من الخريطة',
+                          "Pick the restaurant's location on the map")),
                 ),
                 // الإحداثيات مكتوبة صراحةً: نقطة خاطئة على الخريطة تبدو
                 // «محددة ✓» تماماً كالصحيحة، وقد عطّلت تأكيد الاستلام عند
@@ -564,8 +592,10 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                      'الإحداثيات: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
-                      '  —  الكابتن لا يستطيع تأكيد الاستلام إلا ضمن ١٠٠ متر من هذه النقطة',
+                      tr('الإحداثيات: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
+                              '  —  الكابتن لا يستطيع تأكيد الاستلام إلا ضمن ١٠٠ متر من هذه النقطة',
+                          'Coordinates: ${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}'
+                              '  —  the captain can only confirm pickup within 100 m of this point'),
                       style: const TextStyle(
                           fontSize: 11.5, color: AppColors.textGray),
                     ),
@@ -583,15 +613,18 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.warning),
                     ),
-                    child: const Row(children: [
-                      Icon(Icons.warning_amber_rounded,
+                    child: Row(children: [
+                      const Icon(Icons.warning_amber_rounded,
                           size: 18, color: AppColors.warning),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'بلا موقع: يُختار الكابتن بالتقييم لا بالأقرب، '
-                          'وأجرة التوصيل تُحسب بلا مسافة. حدِّد الموقع.',
-                          style: TextStyle(fontSize: 12.5),
+                          tr('بلا موقع: يُختار الكابتن بالتقييم لا بالأقرب، '
+                                  'وأجرة التوصيل تُحسب بلا مسافة. حدِّد الموقع.',
+                              'No location: the captain is picked by rating, not '
+                                  'proximity, and the delivery fee is computed '
+                                  'with no distance. Set the location.'),
+                          style: const TextStyle(fontSize: 12.5),
                         ),
                       ),
                     ]),
@@ -605,7 +638,7 @@ class _RestaurantFormState extends State<_RestaurantForm> {
                     child: _loading
                         ? const SizedBox(width: 20, height: 20,
                             child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('حفظ'),
+                        : Text(tr('حفظ', 'Save')),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -648,11 +681,12 @@ class MenuManagerScreen extends StatelessWidget {
     final service = context.read<FirebaseService>();
     return Scaffold(
       appBar: AppBar(
-        title: Text('قائمة ${restaurant.displayName}'),
+        title: Text(tr('قائمة ${restaurant.displayName}',
+            '${restaurant.displayName} menu')),
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file_outlined),
-            tooltip: 'استيراد منيو',
+            tooltip: tr('استيراد منيو', 'Import menu'),
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -685,7 +719,7 @@ class MenuManagerScreen extends StatelessWidget {
                   ElevatedButton.icon(
                     onPressed: () => _addCategoryDialog(context, restaurant.id),
                     icon: const Icon(Icons.add),
-                    label: const Text('إضافة فئة'),
+                    label: Text(tr('إضافة فئة', 'Add category')),
                   ),
                   const SizedBox(height: 12),
                   ...cats.map((cat) {
@@ -695,7 +729,8 @@ class MenuManagerScreen extends StatelessWidget {
                       child: ExpansionTile(
                         title: Text(cat.name,
                             style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('${catItems.length} صنف'),
+                        subtitle: Text(tr('${catItems.length} صنف',
+                            '${catItems.length} items')),
                         trailing: IconButton(
                           icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
                           onPressed: () => _showItemForm(context, restaurant.id, cat.id, null, cats),
@@ -713,9 +748,13 @@ class MenuManagerScreen extends StatelessWidget {
                       color: AppColors.warning.withOpacity(0.08),
                       child: ExpansionTile(
                         initiallyExpanded: true,
-                        title: const Text('أصناف بلا فئة',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.warning)),
-                        subtitle: Text('${unclassifiedItems.length} صنف — يحتاج تعيين فئة'),
+                        title: Text(tr('أصناف بلا فئة', 'Uncategorized items'),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.warning)),
+                        subtitle: Text(
+                            tr('${unclassifiedItems.length} صنف — يحتاج تعيين فئة',
+                                '${unclassifiedItems.length} items — need a category')),
                         children: unclassifiedItems
                             .map((item) => _ItemTile(
                                 item: item, restaurantId: restaurant.id, categories: cats))
@@ -736,15 +775,16 @@ class MenuManagerScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('إضافة فئة'),
+        title: Text(tr('إضافة فئة', 'Add category')),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(labelText: 'اسم الفئة'),
+          decoration:
+              InputDecoration(labelText: tr('اسم الفئة', 'Category name')),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
+            child: Text(tr('إلغاء', 'Cancel')),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -759,7 +799,7 @@ class MenuManagerScreen extends StatelessWidget {
                 if (context.mounted) Navigator.pop(context);
               }
             },
-            child: const Text('حفظ'),
+            child: Text(tr('حفظ', 'Save')),
           ),
         ],
       ),
@@ -778,25 +818,31 @@ class _ItemTile extends StatelessWidget {
     final service = context.read<FirebaseService>();
     return ListTile(
       leading: Text(item.emoji, style: const TextStyle(fontSize: 28)),
-      title: Text(item.name.trim().isEmpty ? '(بلا اسم)' : item.name),
+      title: Text(
+          item.name.trim().isEmpty ? tr('(بلا اسم)', '(unnamed)') : item.name),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '${formatCurrency(item.price)}${item.trackStock ? "  •  مخزون: ${item.stockQuantity ?? "∞"}" : ""}',
+            tr('${formatCurrency(item.price)}${item.trackStock ? "  •  مخزون: ${item.stockQuantity ?? "∞"}" : ""}',
+                '${formatCurrency(item.price)}${item.trackStock ? "  •  stock: ${item.stockQuantity ?? "∞"}" : ""}'),
             style: const TextStyle(fontSize: 12.5),
           ),
           // تحذير واضح بدل ترك المدير يكتشف صنفاً ناقص البيانات صدفة —
           // اسم فارغ أو سعر صفري/غير صالح غالباً يعني إدخالاً غير مكتمل.
           if (item.name.trim().isEmpty || item.price <= 0)
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.info_outline, size: 13, color: AppColors.warning),
-                SizedBox(width: 4),
-                Text('بيانات الصنف غير مكتملة',
-                    style: TextStyle(fontSize: 11.5, color: AppColors.warning, fontWeight: FontWeight.w600)),
+                const Icon(Icons.info_outline,
+                    size: 13, color: AppColors.warning),
+                const SizedBox(width: 4),
+                Text(tr('بيانات الصنف غير مكتملة', 'Item data incomplete'),
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.warning,
+                        fontWeight: FontWeight.w600)),
               ]),
             ),
         ],
@@ -820,9 +866,10 @@ class _ItemTile extends StatelessWidget {
             onPressed: () async {
               final ok = await showConfirmDialog(
                 context,
-                title: 'حذف الصنف',
-                content: 'هل تريد حذف "${item.name}"؟',
-                confirmLabel: 'حذف',
+                title: tr('حذف الصنف', 'Delete item'),
+                content: tr('هل تريد حذف "${item.name}"؟',
+                    'Delete "${item.name}"?'),
+                confirmLabel: tr('حذف', 'Delete'),
                 confirmColor: AppColors.error,
               );
               if (ok == true && context.mounted) {
@@ -915,7 +962,9 @@ class _ItemFormState extends State<_ItemForm> {
       context: context,
       builder: (dCtx) => StatefulBuilder(
         builder: (dCtx, setDialogState) => AlertDialog(
-          title: Text(index == null ? 'مجموعة خيارات جديدة' : 'تعديل المجموعة'),
+          title: Text(index == null
+              ? tr('مجموعة خيارات جديدة', 'New option group')
+              : tr('تعديل المجموعة', 'Edit group')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -923,18 +972,22 @@ class _ItemFormState extends State<_ItemForm> {
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(
-                      labelText: 'اسم المجموعة',
-                      hintText: 'الحجم / الإضافات / نوع العجين'),
+                  decoration: InputDecoration(
+                      labelText: tr('اسم المجموعة', 'Group name'),
+                      hintText: tr('الحجم / الإضافات / نوع العجين',
+                          'Size / add-ons / dough type')),
                 ),
                 SwitchListTile(
                   value: multi,
                   onChanged: (v) => setDialogState(() => multi = v),
-                  title: const Text('إضافات اختيارية (تحديد متعدد)',
-                      style: TextStyle(fontSize: 13.5)),
-                  subtitle: const Text(
-                      'مطفأ = اختيار واحد إلزامي كالحجم',
-                      style: TextStyle(fontSize: 11.5)),
+                  title: Text(
+                      tr('إضافات اختيارية (تحديد متعدد)',
+                          'Optional add-ons (multi-select)'),
+                      style: const TextStyle(fontSize: 13.5)),
+                  subtitle: Text(
+                      tr('مطفأ = اختيار واحد إلزامي كالحجم',
+                          'Off = one required choice, like size'),
+                      style: const TextStyle(fontSize: 11.5)),
                   contentPadding: EdgeInsets.zero,
                   activeColor: AppColors.primary,
                 ),
@@ -943,7 +996,8 @@ class _ItemFormState extends State<_ItemForm> {
                         child: Text(
                             e.value.priceDelta == 0
                                 ? e.value.name
-                                : '${e.value.name} (${e.value.priceDelta > 0 ? '+' : ''}${e.value.priceDelta.toStringAsFixed(0)} ر.س)',
+                                : tr('${e.value.name} (${e.value.priceDelta > 0 ? '+' : ''}${e.value.priceDelta.toStringAsFixed(0)} ر.س)',
+                                    '${e.value.name} (${e.value.priceDelta > 0 ? '+' : ''}${e.value.priceDelta.toStringAsFixed(0)} SAR)'),
                             style: const TextStyle(fontSize: 13.5)),
                       ),
                       IconButton(
@@ -958,8 +1012,9 @@ class _ItemFormState extends State<_ItemForm> {
                     flex: 2,
                     child: TextField(
                       controller: optNameCtrl,
-                      decoration: const InputDecoration(
-                          labelText: 'خيار', hintText: 'كبير'),
+                      decoration: InputDecoration(
+                          labelText: tr('خيار', 'Option'),
+                          hintText: tr('كبير', 'Large')),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -968,8 +1023,8 @@ class _ItemFormState extends State<_ItemForm> {
                       controller: optDeltaCtrl,
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true, signed: true),
-                      decoration: const InputDecoration(
-                          labelText: '± سعر', hintText: '5'),
+                      decoration: InputDecoration(
+                          labelText: tr('± سعر', '± price'), hintText: '5'),
                     ),
                   ),
                   IconButton(
@@ -995,10 +1050,10 @@ class _ItemFormState extends State<_ItemForm> {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(dCtx, false),
-                child: const Text('إلغاء')),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
                 onPressed: () => Navigator.pop(dCtx, true),
-                child: const Text('حفظ المجموعة')),
+                child: Text(tr('حفظ المجموعة', 'Save group'))),
           ],
         ),
       ),
@@ -1008,7 +1063,10 @@ class _ItemFormState extends State<_ItemForm> {
     final name = nameCtrl.text.trim();
     if (name.isEmpty || options.isEmpty) {
       if (mounted) {
-        showError(context, 'المجموعة تحتاج اسماً وخياراً واحداً على الأقل');
+        showError(
+            context,
+            tr('المجموعة تحتاج اسماً وخياراً واحداً على الأقل',
+                'The group needs a name and at least one option'));
       }
       return;
     }
@@ -1067,23 +1125,28 @@ class _ItemFormState extends State<_ItemForm> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.existing == null ? 'إضافة صنف' : 'تعديل الصنف',
+                  widget.existing == null
+                      ? tr('إضافة صنف', 'Add item')
+                      : tr('تعديل الصنف', 'Edit item'),
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   value: _categoryId,
-                  decoration: const InputDecoration(labelText: 'الفئة'),
+                  decoration:
+                      InputDecoration(labelText: tr('الفئة', 'Category')),
                   items: widget.categories
                       .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
                       .toList(),
                   onChanged: (v) => setState(() => _categoryId = v),
-                  validator: (v) => v == null ? 'اختر فئة للصنف' : null,
+                  validator: (v) => v == null
+                      ? tr('اختر فئة للصنف', 'Pick a category for the item')
+                      : null,
                 ),
                 const SizedBox(height: 12),
-                _f(_emoji, 'رمز الصنف', isReq: false),
-                _f(_name, 'اسم الصنف'),
-                _f(_desc, 'الوصف'),
+                _f(_emoji, tr('رمز الصنف', 'Item emoji'), isReq: false),
+                _f(_name, tr('اسم الصنف', 'Item name')),
+                _f(_desc, tr('الوصف', 'Description')),
                 // «وصف الأصناف بضغطة» (2026-08-16): يملأ الخانة اقتراحاً
                 // من اسم الصنف وتصنيفه — والمدير يعدّل ويحفظ بنفسه.
                 Align(
@@ -1096,14 +1159,17 @@ class _ItemFormState extends State<_ItemForm> {
                             child:
                                 CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.auto_awesome, size: 15),
-                    label: const Text('اقترح وصفاً',
-                        style: TextStyle(fontSize: 12)),
+                    label: Text(tr('اقترح وصفاً', 'Suggest a description'),
+                        style: const TextStyle(fontSize: 12)),
                     onPressed: _descAiLoading
                         ? null
                         : () async {
                             final n = _name.text.trim();
                             if (n.isEmpty) {
-                              showError(context, 'اكتب اسم الصنف أولاً');
+                              showError(
+                                  context,
+                                  tr('اكتب اسم الصنف أولاً',
+                                      'Enter the item name first'));
                               return;
                             }
                             setState(() => _descAiLoading = true);
@@ -1132,11 +1198,12 @@ class _ItemFormState extends State<_ItemForm> {
                           },
                   ),
                 ),
-                _f(_price, 'السعر', type: TextInputType.number, validator: validatePrice),
-                _f(_kcal, 'السعرات الحرارية (اختياري)',
+                _f(_price, tr('السعر', 'Price'),
+                    type: TextInputType.number, validator: validatePrice),
+                _f(_kcal, tr('السعرات الحرارية (اختياري)', 'Calories (optional)'),
                     type: TextInputType.number, isReq: false),
                 ImageUploadField(
-                  label: 'صورة الصنف',
+                  label: tr('صورة الصنف', 'Item photo'),
                   imageUrl: _imageUrl,
                   pathBuilder: (ext) =>
                       StorageService.menuItemPath(widget.restaurantId, _itemId, ext),
@@ -1145,38 +1212,45 @@ class _ItemFormState extends State<_ItemForm> {
                 SwitchListTile(
                   value: _trackStock,
                   onChanged: (v) => setState(() => _trackStock = v),
-                  title: const Text('تتبع المخزون'),
-                  subtitle: const Text('إخفاء الصنف تلقائياً عند نفاده',
-                      style: TextStyle(fontSize: 12.5)),
+                  title: Text(tr('تتبع المخزون', 'Track stock')),
+                  subtitle: Text(
+                      tr('إخفاء الصنف تلقائياً عند نفاده',
+                          'Hide the item automatically when it runs out'),
+                      style: const TextStyle(fontSize: 12.5)),
                   contentPadding: EdgeInsets.zero,
                   activeColor: AppColors.primary,
                 ),
                 if (_trackStock)
-                  _f(_stock, 'الكمية المتاحة', type: TextInputType.number),
+                  _f(_stock, tr('الكمية المتاحة', 'Available quantity'),
+                      type: TextInputType.number),
                 const SizedBox(height: 10),
                 // مجموعات الخيارات — الفجوة الكبرى أمام جاهز/كيتا: حجم
                 // إلزامي (اختيار واحد) أو إضافات اختيارية بفروق أسعار.
                 Row(children: [
-                  const Text('خيارات الصنف',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+                  Text(tr('خيارات الصنف', 'Item options'),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14.5)),
                   const Spacer(),
                   TextButton.icon(
                     onPressed: () => _editGroup(null),
                     icon: const Icon(Icons.add, size: 16),
-                    label: const Text('مجموعة', style: TextStyle(fontSize: 12.5)),
+                    label: Text(tr('مجموعة', 'Group'),
+                        style: const TextStyle(fontSize: 12.5)),
                   ),
                 ]),
                 if (_optionGroups.isEmpty)
-                  const Text('بلا خيارات — يُضاف الصنف مباشرة بسعره.',
-                      style:
-                          TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+                  Text(
+                      tr('بلا خيارات — يُضاف الصنف مباشرة بسعره.',
+                          'No options — the item is added at its base price.'),
+                      style: const TextStyle(
+                          fontSize: 12.5, color: AppColors.textGray)),
                 ..._optionGroups.asMap().entries.map((e) => Card(
                       margin: const EdgeInsets.only(bottom: 6),
                       child: ListTile(
                         dense: true,
                         title: Text(
-                            '${e.value.name} — ${e.value.multiSelect ? 'إضافات اختيارية' : 'اختيار واحد إلزامي'}',
+                            tr('${e.value.name} — ${e.value.multiSelect ? 'إضافات اختيارية' : 'اختيار واحد إلزامي'}',
+                                '${e.value.name} — ${e.value.multiSelect ? 'optional add-ons' : 'one required choice'}'),
                             style: const TextStyle(
                                 fontSize: 13.5, fontWeight: FontWeight.w700)),
                         subtitle: Text(
@@ -1184,7 +1258,7 @@ class _ItemFormState extends State<_ItemForm> {
                               .map((o) => o.priceDelta == 0
                                   ? o.name
                                   : '${o.name} (${o.priceDelta > 0 ? '+' : ''}${o.priceDelta.toStringAsFixed(0)})')
-                              .join('، '),
+                              .join(tr('، ', ', ')),
                           style: const TextStyle(fontSize: 11.5),
                         ),
                         trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1212,7 +1286,7 @@ class _ItemFormState extends State<_ItemForm> {
                         ? const SizedBox(width: 20, height: 20,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : const Text('حفظ'),
+                        : Text(tr('حفظ', 'Save')),
                   ),
                 ),
                 const SizedBox(height: 16),

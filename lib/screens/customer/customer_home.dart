@@ -14,6 +14,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/food_visuals.dart';
 import '../../utils/reorder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,11 +50,14 @@ class _CustomerHomeState extends State<CustomerHome> {
     final isGuest = !auth.isLoggedIn;
     return Scaffold(
       appBar: AppBar(
-        title: Text(isGuest ? 'مرحباً بك في ZadGo' : 'مرحباً ${auth.user?.name ?? ""}'),
+        title: Text(isGuest
+            ? tr('مرحباً بك في ZadGo', 'Welcome to ZadGo')
+            : tr('مرحباً ${auth.user?.name ?? ""}',
+                'Hi ${auth.user?.name ?? ""}')),
         actions: [
           // اقتراح/نصيحة — متاح للزائر أيضاً (قناة صوت عامة بلا تسجيل).
           IconButton(
-            tooltip: 'اقتراح أو نصيحة',
+            tooltip: tr('اقتراح أو نصيحة', 'Suggestion or advice'),
             icon: const Icon(Icons.lightbulb_outline),
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const SuggestionScreen())),
@@ -66,16 +70,17 @@ class _CustomerHomeState extends State<CustomerHome> {
             TextButton(
               onPressed: () => Navigator.push(
                   context, MaterialPageRoute(builder: (_) => const LoginScreen())),
-              child: const Text('تسجيل الدخول'),
+              child: Text(tr('تسجيل الدخول', 'Sign in')),
             )
           else
             IconButton(icon: PhosphorIcon(PhosphorIcons.signOut()), onPressed: () async {
               // تأكيد قبل الخروج (موحّد مع بقيّة النكهات): أيقونة الخروج في
               // الشريط العلوي كانت تُخرج العميل بلمسة واحدة بلا سؤال.
               final ok = await showConfirmDialog(context,
-                  title: 'تسجيل الخروج',
-                  content: 'هل تريد تسجيل الخروج من حسابك؟',
-                  confirmLabel: 'خروج',
+                  title: tr('تسجيل الخروج', 'Log out'),
+                  content: tr('هل تريد تسجيل الخروج من حسابك؟',
+                      'Do you want to log out of your account?'),
+                  confirmLabel: tr('خروج', 'Log out'),
                   confirmColor: AppColors.error);
               if (ok != true || !mounted) return;
               await auth.logout();
@@ -116,17 +121,17 @@ class _CustomerHomeState extends State<CustomerHome> {
               icon: PhosphorIcon(PhosphorIcons.storefront()),
               selectedIcon:
                   PhosphorIcon(PhosphorIcons.storefront(PhosphorIconsStyle.duotone)),
-              label: 'المطاعم'),
+              label: tr('المطاعم', 'Restaurants')),
           NavigationDestination(
               icon: PhosphorIcon(PhosphorIcons.receipt()),
               selectedIcon:
                   PhosphorIcon(PhosphorIcons.receipt(PhosphorIconsStyle.duotone)),
-              label: 'طلباتي'),
+              label: tr('طلباتي', 'My orders')),
           NavigationDestination(
               icon: PhosphorIcon(PhosphorIcons.user()),
               selectedIcon:
                   PhosphorIcon(PhosphorIcons.user(PhosphorIconsStyle.duotone)),
-              label: 'حسابي'),
+              label: tr('حسابي', 'My account')),
         ]),
     );
   }
@@ -142,17 +147,23 @@ class _GuestOrdersPrompt extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             PhosphorIcon(PhosphorIcons.receipt(), size: 64, color: AppColors.textGray),
             const SizedBox(height: 16),
-            const Text('سجّل حسابك لمتابعة طلباتك',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textDark),
+            Text(tr('سجّل حسابك لمتابعة طلباتك', 'Sign in to track your orders'),
+                style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textDark),
                 textAlign: TextAlign.center),
             const SizedBox(height: 8),
-            const Text('يمكنك تصفح المطاعم بحرية، وتحتاج حساباً فقط لمتابعة طلباتك',
-                style: TextStyle(color: AppColors.textGray), textAlign: TextAlign.center),
+            Text(
+                tr('يمكنك تصفح المطاعم بحرية، وتحتاج حساباً فقط لمتابعة طلباتك',
+                    'Browse restaurants freely — you only need an account to track your orders'),
+                style: const TextStyle(color: AppColors.textGray),
+                textAlign: TextAlign.center),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () => Navigator.push(
                   context, MaterialPageRoute(builder: (_) => const LoginScreen())),
-              child: const Text('تسجيل الدخول / إنشاء حساب'),
+              child: Text(tr('تسجيل الدخول / إنشاء حساب', 'Sign in / create account')),
             ),
           ]),
         ),
@@ -342,8 +353,10 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
       return true;
     } catch (_) {
       if (mounted) {
-        showError(context,
-            'فرز «الأقرب» يحتاج إذن الموقع — فعّله من إعدادات جهازك');
+        showError(
+            context,
+            tr('فرز «الأقرب» يحتاج إذن الموقع — فعّله من إعدادات جهازك',
+                'Sorting by "Nearest" needs location permission — enable it in your device settings'));
       }
       return false;
     }
@@ -361,18 +374,21 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           shrinkWrap: true,
           padding: const EdgeInsets.symmetric(vertical: 8),
           children: [
-            const Center(
+            Center(
                 child: Padding(
-              padding: EdgeInsets.only(bottom: 4),
-              child: Text('المطابخ',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(tr('المطابخ', 'Cuisines'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14.5)),
             )),
             for (final c in ['الكل', ...kCuisines])
               RadioListTile<String>(
                 value: c,
                 groupValue: _cuisine,
                 dense: true,
-                title: Text(c, style: const TextStyle(fontSize: 13.5)),
+                // «الكل» قيمة حارسة تُترجم عرضاً فقط — أسماء المطابخ بيانات.
+                title: Text(c == 'الكل' ? tr('الكل', 'All') : c,
+                    style: const TextStyle(fontSize: 13.5)),
                 onChanged: (v) => Navigator.pop(ctx, v),
               ),
           ],
@@ -382,12 +398,13 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
     if (picked != null && mounted) setState(() => _cuisine = picked);
   }
 
-  static const _sortLabels = {
-    _HomeSort.recommended: 'الموصى به',
-    _HomeSort.rating: 'الأعلى تقييماً',
-    _HomeSort.nearest: 'الأقرب',
-    _HomeSort.deliveryTime: 'مدة التوصيل',
-  };
+  // getter لا const: tr() تُقيَّم وقت التشغيل باللغة الحالية.
+  static Map<_HomeSort, String> get _sortLabels => {
+        _HomeSort.recommended: tr('الموصى به', 'Recommended'),
+        _HomeSort.rating: tr('الأعلى تقييماً', 'Top rated'),
+        _HomeSort.nearest: tr('الأقرب', 'Nearest'),
+        _HomeSort.deliveryTime: tr('مدة التوصيل', 'Delivery time'),
+      };
 
   /// ورقة «فرز حسب» — ورقة كيتا كاملة عدا «الأعلى خصماً» (محفوظة لميزة
   /// عروض المطاعم بأمر المالك 2026-08-14).
@@ -398,10 +415,11 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Text('فرز حسب',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(tr('فرز حسب', 'Sort by'),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 14.5)),
           ),
           for (final o in _HomeSort.values)
             RadioListTile<_HomeSort>(
@@ -411,8 +429,10 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
               title: Text(_sortLabels[o]!,
                   style: const TextStyle(fontSize: 13.5)),
               subtitle: o == _HomeSort.recommended
-                  ? const Text('المفتوح أولاً، ثم التقييم والأكثر طلباً',
-                      style: TextStyle(fontSize: 11.5))
+                  ? Text(
+                      tr('المفتوح أولاً، ثم التقييم والأكثر طلباً',
+                          'Open first, then rating and most ordered'),
+                      style: const TextStyle(fontSize: 11.5))
                   : null,
               onChanged: (v) => Navigator.pop(ctx, v),
             ),
@@ -440,31 +460,33 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             padding: const EdgeInsets.all(16),
             child: Column(mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Center(
-                  child: Text('عوامل التصفية',
-                      style: TextStyle(
+              Center(
+                  child: Text(tr('عوامل التصفية', 'Filters'),
+                      style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 14.5))),
               const SizedBox(height: 10),
-              const Text('عوامل تصفية سريعة',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+              Text(tr('عوامل تصفية سريعة', 'Quick filters'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [
                 FilterChip(
-                    label: const Text('جديد'),
+                    label: Text(tr('جديد', 'New')),
                     selected: fNew,
                     onSelected: (v) => setSheet(() => fNew = v)),
                 FilterChip(
-                    label: const Text('خلال ٣٠ دقيقة'),
+                    label: Text(tr('خلال ٣٠ دقيقة', 'Under 30 min')),
                     selected: f30,
                     onSelected: (v) => setSheet(() => f30 = v)),
                 FilterChip(
-                    label: const Text('التقييمات 4.5+'),
+                    label: Text(tr('التقييمات 4.5+', 'Rated 4.5+')),
                     selected: f45,
                     onSelected: (v) => setSheet(() => f45 = v)),
               ]),
               const SizedBox(height: 12),
-              const Text('السعر',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+              Text(tr('السعر', 'Price'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12.5)),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [
                 for (final (lvl, label) in [(1, '\$'), (2, '\$\$'), (3, '\$\$\$')])
@@ -481,14 +503,14 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                     onPressed: () => setSheet(() {
                       fNew = false; f30 = false; f45 = false; prices.clear();
                     }),
-                    child: const Text('حذف الكل'),
+                    child: Text(tr('حذف الكل', 'Clear all')),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton(
                     onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text('تطبيق'),
+                    child: Text(tr('تطبيق', 'Apply')),
                   ),
                 ),
               ]),
@@ -525,7 +547,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
           controller: _searchCtrl,
           onChanged: _onSearchChanged,
           decoration: InputDecoration(
-            hintText: 'ابحث عن مطعم أو صنف...',
+            hintText: tr('ابحث عن مطعم أو صنف...', 'Search restaurants or dishes...'),
             prefixIcon: PhosphorIcon(PhosphorIcons.magnifyingGlass(), size: 20),
             suffixIcon: _query.isEmpty
                 ? null
@@ -549,8 +571,8 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             ActionChip(
               avatar: const Icon(Icons.search_rounded,
                   size: 16, color: AppColors.dark),
-              label: const Text('ابحث عن صنف',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
+              label: Text(tr('ابحث عن صنف', 'Search dishes'),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ItemSearchScreen()),
@@ -562,7 +584,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
               avatar: Icon(Icons.favorite,
                   size: 16,
                   color: _favoritesOnly ? Colors.white : AppColors.error),
-              label: const Text('المفضلة'),
+              label: Text(tr('المفضلة', 'Favorites')),
               selected: _favoritesOnly,
               onSelected: (_) =>
                   setState(() => _favoritesOnly = !_favoritesOnly),
@@ -583,7 +605,8 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                   color: _cuisine == 'الكل'
                       ? AppColors.textDark
                       : AppColors.primary),
-              label: Text(_cuisine == 'الكل' ? 'المطابخ ⌄' : '$_cuisine ⌄',
+              label: Text(
+                  _cuisine == 'الكل' ? tr('المطابخ ⌄', 'Cuisines ⌄') : '$_cuisine ⌄',
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: _cuisine == 'الكل'
@@ -608,7 +631,7 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                   color: _hasQuickFilters
                       ? AppColors.primary
                       : AppColors.textDark),
-              label: Text('تصفية ⌄',
+              label: Text(tr('تصفية ⌄', 'Filter ⌄'),
                   style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: _hasQuickFilters
@@ -645,7 +668,10 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
             loading: const RestaurantListSkeleton(),
             builder: (ctx, list) {
           final filtered = _filter(list, favorites);
-          if (list.isEmpty) return const AppEmpty(emoji: '🍽️', title: 'لا يوجد مطاعم');
+          if (list.isEmpty) {
+            return AppEmpty(
+                emoji: '🍽️', title: tr('لا يوجد مطاعم', 'No restaurants yet'));
+          }
           if (filtered.isEmpty) {
             // بحث خائب عن مطعم (ح5): اللحظة الأخطر في التطبيق كله —
             // «لم أجد مطعمي» تساوي حذفاً عند ٨٦٪ من المستخدمين. بدل
@@ -656,14 +682,15 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
               AppEmpty(
                   emoji: _favoritesOnly ? '💛' : '🔍',
                   title: _favoritesOnly
-                      ? 'لا مفضلة بعد — اضغط القلب على مطعم يعجبك'
-                      : 'لا توجد نتائج مطابقة'),
+                      ? tr('لا مفضلة بعد — اضغط القلب على مطعم يعجبك',
+                          'No favorites yet — tap the heart on a restaurant you like')
+                      : tr('لا توجد نتائج مطابقة', 'No matching results')),
               if (!_favoritesOnly && q.length >= 2 && userSnap.data != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: FilledButton.icon(
                     icon: const Icon(Icons.add_business_outlined, size: 18),
-                    label: Text('اطلب إضافة «$q»'),
+                    label: Text(tr('اطلب إضافة «$q»', 'Request "$q"')),
                     onPressed: () async {
                       try {
                         await context
@@ -672,12 +699,17 @@ class _RestaurantsPageState extends State<_RestaurantsPage> {
                         // نتذكّر ما طلبه هذا الجهاز محلياً لنبشّره حين ينضم.
                         await rememberRequestedRestaurant(q);
                         if (ctx.mounted) {
-                          showSuccess(ctx,
-                              'وصلنا صوتك — سنعمل على إحضار «$q» ونخبرك حين يصل 🙌');
+                          showSuccess(
+                              ctx,
+                              tr('وصلنا صوتك — سنعمل على إحضار «$q» ونخبرك حين يصل 🙌',
+                                  'Got it — we\'ll work on bringing "$q" and let you know when it arrives 🙌'));
                         }
                       } catch (_) {
                         if (ctx.mounted) {
-                          showError(ctx, 'تعذّر إرسال الطلب، حاول مرة أخرى');
+                          showError(
+                              ctx,
+                              tr('تعذّر إرسال الطلب، حاول مرة أخرى',
+                                  'Couldn\'t send the request, please try again'));
                         }
                       }
                     },
@@ -817,21 +849,28 @@ class _RestaurantCard extends StatelessWidget {
                 // مطعم بلا تقييمات يُعرض «جديد» بدل 5.0 وهمية، ومع التقييم
                 // يظهر عدد المقيّمين لأن 4.6 من 128 أصدق من 5.0 من واحد.
                 if (r.isNewlyListed)
-                  const _MetaChip(icon: Icons.fiber_new_rounded, label: 'جديد', color: AppColors.secondary)
+                  _MetaChip(
+                      icon: Icons.fiber_new_rounded,
+                      label: tr('جديد', 'New'),
+                      color: AppColors.secondary)
                 else
                   _MetaChip(
                       icon: Icons.star_rounded,
                       label: '${r.rating.toStringAsFixed(1)} (${r.ratingCount})',
                       color: AppColors.warning),
-                _MetaChip(icon: Icons.timer_outlined, label: '${r.estimatedTimeMin} د', color: AppColors.textGray),
+                _MetaChip(
+                    icon: Icons.timer_outlined,
+                    label: tr('${r.estimatedTimeMin} د', '${r.estimatedTimeMin} min'),
+                    color: AppColors.textGray),
                 if (deliveryFromFee != null)
                   _MetaChip(icon: Icons.delivery_dining_outlined,
                       // «توصيل مجاني» كانت كذبة مكلفة: حقل المطعم القديم صفر
                       // بينما التسعير الموحّد يحصّل فعلاً — فيصدم العميل في
                       // الدفع ويفقد الثقة. الصدق أرخص، والرقم شامل الرسم الثابت
                       // (قاعدة المالك: التوصيل المعروض = الأجرة + العمولة).
-                      label:
+                      label: tr(
                           'التوصيل من ${deliveryFromFee!.toStringAsFixed(0)} ر.س',
+                          'Delivery from ${deliveryFromFee!.toStringAsFixed(0)} SAR'),
                       color: AppColors.textGray),
                 if (isPopular)
                   // شارة «الأكثر طلباً» كحبّة ممتلئة بدل نصٍّ ذهبي على أبيض
@@ -844,12 +883,12 @@ class _RestaurantCard extends StatelessWidget {
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.local_fire_department_rounded,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.local_fire_department_rounded,
                           size: 13, color: AppColors.dark),
-                      SizedBox(width: 3),
-                      Text('الأكثر طلباً',
-                          style: TextStyle(
+                      const SizedBox(width: 3),
+                      Text(tr('الأكثر طلباً', 'Popular'),
+                          style: const TextStyle(
                               fontSize: 11.5,
                               color: AppColors.dark,
                               fontWeight: FontWeight.w800)),
@@ -968,10 +1007,10 @@ class _RequestedArrivedBannerState extends State<_RequestedArrivedBanner> {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('مطعمك المطلوب وصل!',
-                          style: TextStyle(
+                      Text(tr('مطعمك المطلوب وصل!', 'Your requested restaurant is here!'),
+                          style: const TextStyle(
                               fontSize: 13.5, fontWeight: FontWeight.w700)),
-                      Text('${r.name} — اطلب منه الآن',
+                      Text(tr('${r.name} — اطلب منه الآن', '${r.name} — order now'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -1050,11 +1089,13 @@ class _ReorderStripState extends State<_ReorderStrip> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('اطلب مجدداً',
-                              style: TextStyle(
+                          Text(tr('اطلب مجدداً', 'Order again'),
+                              style: const TextStyle(
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700)),
-                          Text('${order.restaurantName} — طلبك السابق',
+                          Text(
+                              tr('${order.restaurantName} — طلبك السابق',
+                                  '${order.restaurantName} — your last order'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
