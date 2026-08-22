@@ -93,7 +93,14 @@ body{font-family:'IBM Plex Sans Arabic',Tajawal,system-ui,sans-serif;background:
   margin:9mm 14mm 0;text-align:center}
 .step{background:var(--cream);border:.4mm solid #E3E9F3;border-radius:5mm;
   padding:5mm 3mm}
-.step b{display:block;font-size:8mm;font-weight:900;color:var(--gold-dk);line-height:1}
+/* الرقم في قرصٍ ذهبيّ بحبرٍ كحليّ، لا ذهباً على أبيض: ذهبُنا على الورق
+   الأبيض ٢٫١:١ — ساقطٌ نظاماً (بند و٧: الذهب نصّاً على الكحلي وحده). وهذا
+   ملصقٌ **يُطبع ويُعلَّق على جدار** ويُقرأ من مترين، فالباهت فيه أسوأ منه
+   على الشاشة. والقرص يحفظ الذهب في الهوية ويرفع التباين إلى ١٠٫٤:١. */
+.step b{display:flex;align-items:center;justify-content:center;
+  inline-size:13mm;block-size:13mm;margin:0 auto;border-radius:50%;
+  background:var(--gold);color:var(--g900);
+  font-size:7mm;font-weight:900;line-height:1}
 .step span{display:block;font-size:4.2mm;font-weight:700;color:var(--g700);margin-top:2mm}
 
 /* شريط الفوائد: يملأ ما تحت الخطوات ويجيب سؤال المارّ الأول — «ولماذا
