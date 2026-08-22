@@ -11,6 +11,7 @@ import '../../providers/ai_assist.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -54,9 +55,11 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     final uri = Uri(scheme: 'tel', path: trimmed);
     try {
       final launched = await launchUrl(uri);
-      if (!launched && mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+      if (!launched && mounted) showError(
+          context, tr('تعذّر فتح تطبيق الاتصال', 'Could not open the phone app'));
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+      if (mounted) showError(
+          context, tr('تعذّر فتح تطبيق الاتصال', 'Could not open the phone app'));
     }
   }
 
@@ -102,7 +105,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx2, setDialogState) => AlertDialog(
-          title: const Text('حل الشكوى'),
+          title: Text(tr('حل الشكوى', 'Resolve complaint')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               TextField(
