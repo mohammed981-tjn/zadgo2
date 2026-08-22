@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../models/models.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 
 Future<void> exportRestaurantReportExcel({
   required String restaurantName,
@@ -19,14 +20,16 @@ Future<void> exportRestaurantReportExcel({
   required double totalMealsValue,
 }) async {
   final workbook = xl.Excel.createExcel();
-  final sheet = workbook['التقارير'];
-  workbook.setDefaultSheet('التقارير');
+  // اسم الورقة محتوى مرئي في الملف المصدَّر — يُترجم كترويسات الأعمدة.
+  final sheetName = tr('التقارير', 'Report');
+  final sheet = workbook[sheetName];
+  workbook.setDefaultSheet(sheetName);
 
   sheet.appendRow([
-    xl.TextCellValue('رقم الطلب'),
-    xl.TextCellValue('الحالة'),
-    xl.TextCellValue('قيمة الوجبات'),
-    xl.TextCellValue('التاريخ'),
+    xl.TextCellValue(tr('رقم الطلب', 'Order no.')),
+    xl.TextCellValue(tr('الحالة', 'Status')),
+    xl.TextCellValue(tr('قيمة الوجبات', 'Food value')),
+    xl.TextCellValue(tr('التاريخ', 'Date')),
   ]);
   final dateFmt = DateFormat('yyyy-MM-dd HH:mm');
   for (final o in orders) {
@@ -39,7 +42,7 @@ Future<void> exportRestaurantReportExcel({
   }
   sheet.appendRow([xl.TextCellValue(''), xl.TextCellValue('')]);
   sheet.appendRow([
-    xl.TextCellValue('الإجمالي'),
+    xl.TextCellValue(tr('الإجمالي', 'Total')),
     xl.TextCellValue(''),
     xl.DoubleCellValue(totalMealsValue),
     xl.TextCellValue(''),
@@ -51,11 +54,12 @@ Future<void> exportRestaurantReportExcel({
     [
       XFile.fromData(
         Uint8List.fromList(bytes),
-        name: 'تقرير_$restaurantName.xlsx',
+        name: tr('تقرير_$restaurantName.xlsx', 'report_$restaurantName.xlsx'),
         mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       ),
     ],
-    subject: 'تقرير مبيعات $restaurantName',
+    subject: tr('تقرير مبيعات $restaurantName',
+        'Sales report — $restaurantName'),
   );
 }
 
@@ -76,16 +80,25 @@ Future<void> exportRestaurantReportPdf({
       build: (context) => [
         pw.Header(
           level: 0,
-          child: pw.Text('تقرير مبيعات $restaurantName',
+          child: pw.Text(
+              tr('تقرير مبيعات $restaurantName',
+                  'Sales report — $restaurantName'),
               textDirection: pw.TextDirection.rtl, style: const pw.TextStyle(fontSize: 20)),
         ),
-        pw.Text('إجمالي قيمة الوجبات المباعة: ${formatCurrency(totalMealsValue)}',
+        pw.Text(
+            tr('إجمالي قيمة الوجبات المباعة: ${formatCurrency(totalMealsValue)}',
+                'Total food sales: ${formatCurrency(totalMealsValue)}'),
             textDirection: pw.TextDirection.rtl, style: const pw.TextStyle(fontSize: 14.5)),
         pw.SizedBox(height: 16),
         pw.TableHelper.fromTextArray(
           headerDirection: pw.TextDirection.rtl,
           tableDirection: pw.TextDirection.rtl,
-          headers: ['التاريخ', 'قيمة الوجبات', 'الحالة', 'رقم الطلب'],
+          headers: [
+            tr('التاريخ', 'Date'),
+            tr('قيمة الوجبات', 'Food value'),
+            tr('الحالة', 'Status'),
+            tr('رقم الطلب', 'Order no.'),
+          ],
           data: orders
               .map((o) => [
                     dateFmt.format(o.createdAt),
@@ -100,5 +113,8 @@ Future<void> exportRestaurantReportPdf({
   );
 
   final bytes = await doc.save();
-  await Printing.sharePdf(bytes: bytes, filename: 'تقرير_$restaurantName.pdf');
+  await Printing.sharePdf(
+      bytes: bytes,
+      filename:
+          tr('تقرير_$restaurantName.pdf', 'report_$restaurantName.pdf'));
 }

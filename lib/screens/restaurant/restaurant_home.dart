@@ -56,30 +56,38 @@ class _RestaurantHomeState extends State<RestaurantHome> {
             padding: const EdgeInsets.all(14),
             child: Text(
                 paused
-                    ? 'المطعم «مشغول مؤقتاً» الآن'
-                    : 'إيقاف استقبال الطلبات مؤقتاً؟',
+                    ? tr('المطعم «مشغول مؤقتاً» الآن',
+                        'The restaurant is set to "temporarily busy"')
+                    : tr('إيقاف استقبال الطلبات مؤقتاً؟',
+                        'Pause incoming orders temporarily?'),
                 style:
                     const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-                'يظهر للعملاء «مشغول مؤقتاً — يستأنف HH:MM» ويستأنف '
-                'الاستقبال وحده في الموعد. الطلبات الجارية لا تتأثر.',
-                style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+                tr(
+                    'يظهر للعملاء «مشغول مؤقتاً — يستأنف HH:MM» ويستأنف '
+                        'الاستقبال وحده في الموعد. الطلبات الجارية لا تتأثر.',
+                    'Customers see "Temporarily busy — resumes at HH:MM" and '
+                        'orders resume automatically on time. Ongoing orders are not affected.'),
+                style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
           ),
           const SizedBox(height: 10),
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final m in [15, 30, 60, 120])
               ActionChip(
-                label: Text(m < 60 ? '$m دقيقة' : '${m ~/ 60} ساعة${m == 120 ? 'تان' : ''}'),
+                label: Text(m < 60
+                    ? tr('$m دقيقة', '$m min')
+                    : tr('${m ~/ 60} ساعة${m == 120 ? 'تان' : ''}',
+                        '${m ~/ 60} hour${m == 120 ? 's' : ''}')),
                 onPressed: () => Navigator.pop(sheetCtx, m),
               ),
             if (paused)
               ActionChip(
                 avatar: const Icon(Icons.play_arrow_rounded,
                     size: 18, color: AppColors.success),
-                label: const Text('استئناف الآن'),
+                label: Text(tr('استئناف الآن', 'Resume now')),
                 onPressed: () => Navigator.pop(sheetCtx, 0),
               ),
           ]),
@@ -98,11 +106,16 @@ class _RestaurantHomeState extends State<RestaurantHome> {
         showSuccess(
             context,
             choice == 0
-                ? 'استؤنف الاستقبال — أهلاً بالطلبات'
-                : 'أوقف الاستقبال $choice دقيقة ويستأنف وحده');
+                ? tr('استؤنف الاستقبال — أهلاً بالطلبات',
+                    'Orders resumed — welcome back')
+                : tr('أوقف الاستقبال $choice دقيقة ويستأنف وحده',
+                    'Orders paused for $choice min — resumes automatically'));
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر التغيير — حاول مجدداً');
+      if (mounted) {
+        showError(
+            context, tr('تعذّر التغيير — حاول مجدداً', 'Change failed — try again'));
+      }
     }
   }
 
@@ -223,7 +236,10 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    count == 1 ? 'طلب جديد وصل الآن' : '$count طلبات جديدة وصلت الآن',
+                    count == 1
+                        ? tr('طلب جديد وصل الآن', 'New order just arrived')
+                        : tr('$count طلبات جديدة وصلت الآن',
+                            '$count new orders just arrived'),
                     style: const TextStyle(color: AppColors.dark, fontWeight: FontWeight.bold, fontSize: 14.5),
                   ),
                 ),
@@ -256,10 +272,11 @@ class _RestaurantHomeState extends State<RestaurantHome> {
     return Scaffold(
       appBar: AppBar(
         title: Text(switch (_tab) {
-          0 => 'طلبات ${auth.user?.restaurantName ?? "المطعم"}',
-          1 => 'التقارير والحسابات',
-          2 => 'أسعار القائمة والتوفر',
-          _ => 'التقييمات',
+          0 => tr('طلبات ${auth.user?.restaurantName ?? "المطعم"}',
+              '${auth.user?.restaurantName ?? "Restaurant"} orders'),
+          1 => tr('التقارير والحسابات', 'Reports & accounts'),
+          2 => tr('أسعار القائمة والتوفر', 'Menu prices & availability'),
+          _ => tr('التقييمات', 'Reviews'),
         }),
         actions: [
           // تبديل اللغة (دفعة «اللغة الثانية»).
@@ -275,8 +292,9 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                 final paused = r?.isPausedNow == true;
                 return IconButton(
                   tooltip: paused
-                      ? 'مشغول حتى ${r!.pausedUntil!.hour.toString().padLeft(2, '0')}:${r.pausedUntil!.minute.toString().padLeft(2, '0')} — اضغط للاستئناف/التمديد'
-                      : 'إيقاف الاستقبال مؤقتاً',
+                      ? tr('مشغول حتى ${r!.pausedUntil!.hour.toString().padLeft(2, '0')}:${r.pausedUntil!.minute.toString().padLeft(2, '0')} — اضغط للاستئناف/التمديد',
+                          'Busy until ${r!.pausedUntil!.hour.toString().padLeft(2, '0')}:${r.pausedUntil!.minute.toString().padLeft(2, '0')} — tap to resume/extend')
+                      : tr('إيقاف الاستقبال مؤقتاً', 'Pause incoming orders'),
                   icon: Icon(
                       paused
                           ? Icons.pause_circle_filled_rounded
@@ -288,7 +306,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
               },
             ),
           IconButton(
-            tooltip: 'تغيير كلمة المرور',
+            tooltip: tr('تغيير كلمة المرور', 'Change password'),
             icon: const Icon(Icons.lock_outline),
             onPressed: () => Navigator.push(
                 context,
@@ -296,7 +314,7 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                     builder: (_) => const ChangePasswordScreen())),
           ),
           IconButton(
-            tooltip: 'الشكاوى',
+            tooltip: tr('الشكاوى', 'Complaints'),
             icon: const Icon(Icons.support_agent_rounded),
             onPressed: () {
               final uid = auth.user?.uid;
@@ -319,9 +337,10 @@ class _RestaurantHomeState extends State<RestaurantHome> {
               // تأكيد قبل الخروج (موحّد مع بقيّة النكهات): لمسةٌ خاطئة على
               // أيقونة الخروج كانت تُنهي جلسة المطعم بلا سؤال.
               final ok = await showConfirmDialog(context,
-                  title: 'تسجيل الخروج',
-                  content: 'هل تريد تسجيل الخروج من حساب المطعم؟',
-                  confirmLabel: 'خروج',
+                  title: tr('تسجيل الخروج', 'Log out'),
+                  content: tr('هل تريد تسجيل الخروج من حساب المطعم؟',
+                      'Log out of the restaurant account?'),
+                  confirmLabel: tr('خروج', 'Log out'),
                   confirmColor: AppColors.error);
               if (ok != true || !context.mounted) return;
               await auth.logout();
@@ -334,10 +353,12 @@ class _RestaurantHomeState extends State<RestaurantHome> {
         ],
       ),
       body: restaurantId == null || restaurantId.isEmpty
-          ? const AppEmpty(
+          ? AppEmpty(
               emoji: '⚠️',
-              title: 'حسابك غير مرتبط بمطعم',
-              subtitle: 'يرجى مراجعة إدارة المنصة لربط الحساب بمطعم.',
+              title: tr('حسابك غير مرتبط بمطعم',
+                  'Your account is not linked to a restaurant'),
+              subtitle: tr('يرجى مراجعة إدارة المنصة لربط الحساب بمطعم.',
+                  'Please contact platform admin to link your account to a restaurant.'),
             )
           : IndexedStack(index: _tab, children: [
               _RestaurantOrdersList(
@@ -365,14 +386,17 @@ class _RestaurantHomeState extends State<RestaurantHome> {
                           child: const Icon(Icons.receipt_long_outlined),
                         )
                       : const Icon(Icons.receipt_long_outlined),
-                  label: 'الطلبات',
+                  label: tr('الطلبات', 'Orders'),
                 ),
-                const NavigationDestination(
-                    icon: Icon(Icons.bar_chart_outlined), label: 'التقارير والحسابات'),
-                const NavigationDestination(
-                    icon: Icon(Icons.sell_outlined), label: 'الأسعار'),
-                const NavigationDestination(
-                    icon: Icon(Icons.star_outline_rounded), label: 'التقييمات'),
+                NavigationDestination(
+                    icon: const Icon(Icons.bar_chart_outlined),
+                    label: tr('التقارير والحسابات', 'Reports & accounts')),
+                NavigationDestination(
+                    icon: const Icon(Icons.sell_outlined),
+                    label: tr('الأسعار', 'Prices')),
+                NavigationDestination(
+                    icon: const Icon(Icons.star_outline_rounded),
+                    label: tr('التقييمات', 'Reviews')),
               ],
             ),
     );
@@ -416,9 +440,9 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
           unselectedLabelColor: AppColors.textGray,
           indicatorColor: context.flavorColors.primary,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
-          tabs: const [
-            Tab(text: 'نشطة'),
-            Tab(text: 'منتهية'),
+          tabs: [
+            Tab(text: tr('نشطة', 'Active')),
+            Tab(text: tr('منتهية', 'Completed')),
           ],
         ),
       ),
@@ -442,13 +466,15 @@ class _RestaurantOrdersListState extends State<_RestaurantOrdersList>
                 orders: active,
                 service: service,
                 emptyEmoji: '🔔',
-                emptyTitle: 'لا يوجد طلبات نشطة حالياً',
+                emptyTitle: tr('لا يوجد طلبات نشطة حالياً',
+                    'No active orders right now'),
               ),
               _OrdersListView(
                 orders: finished,
                 service: service,
                 emptyEmoji: '📋',
-                emptyTitle: 'لا يوجد طلبات منتهية بعد',
+                emptyTitle: tr('لا يوجد طلبات منتهية بعد',
+                    'No completed orders yet'),
               ),
             ]);
           },
@@ -533,11 +559,23 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
   (String, Color, IconData) get _bannerInfo {
     switch (widget.order.status) {
       case OrderStatus.restaurantPending:
-        return ('طلب جديد بانتظار التأكيد', AppColors.warning, Icons.fiber_new_rounded);
+        return (
+          tr('طلب جديد بانتظار التأكيد', 'New order awaiting acceptance'),
+          AppColors.warning,
+          Icons.fiber_new_rounded
+        );
       case OrderStatus.restaurantAccepted:
-        return ('تم تأكيد الاستلام', AppColors.primary, Icons.check_circle_outline_rounded);
+        return (
+          tr('تم تأكيد الاستلام', 'Order accepted'),
+          AppColors.primary,
+          Icons.check_circle_outline_rounded
+        );
       case OrderStatus.preparing:
-        return ('جاري التحضير', AppColors.primary, Icons.restaurant_rounded);
+        return (
+          tr('جاري التحضير', 'Preparing'),
+          AppColors.primary,
+          Icons.restaurant_rounded
+        );
       case OrderStatus.readyForPickup:
         // بلاغ المالك ٢٠٢٦-٠٨-١٢: البطاقة كانت تقول «بانتظار استلام
         // السائق» بينما تحتها ختمُ «سلّمتُ الطلب للسائق» — سطران
@@ -553,18 +591,38 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         // «سلّمته» الأخضر (success) الذي يظهر مباشرةً بعده — لونان لحالة
         // «جاهز/سُلّم» الواحدة. توحيدهما على success يجعل المسار عائلةً واحدة.
         return widget.order.restaurantHandoverAt == null
-            ? ('جاهز — بانتظار استلام السائق', AppColors.success,
-                Icons.shopping_bag_rounded)
-            : ('سلّمته — بانتظار تأكيد الكابتن', AppColors.success,
-                Icons.hourglass_bottom_rounded);
+            ? (
+                tr('جاهز — بانتظار استلام السائق',
+                    'Ready — waiting for captain'),
+                AppColors.success,
+                Icons.shopping_bag_rounded
+              )
+            : (
+                tr('سلّمته — بانتظار تأكيد الكابتن',
+                    'Handed over — awaiting captain confirmation'),
+                AppColors.success,
+                Icons.hourglass_bottom_rounded
+              );
       case OrderStatus.restaurantRejected:
-        return ('تم رفض الطلب', AppColors.error, Icons.block_rounded);
+        return (
+          tr('تم رفض الطلب', 'Order rejected'),
+          AppColors.error,
+          Icons.block_rounded
+        );
       case OrderStatus.searchingDriver:
       case OrderStatus.driverAssigned:
       case OrderStatus.onTheWay:
-        return ('تم التسليم — جاري التوصيل', AppColors.success, Icons.delivery_dining_rounded);
+        return (
+          tr('تم التسليم — جاري التوصيل', 'Handed over — out for delivery'),
+          AppColors.success,
+          Icons.delivery_dining_rounded
+        );
       case OrderStatus.delivered:
-        return ('تم التوصيل للعميل', AppColors.success, Icons.done_all_rounded);
+        return (
+          tr('تم التوصيل للعميل', 'Delivered to customer'),
+          AppColors.success,
+          Icons.done_all_rounded
+        );
       default:
         return (widget.order.status.label, widget.order.status.color, Icons.info_outline_rounded);
     }
@@ -579,13 +637,15 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     final elapsed = now.difference(t);
     final String age;
     if (elapsed.inMinutes < 1) {
-      age = 'منذ لحظات';
+      age = tr('منذ لحظات', 'moments ago');
     } else if (elapsed.inMinutes < 60) {
-      age = 'منذ ${elapsed.inMinutes} د';
+      age = tr('منذ ${elapsed.inMinutes} د', '${elapsed.inMinutes} min ago');
     } else {
       final hours = elapsed.inHours;
       final mins = elapsed.inMinutes % 60;
-      age = mins == 0 ? 'منذ $hours س' : 'منذ $hours س $mins د';
+      age = mins == 0
+          ? tr('منذ $hours س', '$hours h ago')
+          : tr('منذ $hours س $mins د', '$hours h $mins min ago');
     }
     final clock =
         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
@@ -601,10 +661,16 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     try {
       final launched = await launchUrl(uri);
       if (!launched && context.mounted) {
-        showError(context, 'تعذّر فتح تطبيق الاتصال على هذا الجهاز');
+        showError(
+            context,
+            tr('تعذّر فتح تطبيق الاتصال على هذا الجهاز',
+                'Could not open the phone app on this device'));
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+      if (context.mounted) {
+        showError(context,
+            tr('تعذّر فتح تطبيق الاتصال', 'Could not open the phone app'));
+      }
     }
   }
 
@@ -616,10 +682,11 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       context: context,
       builder: (sheetCtx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(
-            padding: EdgeInsets.all(14),
-            child: Text('كم يحتاج التحضير؟',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text(tr('كم يحتاج التحضير؟', 'How long to prepare?'),
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
           ),
           Wrap(
             spacing: 8,
@@ -627,11 +694,11 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             children: [
               for (final m in [10, 15, 20, 30, 45])
                 ActionChip(
-                  label: Text('$m دقيقة'),
+                  label: Text(tr('$m دقيقة', '$m min')),
                   onPressed: () => Navigator.pop(sheetCtx, m),
                 ),
               ActionChip(
-                label: const Text('بدون تقدير'),
+                label: Text(tr('بدون تقدير', 'No estimate')),
                 onPressed: () => Navigator.pop(sheetCtx, 0),
               ),
             ],
@@ -653,15 +720,22 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       // حتى نافذة موعده، فرسالته طمأنة لا خطأ.
       if (!assigned && context.mounted) {
         if (widget.order.scheduledStillEarly) {
-          showSuccess(context,
-              'قُبل الطلب المجدول — يُسنَد كابتن قرب موعده (${formatDateTime(widget.order.scheduledFor!)})');
+          showSuccess(
+              context,
+              tr('قُبل الطلب المجدول — يُسنَد كابتن قرب موعده (${formatDateTime(widget.order.scheduledFor!)})',
+                  'Scheduled order accepted — a captain will be assigned near its time (${formatDateTime(widget.order.scheduledFor!)})'));
         } else {
-          showError(context,
-              'قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة');
+          showError(
+              context,
+              tr('قُبل الطلب، لكن لا يوجد كابتن متصل الآن — سيُسنَد فور توفّره أو من الإدارة',
+                  'Order accepted, but no captain is online right now — one will be assigned as soon as available, or by admin'));
         }
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+      if (context.mounted) {
+        showError(context,
+            tr('تعذّر تحديث حالة الطلب', 'Failed to update order status'));
+      }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -680,11 +754,16 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
       if (!assigned && context.mounted) {
         // إخفاق الإسناد لم يعد صامتاً: المطعم يعرف أن الطلب ينتظر تدخّل
         // الإدارة بدل أن يظنّ سائقاً في طريقه إليه.
-        showError(context,
-            'الطلب جاهز، لكن لا يوجد كابتن متاح الآن — أبلغنا الإدارة وستتولّى الإسناد');
+        showError(
+            context,
+            tr('الطلب جاهز، لكن لا يوجد كابتن متاح الآن — أبلغنا الإدارة وستتولّى الإسناد',
+                'Order is ready, but no captain is available right now — admin has been notified and will assign one'));
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+      if (context.mounted) {
+        showError(context,
+            tr('تعذّر تحديث حالة الطلب', 'Failed to update order status'));
+      }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -693,22 +772,32 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
   Future<void> _confirmHandover(BuildContext context) async {
     final ok = await showConfirmDialog(
       context,
-      title: 'تسليم الطلب للسائق',
-      content: 'هل سلّمتَ الطلب #${widget.order.orderNumber} للكابتن الآن؟\n\n'
-          'سيُسجَّل وقت التسليم من طرفك في الفاتورة — وهو إثباتك إن نشأ '
-          'خلاف حول موعد الاستلام.',
-      confirmLabel: 'سلّمتُه الآن',
+      title: tr('تسليم الطلب للسائق', 'Hand order to captain'),
+      content: tr(
+          'هل سلّمتَ الطلب #${widget.order.orderNumber} للكابتن الآن؟\n\n'
+              'سيُسجَّل وقت التسليم من طرفك في الفاتورة — وهو إثباتك إن نشأ '
+              'خلاف حول موعد الاستلام.',
+          'Did you hand order #${widget.order.orderNumber} to the captain just now?\n\n'
+              'Your handover time will be recorded on the invoice — it is your '
+              'proof if a dispute arises over the pickup time.'),
+      confirmLabel: tr('سلّمتُه الآن', 'Handed over now'),
     );
     if (ok != true) return;
     setState(() => _actionLoading = true);
     try {
       await widget.service.confirmRestaurantHandover(widget.order.id);
-      if (context.mounted) showSuccess(context, 'سُجّل تسليمك للطلب');
+      if (context.mounted) {
+        showSuccess(context,
+            tr('سُجّل تسليمك للطلب', 'Your handover was recorded'));
+      }
     } catch (e) {
       // رسالة عربية ثابتة لا نصّ الاستثناء الخام: بقيّة معالِجات هذا الملف
       // تعرض رسالةً مضبوطة، وتسريب `e.toString()` قد يُظهر نصاً تقنياً للمطعم.
       if (context.mounted) {
-        showError(context, 'تعذّر تسجيل التسليم — حاول مجدداً');
+        showError(
+            context,
+            tr('تعذّر تسجيل التسليم — حاول مجدداً',
+                'Failed to record handover — try again'));
       }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
@@ -727,7 +816,10 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         await widget.service.retryAutoAssignIfNeeded(widget.order);
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر تحديث حالة الطلب');
+      if (context.mounted) {
+        showError(context,
+            tr('تعذّر تحديث حالة الطلب', 'Failed to update order status'));
+      }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -739,22 +831,27 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     final reason = await showDialog<String>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('رفض الطلب'),
+        title: Text(tr('رفض الطلب', 'Reject order')),
         content: Form(
           key: formKey,
           child: TextFormField(
             controller: ctrl,
             autofocus: true,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'سبب الرفض',
-              hintText: 'مثال: نفد أحد الأصناف، المطعم مغلق مؤقتاً...',
+            decoration: InputDecoration(
+              labelText: tr('سبب الرفض', 'Rejection reason'),
+              hintText: tr('مثال: نفد أحد الأصناف، المطعم مغلق مؤقتاً...',
+                  'e.g. an item ran out, restaurant temporarily closed...'),
             ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'يرجى كتابة سبب الرفض' : null,
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? tr('يرجى كتابة سبب الرفض', 'Please enter a rejection reason')
+                : null,
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('تراجع')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(tr('تراجع', 'Cancel'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () {
@@ -762,7 +859,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                 Navigator.pop(dialogCtx, ctrl.text.trim());
               }
             },
-            child: const Text('تأكيد الرفض'),
+            child: Text(tr('تأكيد الرفض', 'Confirm rejection')),
           ),
         ],
       ),
@@ -772,7 +869,9 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
     try {
       await widget.service.rejectOrderByRestaurant(widget.order.id, reason);
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر رفض الطلب');
+      if (context.mounted) {
+        showError(context, tr('تعذّر رفض الطلب', 'Failed to reject order'));
+      }
     } finally {
       if (mounted) setState(() => _actionLoading = false);
     }
@@ -817,8 +916,9 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
                     color: urgent ? AppColors.error : AppColors.warning,
                     size: 20),
                 tooltip: left == null
-                    ? 'تقديم شكوى'
-                    : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                    ? tr('تقديم شكوى', 'File a complaint')
+                    : tr('تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                        'File a complaint — ${formatRemaining(left)} left'),
                 visualDensity: VisualDensity.compact,
                 onPressed: () => Navigator.push(
                   context,
@@ -858,7 +958,9 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
               const Icon(Icons.schedule_rounded,
                   size: 15, color: AppColors.warning),
               const SizedBox(width: 6),
-              Text('مجدول: ${formatDateTime(order.scheduledFor!)} — لا تحضّره مبكراً',
+              Text(
+                  tr('مجدول: ${formatDateTime(order.scheduledFor!)} — لا تحضّره مبكراً',
+                      'Scheduled: ${formatDateTime(order.scheduledFor!)} — do not prepare it early'),
                   style: const TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.bold,
@@ -881,7 +983,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
               style: TextStyle(fontSize: 12.5, color: AppColors.textGray.withOpacity(0.8))),
           if (order.customerPhone.trim().isNotEmpty)
             IconButton(
-              tooltip: 'الاتصال بالعميل',
+              tooltip: tr('الاتصال بالعميل', 'Call customer'),
               icon: const Icon(Icons.call_outlined, color: AppColors.success, size: 20),
               visualDensity: VisualDensity.compact,
               onPressed: () => _call(context, order.customerPhone),
@@ -954,7 +1056,9 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
               const Icon(Icons.block_rounded, size: 14, color: AppColors.error),
               const SizedBox(width: 6),
               Expanded(
-                child: Text('سبب الرفض: ${order.rejectionReason}',
+                child: Text(
+                    tr('سبب الرفض: ${order.rejectionReason}',
+                        'Rejection reason: ${order.rejectionReason}'),
                     style: const TextStyle(fontSize: 12.5, color: AppColors.textDark)),
               ),
             ]),
@@ -965,7 +1069,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
           Row(children: [
             Expanded(
               child: _ActionButton(
-                label: 'تأكيد الاستلام',
+                label: tr('تأكيد الاستلام', 'Accept order'),
                 color: AppColors.primary,
                 loading: _actionLoading,
                 onPressed: () => _confirmAcceptance(context),
@@ -974,7 +1078,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             const SizedBox(width: 8),
             Expanded(
               child: _ActionButton(
-                label: 'رفض',
+                label: tr('رفض', 'Reject'),
                 color: AppColors.error,
                 loading: _actionLoading,
                 onPressed: () => _showRejectDialog(context),
@@ -985,7 +1089,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         if (order.status == OrderStatus.restaurantAccepted) ...[
           const SizedBox(height: 10),
           _ActionButton(
-            label: 'جاري التحضير',
+            label: tr('جاري التحضير', 'Preparing'),
             color: AppColors.primary,
             loading: _actionLoading,
             onPressed: () => _runStatusChange(context, OrderStatus.preparing),
@@ -994,7 +1098,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
         if (order.status == OrderStatus.preparing) ...[
           const SizedBox(height: 10),
           _ActionButton(
-            label: 'جاهز للاستلام',
+            label: tr('جاهز للاستلام', 'Ready for pickup'),
             color: AppColors.success,
             loading: _actionLoading,
             onPressed: () => _confirmReady(context),
@@ -1027,7 +1131,7 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             const _LockedHandoverHint()
           else ...[
             _ActionButton(
-              label: 'سلّمتُ الطلب للسائق',
+              label: tr('سلّمتُ الطلب للسائق', 'Handed to captain'),
               color: AppColors.success,
               loading: _actionLoading,
               onPressed: () => _confirmHandover(context),
@@ -1038,12 +1142,15 @@ class _RestaurantOrderCardState extends State<_RestaurantOrderCard>
             // وهو أقوى من زرّين يُضغطان كلٌّ من مكانه.
             OutlinedButton.icon(
               icon: const Icon(Icons.qr_code_2_rounded, size: 18),
-              label: const Text('رمز الاستلام — يمسحه الكابتن',
-                  style: TextStyle(fontSize: 12.5)),
+              label: Text(
+                  tr('رمز الاستلام — يمسحه الكابتن',
+                      'Pickup code — captain scans it'),
+                  style: const TextStyle(fontSize: 12.5)),
               onPressed: () => showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: Text('طلب #${order.orderNumber}'),
+                  title: Text(tr('طلب #${order.orderNumber}',
+                      'Order #${order.orderNumber}')),
                   content: SizedBox(
                     width: 240,
                     height: 240,
@@ -1114,11 +1221,14 @@ class _LockedHandoverHint extends StatelessWidget {
           const Icon(Icons.lock_clock_rounded,
               size: 18, color: AppColors.textGray),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
-              'زرّ «سلّمتُ الطلب» يفتح فور تسجيل الكابتن وصوله للمطعم — '
-              'فالإقرار لا يسبق الواقعة.',
-              style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+              tr(
+                  'زرّ «سلّمتُ الطلب» يفتح فور تسجيل الكابتن وصوله للمطعم — '
+                      'فالإقرار لا يسبق الواقعة.',
+                  'The "Handed to captain" button unlocks once the captain '
+                      'records arriving at the restaurant — confirmation cannot precede the event.'),
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
             ),
           ),
         ]),
@@ -1146,7 +1256,9 @@ class _HandoverStamp extends StatelessWidget {
       child: Row(children: [
         const Icon(Icons.verified_rounded, size: 18, color: AppColors.success),
         const SizedBox(width: 8),
-        Text('سلّمتَ الطلب للسائق — $clock',
+        Text(
+            tr('سلّمتَ الطلب للسائق — $clock',
+                'You handed the order to the captain — $clock'),
             style: const TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w700,

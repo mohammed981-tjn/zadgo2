@@ -10,6 +10,7 @@ import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import 'restaurant_reports_export.dart';
 
@@ -32,7 +33,10 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
     } catch (_) {
       // المعالجة الموحّدة للخطأ (showError) بدل SnackBar خام: تعطي النمط
       // البصري نفسه المستخدَم في كل الشاشات بدل صندوقٍ افتراضي شاذّ.
-      if (mounted) showError(context, 'تعذّر تصدير التقرير');
+      if (mounted) {
+        showError(
+            context, tr('تعذّر تصدير التقرير', 'Failed to export the report'));
+      }
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -45,13 +49,16 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
       stream: () => service.streamRestaurantOrders(widget.restaurantId),
       builder: (ctx, orders) {
         if (orders.isEmpty) {
-          return const AppEmpty(emoji: '📊', title: 'لا يوجد طلبات لعرض تقاريرها بعد');
+          return AppEmpty(
+              emoji: '📊',
+              title: tr('لا يوجد طلبات لعرض تقاريرها بعد',
+                  'No orders to report yet'));
         }
         final sold = orders.where((o) => o.status == OrderStatus.delivered).toList();
         final totalMealsValue = sold.fold(0.0, (s, o) => s + o.itemsTotal);
         final sorted = [...orders]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         final restaurantName = context.read<app_auth.AuthProvider>().user?.restaurantName ??
-            'المطعم';
+            tr('المطعم', 'Restaurant');
 
         return ListView(
           padding: const EdgeInsets.all(12),
@@ -66,13 +73,14 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
               // ألوان النص من رمز الثيم (onPrimary) لا أبيض مثبَّت: يحترم قرار
               // الثيم فلا يكسر لو صار لون النكهة فاتحاً مستقبلاً.
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('إجمالي قيمة الوجبات المباعة',
+                Text(tr('إجمالي قيمة الوجبات المباعة', 'Total food sales'),
                     style: TextStyle(color: context.flavorColors.onPrimary.withOpacity(0.7))),
                 Text(formatCurrency(totalMealsValue),
                     style: TextStyle(
                         color: context.flavorColors.onPrimary, fontSize: 30, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
-                Text('${sold.length} طلب مكتمل',
+                Text(tr('${sold.length} طلب مكتمل',
+                        '${sold.length} completed orders'),
                     style: TextStyle(color: context.flavorColors.onPrimary.withOpacity(0.7), fontSize: 12.5)),
               ]),
             ),
@@ -115,13 +123,14 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         Align(
                           alignment: AlignmentDirectional.centerStart,
                           child: Row(children: [
-                            const Text('دفتر المستحقّات',
-                                style: TextStyle(
+                            Text(tr('دفتر المستحقّات', 'Payout ledger'),
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14.5)),
                             const Spacer(),
                             Text(
-                                'كامل التاريخ — ${led.deliveredCount} طلب',
+                                tr('كامل التاريخ — ${led.deliveredCount} طلب',
+                                    'All-time — ${led.deliveredCount} orders'),
                                 style: const TextStyle(
                                     fontSize: 11,
                                     color: AppColors.textGray)),
@@ -129,43 +138,45 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         ),
                         const SizedBox(height: 6),
                         PriceRow(
-                            label: 'مبيعات الوجبات',
+                            label: tr('مبيعات الوجبات', 'Food sales'),
                             value: formatCurrency(led.meals)),
                         PriceRow(
-                            label: 'عمولة المنصّة',
+                            label: tr('عمولة المنصّة', 'Platform commission'),
                             value: '- ${formatCurrency(led.commission)}'),
                         if (led.compensations > 0)
                           PriceRow(
-                              label: 'تعويض طلبات أُلغيت بعد التحضير',
+                              label: tr('تعويض طلبات أُلغيت بعد التحضير',
+                                  'Compensation for orders canceled after preparation'),
                               value:
                                   '+ ${formatCurrency(led.compensations)}'),
                         if (led.chargebacks > 0)
                           PriceRow(
-                              label: 'خصومات شكاوى جودة (لصالح العملاء)',
+                              label: tr('خصومات شكاوى جودة (لصالح العملاء)',
+                                  'Quality-complaint deductions (refunded to customers)'),
                               value: '- ${formatCurrency(led.chargebacks)}'),
                         // «صافي المستحق» بارز كـ«المتبقّي لك»: هو الرقم الذي
                         // يقرأه المطعم قبل غيره، فلا يصحّ أن يحمل وزن البنود
                         // الخام فوقه — دفاتر التجار العالمية تُبرز الصافي والمدفوع.
                         PriceRow(
-                            label: 'صافي المستحق',
+                            label: tr('صافي المستحق', 'Net payable'),
                             value: formatCurrency(net),
                             bold: true),
                         PriceRow(
-                            label: 'استلمته',
+                            label: tr('استلمته', 'Received'),
                             value: '- ${formatCurrency(led.paid)}'),
                         const Divider(),
                         PriceRow(
                             label: remaining >= 0
-                                ? 'المتبقّي لك'
-                                : 'مدفوع لك زيادةً',
+                                ? tr('المتبقّي لك', 'Balance due to you')
+                                : tr('مدفوع لك زيادةً', 'Overpaid to you'),
                             value: formatCurrency(remaining.abs()),
                             bold: true),
                         if (settlements.isNotEmpty) ...[
                           const SizedBox(height: 8),
-                          const Align(
+                          Align(
                             alignment: AlignmentDirectional.centerStart,
-                            child: Text('آخر الدفعات',
-                                style: TextStyle(
+                            child: Text(tr('آخر الدفعات', 'Recent payouts'),
+                                style: const TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.textGray)),
@@ -201,7 +212,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.table_chart_outlined),
-                  label: const Text('تصدير Excel'),
+                  label: Text(tr('تصدير Excel', 'Export Excel')),
                   onPressed: _exporting
                       ? null
                       : () => _export(() => exportRestaurantReportExcel(
@@ -215,7 +226,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.picture_as_pdf_outlined),
-                  label: const Text('تصدير PDF'),
+                  label: Text(tr('تصدير PDF', 'Export PDF')),
                   onPressed: _exporting
                       ? null
                       : () => _export(() => exportRestaurantReportPdf(
@@ -227,7 +238,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
               ),
             ]),
             const SizedBox(height: 16),
-            const SectionHeader(title: 'تفاصيل الطلبات'),
+            SectionHeader(title: tr('تفاصيل الطلبات', 'Order details')),
             // تفصيل سطري قابل للتدقيق (بطلب المالك بعد شكّه في أساس
             // العمولة): كل طلب يعرض أصنافه وقيمة وجباته وعمولته وصافيه —
             // فمجموع الأعمدة يطابق الدفتر أعلاه رقماً رقماً، وأي طلبٍ
@@ -247,7 +258,7 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         Text(
                           o.items
                               .map((i) => '${i.name} ×${i.quantity}')
-                              .join('، '),
+                              .join(tr('، ', ', ')),
                           style: const TextStyle(
                               fontSize: 11.5, color: AppColors.textGray),
                           maxLines: 2,
@@ -255,38 +266,47 @@ class _RestaurantReportsTabState extends State<RestaurantReportsTab> {
                         ),
                       ],
                       const SizedBox(height: 6),
-                      PriceRow(label: 'قيمة الوجبات', value: formatCurrency(o.itemsTotal), bold: true),
+                      PriceRow(
+                          label: tr('قيمة الوجبات', 'Food value'),
+                          value: formatCurrency(o.itemsTotal),
+                          bold: true),
                       if (o.status == OrderStatus.delivered) ...[
                         PriceRow(
-                            label: 'عمولة المنصّة',
+                            label: tr('عمولة المنصّة', 'Platform commission'),
                             value: '- ${formatCurrency(o.effectiveCommission)}'),
                         PriceRow(
-                            label: 'صافيك من الطلب',
+                            label: tr('صافيك من الطلب',
+                                'Your net from this order'),
                             value: formatCurrency(
                                 o.itemsTotal - o.effectiveCommission)),
                       ],
                       // طلبٌ أُلغي بعد طبخه: يُعوَّض كاملاً بلا عمولة.
                       if (o.restaurantCompensation > 0)
                         PriceRow(
-                            label: 'تعويض إلغاء بعد التحضير',
+                            label: tr('تعويض إلغاء بعد التحضير',
+                                'Compensation for cancellation after preparation'),
                             value:
                                 '+ ${formatCurrency(o.restaurantCompensation)}',
                             bold: true),
                       if (o.restaurantChargeback > 0)
                         PriceRow(
-                            label: 'خصم شكوى جودة (لصالح العميل)',
+                            label: tr('خصم شكوى جودة (لصالح العميل)',
+                                'Quality-complaint deduction (to customer)'),
                             value:
                                 '- ${formatCurrency(o.restaurantChargeback)}',
                             bold: true),
                     ]),
                   ),
                 )),
-            const Padding(
-              padding: EdgeInsets.only(top: 4, bottom: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 8),
               child: Text(
-                'قيمة الوجبات = مجموع الأصناف فقط — أجرة التوصيل لا تدخل في '
-                'مبيعاتك ولا تُحتسب عليها عمولة.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray),
+                tr(
+                    'قيمة الوجبات = مجموع الأصناف فقط — أجرة التوصيل لا تدخل في '
+                        'مبيعاتك ولا تُحتسب عليها عمولة.',
+                    'Food value = the sum of items only — the delivery fee is not '
+                        'part of your sales and no commission is charged on it.'),
+                style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
               ),
             ),
           ],

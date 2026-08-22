@@ -10,6 +10,7 @@ import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 
 class RestaurantMenuPricesTab extends StatelessWidget {
@@ -26,10 +27,12 @@ class RestaurantMenuPricesTab extends StatelessWidget {
           stream: () => service.streamMenuItems(restaurantId),
           builder: (ctx2, items) {
             if (items.isEmpty) {
-              return const AppEmpty(
+              return AppEmpty(
                 emoji: '🍽️',
-                title: 'لا يوجد أصناف في قائمة مطعمك بعد',
-                subtitle: 'إضافة الأصناف من اختصاص إدارة المنصة.',
+                title: tr('لا يوجد أصناف في قائمة مطعمك بعد',
+                    'No items on your menu yet'),
+                subtitle: tr('إضافة الأصناف من اختصاص إدارة المنصة.',
+                    'Adding items is handled by platform admin.'),
               );
             }
             final catIds = cats.map((c) => c.id).toSet();
@@ -44,7 +47,8 @@ class RestaurantMenuPricesTab extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ExpansionTile(
                       title: Text(cat.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${catItems.length} صنف'),
+                      subtitle: Text(
+                          tr('${catItems.length} صنف', '${catItems.length} items')),
                       children: catItems
                           .map((item) => _PriceTile(item: item, restaurantId: restaurantId))
                           .toList(),
@@ -56,8 +60,10 @@ class RestaurantMenuPricesTab extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ExpansionTile(
                       initiallyExpanded: true,
-                      title: const Text('أصناف أخرى', style: TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${unclassified.length} صنف'),
+                      title: Text(tr('أصناف أخرى', 'Other items'),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(tr('${unclassified.length} صنف',
+                          '${unclassified.length} items')),
                       children: unclassified
                           .map((item) => _PriceTile(item: item, restaurantId: restaurantId))
                           .toList(),
@@ -83,26 +89,29 @@ class _PriceTile extends StatelessWidget {
     final newPrice = await showDialog<double>(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: Text('سعر "${item.name}"'),
+        title: Text(tr('سعر "${item.name}"', 'Price of "${item.name}"')),
         content: Form(
           key: form,
           child: TextFormField(
             controller: ctrl,
             autofocus: true,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'السعر الجديد'),
+            decoration:
+                InputDecoration(labelText: tr('السعر الجديد', 'New price')),
             validator: validatePrice,
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('إلغاء')),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
             onPressed: () {
               if (form.currentState!.validate()) {
                 Navigator.pop(dialogCtx, double.parse(ctrl.text.trim()));
               }
             },
-            child: const Text('حفظ'),
+            child: Text(tr('حفظ', 'Save')),
           ),
         ],
       ),
@@ -119,7 +128,7 @@ class _PriceTile extends StatelessWidget {
         opacity: item.isAvailable ? 1 : 0.35,
         child: Text(item.emoji, style: const TextStyle(fontSize: 26)),
       ),
-      title: Text(item.name.trim().isEmpty ? '(بلا اسم)' : item.name,
+      title: Text(item.name.trim().isEmpty ? tr('(بلا اسم)', '(unnamed)') : item.name,
           style: item.isAvailable
               ? null
               : const TextStyle(
@@ -128,7 +137,8 @@ class _PriceTile extends StatelessWidget {
       subtitle: Text(
           item.isAvailable
               ? formatCurrency(item.price)
-              : '${formatCurrency(item.price)} — نفد مؤقتاً',
+              : tr('${formatCurrency(item.price)} — نفد مؤقتاً',
+                  '${formatCurrency(item.price)} — out of stock'),
           // سعر البيع كحليّ لا ذهبيّ: الذهبي على الـListTile الأبيض ~١٫٦:١ —
           // المطعم يقرأ أسعاره هنا فيجب أن تُقرأ. (المنفَد يبقى بلون الخطأ.)
           style: TextStyle(
@@ -149,14 +159,17 @@ class _PriceTile extends StatelessWidget {
                   .updateMenuItem(item.copyWith(isAvailable: v));
             } catch (_) {
               if (context.mounted) {
-                showError(context, 'تعذّر التغيير — حاول مجدداً');
+                showError(
+                    context,
+                    tr('تعذّر التغيير — حاول مجدداً',
+                        'Change failed — try again'));
               }
             }
           },
         ),
         IconButton(
           icon: const Icon(Icons.edit_outlined),
-          tooltip: 'تعديل السعر',
+          tooltip: tr('تعديل السعر', 'Edit price'),
           onPressed: () => _editPrice(context),
         ),
       ]),
