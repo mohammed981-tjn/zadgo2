@@ -478,7 +478,7 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                                       backgroundColor: AppColors.success),
                                   icon: const Icon(Icons.check_rounded,
                                       size: 18),
-                                  label: const Text('نعم، حُلّت'),
+                                  label: Text(tr('نعم، حُلّت', 'Yes, resolved')),
                                   onPressed: _confirming
                                       ? null
                                       : () => _confirmResolution(c, true),
@@ -489,7 +489,7 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                                 child: OutlinedButton.icon(
                                   icon: const Icon(Icons.close_rounded,
                                       size: 18),
-                                  label: const Text('لا، لم تُحل'),
+                                  label: Text(tr('لا، لم تُحل', 'No, not resolved')),
                                   onPressed: _confirming
                                       ? null
                                       : () => _confirmResolution(c, false),
@@ -503,17 +503,18 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
 
                 if (!widget.readOnly) ...[
                   const SizedBox(height: 16),
-                  const SectionHeader(title: 'محادثة مع الإدارة'),
+                  SectionHeader(title: tr('محادثة مع الإدارة', 'Chat with support')),
                   StreamBuilder<List<ChatMessage>>(
                     stream: service.streamComplaintChat(c.id),
                     builder: (ctx, chatSnap) {
                       final messages = chatSnap.data ?? [];
                       if (messages.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 14),
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           child: Text(
-                              'لا رسائل بعد — اكتب لنا أي توضيح إضافي هنا',
-                              style: TextStyle(
+                              tr('لا رسائل بعد — اكتب لنا أي توضيح إضافي هنا',
+                                  'No messages yet — add any extra details here'),
+                              style: const TextStyle(
                                   color: AppColors.textGray, fontSize: 12.5)),
                         );
                       }
@@ -545,7 +546,7 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                               child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(mine ? 'أنا' : m.senderName,
+                                    Text(mine ? tr('أنا', 'Me') : m.senderName,
                                         style: const TextStyle(
                                             fontSize: 11.5,
                                             fontWeight: FontWeight.bold)),
@@ -574,9 +575,10 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                         controller: _chatCtrl,
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(c),
-                        decoration: const InputDecoration(
-                          hintText: 'اكتب رسالة للإدارة...',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          hintText: tr('اكتب رسالة للإدارة...',
+                              'Write a message to support...'),
+                          border: const OutlineInputBorder(),
                           isDense: true,
                         ),
                       ),

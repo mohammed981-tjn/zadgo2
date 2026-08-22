@@ -374,8 +374,8 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                     alignment: AlignmentDirectional.centerStart,
                     child: TextButton.icon(
                       icon: const Icon(Icons.clear, size: 15),
-                      label: const Text('مسح التواريخ',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(tr('مسح التواريخ', 'Clear dates'),
+                          style: const TextStyle(fontSize: 12)),
                       onPressed: () =>
                           setSheetState(() { startsAt = null; endsAt = null; }),
                     ),
@@ -389,7 +389,8 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                     if (startsAt != null &&
                         endsAt != null &&
                         !endsAt!.isAfter(startsAt!)) {
-                      showError(ctx, 'تاريخ الانتهاء يجب أن يكون بعد البداية');
+                      showError(ctx, tr('تاريخ الانتهاء يجب أن يكون بعد البداية',
+                          'End date must be after the start date'));
                       return;
                     }
                     final banner = PromoBanner(
@@ -406,7 +407,7 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                     await service.saveBanner(banner);
                     if (sheetCtx.mounted) Navigator.pop(sheetCtx);
                   },
-                  child: Text(existing == null ? 'إضافة' : 'حفظ'),
+                  child: Text(existing == null ? tr('إضافة', 'Add') : tr('حفظ', 'Save')),
                 ),
                 const SizedBox(height: 16),
               ],
