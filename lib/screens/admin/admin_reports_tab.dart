@@ -549,25 +549,28 @@ class _RestaurantReportCard extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: Text('تسجيل دفعة — ${totals.name}'),
+        title: Text(tr('تسجيل دفعة — ${totals.name}',
+            'Record payment — ${totals.name}')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: amountCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'المبلغ المسلَّم (ر.س)'),
+            decoration: InputDecoration(
+                labelText: tr('المبلغ المسلَّم (ر.س)', 'Amount handed over (SAR)')),
           ),
           TextField(
             controller: methodCtrl,
-            decoration: const InputDecoration(labelText: 'طريقة السداد'),
+            decoration: InputDecoration(
+                labelText: tr('طريقة السداد', 'Payment method')),
           ),
         ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dCtx, false),
-              child: const Text('إلغاء')),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('تسجيل')),
+              child: Text(tr('تسجيل', 'Record'))),
         ],
       ),
     );
@@ -579,7 +582,10 @@ class _RestaurantReportCard extends StatelessWidget {
         amount: double.tryParse(amountCtrl.text.trim()) ?? 0,
         method: methodCtrl.text,
       );
-      if (context.mounted) showSuccess(context, 'سُجّلت الدفعة في دفتر المطعم');
+      if (context.mounted) {
+        showSuccess(context, tr('سُجّلت الدفعة في دفتر المطعم',
+            'Payment recorded in the restaurant ledger'));
+      }
     } catch (e) {
       if (context.mounted) {
         showError(context, e.toString().replaceFirst('Exception: ', ''));
@@ -605,19 +611,20 @@ class _RestaurantReportCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis),
               ),
-              Text('${totals.orders} طلب',
+              Text(tr('${totals.orders} طلب', '${totals.orders} orders'),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 8),
             PriceRow(
-                label: 'مبيعات الوجبات', value: formatCurrency(totals.meals)),
+                label: tr('مبيعات الوجبات', 'Meal sales'),
+                value: formatCurrency(totals.meals)),
             PriceRow(
-                label: 'عمولة التطبيق',
+                label: tr('عمولة التطبيق', 'App commission'),
                 value: '- ${formatCurrency(totals.commission)}'),
             const Divider(),
             PriceRow(
-                label: 'صافي مستحقّات المطعم',
+                label: tr('صافي مستحقّات المطعم', 'Restaurant net dues'),
                 value: formatCurrency(totals.net),
                 bold: true),
             // الدفتر: المستحق ناقص ما سُلّم فعلاً — الرقم الذي يهم عند
@@ -650,10 +657,12 @@ class _RestaurantReportCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 2),
                   child: Column(children: [
                     PriceRow(
-                        label: 'سُلّم للمطعم (كل التاريخ)',
+                        label: tr('سُلّم للمطعم (كل التاريخ)',
+                            'Handed to the restaurant (all time)'),
                         value: '- ${formatCurrency(led.paid)}'),
                     PriceRow(
-                        label: 'المتبقّي في الدفتر (كل التاريخ)',
+                        label: tr('المتبقّي في الدفتر (كل التاريخ)',
+                            'Remaining in the ledger (all time)'),
                         value: formatCurrency(fullNet - led.paid),
                         bold: true),
                   ]),
