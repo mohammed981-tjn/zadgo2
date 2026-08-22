@@ -578,7 +578,7 @@ class _SettingsFormState extends State<_SettingsForm> {
   late final TextEditingController _referrer, _referee, _deliveries,
       _windowDays, _cap, _joinUrl, _maxLoad, _stackKm, _compPct, _tipOptions,
       _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget,
-      _cashCap, _cashConcurrent, _noShowLimit,
+      _cashCap, _cashConcurrent, _noShowLimit, _maxItemsTotal,
       _custReferrer, _custReferee, _custRefOrders, _custRefWindow,
       _cashbackPct, _cashbackMax;
   late bool _autoPay;
@@ -618,6 +618,8 @@ class _SettingsFormState extends State<_SettingsForm> {
     _cashConcurrent =
         TextEditingController(text: '${s.maxConcurrentCashOrders}');
     _noShowLimit = TextEditingController(text: '${s.cashNoShowLimit}');
+    _maxItemsTotal =
+        TextEditingController(text: s.maxOrderItemsTotal.toStringAsFixed(0));
     _custRefOn = s.customerReferralEnabled;
     _custReferrer =
         TextEditingController(text: s.customerReferrerBonus.toStringAsFixed(0));
@@ -647,7 +649,7 @@ class _SettingsFormState extends State<_SettingsForm> {
       _referrer, _referee, _deliveries, _windowDays, _cap, _joinUrl,
       _maxLoad, _stackKm, _compPct, _tipOptions,
       _delivBase, _delivKm, _delivPerKm, _delivAppCut, _maxDist, _dailyTarget,
-      _cashCap, _cashConcurrent, _noShowLimit,
+      _cashCap, _cashConcurrent, _noShowLimit, _maxItemsTotal,
       _custReferrer, _custReferee, _custRefOrders, _custRefWindow,
       _cashbackPct, _cashbackMax,
     ]) {
@@ -731,6 +733,10 @@ class _SettingsFormState extends State<_SettingsForm> {
                   (int.tryParse(_cashConcurrent.text.trim()) ?? 0).clamp(0, 20),
               cashNoShowLimit:
                   (int.tryParse(_noShowLimit.text.trim()) ?? 0).clamp(0, 50),
+              // ح٥: سقف قيمة وجبات الطلب — تحرسه القاعدة، صفر يعطّله.
+              maxOrderItemsTotal:
+                  (double.tryParse(_maxItemsTotal.text.trim()) ?? 0)
+                      .clamp(0.0, 100000.0),
               // نموّ العميل (دفعة ٥) — صفر/تعطيل يوقفه (ج١)، وحرّاس مدى:
               // نسبة الكاش باك ٠..٥٠٪ (فوقها خطأ إدخال يستنزف)، والسقف ≥ صفر.
               customerReferralEnabled: _custRefOn,
@@ -1048,6 +1054,10 @@ class _SettingsFormState extends State<_SettingsForm> {
                 child: _num(_cashConcurrent,
                     tr('حد النقدي المتزامن', 'Concurrent cash limit'))),
           ]),
+          const SizedBox(height: 8),
+          _num(_maxItemsTotal,
+              tr('سقف قيمة وجبات الطلب الواحد (ر.س — صفر يعطّل)',
+                  'Max items total per order (SAR — 0 disables)')),
           const SizedBox(height: 10),
           _num(
               _noShowLimit,

@@ -42,6 +42,12 @@ service cloud.firestore {
       return exists(p) ? get(p).data.get('firstCashOrderCap', 0) : 0;
     }
 
+    /// سقف قيمة وجبات الطلب الواحد (ح٥) — يضبطه المدير، صفر = معطَّل.
+    function maxOrderItemsTotal() {
+      let p = /databases/$(database)/documents/delivery_settings/incentives;
+      return exists(p) ? get(p).data.get('maxOrderItemsTotal', 0) : 0;
+    }
+
     function hasRole(role) {
       return isSignedIn() &&
           exists(/databases/$(database)/documents/users/$(currentUid())) &&
@@ -129,12 +135,20 @@ service cloud.firestore {
       //     الاستلام في فرع الكابتن (لا حرّاً)، وإلا تخطّى الكابتن القيد (C2).
       //   • operatorId/operatorShare: مال مشغّل الأسطول (H1) — يكتبهما الكابتن
       //     لحظة التسليم مقيَّدين بتبعيّته الفعلية والحصّة المحسوبة (فرع الكابتن).
+      //   • paymentMethod/paymentId/cardAmountHalalas (فحص مساعد الويب ح١):
+      //     قلبُ «نقدي» إلى «إلكتروني» بعد الإنشاء كان يُسقط العُهدة عن
+      //     الكابتن ويوهم المذكرة بأن الطلب مدفوع — وسيلة الدفع تتجمّد.
+      //   • itemsTotal (ح٥): مدخل حارسَي الكوبون — حرّاً كان يضخَّم فيمرّ
+      //     كوبون المئة على طلبِ الخمسة عشر.
+      //   • cardRefundPending (ح٧): نظير walletRefundPending لردود البطاقة.
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
               'restaurantCompensation', 'restaurantChargeback', 'driverTip',
-              'commissionPercent', 'walletRefundPending',
+              'commissionPercent', 'walletRefundPending', 'cardRefundPending',
               'walletUsed', 'discountAmount', 'custodyDebited',
-              'operatorId', 'operatorShare'];
+              'operatorId', 'operatorShare',
+              'paymentMethod', 'paymentId', 'cardAmountHalalas',
+              'itemsTotal'];
     }
 
     /// القائمة نفسها بلا operatorId (دفعة ٨ — ختم التبعية عند الإسناد):
@@ -145,9 +159,11 @@ service cloud.firestore {
       return ['items', 'driverShare', 'appShare', 'platformCommission',
               'isPaid', 'customerId', 'restaurantId', 'orderNumber',
               'restaurantCompensation', 'restaurantChargeback', 'driverTip',
-              'commissionPercent', 'walletRefundPending',
+              'commissionPercent', 'walletRefundPending', 'cardRefundPending',
               'walletUsed', 'discountAmount', 'custodyDebited',
-              'operatorShare'];
+              'operatorShare',
+              'paymentMethod', 'paymentId', 'cardAmountHalalas',
+              'itemsTotal'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
@@ -422,7 +438,10 @@ service cloud.firestore {
       // العدّادين) يبقى: التطبيق يخزّن المتوسط مقرَّباً لخانة عشرية.
       allow update: if isAdmin() ||
           (isRestaurantManagerOf(restaurantId) &&
-              !changedKeys().hasAny(['commissionPercent'])) ||
+              // ح٣: commissionFreeUntil كانت حرّةً — مدير مطعمٍ يكتب
+              // «مجاني حتى سنة ٣٠٠٠» فيعفي نفسه من العمولة للأبد.
+              !changedKeys().hasAny(['commissionPercent',
+                                     'commissionFreeUntil'])) ||
           (isCustomer() &&
               changedKeys().hasOnly(['rating', 'ratingCount', 'ratingOrderId']) &&
               request.resource.data.get('ratingOrderId', '') != '' &&
@@ -532,7 +551,24 @@ service cloud.firestore {
               (userData().get('cashBlocked', false) != true &&
                   (userData().get('cashTrusted', false) == true ||
                       firstCashCap() <= 0 ||
-                      request.resource.data.get('total', 0) <= firstCashCap()))) &&
+                      // ح٦ (فحص مساعد الويب): كان يقرأ get('total',0) —
+                      // حقلاً لا يكتبه أي مسار، فالسقف ميتٌ دائماً (0 ≤ أي
+                      // سقف). الإجمالي يُركَّب مما يُكتب فعلاً.
+                      (request.resource.data.get('itemsTotal', 0) +
+                          request.resource.data.get('driverShare', 0) +
+                          request.resource.data.get('appShare', 0) -
+                          request.resource.data.get('discountAmount', 0)) <=
+                          firstCashCap()))) &&
+          // ح١(ب): غير النقدي يستلزم سنداً لحظة الإنشاء — دفعة بطاقة موثَّقة
+          // أو رصيد محفظة — وإلا طُبعت للكابتن مذكرة «مدفوع، لا تحصيل» عن
+          // طلبٍ لم يدفع أحد فيه شيئاً (وهو التفافٌ كامل على درع النقد).
+          (request.resource.data.get('paymentMethod', '') == 'cash' ||
+              request.resource.data.get('paymentId', '') != '' ||
+              request.resource.data.walletUsed > 0) &&
+          // ح٥: قيمة الوجبات عاقلة وسقفها بيد المدير (صفر = معطَّل، بند ج١)
+          request.resource.data.get('itemsTotal', 0) >= 0 &&
+          (maxOrderItemsTotal() <= 0 ||
+              request.resource.data.get('itemsTotal', 0) <= maxOrderItemsTotal()) &&
           (request.resource.data.get('paymentId', '') == '' ||
               (exists(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)) &&
                get(/databases/$(database)/documents/verified_payments/$(request.resource.data.paymentId)).data.get('uid', '') == currentUid() &&
@@ -620,25 +656,48 @@ service cloud.firestore {
                                 resource.data.status in ['created',
                                     'restaurantPending', 'restaurantAccepted']))) ||
                     (changedKeys().hasOnly(['status', 'updatedAt',
-                            'statusChangedAt', 'walletRefundPending']) &&
-                        request.resource.data.walletRefundPending == true &&
+                            'statusChangedAt', 'walletRefundPending',
+                            'cardRefundPending']) &&
+                        changedKeys().hasAny(['walletRefundPending',
+                            'cardRefundPending']) &&
                         request.resource.data.status == 'cancelled' &&
                         resource.data.status in ['created',
                             'restaurantPending', 'restaurantAccepted'] &&
-                        resource.data.get('walletUsed', 0) > 0))) ||
+                        (!changedKeys().hasAny(['walletRefundPending']) ||
+                            (request.resource.data.walletRefundPending == true &&
+                                resource.data.get('walletUsed', 0) > 0)) &&
+                        // ح٧: طلبُ بطاقةٍ يُلغى — الشحن وقع قبل الإنشاء
+                        // فيُختم ردٌّ معلّق يظهر في طابور لوحة المدير.
+                        (!changedKeys().hasAny(['cardRefundPending']) ||
+                            (request.resource.data.cardRefundPending == true &&
+                                resource.data.get('paymentId', '') != ''))))) ||
             // السائق المُسنَد يكتب isPaid وplatformCommission وحدهما من
             // الحقول المالية (عند التسليم markOrderDelivered)، فقائمته =
             // orderMoneyKeys() ناقص هذين. كانت تنقصها restaurantCompensation
             // وrestaurantChargeback وcommissionPercent، فسائقٌ معدَّل على
             // طلبه المُسنَد كان يصفّر تعويض المطعم أو يخفّض عمولة المنصّة (د١).
             (resource.data.driverId == currentUid() &&
+                // ح٢(أ): خلعُ الاسم عن طلبٍ منتهٍ كان أول خطوات «حلقة سكّ
+                // المال» (تجريد ← إعادة إسناد ← تسليم ثانٍ يقبض الأجرة
+                // مجدداً) — التجريد للرفض المشروع يقع قبل الانتهاء حصراً.
+                (!changedKeys().hasAny(['driverId']) ||
+                    !(resource.data.status in
+                        ['delivered', 'cancelled', 'refunded'])) &&
                 !changedKeys().hasAny(['items', 'driverShare', 'appShare',
                                        'customerId', 'restaurantId',
                                        'orderNumber', 'driverTip',
                                        'restaurantCompensation',
                                        'restaurantChargeback',
                                        'commissionPercent',
-                                       'walletUsed', 'discountAmount']) &&
+                                       'walletUsed', 'discountAmount',
+                                       // ح١ (فحص مساعد الويب): قلبُ «نقدي»
+                                       // إلى «إلكتروني» كان يُسقط العُهدة
+                                       // ويُقبض الأجرة عن نقدٍ في جيبه.
+                                       'paymentMethod', 'paymentId',
+                                       'cardAmountHalalas', 'itemsTotal',
+                                       // وعلما الردّ ليسا للكابتن أصلاً.
+                                       'walletRefundPending',
+                                       'cardRefundPending']) &&
                 // مصفوفة انتقالات حالة الكابتن (ثغرة H3): الحالتان الوحيدتان
                 // اللتان يكتبهما تطبيق الكابتن هما الاستلام (→onTheWay) والتسليم
                 // (→delivered من onTheWay). أي كتابة لا تمسّ الحالة تمرّ (وصولٌ
@@ -682,7 +741,14 @@ service cloud.firestore {
             // مُسنَد لغيره ما زال ممنوعاً (الشرط driverId == null)، والإسناد
             // لغيره صار مجرد «عرض» يملك صاحبه رفضه (driverAcknowledged).
             (resource.data.driverId == null && isDriver() &&
-                !changedKeys().hasAny(assignSafeMoneyKeys()) &&
+                // ح٢(ب) (فحص مساعد الويب): كان الفرع بلا قائمة حقول ولا
+                // مصفوفة حالات، فكابتنٌ يُسند طلباً بلا سائق لنفسه ويقفزه
+                // إلى «مُسلَّم» فيقبض أجرة طعامٍ لم يخرج من المطعم — أو يلفّ
+                // طلبه المُسلَّم (بعد خلع اسمه) ليقبضها مرة أخرى. الآن:
+                // مفاتيح الإسناد الذاتي حصراً — لا حالة ولا مال من هنا أبداً.
+                changedKeys().hasOnly(['driverId', 'driverName',
+                    'driverPhone', 'driverAcknowledged', 'operatorId',
+                    'updatedAt']) &&
                 // دفعة ٨: قبول الطلب يختم تبعيّة قابله (محروسة بالمطابقة)
                 // — والحارس يشتعل مع تغيّر driverId نفسه: بدونه بقيت نسبةُ
                 // المشغّل القديمة على كابتنٍ جديد بلا فحص.
@@ -696,14 +762,22 @@ service cloud.firestore {
             // delivered/cancelled ليست له. وعلم ردّ الرصيد لا يُرفع إلا
             // بشكله الحرفي: رفضٌ لطلبٍ دُفع من المحفظة فعلاً.
             (isRestaurantManagerOf(resource.data.restaurantId) &&
-                !changedKeys().hasAny(assignSafeMoneyKeys()) &&
+                // م١ (فحص مساعد الويب — أُثبت بالمحاكي): walletRefundPending
+                // ضمن الحقول المالية الممنوعة، فكان استثناء الرفض أدناه كوداً
+                // ميتاً — المطعم لا يستطيع رفض أي طلبٍ دُفع من محفظة. البديل
+                // الحرفي لشكل الرفض وحده يمرّ، وشرطا العلم أدناه يحرسانه.
+                (!changedKeys().hasAny(assignSafeMoneyKeys()) ||
+                    changedKeys().hasOnly(['status', 'updatedAt',
+                        'statusChangedAt', 'rejectionReason',
+                        'walletRefundPending', 'cardRefundPending'])) &&
                 // دفعة ٨: الإسناد التلقائي من جهاز المطعم يختم تبعيّة السائق
                 // المُسنَد — محروسةً بمطابقة مستنده، فلا اختلاق نسبةِ مشغّل.
                 (!changedKeys().hasAny(['operatorId', 'driverId']) ||
                     operatorIdMatchesAssignedDriver()) &&
                 changedKeys().hasOnly(['status', 'updatedAt',
                     'statusChangedAt', 'rejectionReason',
-                    'walletRefundPending', 'restaurantHandoverAt',
+                    'walletRefundPending', 'cardRefundPending',
+                    'restaurantHandoverAt',
                     'driverId', 'driverName', 'driverPhone',
                     'driverAcknowledged', 'operatorId',
                     // يوم المطعم (2026-08-20): دقائق التحضير عند القبول،
@@ -719,6 +793,12 @@ service cloud.firestore {
                     (request.resource.data.walletRefundPending == true &&
                         request.resource.data.status == 'restaurantRejected' &&
                         resource.data.get('walletUsed', 0) > 0)) &&
+                // ح٧: ردّ البطاقة نظير ردّ المحفظة — علمٌ عند الرفض حين
+                // للطلب دفعةُ بطاقة، يلتقطه طابور «ردود بطاقة معلّقة».
+                (!changedKeys().hasAny(['cardRefundPending']) ||
+                    (request.resource.data.cardRefundPending == true &&
+                        request.resource.data.status == 'restaurantRejected' &&
+                        resource.data.get('paymentId', '') != '')) &&
                 // ختم التسليم لا يُصطنع قبل أوانه: يقع والطلب «جاهز
                 // للاستلام» أو بعدها (سباق ضغطة الكابتن المشروع)، لا
                 // على طلبٍ ما زال يُطبخ.
@@ -1091,17 +1171,50 @@ service cloud.firestore {
     //   • القراءة: المدير (شاشة حسم الشكاوى) والسائق صاحبها.
     //   • الحذف: ممنوع — وثيقة نزاع لا تُمحى.
     // ---------------------------------------------------------------------
+    // (شُدِّدت بفحص مساعد الويب ح٤ 2026-08-22): كانت الكتابة «صاحب الوثيقة»
+    // بلا ربطٍ بالطلب — فالعميل (الذي يعرف معرّف طلبه قبل إنشائه) أو مدير
+    // المطعم يسبق الكابتن ويحتلّ الوثيقة فيشلّ استلامه وتسليمه؛ والكابتن
+    // يعيد كتابة بيّنة النزاع بعد الشكوى؛ وأي مسجَّل (حتى الهوية المجهولة)
+    // يملأ مستندات ميغابايتية على فاتورتنا. الآن: كابتن الطلب الفعلي حصراً،
+    // وكل محطةٍ تُكتب مرةً واحدة لا تُعاد، والصور مسقوفة كنمط الشكاوى.
     match /order_proofs/{orderId} {
       allow get, list: if isSignedIn() && (
             isAdmin() || resource.data.driverId == currentUid()
           );
-      allow create: if isSignedIn() && (
-            isAdmin() || request.resource.data.driverId == currentUid()
+      allow create: if isAdmin() || (isDriver() &&
+            request.resource.data.driverId == currentUid() &&
+            get(/databases/$(database)/documents/orders/$(orderId))
+                .data.get('driverId', '') == currentUid() &&
+            (!request.resource.data.keys().hasAny(['pickupPhoto']) ||
+                (request.resource.data.pickupPhoto is bytes &&
+                    request.resource.data.pickupPhoto.size() < 400000)) &&
+            (!request.resource.data.keys().hasAny(['deliveryPhoto']) ||
+                (request.resource.data.deliveryPhoto is bytes &&
+                    request.resource.data.deliveryPhoto.size() < 400000))
           );
-      allow update: if isSignedIn() && (
-            isAdmin() ||
-            (resource.data.driverId == currentUid() &&
-                request.resource.data.driverId == currentUid())
+      allow update: if isAdmin() || (isDriver() &&
+            resource.data.driverId == currentUid() &&
+            request.resource.data.driverId == currentUid() &&
+            get(/databases/$(database)/documents/orders/$(orderId))
+                .data.get('driverId', '') == currentUid() &&
+            // كل محطة تُكتب مرةً واحدة — بيّنة النزاع لا يُعاد تحريرها
+            // بعد الشكوى (منع الحذف بلا منع الكتابة فوقها كان تجميلاً).
+            (!changedKeys().hasAny(['arrivedAt', 'arrivedLat',
+                    'arrivedLng']) ||
+                !('arrivedAt' in resource.data)) &&
+            (!changedKeys().hasAny(['pickupAt', 'pickupLat', 'pickupLng',
+                    'pickupPhoto']) ||
+                !('pickupAt' in resource.data)) &&
+            (!changedKeys().hasAny(['deliveryAt', 'deliveryLat',
+                    'deliveryLng', 'deliveryPhoto',
+                    'deliveryDistanceMeters']) ||
+                !('deliveryAt' in resource.data)) &&
+            (!changedKeys().hasAny(['pickupPhoto']) ||
+                (request.resource.data.pickupPhoto is bytes &&
+                    request.resource.data.pickupPhoto.size() < 400000)) &&
+            (!changedKeys().hasAny(['deliveryPhoto']) ||
+                (request.resource.data.deliveryPhoto is bytes &&
+                    request.resource.data.deliveryPhoto.size() < 400000))
           );
       allow delete: if false;
     }

@@ -1558,6 +1558,11 @@ class IncentiveSettings {
   final int maxConcurrentCashOrders;
   final int cashNoShowLimit;
 
+  /// سقف قيمة وجبات الطلب الواحد (تحصين ح٥ 2026-08-22) — تحرسه القاعدة
+  /// عند الإنشاء لأن itemsTotal رقمٌ يدّعيه العميل ولا تستطيع القاعدة
+  /// جمع الأصناف. صفر = معطَّل (ج١).
+  final double maxOrderItemsTotal;
+
   /// نقطة التعادل اليومية (طلبات/يوم) من الدراسة المالية — الرقم الوحيد
   /// الذي طُلب من المالك مراقبته أسبوعياً. يضبطه المدير من اللوحة لا من
   /// الكود (ج١) لأنه يتغيّر مع كل تعديل على العمولة أو الرسم الثابت.
@@ -1619,6 +1624,7 @@ class IncentiveSettings {
     this.joinUrl = 'https://zadgo.co/join',
     this.dailyOrdersTarget = 0,
     this.firstCashOrderCap = 0,
+    this.maxOrderItemsTotal = 0,
     this.maxConcurrentCashOrders = 0,
     this.cashNoShowLimit = 0,
     this.customerReferralEnabled = false,
@@ -1694,6 +1700,8 @@ class IncentiveSettings {
           (map['dailyOrdersTarget'] as num?)?.toInt() ?? d.dailyOrdersTarget,
       firstCashOrderCap: (map['firstCashOrderCap'] as num?)?.toDouble() ??
           d.firstCashOrderCap,
+      maxOrderItemsTotal: (map['maxOrderItemsTotal'] as num?)?.toDouble() ??
+          d.maxOrderItemsTotal,
       maxConcurrentCashOrders:
           (map['maxConcurrentCashOrders'] as num?)?.toInt() ??
               d.maxConcurrentCashOrders,
@@ -1741,6 +1749,7 @@ class IncentiveSettings {
         'joinUrl': joinUrl,
         'dailyOrdersTarget': dailyOrdersTarget,
         'firstCashOrderCap': firstCashOrderCap,
+        'maxOrderItemsTotal': maxOrderItemsTotal,
         'maxConcurrentCashOrders': maxConcurrentCashOrders,
         'cashNoShowLimit': cashNoShowLimit,
         'customerReferralEnabled': customerReferralEnabled,
@@ -1775,6 +1784,7 @@ class IncentiveSettings {
     String? joinUrl,
     int? dailyOrdersTarget,
     double? firstCashOrderCap,
+    double? maxOrderItemsTotal,
     int? maxConcurrentCashOrders,
     int? cashNoShowLimit,
     bool? customerReferralEnabled,
@@ -1811,6 +1821,7 @@ class IncentiveSettings {
         joinUrl: joinUrl ?? this.joinUrl,
         dailyOrdersTarget: dailyOrdersTarget ?? this.dailyOrdersTarget,
         firstCashOrderCap: firstCashOrderCap ?? this.firstCashOrderCap,
+        maxOrderItemsTotal: maxOrderItemsTotal ?? this.maxOrderItemsTotal,
         maxConcurrentCashOrders:
             maxConcurrentCashOrders ?? this.maxConcurrentCashOrders,
         cashNoShowLimit: cashNoShowLimit ?? this.cashNoShowLimit,

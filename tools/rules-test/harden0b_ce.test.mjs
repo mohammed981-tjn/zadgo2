@@ -18,7 +18,7 @@ const t = async (name, fn) => {
 
 // طلب صالح كامل (يمرّ كل شروط الإنشاء الأخرى) لعزل الفحص المطلوب.
 const order = (over = {}) => ({
-  customerId: 'cust1', restaurantId: 'R1', paymentMethod: 'card', paymentId: '',
+  customerId: 'cust1', restaurantId: 'R1', paymentMethod: 'cash', paymentId: '',
   isPaid: false, discountAmount: 0, walletUsed: 0, driverTip: 0,
   itemsTotal: 40, status: 'restaurantPending', ...over,
 });

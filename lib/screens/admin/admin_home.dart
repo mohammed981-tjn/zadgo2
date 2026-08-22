@@ -772,6 +772,86 @@ class _StatsTabState extends State<_StatsTab> {
           },
         ),
 
+        // ردود البطاقة المعلّقة (تحصين ح٧ 2026-08-22): شحن البطاقة قبضٌ
+        // نهائي وقع قبل إنشاء الطلب، فإلغاؤه دون خادمٍ يستلزم طابوراً
+        // يدوياً: تستردّ من لوحة ميسر برقم الدفعة ثم تختم هنا «استُردّ».
+        StreamBuilder<List<Order>>(
+          stream: context.read<FirebaseService>().streamCardRefundsPending(),
+          builder: (ctx, snap) {
+            final pending = snap.data ?? const <Order>[];
+            if (pending.isEmpty) return const SizedBox.shrink();
+            return Container(
+              padding: const EdgeInsets.all(14),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.error.withOpacity(0.35)),
+              ),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      const Icon(Icons.credit_card_off_outlined,
+                          color: AppColors.error, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                          tr('ردود بطاقة معلّقة (${pending.length})',
+                              'Pending card refunds (${pending.length})'),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.error)),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(
+                        tr('طلبات بطاقة أُلغيت بعد الدفع — استردّ المبلغ من '
+                                'لوحة ميسر برقم الدفعة ثم اختم «استُردّ».',
+                            'Card orders cancelled after payment — refund from '
+                                'the Moyasar dashboard by payment id, then mark '
+                                'as refunded.'),
+                        style: const TextStyle(
+                            fontSize: 11.5, color: AppColors.textGray)),
+                    const SizedBox(height: 6),
+                    for (final o in pending.take(5))
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                              tr('#${o.orderNumber} — ${o.customerName} · دفعة ${o.paymentId ?? ''}',
+                                  '#${o.orderNumber} — ${o.customerName} · payment ${o.paymentId ?? ''}'),
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12.5)),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final ok = await showConfirmDialog(context,
+                                title: tr('ختم الاسترداد', 'Mark refunded'),
+                                content: tr(
+                                    'هل نفّذت استرداد الطلب #${o.orderNumber} من لوحة ميسر فعلاً؟ الختم لا يحوّل مالاً — يوثّق ما نفّذته.',
+                                    'Did you actually refund order #${o.orderNumber} from the Moyasar dashboard? This mark documents it — it moves no money.'));
+                            if (ok != true || !context.mounted) return;
+                            await context
+                                .read<FirebaseService>()
+                                .settlePendingCardRefund(o);
+                            if (ctx.mounted) {
+                              showSuccess(ctx,
+                                  tr('خُتم الاسترداد', 'Marked as refunded'));
+                            }
+                          },
+                          child: Text(tr('استُردّ ✓', 'Refunded ✓'),
+                              style: const TextStyle(fontSize: 12.5)),
+                        ),
+                      ]),
+                    if (pending.length > 5)
+                      Text(
+                          tr('و${pending.length - 5} أخرى…',
+                              'and ${pending.length - 5} more…'),
+                          style: const TextStyle(
+                              fontSize: 11.5, color: AppColors.textGray)),
+                  ]),
+            );
+          },
+        ),
+
         GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
           crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
           _stat(tr('الطلبات', 'Orders'), '${orders.length}', Icons.receipt_long_outlined, fc.primary),

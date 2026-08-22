@@ -443,7 +443,12 @@ class _LiveTrackingCard extends StatelessWidget {
             order.walletUsed > 0
                 ? tr('تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً',
                     'Order cancelled — your wallet credit (${order.walletUsed.toStringAsFixed(0)} SAR) will be returned by support soon')
-                : tr('تم إلغاء الطلب', 'Order cancelled'));
+                // ح٧: صدق الرسالة لصاحب البطاقة أيضاً — الاسترداد يدويّ
+                // عبر الإدارة، فلا يُترك يظن المبلغ يعود وحده فوراً.
+                : (order.paymentId ?? '').isNotEmpty
+                    ? tr('تم إلغاء الطلب — مبلغ بطاقتك يعالجه فريق الدعم ويُعاد إليك',
+                        'Order cancelled — your card payment is processed by support and returned to you')
+                    : tr('تم إلغاء الطلب', 'Order cancelled'));
       }
     } catch (_) {
       if (context.mounted) {
@@ -926,7 +931,12 @@ class _OrderCard extends StatelessWidget {
             order.walletUsed > 0
                 ? tr('تم إلغاء الطلب — رصيد محفظتك (${order.walletUsed.toStringAsFixed(0)} ر.س) يُعيده لك المدير قريباً',
                     'Order cancelled — your wallet credit (${order.walletUsed.toStringAsFixed(0)} SAR) will be returned by support soon')
-                : tr('تم إلغاء الطلب', 'Order cancelled'));
+                // ح٧: صدق الرسالة لصاحب البطاقة أيضاً — الاسترداد يدويّ
+                // عبر الإدارة، فلا يُترك يظن المبلغ يعود وحده فوراً.
+                : (order.paymentId ?? '').isNotEmpty
+                    ? tr('تم إلغاء الطلب — مبلغ بطاقتك يعالجه فريق الدعم ويُعاد إليك',
+                        'Order cancelled — your card payment is processed by support and returned to you')
+                    : tr('تم إلغاء الطلب', 'Order cancelled'));
       }
     } catch (_) {
       if (context.mounted) {

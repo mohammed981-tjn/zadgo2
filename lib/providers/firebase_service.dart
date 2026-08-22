@@ -1196,6 +1196,10 @@ class FirebaseService {
       // الختم walletRefundPending يُظهره في بطاقة «ردود محفظة معلّقة»
       // برئيسة الإدارة فيصرفه المدير بضغطة.
       if (current.walletUsed > 0) 'walletRefundPending': true,
+      // ح٧ (فحص مساعد الويب): شحن البطاقة قبض نهائي وقع قبل إنشاء الطلب،
+      // فرفضُ الطلب بلا ختمٍ كان يبتلع مال العميل بصمت — الختم يظهره في
+      // طابور «ردود بطاقة معلّقة» فيستردّه المدير من بوابة الدفع ويصرفه.
+      if ((current.paymentId ?? '').isNotEmpty) 'cardRefundPending': true,
     });
 
     await _releaseOrderDriver(current);
@@ -2266,7 +2270,12 @@ class FirebaseService {
     // إنهاء المدير) تقرآن الحالة قبل ثبوت أولاهما فتمرّان معاً — أجرة
     // وإكرامية مرّتين وعدّاد توصيلات +2. الآن القراءة والفحص والقيود في
     // معاملة واحدة: الثانية تقرأ delivered داخل معاملتها فتخرج بلا أثر.
-    final txRef = _driverTransactions.doc();
+    //
+    // ح٢/٣ (فحص مساعد الويب): معرّف حركة التسليم **حتميّ من معرّف الطلب**
+    // لا عشوائي — حاجز تكرارٍ ثانٍ لا يعتمد على حالة الطلب: أي محاولة
+    // «لفّ» تكتب على نفس المستند فتُقيَّم تحديثاً وترفضها القاعدة (حركات
+    // الدفتر لا تُعدَّل)، فلا قيدَ أجرةٍ ثانٍ للطلب الواحد مهما لُفّ.
+    final txRef = _driverTransactions.doc('delivery_$orderId');
     await _db.runTransaction((tx) async {
       final orderSnap = await tx.get(_orders.doc(orderId));
       if (!orderSnap.exists || orderSnap.data() == null) {
@@ -2502,11 +2511,16 @@ class FirebaseService {
     var delivered = 0;
     for (final d in ordersSnap.docs) {
       final o = models.Order.fromMap(d.data(), d.id);
-      if (o.status == models.OrderStatus.delivered) {
+      // ح٨ (فحص مساعد الويب): «مسترد» يدخل الإيراد كالمُسلَّم — الطلب طُبخ
+      // وسُلّم فعلاً، والاسترداد يعالجه الخصمُ (chargeback) وحده. حصرُ
+      // الإيراد في «مُسلَّم» كان يُسقط الـ٨٥ مرتين (سقوط الإيراد + الخصم)
+      // على استرداد «على حساب المطعم»، ويسقطها ظلماً حين تتحمّل المنصّة.
+      if (o.status == models.OrderStatus.delivered ||
+          o.status == models.OrderStatus.refunded) {
         meals += o.itemsTotal;
         commission += o.effectiveCommission;
-        delivered++;
       }
+      if (o.status == models.OrderStatus.delivered) delivered++;
       comp += o.restaurantCompensation;
       charge += o.restaurantChargeback;
     }
@@ -2856,6 +2870,9 @@ class FirebaseService {
         'status': models.OrderStatus.cancelled.name,
         'updatedAt': FieldValue.serverTimestamp(),
         'statusChangedAt': FieldValue.serverTimestamp(),
+        // ح٧: الكنس الآلي يلغي من هنا أيضاً — طلبُ بطاقةٍ مُهمَل كان
+        // يُلغى ومالُ عميله يبقى عند البوابة بلا أي أثر في اللوحة.
+        if ((o.paymentId ?? '').isNotEmpty) 'cardRefundPending': true,
       });
       if (reverse) {
         final custody = o.custodyAmount;
@@ -2992,6 +3009,8 @@ class FirebaseService {
         'updatedAt': FieldValue.serverTimestamp(),
         'statusChangedAt': FieldValue.serverTimestamp(),
         if (order.walletUsed > 0) 'walletRefundPending': true,
+        // ح٧: نظير المحفظة لدفعات البطاقة — انظر تعليق rejectOrder.
+        if ((order.paymentId ?? '').isNotEmpty) 'cardRefundPending': true,
       });
     });
     NotifyRelay.orderEvent(orderId, OrderEvent.status);
@@ -3027,6 +3046,30 @@ class FirebaseService {
     );
     logAdminAction('wallet.refund',
         'ردّ ${order.walletUsed.toStringAsFixed(2)} ر.س لمحفظة عميل الطلب #${order.orderNumber}');
+  }
+
+  /// طلبات البطاقة الملغاة التي تنتظر استرداداً — يعالجها المدير من
+  /// بوابة الدفع (ميسر) ثم يختم هنا. (ح٧ — لا خادم فالاسترداد الآلي مؤجَّل.)
+  Stream<List<models.Order>> streamCardRefundsPending() => _orders
+      .where('cardRefundPending', isEqualTo: true)
+      .snapshots()
+      .map((s) =>
+          s.docs.map((d) => models.Order.fromMap(d.data(), d.id)).toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
+
+  /// ختم «استُردّ» بعد تنفيذ المدير الاستردادَ من لوحة بوابة الدفع —
+  /// ذرّيّ ضد التكرار كنظيره في المحفظة، ويُقيَّد في سجلّ التدقيق برقم
+  /// الدفعة كي يُطابَق مع كشف البوابة.
+  Future<void> settlePendingCardRefund(models.Order order) async {
+    final cleared = await _db.runTransaction<bool>((tx) async {
+      final snap = await tx.get(_orders.doc(order.id));
+      if (snap.data()?['cardRefundPending'] != true) return false;
+      tx.update(_orders.doc(order.id), {'cardRefundPending': false});
+      return true;
+    });
+    if (!cleared) return;
+    logAdminAction('card.refund',
+        'ختم استرداد بطاقة للطلب #${order.orderNumber} (دفعة ${order.paymentId ?? ''}) بعد تنفيذه من بوابة الدفع');
   }
 
   Future<models.Order> _getOrderOrThrow(String orderId) async {
