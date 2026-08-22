@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-i18n-page="fleet">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'none'; connect-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="/lang.js" defer></script>
+<title>شغّل أسطولك مع زادقو — ZadGo</title>
+<meta name="description" content="منشأة نقلٍ مرخّصة؟ شغّل كباتنك على زاد جو في المدينة المنورة: لوحة تشغيل لكباتنك وحدهم، وخريطة حيّة، ودفتر مستحقات مكشوف. أنت تدير فريقك ونحن نأتي بالطلبات.">
+<meta name="theme-color" content="#0B1935">
+<link rel="canonical" href="https://zadgo.co/fleet/">
+<link rel="icon" href="/images/zadgo-logo-gold.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="شغّل أسطولك مع زادقو ZadGo">
+<meta property="og:description" content="أنت تدير كباتنك ونحن نأتي بالطلبات — لوحة تشغيل لأسطولك وحده، ودفتر مستحقات مكشوف.">
+<meta property="og:url" content="https://zadgo.co/fleet/">
+<meta property="og:image" content="https://zadgo.co/images/og-card.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   صفحة تسجيل مشغّل الأسطول.
+   ------------------------------------------------------------
+   **لماذا وُجدت؟** اللائحة التنفيذية لنشاط توصيل الطلبات تحصر التعامل مع
+   الناقلين في فئتين: منشأةٌ مرخّصة من الهيئة، أو سعوديٌّ بمركبته بوثيقة
+   عمل حر. فمشغّل الأسطول هو الفئة الأولى — وهو **الباب النظامي الوحيد**
+   للكباتن غير السعوديين. وكثافة الكباتن عنق زجاجة الإطلاق في الدراسة
+   المالية، فهذه الصفحة تفتحه.
+
+   **ولا تكتب في قاعدة البيانات** — تؤلّف رسالةً مرتّبة يرسلها المتقدّم
+   بنفسه، كصفحة المطاعم حرفاً. والسبب واحد: لا مجموعةَ «طلبات المشغّلين»
+   في القواعد، وإضافتها تخصّ ملفاً مشتركاً لا يُعدَّل من طرفٍ واحد. وهذا
+   ليس التفافاً — بل هو الأصحّ هنا: المشغّل شريكٌ تعاقدي يُفحص ترخيصه
+   ويُوقَّع معه، لا حسابٌ يُفتح بضغطة.
+
+   **وصفر رقمٍ مالي في الصفحة** (بند و٨): النسب يضبطها المدير من لوحته
+   لكل مشغّلٍ على حدة، ورقمٌ مكتوب هنا يصير وعداً يُحاسَب عليه.
+   ============================================================ */
+:root { --g700: #1A2E5E; --g900: #0B1935; --gold: #FFD65A; --gold-2: #FFC107;
+  --ink: #E7EEFA; --muted: #9DAEC9; --line: rgba(255,255,255,.14); --ok: #25D366; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'IBM Plex Sans Arabic', 'Tajawal', Tahoma, sans-serif; background: var(--g900); color: var(--ink);
+  line-height: 1.9; overflow-x: hidden; }
+input, select, textarea, button { font-family: inherit; font-size: 1rem; }
+a { color: var(--gold); }
+
+.hero { position: relative; padding: 64px 6vw 48px; text-align: center; overflow: clip; }
+.hero::before { content: ''; position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(rgba(11,25,53,.55), rgba(11,25,53,.82)),
+    url('/images/road-wide.jpg') center/cover no-repeat,
+    linear-gradient(190deg, var(--g700) 0%, var(--g900) 100%); }
+.hero > * { position: relative; z-index: 1; }
+.hero img.logo { height: 34px; margin-bottom: 18px; }
+.langslot { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.hero h1 { font-size: clamp(2rem, 7vw, 3.2rem); font-weight: 900; line-height: 1.3; }
+.hero h1 span { color: var(--gold); }
+.hero p { color: var(--muted); font-size: clamp(1rem, 3.4vw, 1.2rem); max-width: 620px;
+  margin: 16px auto 0; }
+.hero p b { color: var(--ink); }
+.hero .badge { display: inline-block; background: rgba(255,193,7,.14); color: var(--gold);
+  border: 1px solid rgba(255,193,7,.35); border-radius: 999px; padding: 6px 16px;
+  font-size: .85rem; font-weight: 800; margin-bottom: 16px; }
+
+main { max-width: 760px; margin: 0 auto; padding: 34px 18px 70px; }
+h2 { font-size: clamp(1.4rem, 5vw, 1.9rem); font-weight: 800; margin-bottom: 6px; }
+h2 span { color: var(--gold); }
+.lead { color: var(--muted); margin-bottom: 20px; }
+
+.grid { display: grid; gap: 12px; grid-template-columns: 1fr; margin-bottom: 34px; }
+@media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+.pt { background: rgba(255,255,255,.045); border: 1px solid var(--line); border-radius: 15px;
+  padding: 17px 18px; }
+.pt .ic { font-size: 1.5rem; }
+.pt b { display: block; margin-top: 6px; font-size: 1rem; }
+.pt span { color: var(--muted); font-size: .9rem; }
+
+/* شريط الشرط النظامي: أبرزُ ما في الصفحة بعد العنوان — من لا يملك ترخيصاً
+   يجب أن يعرف قبل أن يملأ استمارة. */
+.gate { background: rgba(255,193,7,.1); border: 1px solid rgba(255,193,7,.38);
+  border-radius: 15px; padding: 16px 18px; margin-bottom: 30px; }
+.gate b { color: var(--gold); }
+.gate p { color: var(--muted); font-size: .92rem; margin-top: 6px; }
+
+.card { background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 18px;
+  padding: 22px 20px; }
+.field { margin-bottom: 15px; }
+.field label { display: block; font-size: .88rem; font-weight: 700; margin-bottom: 6px; }
+.field label i { color: var(--muted); font-style: normal; font-weight: 400; font-size: .82rem; }
+.field input, .field select, .field textarea {
+  width: 100%; background: rgba(0,0,0,.28); border: 1.5px solid var(--line); color: var(--ink);
+  border-radius: 12px; padding: 13px 14px; }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: 0; border-color: var(--gold); }
+.field select option { background: var(--g700); color: var(--ink); }
+.err { background: rgba(229,57,53,.16); border: 1px solid rgba(229,57,53,.45); color: #ffb4b1;
+  border-radius: 12px; padding: 11px 14px; font-size: .9rem; margin-bottom: 14px; }
+.hide { display: none !important; }
+
+.send { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%;
+  background: var(--ok); color: #06301a; border: 0; border-radius: 14px; padding: 16px;
+  font-weight: 900; font-size: 1.05rem; cursor: pointer; margin-top: 6px; }
+.send:hover { filter: brightness(1.07); }
+.alt { text-align: center; margin-top: 13px; color: var(--muted); font-size: .9rem;
+  display: inline-flex; align-items: center; min-height: 44px; }
+
+.preview { background: rgba(0,0,0,.3); border: 1px dashed var(--line); border-radius: 13px;
+  padding: 14px 16px; margin-top: 16px; font-size: .87rem; color: var(--muted);
+  white-space: pre-wrap; max-height: 210px; overflow-y: auto; }
+
+.qa { border-top: 1px solid var(--line); padding: 15px 0; }
+.qa summary { cursor: pointer; font-weight: 800; list-style: none; display: flex;
+  justify-content: space-between; gap: 10px; }
+.qa summary::-webkit-details-marker { display: none; }
+.qa summary::after { content: '⌄'; color: var(--muted); font-size: 1.3rem; line-height: 1; }
+.qa[open] summary::after { transform: rotate(180deg); }
+.qa p { color: var(--muted); font-size: .93rem; margin-top: 9px; }
+
+footer { border-top: 1px solid var(--line); padding: 26px 18px 40px; text-align: center;
+  color: var(--muted); font-size: .85rem; }
+footer nav { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 12px; }
+footer nav a { min-block-size: 44px; display: inline-flex; align-items: center; }
+footer a { text-decoration: none; }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <img class="logo" src="/images/zadgo-logo.png" alt="ZadGo">
+  <div class="langslot" data-langslot></div>
+  <div class="badge" data-i18n="fl.pill">✦ للمنشآت المرخّصة</div>
+  <h1 data-i18n="fl.h1">أنت تدير كباتنك<br><span>ونحن نأتي بالطلبات</span></h1>
+  <p data-i18n="fl.lede"><b>أسطولك يعمل باسمك، وطلباتنا تملأ يومه.</b>
+     لوحة تشغيل ترى فيها كباتنك وحدهم على الخريطة، ودفتر مستحقات مكشوف سطراً سطراً.</p>
+</section>
+
+<main>
+  <div class="gate">
+    <b data-i18n="fl.gate">قبل أن تكمل: هذه الصفحة للمنشآت المرخّصة وحدها.</b>
+    <p data-i18n="fl.gated">اللائحة التنفيذية لنشاط توصيل الطلبات لا تسمح لنا بالتعاقد إلا مع
+      منشأةٍ مرخّصة من هيئة النقل، أو سعوديٍّ بمركبته بوثيقة عمل حر.
+      فإن كنت كابتناً تريد العمل بنفسك فبابك
+      <a href="/join/">صفحة الانضمام للكباتن</a> لا هذه.</p>
+  </div>
+
+  <h2 data-i18n="fl.sec1">ماذا تحصل <span>عليه</span></h2>
+  <p class="lead" data-i18n="fl.sec1lead">لا وعوداً عامة — هذه لوحةٌ تعمل اليوم.</p>
+  <div class="grid">
+    <div class="pt"><div class="ic">👥</div><b data-i18n="fl.f1t">كباتنك وحدهم</b>
+      <span data-i18n="fl.f1d">لوحةٌ تعرض فريقك أنت لا غيره: حالة كلٍّ منهم، وطلبه الجاري، وأداؤه.</span></div>
+    <div class="pt"><div class="ic">🗺️</div><b data-i18n="fl.f2t">خريطة حيّة</b>
+      <span data-i18n="fl.f2d">ترى أين كباتنك الآن، فتوزّعهم على الأحياء بدل أن تسأل واحداً واحداً.</span></div>
+    <div class="pt"><div class="ic">🎟️</div><b data-i18n="fl.f3t">تضمّ كباتنك بنفسك</b>
+      <span data-i18n="fl.f3d">تُصدر كود دعوة لكابتنك فيقدّم بمستنداته — والإدارة تعتمده، فلا يلتحق أحدٌ بأسطولك دون فحص.</span></div>
+    <div class="pt"><div class="ic">🧾</div><b data-i18n="fl.f4t">دفتر مكشوف</b>
+      <span data-i18n="fl.f4d">كل توصيلة سطرٌ في دفترك: ما لك وما عليك، وتسويةٌ دورية مبيّنة.</span></div>
+  </div>
+
+  <h2 data-i18n="fl.sec2">كيف يسير <span>العمل</span></h2>
+  <p class="lead" data-i18n="fl.sec2lead">أربع خطوات، أولاها هذه الاستمارة.</p>
+  <div class="grid">
+    <div class="pt"><div class="ic">١</div><b data-i18n="fl.s1t">تُرسل بياناتك</b>
+      <span data-i18n="fl.s1d">من الاستمارة أدناه، ونعود إليك لمراجعة الترخيص والاتفاق.</span></div>
+    <div class="pt"><div class="ic">٢</div><b data-i18n="fl.s2t">نتفق على الشروط</b>
+      <span data-i18n="fl.s2d">حصّتك وحصّة كباتنك تُضبط في ملفك، وتُشرح لك كاملةً قبل أن توقّع.</span></div>
+    <div class="pt"><div class="ic">٣</div><b data-i18n="fl.s3t">تضمّ كباتنك</b>
+      <span data-i18n="fl.s3d">بأكواد دعوةٍ تُصدرها أنت، ويعتمدهم المدير بعد فحص مستنداتهم.</span></div>
+    <div class="pt"><div class="ic">٤</div><b data-i18n="fl.s4t">تبدأ الطلبات</b>
+      <span data-i18n="fl.s4d">وتتابع أسطولك من لوحتك، ودفترك يمتلئ مع كل توصيلة.</span></div>
+  </div>
+
+  <h2 data-i18n="fl.form">استمارة <span>التسجيل</span></h2>
+  <p class="lead" data-i18n="fl.formlead">دقيقةٌ واحدة — ونعود إليك على جوّالك.</p>
+
+  <div class="card">
+    <div class="err hide" id="err"></div>
+
+    <div class="field"><label for="f_org" data-i18n="fl.org">اسم المنشأة</label>
+      <input type="text" id="f_org" placeholder="كما في السجل التجاري" autocomplete="organization"></div>
+
+    <div class="field"><label for="f_cr" data-i18n="fl.cr">رقم السجل التجاري</label>
+      <input type="text" id="f_cr" inputmode="numeric" placeholder="١٠ أرقام" style="direction:ltr;text-align:left"></div>
+
+    <div class="field"><label for="f_lic"><span data-i18n="fl.lic">رقم ترخيص هيئة النقل</span> <i data-i18n="fl.opt">(إن صدر)</i></label>
+      <input type="text" id="f_lic" placeholder="أو اكتب: قيد الإصدار" style="direction:ltr;text-align:left"></div>
+
+    <div class="field"><label for="f_person" data-i18n="fl.person">اسم المسؤول</label>
+      <input type="text" id="f_person" placeholder="من نتواصل معه" autocomplete="name"></div>
+
+    <div class="field"><label for="f_phone" data-i18n="fl.phone">رقم الجوال</label>
+      <!-- بلا maxlength عمداً: المتصفح يقصّ النصّ الملصوق قبل أن يصل الكود،
+           فمن لصق رقماً بمسافاتٍ أو رمز دولة يفقد نصفه ولا يفهم لماذا رُفض. -->
+      <input type="tel" id="f_phone" inputmode="numeric" placeholder="05xxxxxxxx"
+             autocomplete="tel" style="direction:ltr;text-align:left"></div>
+
+    <div class="field"><label for="f_riders" data-i18n="fl.riders">كم كابتناً جاهزاً لديك؟</label>
+      <select id="f_riders">
+        <option value="" data-i18n="fl.choose">اختر…</option>
+        <option value="١ – ٥" data-i18n="fl.r1">١ – ٥</option>
+        <option value="٦ – ١٥" data-i18n="fl.r2">٦ – ١٥</option>
+        <option value="١٦ – ٤٠" data-i18n="fl.r3">١٦ – ٤٠</option>
+        <option value="أكثر من ٤٠" data-i18n="fl.r4">أكثر من ٤٠</option>
+      </select></div>
+
+    <div class="field"><label for="f_veh" data-i18n="fl.veh">نوع المركبات</label>
+      <select id="f_veh">
+        <option value="" data-i18n="fl.choose">اختر…</option>
+        <option value="دراجات نارية" data-i18n="fl.v1">دراجات نارية</option>
+        <option value="سيارات" data-i18n="fl.v2">سيارات</option>
+        <option value="الاثنان" data-i18n="fl.v3">الاثنان</option>
+      </select></div>
+
+    <div class="field"><label for="f_city"><span data-i18n="fl.city">مدينة التشغيل</span> <i data-i18n="fl.opt2">(اختياري)</i></label>
+      <input type="text" id="f_city" placeholder="المدينة المنورة"></div>
+
+    <div class="field"><label for="f_note"><span data-i18n="fl.note">ملاحظة</span> <i data-i18n="fl.opt2">(اختياري)</i></label>
+      <textarea id="f_note" rows="2" placeholder="أي شيء تحب أن نعرفه"></textarea></div>
+
+    <button class="send" id="sendWa">
+      <span style="font-size:1.25rem">💬</span> <span data-i18n="fl.send">أرسل عبر واتساب</span></button>
+    <a class="alt" href="#" id="sendMail" data-i18n="fl.mail">أو أرسل بالبريد إلى info@zadgo.co</a>
+
+    <div class="preview hide" id="preview"></div>
+  </div>
+
+  <h2 style="margin-top:38px" data-i18n="fl.faq">أسئلة <span>يسألها الجميع</span></h2>
+  <details class="qa" open><summary data-i18n="fl.q1">كم حصّتي من كل توصيلة؟</summary>
+    <p data-i18n="fl.a1">تُتفق معك وتُثبَّت في ملفك، ونشرحها كاملةً قبل أن توقّع شيئاً. ولا نكتب رقماً
+       هنا لأن الشروط تختلف من مشغّلٍ لآخر وبحسب حجم أسطولك.</p></details>
+  <details class="qa"><summary data-i18n="fl.q2">هل عليّ رسوم اشتراك؟</summary>
+    <p data-i18n="fl.a2">لا رسوم تأسيس. وأي التزامٍ دوري — إن وُجد — يُذكر لك في الاتفاق قبل التوقيع،
+       ولا يُفرض عليك بعده.</p></details>
+  <details class="qa"><summary data-i18n="fl.q3">من يوظّف الكباتن ويتحمّل إقاماتهم؟</summary>
+    <p data-i18n="fl.a3">أنت. المنشأة هي صاحبة العلاقة العمّالية مع كباتنها وتتحمّل إقاماتهم وتأميناتهم
+       ومركباتهم — وهذا بالضبط ما يجعل تشغيلهم نظامياً.</p></details>
+  <details class="qa"><summary data-i18n="fl.q4">هل أستطيع فصل كابتن أو ضمّ آخر؟</summary>
+    <p data-i18n="fl.a4">نعم. تُصدر كود دعوةٍ لمن تضمّه فيقدّم بمستنداته وتعتمده الإدارة، وتُبلغنا بمن
+       تفصله فيُرفع من أسطولك.</p></details>
+  <details class="qa"><summary data-i18n="fl.q5">ومتى أستلم مستحقاتي؟</summary>
+    <p data-i18n="fl.a5">في تسوية دورية مبيّنة سطراً سطراً: كل توصيلة، وما لك وما عليك، والصافي.
+       ويُتفق على الدورة معك.</p></details>
+  <details class="qa"><summary data-i18n="fl.q6">وإن لم يصدر ترخيصي بعد؟</summary>
+    <p data-i18n="fl.a6">أرسل استمارتك واكتب «قيد الإصدار» في خانة الترخيص. نتحدّث ونجهّز الاتفاق،
+       ولا يبدأ التشغيل إلا بعد صدوره.</p></details>
+</main>
+
+<footer>
+  <nav>
+    <a href="/" data-i18n="nav.home">الرئيسية</a>
+    <a href="/join/" data-i18n="fl.navjoin">انضم كابتناً</a>
+    <a href="/contact.html" data-i18n="nav.contact">التواصل والدعم</a>
+    <a href="mailto:info@zadgo.co" dir="ltr">info@zadgo.co</a>
+  </nav>
+  <div>© 2026 زادقو ZadGo — zadgo.co</div>
+</footer>
+
+<script>
+(function () {
+  var WA = '966508357833';            // رقم واتساب الإدارة
+  var $ = function (id) { return document.getElementById(id); };
+
+  function showErr(m) { var e = $('err'); e.textContent = m; e.classList.remove('hide');
+    e.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+  function clearErr() { $('err').classList.add('hide'); }
+
+  /* الرسالة تُبنى مرتّبةً بعناوين ثابتة، فتصل الإدارة قابلةً للقراءة والنقل
+     إلى الملف بلا استجواب المتقدّم عن معلومةٍ نسيها. */
+  function compose() {
+    var L = [];
+    L.push('طلب تشغيل أسطول مع زاد جو');
+    L.push('');
+    L.push('المنشأة: ' + $('f_org').value.trim());
+    L.push('السجل التجاري: ' + $('f_cr').value.trim());
+    L.push('ترخيص هيئة النقل: ' + ($('f_lic').value.trim() || 'لم يُذكر'));
+    L.push('المسؤول: ' + $('f_person').value.trim());
+    L.push('الجوال: ' + $('f_phone').value.trim());
+    L.push('عدد الكباتن: ' + ($('f_riders').value || 'غير محدّد'));
+    L.push('المركبات: ' + ($('f_veh').value || 'غير محدّد'));
+    if ($('f_city').value.trim()) L.push('مدينة التشغيل: ' + $('f_city').value.trim());
+    if ($('f_note').value.trim()) { L.push(''); L.push('ملاحظة: ' + $('f_note').value.trim()); }
+    L.push('');
+    L.push('(أُرسلت من zadgo.co/fleet)');
+    return L.join('\n');
+  }
+
+  function validate() {
+    clearErr();
+    if ($('f_org').value.trim().length < 2) { showErr('اكتب اسم المنشأة كما في السجل التجاري.'); return null; }
+    // السجل التجاري السعودي عشرة أرقام. لا نرفض غيرها بقسوة — قد يكون رقم
+    // كيانٍ آخر — لكن أقلّ من سبعة أرقام خطأُ كتابةٍ لا رقمُ سجل.
+    if ($('f_cr').value.replace(/\D/g, '').length < 7) {
+      showErr('رقم السجل التجاري غير مكتمل — اكتبه كما هو في الشهادة.'); return null; }
+    if ($('f_person').value.trim().length < 2) { showErr('اكتب اسم المسؤول الذي نتواصل معه.'); return null; }
+    if (!/^0\d{9}$/.test($('f_phone').value.trim())) {
+      showErr('رقم الجوال عشرة أرقام يبدأ بصفر — مثال: 0501234567'); return null; }
+    if (!$('f_riders').value) { showErr('اختر عدد كباتنك الجاهزين.'); return null; }
+    if (!$('f_veh').value) { showErr('اختر نوع المركبات.'); return null; }
+    return compose();
+  }
+
+  $('sendWa').addEventListener('click', function () {
+    var msg = validate();
+    if (!msg) return;
+    // النص يُعرض أيضاً على الشاشة: لو حجب المتصفح فتح واتساب بقي أمام
+    // المتقدّم ما ينسخه ويرسله بنفسه بدل أن يخرج بلا شيء.
+    $('preview').textContent = msg;
+    $('preview').classList.remove('hide');
+    window.open('https://wa.me/' + WA + '?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+  });
+
+  $('sendMail').addEventListener('click', function (e) {
+    e.preventDefault();
+    var msg = validate();
+    if (!msg) return;
+    $('preview').textContent = msg;
+    $('preview').classList.remove('hide');
+    window.location.href = 'mailto:info@zadgo.co?subject='
+      + encodeURIComponent('طلب تشغيل أسطول — ' + $('f_org').value.trim())
+      + '&body=' + encodeURIComponent(msg);
+  });
+
+  // الجوال أرقام فقط — لصقُ رقمٍ بمسافات أو رمز دولة لا يُفشل الإرسال بلا سبب.
+  $('f_phone').addEventListener('input', function (e) {
+    var v = e.target.value.replace(/\D/g, '');
+    if (v.indexOf('966') === 0) v = '0' + v.slice(3);
+    e.target.value = v.slice(0, 10);
+  });
+})();
+</script>
+</body>
+</html>
