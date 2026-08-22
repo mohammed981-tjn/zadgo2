@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 
 class ScanPickupScreen extends StatefulWidget {
@@ -41,14 +42,17 @@ class _ScanPickupScreenState extends State<ScanPickupScreen> {
     // المطعم. رسالة في الشاشة لا SnackBar: الكاميرا تعيد الالتقاط كل
     // لحظة وسيلٌ من الرسائل المنبثقة يحجب المعاينة نفسها.
     if (raw.startsWith('zadgo:pickup:')) {
-      setState(() => _mismatch =
-          'هذا رمز طلبٍ آخر — اطلب من المطعم رمز الطلب #${widget.order.orderNumber}');
+      setState(() => _mismatch = tr(
+          'هذا رمز طلبٍ آخر — اطلب من المطعم رمز الطلب #${widget.order.orderNumber}',
+          'This code belongs to another order — ask the restaurant for the code of order #${widget.order.orderNumber}'));
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text('مسح رمز الطلب #${widget.order.orderNumber}')),
+        appBar: AppBar(
+            title: Text(tr('مسح رمز الطلب #${widget.order.orderNumber}',
+                'Scan code for order #${widget.order.orderNumber}'))),
         body: Stack(children: [
           MobileScanner(onDetect: _onDetect),
           // إطار تصويب بسيط — يوجّه الكاميرا دون حجب المعاينة.
@@ -72,7 +76,8 @@ class _ScanPickupScreenState extends State<ScanPickupScreen> {
               ),
               child: Text(
                 _mismatch ??
-                    'وجّه الكاميرا نحو الرمز على شاشة المطعم — يُلتقط تلقائياً',
+                    tr('وجّه الكاميرا نحو الرمز على شاشة المطعم — يُلتقط تلقائياً',
+                        "Point the camera at the code on the restaurant's screen — it is captured automatically"),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     color: _mismatch != null ? AppColors.warning : Colors.white,

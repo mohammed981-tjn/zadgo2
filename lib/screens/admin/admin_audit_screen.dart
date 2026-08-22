@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -26,10 +27,11 @@ class AdminAuditScreen extends StatelessWidget {
       stream: () => service.streamAdminAudit(),
       builder: (ctx, entries) {
         if (entries.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
               emoji: '📋',
-              title: 'لا قيود بعد',
-              subtitle: 'كل فعلٍ إداري حسّاس يُسجَّل هنا تلقائياً.');
+              title: tr('لا قيود بعد', 'No entries yet'),
+              subtitle: tr('كل فعلٍ إداري حسّاس يُسجَّل هنا تلقائياً.',
+                  'Every sensitive admin action is logged here automatically.'));
         }
         return ListView.separated(
           padding: const EdgeInsets.all(12),
@@ -51,7 +53,7 @@ class _AuditCard extends StatelessWidget {
     final email = (entry['byEmail'] ?? '').toString().trim();
     if (name.isNotEmpty) return name;
     if (email.isNotEmpty) return email;
-    return 'مسؤول';
+    return tr('مسؤول', 'Admin');
   }
 
   String get _when {
@@ -75,7 +77,7 @@ class _AuditCard extends StatelessWidget {
                 size: 15, color: AppColors.textGray),
             const SizedBox(width: 6),
             Expanded(
-              child: Text((entry['action'] ?? 'فعل').toString(),
+              child: Text((entry['action'] ?? tr('فعل', 'Action')).toString(),
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 13.5)),
             ),
@@ -90,7 +92,8 @@ class _AuditCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 12.5)),
             ),
           const SizedBox(height: 4),
-          Text('بواسطة: $_who${web ? ' • من الويب' : ' • من التطبيق'}',
+          Text(tr('بواسطة: $_who${web ? ' • من الويب' : ' • من التطبيق'}',
+                  'By: $_who${web ? ' • via web' : ' • via app'}'),
               style: const TextStyle(fontSize: 11, color: AppColors.textGray)),
         ]),
       ),

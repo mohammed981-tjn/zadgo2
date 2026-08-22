@@ -12,6 +12,7 @@
 // العداد من ١ إلى ٠.
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../widgets/z_mark.dart';
 
@@ -222,10 +223,24 @@ class OnboardingScene extends StatelessWidget {
       ),
       // طرق الدفع الثلاث تحوم بأطوار متفاوتة — لكلٍّ نَفَسه الخاص.
       for (final (label, icon, align, phase) in [
-        ('نقداً', Icons.payments_rounded, const Alignment(-0.92, -0.72), 0.0),
-        ('بطاقة', Icons.credit_card_rounded, const Alignment(0.92, -0.86), 0.33),
-        ('محفظة', Icons.account_balance_wallet_rounded,
-            const Alignment(0.0, -1.0), 0.66),
+        (
+          tr('نقداً', 'Cash'),
+          Icons.payments_rounded,
+          const Alignment(-0.92, -0.72),
+          0.0
+        ),
+        (
+          tr('بطاقة', 'Card'),
+          Icons.credit_card_rounded,
+          const Alignment(0.92, -0.86),
+          0.33
+        ),
+        (
+          tr('محفظة', 'Wallet'),
+          Icons.account_balance_wallet_rounded,
+          const Alignment(0.0, -1.0),
+          0.66
+        ),
       ])
         Align(
           alignment: align,

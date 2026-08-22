@@ -5,6 +5,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 
 class OrderChatScreen extends StatefulWidget {
@@ -22,7 +23,7 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
   /// اسم الدور الظاهر أعلى كل رسالة — يميّز بوضوح حين يكتب "الإدارة" (المدير
   /// العام) حتى لا يظن العميل أو السائق أنه يتحدث مع الطرف الآخر للطلب.
   String _roleLabel(String senderRole) {
-    if (senderRole == UserRole.admin.name) return 'الإدارة';
+    if (senderRole == UserRole.admin.name) return tr('الإدارة', 'Support team');
     for (final r in UserRole.values) {
       if (r.name == senderRole) return r.label;
     }
@@ -67,14 +68,17 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
     final myUid = auth.user?.uid ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: Text('محادثة الطلب #${widget.order.orderNumber}')),
+      appBar: AppBar(
+          title: Text(tr('محادثة الطلب #${widget.order.orderNumber}',
+              'Order chat #${widget.order.orderNumber}'))),
       body: Column(children: [
         Expanded(
           child: AppStreamBuilder<List<ChatMessage>>(
             stream: () => service.streamChatMessages(widget.order.id),
             builder: (ctx, messages) {
               if (messages.isEmpty) {
-                return const AppEmpty(emoji: '💬', title: 'ابدأ المحادثة');
+                return AppEmpty(
+                    emoji: '💬', title: tr('ابدأ المحادثة', 'Start the chat'));
               }
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (_scrollCtrl.hasClients) {
@@ -146,7 +150,8 @@ class _OrderChatScreenState extends State<OrderChatScreen> {
               Expanded(
                 child: TextField(
                   controller: _msgCtrl,
-                  decoration: const InputDecoration(hintText: 'اكتب رسالتك...'),
+                  decoration: InputDecoration(
+                      hintText: tr('اكتب رسالتك...', 'Type a message...')),
                   onSubmitted: (_) => _send(),
                 ),
               ),

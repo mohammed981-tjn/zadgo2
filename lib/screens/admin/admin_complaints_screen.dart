@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
 import 'admin_complaint_detail_screen.dart';
@@ -80,7 +81,9 @@ class _AdminComplaintsScreenState extends State<AdminComplaintsScreen> {
           ),
           Expanded(
             child: filtered.isEmpty
-                ? const AppEmpty(emoji: '✅', title: 'لا يوجد شكاوى مطابقة')
+                ? AppEmpty(
+                    emoji: '✅',
+                    title: tr('لا يوجد شكاوى مطابقة', 'No matching complaints'))
                 : ListView.builder(
                     padding: const EdgeInsets.all(12),
                     itemCount: filtered.length,
@@ -110,15 +113,19 @@ class _FilterBar extends StatelessWidget {
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
-            _chip(context, label: 'الكل', value: null),
+            _chip(context, label: tr('الكل', 'All'), value: null),
             const SizedBox(width: 8),
-            _chip(context, label: openCount > 0 ? 'مفتوحة ($openCount)' : 'مفتوحة', value: ComplaintStatus.open),
+            _chip(context,
+                label: openCount > 0
+                    ? tr('مفتوحة ($openCount)', 'Open ($openCount)')
+                    : tr('مفتوحة', 'Open'),
+                value: ComplaintStatus.open),
             const SizedBox(width: 8),
-            _chip(context, label: 'قيد المعالجة', value: ComplaintStatus.inProgress),
+            _chip(context, label: tr('قيد المعالجة', 'In progress'), value: ComplaintStatus.inProgress),
             const SizedBox(width: 8),
-            _chip(context, label: 'محلولة', value: ComplaintStatus.resolved),
+            _chip(context, label: tr('محلولة', 'Resolved'), value: ComplaintStatus.resolved),
             const SizedBox(width: 8),
-            _chip(context, label: 'مغلقة', value: ComplaintStatus.closed),
+            _chip(context, label: tr('مغلقة', 'Closed'), value: ComplaintStatus.closed),
           ]),
         ),
       );
@@ -170,7 +177,9 @@ class _ComplaintCard extends StatelessWidget {
                 child: Text(c.type.label,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
               ),
-              Text(c.isGeneralTicket ? 'تذكرة ${c.displayNumber}' : '#${c.orderNumber}',
+              Text(c.isGeneralTicket
+                      ? tr('تذكرة ${c.displayNumber}', 'Ticket ${c.displayNumber}')
+                      : '#${c.orderNumber}',
                   style: const TextStyle(fontSize: 12.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 8),
@@ -186,7 +195,8 @@ class _ComplaintCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(c.againstRole!.label, style: const TextStyle(fontSize: 13.5, color: AppColors.error)),
               ] else
-                const Text('عام (بلا طرف محدد)', style: TextStyle(fontSize: 13.5, color: AppColors.textGray)),
+                Text(tr('عام (بلا طرف محدد)', 'General (no specific party)'),
+                    style: const TextStyle(fontSize: 13.5, color: AppColors.textGray)),
             ]),
             if (repeatCount > 1) ...[
               const SizedBox(height: 8),
@@ -199,7 +209,8 @@ class _ComplaintCard extends StatelessWidget {
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.repeat_rounded, size: 13, color: AppColors.warning),
                   const SizedBox(width: 4),
-                  Text('هذا الطرف عليه $repeatCount شكوى',
+                  Text(tr('هذا الطرف عليه $repeatCount شكوى',
+                          'This party has $repeatCount complaints'),
                       style: const TextStyle(fontSize: 11.5, color: AppColors.warning, fontWeight: FontWeight.bold)),
                 ]),
               ),

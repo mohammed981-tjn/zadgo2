@@ -15,6 +15,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/firebase_service.dart';
+import '../utils/app_lang.dart';
 import '../utils/app_version.dart';
 import '../utils/theme.dart';
 
@@ -53,19 +54,24 @@ class _BlockedScreen extends StatelessWidget {
                 children: [
                   const Text('⬆️', style: TextStyle(fontSize: 64)),
                   const SizedBox(height: 20),
-                  const Text(
-                    'يلزم تحديث التطبيق',
-                    style: TextStyle(
+                  Text(
+                    tr('يلزم تحديث التطبيق', 'App update required'),
+                    style: const TextStyle(
                         fontSize: 21,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textDark),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'هذه النسخة لم تعد مدعومة. حدّث التطبيق لتتمكّن من '
-                    'المتابعة — بياناتك محفوظة ولن يضيع منها شيء.',
+                  Text(
+                    tr(
+                        'هذه النسخة لم تعد مدعومة. حدّث التطبيق لتتمكّن من '
+                        'المتابعة — بياناتك محفوظة ولن يضيع منها شيء.',
+                        'This version is no longer supported. Update the app '
+                        'to continue — your data is safe and nothing will '
+                        'be lost.'),
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14.5, color: AppColors.textGray),
+                    style: const TextStyle(
+                        fontSize: 14.5, color: AppColors.textGray),
                   ),
                   const SizedBox(height: 20),
                   // الرقمان يُعرضان ليصف المستخدم مشكلته للدعم بدقة بدل
@@ -78,7 +84,8 @@ class _BlockedScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      'نسختك $current • المطلوب $minimum فأحدث',
+                      tr('نسختك $current • المطلوب $minimum فأحدث',
+                          'Your version $current • requires $minimum or newer'),
                       style: const TextStyle(
                           fontSize: 12.5, color: AppColors.textGray),
                     ),

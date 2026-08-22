@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -22,17 +23,18 @@ class AdminOperatorsScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateSheet(context),
         icon: const Icon(Icons.group_add_outlined),
-        label: const Text('مشغّل جديد'),
+        label: Text(tr('مشغّل جديد', 'New operator')),
       ),
       body: AppStreamBuilder<List<FleetOperator>>(
         stream: () => service.streamFleetOperators(),
         builder: (ctx, operators) {
           if (operators.isEmpty) {
-            return const AppEmpty(
+            return AppEmpty(
                 emoji: '🚚',
-                title: 'لا مشغّلين بعد',
-                subtitle:
-                    'ولّد كود «مشغّل الأسطول» من المستخدمين، ثم أنشئ ملفه هنا واسند إليه كباتنه.');
+                title: tr('لا مشغّلين بعد', 'No operators yet'),
+                subtitle: tr(
+                    'ولّد كود «مشغّل الأسطول» من المستخدمين، ثم أنشئ ملفه هنا واسند إليه كباتنه.',
+                    'Generate a "Fleet operator" code from the users screen, then create their profile here and assign their captains.'));
           }
           return ListView.separated(
             padding: const EdgeInsets.all(12),
@@ -95,21 +97,23 @@ class _CreateOperatorFormState extends State<_CreateOperatorForm> {
   @override
   Widget build(BuildContext context) {
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      const Text('ملف مشغّل جديد',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      Text(tr('ملف مشغّل جديد', 'New operator profile'),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       const SizedBox(height: 12),
       if (widget.candidates.isEmpty)
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
           child: Text(
-              'لا حساب بدور «مشغّل الأسطول» بعد. ولّد كوداً من شاشة المستخدمين أولاً.',
-              style: TextStyle(color: AppColors.textGray)),
+              tr('لا حساب بدور «مشغّل الأسطول» بعد. ولّد كوداً من شاشة المستخدمين أولاً.',
+                  'No account with the "Fleet operator" role yet. Generate a code from the users screen first.'),
+              style: const TextStyle(color: AppColors.textGray)),
         )
       else
         DropdownButtonFormField<AppUser>(
           value: _selected,
           isExpanded: true,
-          decoration: const InputDecoration(labelText: 'حساب المشغّل'),
+          decoration: InputDecoration(
+              labelText: tr('حساب المشغّل', 'Operator account')),
           items: widget.candidates
               .map((u) => DropdownMenuItem(
                   value: u,
@@ -122,17 +126,21 @@ class _CreateOperatorFormState extends State<_CreateOperatorForm> {
       TextField(
         controller: _shareCtrl,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-            labelText: 'حصّة الكابتن من التوصيلة (ر.س)',
-            helperText: '0 = المشغّل يأخذ الأجرة والكابتن يقبض من مؤسسته'),
+        decoration: InputDecoration(
+            labelText: tr('حصّة الكابتن من التوصيلة (ر.س)',
+                'Captain share per delivery (SAR)'),
+            helperText: tr('0 = المشغّل يأخذ الأجرة والكابتن يقبض من مؤسسته',
+                '0 = the operator keeps the fee and the captain is paid by their company')),
       ),
       const SizedBox(height: 8),
       TextField(
         controller: _feeCtrl,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-            labelText: 'رسم شهري على المشغّل (ر.س)',
-            helperText: '0 عند الإطلاق (لا يُنصح بمطالبته قبل ثبوت دخله)'),
+        decoration: InputDecoration(
+            labelText: tr('رسم شهري على المشغّل (ر.س)',
+                'Monthly fee for the operator (SAR)'),
+            helperText: tr('0 عند الإطلاق (لا يُنصح بمطالبته قبل ثبوت دخله)',
+                '0 at launch (charging before their income stabilizes is not advised)')),
       ),
       const SizedBox(height: 16),
       SizedBox(
@@ -157,16 +165,17 @@ class _CreateOperatorFormState extends State<_CreateOperatorForm> {
                         );
                     if (context.mounted) {
                       Navigator.pop(context);
-                      showSuccess(context, 'أُنشئ ملف المشغّل');
+                      showSuccess(context,
+                          tr('أُنشئ ملف المشغّل', 'Operator profile created'));
                     }
                   } catch (_) {
                     if (context.mounted) {
                       setState(() => _saving = false);
-                      showError(context, 'تعذّر الحفظ');
+                      showError(context, tr('تعذّر الحفظ', 'Could not save'));
                     }
                   }
                 },
-          child: Text(_saving ? '...' : 'إنشاء'),
+          child: Text(_saving ? '...' : tr('إنشاء', 'Create')),
         ),
       ),
       const SizedBox(height: 12),
@@ -189,33 +198,38 @@ class _OperatorCard extends StatelessWidget {
             const Icon(Icons.groups_2_outlined, color: AppColors.primary),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(op.name.isEmpty ? '(بلا اسم)' : op.name,
+              child: Text(op.name.isEmpty ? tr('(بلا اسم)', '(no name)') : op.name,
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.bold)),
             ),
             if (op.balance != 0)
               Text(
                   op.balance > 0
-                      ? 'مستحق: ${op.balance.toStringAsFixed(0)}'
-                      : 'مدفوع: ${(-op.balance).toStringAsFixed(0)}',
+                      ? tr('مستحق: ${op.balance.toStringAsFixed(0)}',
+                          'Owed: ${op.balance.toStringAsFixed(0)}')
+                      : tr('مدفوع: ${(-op.balance).toStringAsFixed(0)}',
+                          'Paid: ${(-op.balance).toStringAsFixed(0)}'),
                   style: const TextStyle(
                       fontSize: 12, color: AppColors.textGray)),
           ]),
           const SizedBox(height: 6),
           Text(
-              'حصّة الكابتن: ${op.driverSharePerDelivery.toStringAsFixed(2)} ر.س'
-              '${op.monthlyFee > 0 ? ' · رسم شهري: ${op.monthlyFee.toStringAsFixed(0)}' : ''}',
+              tr(
+                  'حصّة الكابتن: ${op.driverSharePerDelivery.toStringAsFixed(2)} ر.س'
+                  '${op.monthlyFee > 0 ? ' · رسم شهري: ${op.monthlyFee.toStringAsFixed(0)}' : ''}',
+                  'Captain share: SAR ${op.driverSharePerDelivery.toStringAsFixed(2)}'
+                  '${op.monthlyFee > 0 ? ' · monthly fee: ${op.monthlyFee.toStringAsFixed(0)}' : ''}'),
               style: const TextStyle(fontSize: 12.5, color: AppColors.textDark)),
           const Divider(height: 18),
           Wrap(spacing: 8, runSpacing: 4, children: [
             OutlinedButton.icon(
               icon: const Icon(Icons.percent_rounded, size: 16),
-              label: const Text('النسب'),
+              label: Text(tr('النسب', 'Rates')),
               onPressed: () => _editRates(context, op),
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.delivery_dining_outlined, size: 16),
-              label: const Text('كباتنه'),
+              label: Text(tr('كباتنه', 'Captains')),
               onPressed: () => Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -223,7 +237,7 @@ class _OperatorCard extends StatelessWidget {
             ),
             OutlinedButton.icon(
               icon: const Icon(Icons.payments_outlined, size: 16),
-              label: const Text('تسجيل دفعة'),
+              label: Text(tr('تسجيل دفعة', 'Record payment')),
               onPressed: () => _recordPayout(context, op),
             ),
             // تحصيل الرسم الشهري (دفعة ٢): يظهر فقط حين ضبط المدير رسماً — كان
@@ -231,7 +245,8 @@ class _OperatorCard extends StatelessWidget {
             if (op.monthlyFee > 0)
               OutlinedButton.icon(
                 icon: const Icon(Icons.receipt_long_outlined, size: 16),
-                label: Text('تحصيل الرسم (${op.monthlyFee.toStringAsFixed(0)})'),
+                label: Text(tr('تحصيل الرسم (${op.monthlyFee.toStringAsFixed(0)})',
+                    'Charge fee (${op.monthlyFee.toStringAsFixed(0)})')),
                 onPressed: () => _chargeMonthlyFee(context, op),
               ),
           ]),
@@ -248,22 +263,25 @@ class _OperatorCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('نِسَب المشغّل'),
+        title: Text(tr('نِسَب المشغّل', 'Operator rates')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
               controller: shareCtrl,
               keyboardType: TextInputType.number,
-              decoration:
-                  const InputDecoration(labelText: 'حصّة الكابتن/توصيلة (ر.س)')),
+              decoration: InputDecoration(
+                  labelText: tr('حصّة الكابتن/توصيلة (ر.س)',
+                      'Captain share per delivery (SAR)'))),
           const SizedBox(height: 8),
           TextField(
               controller: feeCtrl,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'رسم شهري (ر.س)')),
+              decoration: InputDecoration(
+                  labelText: tr('رسم شهري (ر.س)', 'Monthly fee (SAR)'))),
         ]),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+              onPressed: () => Navigator.pop(dCtx),
+              child: Text(tr('إلغاء', 'Cancel'))),
           FilledButton(
             onPressed: () async {
               await context.read<FirebaseService>().setOperatorRates(op.id,
@@ -272,7 +290,7 @@ class _OperatorCard extends StatelessWidget {
                   monthlyFee: double.tryParse(feeCtrl.text.trim()) ?? 0);
               if (dCtx.mounted) Navigator.pop(dCtx);
             },
-            child: const Text('حفظ'),
+            child: Text(tr('حفظ', 'Save')),
           ),
         ],
       ),
@@ -283,14 +301,19 @@ class _OperatorCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('تحصيل الرسم الشهري'),
+        title: Text(tr('تحصيل الرسم الشهري', 'Charge the monthly fee')),
         content: Text(
-            'تحصيل ${op.monthlyFee.toStringAsFixed(0)} ر.س رسماً شهرياً من '
-            '${op.name.isEmpty ? "المشغّل" : op.name}؟ يُنقص من صافي دفتره '
-            'ويُسجَّل في سجلّ العمليات.'),
+            tr(
+                'تحصيل ${op.monthlyFee.toStringAsFixed(0)} ر.س رسماً شهرياً من '
+                '${op.name.isEmpty ? "المشغّل" : op.name}؟ يُنقص من صافي دفتره '
+                'ويُسجَّل في سجلّ العمليات.',
+                'Charge SAR ${op.monthlyFee.toStringAsFixed(0)} as a monthly fee from '
+                '${op.name.isEmpty ? "the operator" : op.name}? It is deducted from their ledger net '
+                'and recorded in the activity log.')),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+              onPressed: () => Navigator.pop(dCtx),
+              child: Text(tr('إلغاء', 'Cancel'))),
           FilledButton(
             onPressed: () async {
               await context
@@ -298,10 +321,10 @@ class _OperatorCard extends StatelessWidget {
                   .chargeOperatorMonthlyFee(op.id, op.monthlyFee);
               if (dCtx.mounted) {
                 Navigator.pop(dCtx);
-                showSuccess(context, 'حُصِّل الرسم الشهري');
+                showSuccess(context, tr('حُصِّل الرسم الشهري', 'Monthly fee charged'));
               }
             },
-            child: const Text('تحصيل'),
+            child: Text(tr('تحصيل', 'Charge')),
           ),
         ],
       ),
@@ -313,17 +336,18 @@ class _OperatorCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('تسجيل دفعة للمشغّل'),
+        title: Text(tr('تسجيل دفعة للمشغّل', 'Record a payment to the operator')),
         content: TextField(
           controller: amountCtrl,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-              labelText: 'المبلغ المدفوع (ر.س)',
-              helperText: 'يُنقص من رصيد دفتره'),
+          decoration: InputDecoration(
+              labelText: tr('المبلغ المدفوع (ر.س)', 'Amount paid (SAR)'),
+              helperText: tr('يُنقص من رصيد دفتره', 'Deducted from their ledger balance')),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(dCtx), child: const Text('إلغاء')),
+              onPressed: () => Navigator.pop(dCtx),
+              child: Text(tr('إلغاء', 'Cancel'))),
           FilledButton(
             onPressed: () async {
               final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
@@ -333,10 +357,10 @@ class _OperatorCard extends StatelessWidget {
                   .recordOperatorPayout(op.id, amount);
               if (dCtx.mounted) {
                 Navigator.pop(dCtx);
-                showSuccess(context, 'سُجّلت الدفعة');
+                showSuccess(context, tr('سُجّلت الدفعة', 'Payment recorded'));
               }
             },
-            child: const Text('تسجيل'),
+            child: Text(tr('تسجيل', 'Record')),
           ),
         ],
       ),
@@ -354,12 +378,13 @@ class _OperatorDriversScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return Scaffold(
-      appBar: AppBar(title: Text('كباتن ${op.name}')),
+      appBar: AppBar(
+          title: Text(tr('كباتن ${op.name}', '${op.name} captains'))),
       body: AppStreamBuilder<List<Driver>>(
         stream: () => service.streamDrivers(),
         builder: (ctx, drivers) {
           if (drivers.isEmpty) {
-            return const AppEmpty(emoji: '🛵', title: 'لا كباتن');
+            return AppEmpty(emoji: '🛵', title: tr('لا كباتن', 'No captains'));
           }
           return ListView.builder(
             padding: const EdgeInsets.all(12),
@@ -396,12 +421,15 @@ class _AssignTile extends StatelessWidget {
                     operatorDriverShare:
                         v ? op.driverSharePerDelivery : 0);
               },
-        title: Text(driver.name.isEmpty ? '(بلا اسم)' : driver.name,
+        title: Text(driver.name.isEmpty ? tr('(بلا اسم)', '(no name)') : driver.name,
             style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(otherOperator
-            ? 'تابعٌ لمشغّلٍ آخر'
-            : '${driver.totalDeliveries} توصيلة'
-                '${isMine && driver.operatorDriverShare > 0 ? ' · حصّته ${driver.operatorDriverShare.toStringAsFixed(2)}' : ''}'),
+            ? tr('تابعٌ لمشغّلٍ آخر', 'Belongs to another operator')
+            : tr(
+                '${driver.totalDeliveries} توصيلة'
+                    '${isMine && driver.operatorDriverShare > 0 ? ' · حصّته ${driver.operatorDriverShare.toStringAsFixed(2)}' : ''}',
+                '${driver.totalDeliveries} deliveries'
+                    '${isMine && driver.operatorDriverShare > 0 ? ' · share ${driver.operatorDriverShare.toStringAsFixed(2)}' : ''}')),
         secondary: Icon(
             isMine ? Icons.link_rounded : Icons.link_off_rounded,
             color: isMine ? AppColors.success : AppColors.textGray),

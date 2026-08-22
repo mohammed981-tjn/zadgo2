@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../widgets/osm_attribution.dart';
 
@@ -26,12 +27,12 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('اختر الموقع'),
+        title: Text(tr('اختر الموقع', 'Pick location')),
         actions: [
           IconButton(
             icon: const Icon(Icons.check),
             onPressed: () => Navigator.pop(context, _selected),
-            tooltip: 'تأكيد الموقع',
+            tooltip: tr('تأكيد الموقع', 'Confirm location'),
           ),
         ],
       ),
@@ -72,11 +73,14 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('خط العرض: ${_selected.latitude.toStringAsFixed(6)}'),
-                    Text('خط الطول: ${_selected.longitude.toStringAsFixed(6)}'),
+                    Text(tr('خط العرض: ${_selected.latitude.toStringAsFixed(6)}',
+                        'Latitude: ${_selected.latitude.toStringAsFixed(6)}')),
+                    Text(tr('خط الطول: ${_selected.longitude.toStringAsFixed(6)}',
+                        'Longitude: ${_selected.longitude.toStringAsFixed(6)}')),
                     const SizedBox(height: 8),
-                    const Text('اضغط على أي مكان في الخريطة لتحديد الموقع',
-                        style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+                    Text(tr('اضغط على أي مكان في الخريطة لتحديد الموقع',
+                            'Tap anywhere on the map to set the location'),
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.textGray)),
                   ],
                 ),
               ),

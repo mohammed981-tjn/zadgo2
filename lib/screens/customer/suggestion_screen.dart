@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 
 class SuggestionScreen extends StatefulWidget {
   const SuggestionScreen({super.key});
@@ -33,7 +34,10 @@ class _SuggestionScreenState extends State<SuggestionScreen> {
 
   Future<void> _send() async {
     if (_textCtrl.text.trim().length < 5) {
-      showError(context, 'اكتب اقتراحك أو نصيحتك أولاً (٥ أحرف على الأقل)');
+      showError(
+          context,
+          tr('اكتب اقتراحك أو نصيحتك أولاً (٥ أحرف على الأقل)',
+              'Write your suggestion first (at least 5 characters)'));
       return;
     }
     setState(() => _sending = true);
@@ -44,11 +48,15 @@ class _SuggestionScreenState extends State<SuggestionScreen> {
             phone: _phoneCtrl.text,
           );
       if (mounted) {
-        showSuccess(context, 'وصلنا اقتراحك — شكراً لك 🙌');
+        showSuccess(context,
+            tr('وصلنا اقتراحك — شكراً لك 🙌', 'We got your suggestion — thank you 🙌'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الإرسال، حاول مرة أخرى');
+      if (mounted) {
+        showError(context,
+            tr('تعذّر الإرسال، حاول مرة أخرى', 'Couldn\'t send, please try again'));
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -57,34 +65,36 @@ class _SuggestionScreenState extends State<SuggestionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('اقتراح أو نصيحة')),
+      appBar: AppBar(title: Text(tr('اقتراح أو نصيحة', 'Suggestion or advice'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('رأيك يهمّنا',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Text(tr('رأيك يهمّنا', 'Your feedback matters'),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        const Text('اكتب أي اقتراح لتحسين التطبيق أو الخدمة — نقرؤها كلها.',
-            style: TextStyle(fontSize: 13, color: AppColors.textGray)),
+        Text(
+            tr('اكتب أي اقتراح لتحسين التطبيق أو الخدمة — نقرؤها كلها.',
+                'Share any idea to improve the app or service — we read them all.'),
+            style: const TextStyle(fontSize: 13, color: AppColors.textGray)),
         const SizedBox(height: 16),
         TextField(
           controller: _textCtrl,
           maxLines: 5,
           maxLength: 1000,
-          decoration: const InputDecoration(
-            hintText: 'اقتراحك أو نصيحتك...',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: tr('اقتراحك أو نصيحتك...', 'Your suggestion or advice...'),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 8),
-        const Text('لِنتواصل معك إن لزم (اختياري):',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        Text(tr('لِنتواصل معك إن لزم (اختياري):', 'So we can reach you if needed (optional):'),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         TextField(
           controller: _nameCtrl,
           maxLength: 100,
-          decoration: const InputDecoration(
-            labelText: 'الاسم (اختياري)',
+          decoration: InputDecoration(
+            labelText: tr('الاسم (اختياري)', 'Name (optional)'),
             counterText: '',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 10),
@@ -92,10 +102,10 @@ class _SuggestionScreenState extends State<SuggestionScreen> {
           controller: _phoneCtrl,
           keyboardType: TextInputType.phone,
           maxLength: 30,
-          decoration: const InputDecoration(
-            labelText: 'الجوال (اختياري)',
+          decoration: InputDecoration(
+            labelText: tr('الجوال (اختياري)', 'Phone (optional)'),
             counterText: '',
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 20),
@@ -113,8 +123,8 @@ class _SuggestionScreenState extends State<SuggestionScreen> {
                     // كحليّ لا أبيض: مقدّمة الزر الذهبي كحلية عبر الثيم.
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: AppColors.dark))
-                : const Text('إرسال',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                : Text(tr('إرسال', 'Send'),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
       ]),

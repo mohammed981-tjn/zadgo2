@@ -17,6 +17,7 @@ import '../../providers/firebase_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import 'submit_ticket_screen.dart';
 
@@ -44,7 +45,7 @@ class MyComplaintsScreen extends StatelessWidget {
   /// فتح تذكرة عامة (مالية/تحديث بيانات/استفسار) — بلا ارتباط بطلب.
   Widget _newTicketFab(BuildContext context) => FloatingActionButton.extended(
         icon: const Icon(Icons.add_comment_outlined),
-        label: const Text('تذكرة جديدة'),
+        label: Text(tr('تذكرة جديدة', 'New ticket')),
         onPressed: () {
           final auth = context.read<app_auth.AuthProvider>();
           Navigator.push(
@@ -67,12 +68,14 @@ class MyComplaintsScreen extends StatelessWidget {
 
     if (!_showAgainstTab) {
       return Scaffold(
-        appBar: AppBar(title: const Text('شكاواي')),
+        appBar: AppBar(title: Text(tr('شكاواي', 'My complaints'))),
         floatingActionButton: _newTicketFab(context),
         body: _ComplaintsList(
           stream: () => service.streamComplaintsSubmittedBy(uid),
-          emptyTitle: 'لا شكاوى مقدَّمة',
-          emptySubtitle: 'تُقدَّم الشكوى من صفحة الطلب خلال 24 ساعة من انتهائه',
+          emptyTitle: tr('لا شكاوى مقدَّمة', 'No complaints filed'),
+          emptySubtitle: tr(
+              'تُقدَّم الشكوى من صفحة الطلب خلال 24 ساعة من انتهائه',
+              'File a complaint from the order page within 24 hours of completion'),
         ),
       );
     }
@@ -95,27 +98,29 @@ class MyComplaintsScreen extends StatelessWidget {
       child: Scaffold(
         floatingActionButton: _newTicketFab(context),
         appBar: AppBar(
-          title: const Text('الشكاوى'),
-          bottom: const TabBar(
+          title: Text(tr('الشكاوى', 'Complaints')),
+          bottom: TabBar(
             indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             tabs: [
-              Tab(text: 'مقدَّمة مني'),
-              Tab(text: 'مقدَّمة عليّ'),
+              Tab(text: tr('مقدَّمة مني', 'Filed by me')),
+              Tab(text: tr('مقدَّمة عليّ', 'Filed against me')),
             ],
           ),
         ),
         body: TabBarView(children: [
           _ComplaintsList(
             stream: () => service.streamComplaintsSubmittedBy(uid),
-            emptyTitle: 'لا شكاوى مقدَّمة',
-            emptySubtitle: 'تُقدَّم الشكوى من صفحة الطلب خلال 24 ساعة من انتهائه',
+            emptyTitle: tr('لا شكاوى مقدَّمة', 'No complaints filed'),
+            emptySubtitle: tr(
+                'تُقدَّم الشكوى من صفحة الطلب خلال 24 ساعة من انتهائه',
+                'File a complaint from the order page within 24 hours of completion'),
           ),
           _ComplaintsList(
             stream: againstStream,
-            emptyTitle: 'لا شكاوى عليك',
-            emptySubtitle: 'سجلّ نظيف — استمر 👏',
+            emptyTitle: tr('لا شكاوى عليك', 'No complaints against you'),
+            emptySubtitle: tr('سجلّ نظيف — استمر 👏', 'Clean record — keep it up 👏'),
             readOnly: true,
           ),
         ]),
@@ -197,8 +202,9 @@ class _ComplaintCard extends StatelessWidget {
             InfoRow(
               icon: Icons.tag_rounded,
               text: c.isGeneralTicket
-                  ? 'تذكرة #${c.displayNumber}'
-                  : 'شكوى #${c.displayNumber} — طلب #${c.orderNumber}',
+                  ? tr('تذكرة #${c.displayNumber}', 'Ticket #${c.displayNumber}')
+                  : tr('شكوى #${c.displayNumber} — طلب #${c.orderNumber}',
+                      'Complaint #${c.displayNumber} — Order #${c.orderNumber}'),
             ),
             InfoRow(
               icon: Icons.schedule_rounded,
@@ -206,10 +212,12 @@ class _ComplaintCard extends StatelessWidget {
             ),
             if ((c.resolution ?? '').trim().isNotEmpty ||
                 (c.adminNote ?? '').trim().isNotEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text('صدر ردّ من الإدارة — افتح التفاصيل',
-                    style: TextStyle(
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                    tr('صدر ردّ من الإدارة — افتح التفاصيل',
+                        'Support has replied — open the details'),
+                    style: const TextStyle(
                         fontSize: 12.5,
                         color: AppColors.success,
                         fontWeight: FontWeight.bold)),
@@ -223,11 +231,20 @@ class _ComplaintCard extends StatelessWidget {
   /// سطر المهلة: وعدُ ردٍّ صريح ما دامت الشكوى بانتظار المعالجة، وتاريخ
   /// التقديم بعد انتهائها.
   String _slaLine(Complaint c) {
-    if (!c.isAwaitingAction) return 'قُدّمت في ${_fmtDate(c.createdAt)}';
+    if (!c.isAwaitingAction) {
+      return tr('قُدّمت في ${_fmtDate(c.createdAt)}',
+          'Filed on ${_fmtDate(c.createdAt)}');
+    }
     final left = c.expectedResponseBy.difference(DateTime.now());
-    if (left.isNegative) return 'تجاوزت مهلة الرد — نعتذر، تُعالج بأولوية';
-    if (left.inHours >= 1) return 'الرد المتوقع خلال ${left.inHours} ساعة';
-    return 'الرد المتوقع خلال دقائق';
+    if (left.isNegative) {
+      return tr('تجاوزت مهلة الرد — نعتذر، تُعالج بأولوية',
+          'Reply overdue — sorry, it\'s being handled with priority');
+    }
+    if (left.inHours >= 1) {
+      return tr('الرد المتوقع خلال ${left.inHours} ساعة',
+          'Reply expected within ${left.inHours} hours');
+    }
+    return tr('الرد المتوقع خلال دقائق', 'Reply expected within minutes');
   }
 }
 
@@ -270,11 +287,18 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
         showSuccess(
             context,
             solved
-                ? 'شكراً لك — أُغلقت الشكوى'
-                : 'أعدناها للإدارة — ستُراجع بأولوية');
+                ? tr('شكراً لك — أُغلقت الشكوى',
+                    'Thank you — the complaint is closed')
+                : tr('أعدناها للإدارة — ستُراجع بأولوية',
+                    'Sent back to support — it\'ll be reviewed with priority'));
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر تسجيل جوابك، حاول مرة أخرى');
+      if (mounted) {
+        showError(
+            context,
+            tr('تعذّر تسجيل جوابك، حاول مرة أخرى',
+                'Couldn\'t record your answer, please try again'));
+      }
     } finally {
       if (mounted) setState(() => _confirming = false);
     }
@@ -313,7 +337,7 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return Scaffold(
-      appBar: AppBar(title: const Text('تفاصيل الشكوى')),
+      appBar: AppBar(title: Text(tr('تفاصيل الشكوى', 'Complaint details'))),
       // متابعة حيّة لمستند الشكوى نفسه: تغيّر الحالة أو صدور القرار يظهر
       // لمقدّمها لحظياً وهو داخل الشاشة، بلا إغلاق وفتح.
       body: StreamBuilder<Complaint?>(
@@ -324,7 +348,9 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
           }
           final c = snap.data;
           if (c == null) {
-            return const AppEmpty(emoji: '❓', title: 'الشكوى غير موجودة');
+            return AppEmpty(
+                emoji: '❓',
+                title: tr('الشكوى غير موجودة', 'Complaint not found'));
           }
           return Column(children: [
             Expanded(
@@ -338,8 +364,10 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                         Expanded(
                           child: Text(
                               c.isGeneralTicket
-                                  ? 'تذكرة #${c.displayNumber}'
-                                  : 'شكوى #${c.displayNumber}',
+                                  ? tr('تذكرة #${c.displayNumber}',
+                                      'Ticket #${c.displayNumber}')
+                                  : tr('شكوى #${c.displayNumber}',
+                                      'Complaint #${c.displayNumber}'),
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 17)),
                         ),
@@ -348,22 +376,27 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                       const Divider(height: 20),
                       InfoRow(icon: Icons.category_outlined, text: c.type.label, bold: true),
                       if (!c.isGeneralTicket) ...[
-                        InfoRow(icon: Icons.receipt_long_outlined, text: 'الطلب #${c.orderNumber}'),
+                        InfoRow(
+                            icon: Icons.receipt_long_outlined,
+                            text: tr('الطلب #${c.orderNumber}',
+                                'Order #${c.orderNumber}')),
                         InfoRow(
                             icon: Icons.storefront_outlined,
                             text: c.restaurantName.isEmpty ? '—' : c.restaurantName),
                       ],
                       InfoRow(
                           icon: Icons.access_time_rounded,
-                          text: 'قُدّمت في ${_fmtDate(c.createdAt)}'),
+                          text: tr('قُدّمت في ${_fmtDate(c.createdAt)}',
+                              'Filed on ${_fmtDate(c.createdAt)}')),
                       if (c.isAwaitingAction)
                         InfoRow(
                             icon: Icons.hourglass_bottom_rounded,
-                            text:
-                                'نلتزم بالرد قبل ${_fmtDate(c.expectedResponseBy)}'),
+                            text: tr(
+                                'نلتزم بالرد قبل ${_fmtDate(c.expectedResponseBy)}',
+                                'We\'ll reply by ${_fmtDate(c.expectedResponseBy)}')),
                       const SizedBox(height: 8),
-                      const Text('التفاصيل',
-                          style: TextStyle(
+                      Text(tr('التفاصيل', 'Details'),
+                          style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 13.5)),
                       const SizedBox(height: 4),
                       Text(c.description, style: const TextStyle(fontSize: 13.5)),
@@ -383,12 +416,12 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(children: [
-                              Icon(Icons.verified_outlined,
+                            Row(children: [
+                              const Icon(Icons.verified_outlined,
                                   size: 18, color: AppColors.success),
-                              SizedBox(width: 8),
-                              Text('ردّ الإدارة',
-                                  style: TextStyle(
+                              const SizedBox(width: 8),
+                              Text(tr('ردّ الإدارة', 'Support\'s reply'),
+                                  style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.success)),
                             ]),
@@ -420,16 +453,21 @@ class _ComplaintDetailScreenState extends State<ComplaintDetailScreen> {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('هل حُلّت شكواك؟',
-                                style: TextStyle(
+                            Text(tr('هل حُلّت شكواك؟', 'Was your complaint resolved?'),
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 14.5)),
                             const SizedBox(height: 4),
-                            const Text(
-                              'جوابك يحسم الملف: «نعم» تُغلقها، و«لا» تُعيدها '
-                              'للإدارة بأولوية. وإن لم تُجب خلال ٣ أيام '
-                              'تُغلق تلقائياً.',
-                              style: TextStyle(
+                            Text(
+                              tr(
+                                  'جوابك يحسم الملف: «نعم» تُغلقها، و«لا» تُعيدها '
+                                  'للإدارة بأولوية. وإن لم تُجب خلال ٣ أيام '
+                                  'تُغلق تلقائياً.',
+                                  'Your answer settles the case: "Yes" closes it, '
+                                  '"No" sends it back to support with priority. '
+                                  'If you don\'t answer within 3 days it closes '
+                                  'automatically.'),
+                              style: const TextStyle(
                                   fontSize: 12.5, color: AppColors.textGray),
                             ),
                             const SizedBox(height: 10),

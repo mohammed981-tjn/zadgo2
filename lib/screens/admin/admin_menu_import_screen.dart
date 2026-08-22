@@ -14,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
 import '../../providers/ai_assist.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -49,12 +50,12 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
             leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('التقط صورة المنيو الآن'),
+            title: Text(tr('التقط صورة المنيو الآن', 'Take a photo of the menu now')),
             onTap: () => Navigator.pop(ctx, ImageSource.camera),
           ),
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('اختر من المعرض'),
+            title: Text(tr('اختر من المعرض', 'Choose from gallery')),
             onTap: () => Navigator.pop(ctx, ImageSource.gallery),
           ),
         ]),
@@ -83,7 +84,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
       _parse();
       if (_error == null && mounted) {
         showSuccess(context,
-            'قُرئ المنيو من الصورة — راجع المعاينة قبل الاستيراد');
+            tr('قُرئ المنيو من الصورة — راجع المعاينة قبل الاستيراد',
+                'Menu read from the photo — review the preview before importing'));
       }
     } catch (e) {
       if (mounted) {
@@ -115,7 +117,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
     final raw = _jsonCtrl.text.trim();
     if (raw.isEmpty) {
-      setState(() => _error = 'الصق نص المنيو (JSON) أولاً');
+      setState(() => _error = tr('الصق نص المنيو (JSON) أولاً',
+          'Paste the menu text (JSON) first'));
       return;
     }
 
@@ -126,7 +129,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
           ? decoded['categories']
           : decoded;
       if (rawCats is! List || rawCats.isEmpty) {
-        setState(() => _error = 'لم يُعثر على تصنيفات في الملف');
+        setState(() => _error = tr('لم يُعثر على تصنيفات في الملف',
+            'No categories found in the file'));
         return;
       }
 
@@ -177,7 +181,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
       }
 
       if (items.isEmpty) {
-        setState(() => _error = 'لم يُعثر على أي صنف صالح داخل التصنيفات');
+        setState(() => _error = tr('لم يُعثر على أي صنف صالح داخل التصنيفات',
+            'No valid item found inside the categories'));
         return;
       }
 
@@ -186,7 +191,8 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
         _items = items;
       });
     } catch (_) {
-      setState(() => _error = 'صيغة JSON غير صالحة — تأكّد من نسخ الملف كاملاً');
+      setState(() => _error = tr('صيغة JSON غير صالحة — تأكّد من نسخ الملف كاملاً',
+          'Invalid JSON — make sure you copied the whole file'));
     }
   }
 
@@ -196,14 +202,23 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
     final ok = await showConfirmDialog(
       context,
-      title: _replaceExisting ? 'تأكيد الاستبدال' : 'تأكيد الاستيراد',
+      title: _replaceExisting
+          ? tr('تأكيد الاستبدال', 'Confirm replacement')
+          : tr('تأكيد الاستيراد', 'Confirm import'),
       content: _replaceExisting
-          ? 'سيُحذف منيو «${widget.restaurantName}» الحالي كاملاً ثم يُستورد '
+          ? tr(
+              'سيُحذف منيو «${widget.restaurantName}» الحالي كاملاً ثم يُستورد '
               '${cats.length} تصنيفاً و${items.length} صنفاً مكانه. '
-              'الحذف نهائي لا رجعة فيه.'
-          : 'سيُضاف ${cats.length} تصنيفاً و${items.length} صنفاً إلى '
+              'الحذف نهائي لا رجعة فيه.',
+              'The entire current menu of "${widget.restaurantName}" will be deleted, then '
+              '${cats.length} categories and ${items.length} items imported in its place. '
+              'Deletion is permanent.')
+          : tr(
+              'سيُضاف ${cats.length} تصنيفاً و${items.length} صنفاً إلى '
               '«${widget.restaurantName}». الأصناف الحالية لن تُحذف.',
-      confirmLabel: _replaceExisting ? 'استبدال' : 'استيراد',
+              '${cats.length} categories and ${items.length} items will be added to '
+              '"${widget.restaurantName}". Existing items will not be deleted.'),
+      confirmLabel: _replaceExisting ? tr('استبدال', 'Replace') : tr('استيراد', 'Import'),
       confirmColor: _replaceExisting ? AppColors.error : null,
     );
     if (ok != true || !mounted) return;
@@ -217,11 +232,15 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
             replaceExisting: _replaceExisting,
           );
       if (mounted) {
-        showSuccess(context, 'تم استيراد ${items.length} صنفاً بنجاح');
+        showSuccess(context, tr('تم استيراد ${items.length} صنفاً بنجاح',
+            'Imported ${items.length} items successfully'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الاستيراد، حاول مرة أخرى');
+      if (mounted) {
+        showError(context, tr('تعذّر الاستيراد، حاول مرة أخرى',
+            'Import failed, try again'));
+      }
     } finally {
       if (mounted) setState(() => _importing = false);
     }
@@ -233,7 +252,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
     final parsed = cats != null && items != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('استيراد منيو')),
+      appBar: AppBar(title: Text(tr('استيراد منيو', 'Import menu'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -267,33 +286,38 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
                           strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.photo_camera_outlined),
               label: Text(_aiReading
-                  ? 'جارٍ قراءة الصورة…'
-                  : 'المنيو من صورة ✨'),
+                  ? tr('جارٍ قراءة الصورة…', 'Reading the photo…')
+                  : tr('المنيو من صورة ✨', 'Menu from a photo ✨')),
               onPressed: (_importing || _aiReading) ? null : _fromImage,
             ),
           ),
           const SizedBox(height: 6),
-          const Center(
-            child: Text('— أو —',
-                style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+          Center(
+            child: Text(tr('— أو —', '— or —'),
+                style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
           ),
           const SizedBox(height: 6),
-          const Text('الصق محتوى ملف المنيو (JSON)',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          Text(tr('الصق محتوى ملف المنيو (JSON)', 'Paste the menu file content (JSON)'),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 6),
-          const Text(
-            'كل تصنيف يحتوي name وقائمة items، وكل صنف فيه name و price '
-            '(واختيارياً kcal و description و imageUrl).',
-            style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+          Text(
+            tr(
+                'كل تصنيف يحتوي name وقائمة items، وكل صنف فيه name و price '
+                '(واختيارياً kcal و description و imageUrl).',
+                'Each category has a name and an items list, and each item has a name and price '
+                '(optionally kcal, description and imageUrl).'),
+            style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
           ),
           const SizedBox(height: 10),
           TextField(
             controller: _jsonCtrl,
             maxLines: 8,
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(
-              hintText: '{ "categories": [ { "name": "الفطير", "items": [...] } ] }',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              hintText: tr(
+                  '{ "categories": [ { "name": "الفطير", "items": [...] } ] }',
+                  '{ "categories": [ { "name": "Pastries", "items": [...] } ] }'),
+              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 4),
@@ -305,12 +329,14 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
             onChanged: _importing
                 ? null
                 : (v) => setState(() => _replaceExisting = v),
-            title: const Text('استبدال المنيو الحالي',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            title: Text(tr('استبدال المنيو الحالي', 'Replace the current menu'),
+                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
             subtitle: Text(
               _replaceExisting
-                  ? 'سيُحذف المنيو القائم كاملاً ثم يُستورد الجديد مكانه'
-                  : 'مطفأ: الاستيراد يضيف فوق الأصناف الحالية دون حذف',
+                  ? tr('سيُحذف المنيو القائم كاملاً ثم يُستورد الجديد مكانه',
+                      'The existing menu will be fully deleted, then the new one imported in its place')
+                  : tr('مطفأ: الاستيراد يضيف فوق الأصناف الحالية دون حذف',
+                      'Off: the import adds on top of existing items without deleting'),
               style: TextStyle(
                   fontSize: 11.5,
                   color: _replaceExisting
@@ -324,7 +350,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
             width: double.infinity,
             child: OutlinedButton.icon(
               icon: const Icon(Icons.fact_check_outlined),
-              label: const Text('تحليل ومعاينة'),
+              label: Text(tr('تحليل ومعاينة', 'Parse and preview')),
               onPressed: _importing ? null : _parse,
             ),
           ),
@@ -349,13 +375,13 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
 
           if (parsed) ...[
             const SizedBox(height: 16),
-            const SectionHeader(title: 'المعاينة قبل الاستيراد'),
+            SectionHeader(title: tr('المعاينة قبل الاستيراد', 'Preview before import')),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(children: [
-                  PriceRow(label: 'التصنيفات', value: '${cats.length}'),
-                  PriceRow(label: 'الأصناف', value: '${items.length}', bold: true),
+                  PriceRow(label: tr('التصنيفات', 'Categories'), value: '${cats.length}'),
+                  PriceRow(label: tr('الأصناف', 'Items'), value: '${items.length}', bold: true),
                 ]),
               ),
             ),
@@ -367,7 +393,7 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
                 leading: const Icon(Icons.folder_outlined,
                     size: 20, color: AppColors.primary),
                 title: Text(c.name),
-                trailing: Text('$count صنف',
+                trailing: Text(tr('$count صنف', '$count items'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.textGray)),
               );
@@ -384,10 +410,12 @@ class _AdminMenuImportScreenState extends State<AdminMenuImportScreen> {
                             strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.cloud_upload_outlined),
                 label: Text(_importing
-                    ? 'جاري الاستيراد...'
+                    ? tr('جاري الاستيراد...', 'Importing...')
                     : _replaceExisting
-                        ? 'استبدال المنيو بـ${items.length} صنفاً'
-                        : 'استيراد ${items.length} صنفاً'),
+                        ? tr('استبدال المنيو بـ${items.length} صنفاً',
+                            'Replace the menu with ${items.length} items')
+                        : tr('استيراد ${items.length} صنفاً',
+                            'Import ${items.length} items')),
                 onPressed: _importing ? null : _import,
               ),
             ),

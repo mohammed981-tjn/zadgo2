@@ -2,8 +2,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/theme.dart';
+import 'app_lang.dart';
 
-String formatCurrency(double amount) => '${amount.toStringAsFixed(2)} ر.س';
+String formatCurrency(double amount) =>
+    '${amount.toStringAsFixed(2)} ${tr('ر.س', 'SAR')}';
 
 /// تطبيع نصٍّ عربيٍّ للبحث (لمسات العميل 2026-08-20): العميل يكتب «مطعم
 /// البيك» فلا يجد «مطعم البيك” لأن الألف بهمزة، أو يكتب «شاورما» فيفوته
@@ -55,14 +57,14 @@ void showError(BuildContext context, String msg) {
 }
 
 Future<bool?> showConfirmDialog(BuildContext context, {required String title, required String content,
-    String confirmLabel = 'تأكيد', Color? confirmColor}) => showDialog<bool>(
+    String? confirmLabel, Color? confirmColor}) => showDialog<bool>(
   context: context,
   barrierColor: Colors.black54,
   builder: (_) => AlertDialog(title: Text(title), content: Text(content), actions: [
-    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+    TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('إلغاء', 'Cancel'))),
     ElevatedButton(onPressed: () => Navigator.pop(context, true),
         style: ElevatedButton.styleFrom(backgroundColor: confirmColor ?? AppColors.primary),
-        child: Text(confirmLabel)),
+        child: Text(confirmLabel ?? tr('تأكيد', 'Confirm'))),
   ]),
 );
 
@@ -72,39 +74,48 @@ Future<bool?> showConfirmDialog(BuildContext context, {required String title, re
 Future<void> callPhone(BuildContext context, String? phone) async {
   final number = phone?.trim() ?? '';
   if (number.isEmpty) {
-    showError(context, 'رقم الهاتف غير متوفّر');
+    showError(context, tr('رقم الهاتف غير متوفّر', 'Phone number unavailable'));
     return;
   }
   final uri = Uri(scheme: 'tel', path: number);
   try {
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok && context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+    if (!ok && context.mounted) {
+      showError(context, tr('تعذّر فتح تطبيق الاتصال', 'Could not open the phone app'));
+    }
   } catch (_) {
-    if (context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+    if (context.mounted) {
+      showError(context, tr('تعذّر فتح تطبيق الاتصال', 'Could not open the phone app'));
+    }
   }
 }
 
-String? validateRequired(String? v, [String label = 'هذا الحقل']) =>
-    (v == null || v.trim().isEmpty) ? '$label مطلوب' : null;
+String? validateRequired(String? v, [String? label]) => (v == null || v.trim().isEmpty)
+    ? tr('${label ?? 'هذا الحقل'} مطلوب', '${label ?? 'This field'} is required')
+    : null;
 
 String? validateEmail(String? v) {
-  if (v == null || v.trim().isEmpty) return 'البريد الإلكتروني مطلوب';
-  if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v.trim())) return 'صيغة غير صالحة';
+  if (v == null || v.trim().isEmpty) return tr('البريد الإلكتروني مطلوب', 'Email is required');
+  if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v.trim())) {
+    return tr('صيغة غير صالحة', 'Invalid format');
+  }
   return null;
 }
 
 String? validatePassword(String? v) {
-  if (v == null || v.isEmpty) return 'كلمة المرور مطلوبة';
-  if (v.length < 6) return 'يجب أن تكون 6 أحرف على الأقل';
+  if (v == null || v.isEmpty) return tr('كلمة المرور مطلوبة', 'Password is required');
+  if (v.length < 6) return tr('يجب أن تكون 6 أحرف على الأقل', 'Must be at least 6 characters');
   return null;
 }
 
-String? validatePhone(String? v) => (v == null || v.trim().length < 9) ? 'رقم هاتف غير صالح' : null;
+String? validatePhone(String? v) => (v == null || v.trim().length < 9)
+    ? tr('رقم هاتف غير صالح', 'Invalid phone number')
+    : null;
 
 String? validatePrice(String? v) {
-  if (v == null || v.trim().isEmpty) return 'السعر مطلوب';
+  if (v == null || v.trim().isEmpty) return tr('السعر مطلوب', 'Price is required');
   final n = double.tryParse(v.trim());
-  if (n == null || n < 0) return 'سعر غير صالح';
+  if (n == null || n < 0) return tr('سعر غير صالح', 'Invalid price');
   return null;
 }
 

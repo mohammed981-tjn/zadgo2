@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import 'submit_ticket_screen.dart';
 
 class _Faq {
@@ -25,40 +26,73 @@ class _FaqSection {
   const _FaqSection(this.title, this.icon, this.items);
 }
 
-const List<_FaqSection> _sections = [
-  _FaqSection('الطلب والتوصيل', Icons.delivery_dining_rounded, [
-    _Faq('كيف أتتبّع طلبي؟',
-        'افتح «طلباتي» من الشريط السفلي، ثم اضغط الطلب الجاري — ترى مرحلته الحالية على شريط التتبّع، وموقع الكابتن على الخريطة حين يتحرّك إليك.'),
-    _Faq('كم يستغرق وصول الطلب؟',
-        'يعتمد على تحضير المطعم والمسافة. يظهر لك زمنٌ تقديريّ على بطاقة المطعم، ويبدأ العدّ من لحظة قبول المطعم للطلب.'),
-    _Faq('هل أستطيع إلغاء الطلب؟',
-        'يمكنك الإلغاء ما دام المطعم لم يبدأ التحضير. بعد بدء التحضير يتعذّر الإلغاء الذاتي — تواصل مع الدعم وسنساعدك حسب حالة الطلب.'),
-    _Faq('كيف أغيّر عنوان التوصيل؟',
-        'تُحدَّد نقطة التوصيل على الخريطة في السلة قبل تأكيد الطلب. عناوينك المحفوظة في «حسابي» تُسرّع ذلك في المرّات القادمة.'),
-  ]),
-  _FaqSection('الدفع والمحفظة', Icons.account_balance_wallet_rounded, [
-    _Faq('ما طرق الدفع المتاحة؟',
-        'الدفع نقداً عند الاستلام، أو بالبطاقة داخل التطبيق. رصيد محفظتك — إن وُجد — يُخصم أولاً من قيمة الطلب.'),
-    _Faq('ما هو رصيد المحفظة وكيف يزيد؟',
-        'المحفظة رصيدٌ يُخصم من طلباتك القادمة. يزيد عبر التعويضات عند حلّ الشكاوى، أو مكافآت المنصّة. تُشاهد كل حركاته في «حسابي ← حركات المحفظة».'),
-    _Faq('متى يُعاد ثمن طلب أُلغي؟',
-        'إن كنت دفعت بالبطاقة وأُلغي الطلب قبل التحضير، يُعاد المبلغ إلى محفظتك ليُستخدم في طلبك التالي — يظهر كحركة «استرداد».'),
-  ]),
-  _FaqSection('الكوبونات والخصومات', Icons.local_offer_rounded, [
-    _Faq('كيف أستخدم كوبون خصم؟',
-        'في السلة، أدخل رمز الكوبون في خانة «كود الخصم» ثم اضغط تطبيق. يظهر الخصم فوراً على الإجمالي إن كان الكود صالحاً ومستوفياً شروطه.'),
-    _Faq('لماذا رُفض الكوبون؟',
-        'قد يكون الكود منتهياً، أو مخصّصاً لمطعم آخر، أو طلبك أقلّ من الحدّ الأدنى المطلوب، أو استُنفد عدد استخداماته. تأكّد من الشروط أو جرّب كوداً آخر.'),
-  ]),
-  _FaqSection('الحساب والخصوصية', Icons.person_rounded, [
-    _Faq('كيف أعدّل اسمي أو جوّالي؟',
-        'من «حسابي» اضغط أيقونة القلم على بطاقة ملفّك الشخصي، عدّل البيانات ثم احفظ.'),
-    _Faq('كيف أحذف حسابي؟',
-        'من أسفل «حسابي» اختر «حذف الحساب». يُخفى اسمك وبياناتك، وتبقى السجلّات المالية باسمٍ مجهول كما يقتضي النظام. الحذف نهائيّ.'),
-    _Faq('هل بياناتي آمنة؟',
-        'نعم — لا نشارك بياناتك مع جهات إعلانية. تفاصيل الخصوصية الكاملة في سياسة الخصوصية على موقعنا.'),
-  ]),
-];
+// getter لا قائمة const: tr() تُقيَّم وقت التشغيل، فتُبنى القائمة عند كل
+// build باللغة الحالية.
+List<_FaqSection> get _sections => [
+      _FaqSection(
+          tr('الطلب والتوصيل', 'Orders & delivery'),
+          Icons.delivery_dining_rounded, [
+        _Faq(
+            tr('كيف أتتبّع طلبي؟', 'How do I track my order?'),
+            tr('افتح «طلباتي» من الشريط السفلي، ثم اضغط الطلب الجاري — ترى مرحلته الحالية على شريط التتبّع، وموقع الكابتن على الخريطة حين يتحرّك إليك.',
+                'Open "My orders" from the bottom bar, then tap the active order — you\'ll see its current stage on the tracking bar, and the captain\'s location on the map once they head your way.')),
+        _Faq(
+            tr('كم يستغرق وصول الطلب؟', 'How long does delivery take?'),
+            tr('يعتمد على تحضير المطعم والمسافة. يظهر لك زمنٌ تقديريّ على بطاقة المطعم، ويبدأ العدّ من لحظة قبول المطعم للطلب.',
+                'It depends on the restaurant\'s prep time and the distance. An estimated time shows on the restaurant card, and the clock starts once the restaurant accepts your order.')),
+        _Faq(
+            tr('هل أستطيع إلغاء الطلب؟', 'Can I cancel my order?'),
+            tr('يمكنك الإلغاء ما دام المطعم لم يبدأ التحضير. بعد بدء التحضير يتعذّر الإلغاء الذاتي — تواصل مع الدعم وسنساعدك حسب حالة الطلب.',
+                'You can cancel as long as the restaurant hasn\'t started preparing your order. After that, self-cancellation isn\'t available — contact support and we\'ll help based on the order\'s status.')),
+        _Faq(
+            tr('كيف أغيّر عنوان التوصيل؟', 'How do I change the delivery address?'),
+            tr('تُحدَّد نقطة التوصيل على الخريطة في السلة قبل تأكيد الطلب. عناوينك المحفوظة في «حسابي» تُسرّع ذلك في المرّات القادمة.',
+                'You set the delivery point on the map in the cart before confirming the order. Saved addresses in "My account" make it faster next time.')),
+      ]),
+      _FaqSection(
+          tr('الدفع والمحفظة', 'Payment & wallet'),
+          Icons.account_balance_wallet_rounded, [
+        _Faq(
+            tr('ما طرق الدفع المتاحة؟', 'What payment methods are available?'),
+            tr('الدفع نقداً عند الاستلام، أو بالبطاقة داخل التطبيق. رصيد محفظتك — إن وُجد — يُخصم أولاً من قيمة الطلب.',
+                'Cash on delivery, or card payment in the app. Your wallet balance — if any — is applied to the order total first.')),
+        _Faq(
+            tr('ما هو رصيد المحفظة وكيف يزيد؟', 'What is the wallet balance and how does it grow?'),
+            tr('المحفظة رصيدٌ يُخصم من طلباتك القادمة. يزيد عبر التعويضات عند حلّ الشكاوى، أو مكافآت المنصّة. تُشاهد كل حركاته في «حسابي ← حركات المحفظة».',
+                'The wallet is credit applied to your future orders. It grows through compensations when complaints are resolved, or platform rewards. See every transaction in "My account → Wallet transactions".')),
+        _Faq(
+            tr('متى يُعاد ثمن طلب أُلغي؟', 'When is a cancelled order refunded?'),
+            tr('إن كنت دفعت بالبطاقة وأُلغي الطلب قبل التحضير، يُعاد المبلغ إلى محفظتك ليُستخدم في طلبك التالي — يظهر كحركة «استرداد».',
+                'If you paid by card and the order was cancelled before preparation, the amount goes back to your wallet for your next order — it shows as a "Refund" transaction.')),
+      ]),
+      _FaqSection(
+          tr('الكوبونات والخصومات', 'Coupons & discounts'),
+          Icons.local_offer_rounded, [
+        _Faq(
+            tr('كيف أستخدم كوبون خصم؟', 'How do I use a coupon?'),
+            tr('في السلة، أدخل رمز الكوبون في خانة «كود الخصم» ثم اضغط تطبيق. يظهر الخصم فوراً على الإجمالي إن كان الكود صالحاً ومستوفياً شروطه.',
+                'In the cart, enter the code in the "Promo code" field and tap apply. The discount shows on the total right away if the code is valid and meets its conditions.')),
+        _Faq(
+            tr('لماذا رُفض الكوبون؟', 'Why was my coupon rejected?'),
+            tr('قد يكون الكود منتهياً، أو مخصّصاً لمطعم آخر، أو طلبك أقلّ من الحدّ الأدنى المطلوب، أو استُنفد عدد استخداماته. تأكّد من الشروط أو جرّب كوداً آخر.',
+                'The code may be expired, tied to a different restaurant, your order may be below the required minimum, or the code\'s uses may be used up. Check the conditions or try another code.')),
+      ]),
+      _FaqSection(
+          tr('الحساب والخصوصية', 'Account & privacy'), Icons.person_rounded, [
+        _Faq(
+            tr('كيف أعدّل اسمي أو جوّالي؟', 'How do I edit my name or phone number?'),
+            tr('من «حسابي» اضغط أيقونة القلم على بطاقة ملفّك الشخصي، عدّل البيانات ثم احفظ.',
+                'From "My account", tap the pencil icon on your profile card, edit your details, then save.')),
+        _Faq(
+            tr('كيف أحذف حسابي؟', 'How do I delete my account?'),
+            tr('من أسفل «حسابي» اختر «حذف الحساب». يُخفى اسمك وبياناتك، وتبقى السجلّات المالية باسمٍ مجهول كما يقتضي النظام. الحذف نهائيّ.',
+                'At the bottom of "My account", choose "Delete account". Your name and details are hidden, and financial records remain anonymized as the law requires. Deletion is permanent.')),
+        _Faq(
+            tr('هل بياناتي آمنة؟', 'Is my data safe?'),
+            tr('نعم — لا نشارك بياناتك مع جهات إعلانية. تفاصيل الخصوصية الكاملة في سياسة الخصوصية على موقعنا.',
+                'Yes — we don\'t share your data with advertisers. Full details are in the privacy policy on our website.')),
+      ]),
+    ];
 
 class HelpCenterScreen extends StatelessWidget {
   final AppUser user;
@@ -67,7 +101,7 @@ class HelpCenterScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('مركز المساعدة')),
+      appBar: AppBar(title: Text(tr('مركز المساعدة', 'Help center'))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
         children: [
@@ -82,7 +116,7 @@ class HelpCenterScreen extends StatelessWidget {
               const Icon(Icons.support_agent_rounded, color: AppColors.dark, size: 30),
               const SizedBox(width: 12),
               Expanded(
-                child: Text('كيف نساعدك؟',
+                child: Text(tr('كيف نساعدك؟', 'How can we help?'),
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -133,7 +167,7 @@ class HelpCenterScreen extends StatelessWidget {
           ],
           const SizedBox(height: 20),
           // مخرج «لم أجد جوابي» → تذكرة دعم: لا يترك العميل في طريق مسدود.
-          Text('لم تجد إجابتك؟',
+          Text(tr('لم تجد إجابتك؟', 'Didn\'t find your answer?'),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13.5, color: AppColors.textGray)),
           const SizedBox(height: 8),
@@ -141,7 +175,7 @@ class HelpCenterScreen extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.icon(
               icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-              label: const Text('تواصل مع الدعم'),
+              label: Text(tr('تواصل مع الدعم', 'Contact support')),
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(

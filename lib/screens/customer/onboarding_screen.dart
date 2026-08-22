@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import 'onboarding_scenes.dart';
 
@@ -44,20 +45,25 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       vsync: this, duration: const Duration(seconds: 8))
     ..repeat();
 
-  static const _slides = [
-    (
-      'مطاعمك المفضلة في مكان واحد',
-      'تصفّح القوائم بالصور والأسعار والسعرات — واطلب بضغطات معدودة',
-    ),
-    (
-      'تتبّع طلبك لحظة بلحظة',
-      'من المطبخ إلى بابك: موقع السائق مباشرةً على الخريطة وإشعار عند كل خطوة',
-    ),
-    (
-      'ادفع كما يناسبك',
-      'نقداً عند الاستلام، بالبطاقة، أو من رصيد محفظتك — والأسعار شاملة الضريبة بلا مفاجآت',
-    ),
-  ];
+  // getter لا const: tr() تُقيَّم وقت التشغيل باللغة الحالية.
+  static List<(String, String)> get _slides => [
+        (
+          tr('مطاعمك المفضلة في مكان واحد',
+              'Your favorite restaurants in one place'),
+          tr('تصفّح القوائم بالصور والأسعار والسعرات — واطلب بضغطات معدودة',
+              'Browse menus with photos, prices, and calories — and order in a few taps'),
+        ),
+        (
+          tr('تتبّع طلبك لحظة بلحظة', 'Track your order live'),
+          tr('من المطبخ إلى بابك: موقع السائق مباشرةً على الخريطة وإشعار عند كل خطوة',
+              'From the kitchen to your door: the driver\'s live location on the map and a notification at every step'),
+        ),
+        (
+          tr('ادفع كما يناسبك', 'Pay your way'),
+          tr('نقداً عند الاستلام، بالبطاقة، أو من رصيد محفظتك — والأسعار شاملة الضريبة بلا مفاجآت',
+              'Cash on delivery, card, or your wallet balance — prices include tax, no surprises'),
+        ),
+      ];
 
   @override
   void dispose() {
@@ -93,7 +99,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               alignment: AlignmentDirectional.topStart,
               child: TextButton(
                 onPressed: _finish,
-                child: Text('تخطّي',
+                child: Text(tr('تخطّي', 'Skip'),
                     style: TextStyle(
                         color: Colors.white.withOpacity(0.6),
                         fontWeight: FontWeight.w600)),
@@ -167,7 +173,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
               child: ZadGradientButton(
-                label: isLast ? 'ابدأ الطلب الآن' : 'التالي',
+                label: isLast
+                    ? tr('ابدأ الطلب الآن', 'Start ordering')
+                    : tr('التالي', 'Next'),
                 onPressed: () {
                   if (isLast) {
                     _finish();

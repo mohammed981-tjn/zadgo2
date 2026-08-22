@@ -19,6 +19,7 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../utils/app_version.dart';
 import '../../widgets/common_widgets.dart';
@@ -211,7 +212,8 @@ class _BodyState extends State<_Body> {
       }
 
       if (paid > 0 && mounted) {
-        showSuccess(context, 'صُرفت $paid مكافأة تلقائياً');
+        showSuccess(context,
+            tr('صُرفت $paid مكافأة تلقائياً', '$paid rewards paid automatically'));
       }
     } finally {
       _sweeping = false;
@@ -348,19 +350,22 @@ class _CustomerGrowthSection extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Row(children: [
-            Icon(Icons.volunteer_activism_rounded,
+          Row(children: [
+            const Icon(Icons.volunteer_activism_rounded,
                 color: AppColors.primary, size: 20),
-            SizedBox(width: 8),
-            Text('نموّ العميل',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            Text(tr('نموّ العميل', 'Customer growth'),
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 10),
           if (referralOn)
             Text(
                 pendingReferrals == 0
-                    ? 'لا إحالات عميل مستحقّة الآن'
-                    : '$pendingReferrals إحالة عميل مستحقّة الصرف',
+                    ? tr('لا إحالات عميل مستحقّة الآن',
+                        'No customer referrals due right now')
+                    : tr('$pendingReferrals إحالة عميل مستحقّة الصرف',
+                        '$pendingReferrals customer referrals due for payout'),
                 style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
@@ -371,8 +376,10 @@ class _CustomerGrowthSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                  'الكاش باك ${s.cashbackPercent.toStringAsFixed(1)}٪ يُصرف عن '
-                  'كل طلبٍ مسلَّم عند الكنس',
+                  tr('الكاش باك ${s.cashbackPercent.toStringAsFixed(1)}٪ يُصرف عن '
+                          'كل طلبٍ مسلَّم عند الكنس',
+                      'Cashback of ${s.cashbackPercent.toStringAsFixed(1)}% is '
+                          'paid for every delivered order during the sweep'),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textGray)),
             ),
@@ -382,13 +389,16 @@ class _CustomerGrowthSection extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.payments_outlined, size: 18),
-                label: const Text('صرف المستحقّين الآن'),
+                label: Text(tr('صرف المستحقّين الآن', 'Pay eligible now')),
                 onPressed: onPaySweep,
               ),
             ),
           if (s.autoPay)
-            const Text('الصرف التلقائي مفعّل — يُصرف ما دامت اللوحة مفتوحة',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+            Text(
+                tr('الصرف التلقائي مفعّل — يُصرف ما دامت اللوحة مفتوحة',
+                    'Auto payout is on — pays while this dashboard stays open'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
         ]),
       ),
     );
@@ -437,8 +447,9 @@ class _SettingsCard extends StatelessWidget {
           Row(children: [
             const Icon(Icons.tune_rounded, color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
-            const Text('إعدادات الحوافز',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+            Text(tr('إعدادات الحوافز', 'Incentive settings'),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 14.5)),
             const Spacer(),
             TextButton.icon(
               onPressed: () => showModalBottomSheet(
@@ -447,64 +458,91 @@ class _SettingsCard extends StatelessWidget {
                 builder: (_) => _SettingsForm(initial: s),
               ),
               icon: const Icon(Icons.edit_outlined, size: 16),
-              label: const Text('تعديل', style: TextStyle(fontSize: 12.5)),
+              label: Text(tr('تعديل', 'Edit'),
+                  style: const TextStyle(fontSize: 12.5)),
             ),
           ]),
           const Divider(height: 18),
-          _row('برنامج الإحالة', s.referralEnabled ? 'مفعّل' : 'موقوف',
+          _row(tr('برنامج الإحالة', 'Referral program'),
+              s.referralEnabled ? tr('مفعّل', 'On') : tr('موقوف', 'Off'),
               highlight: !s.referralEnabled),
-          _row('مكافأة الداعي', formatCurrency(s.referrerBonus)),
-          _row('مكافأة المدعوّ', formatCurrency(s.refereeBonus)),
-          _row('الشرط',
-              '${s.referralDeliveries} توصيلة خلال ${s.referralWindowDays} يوماً'),
-          _row('سقف الداعي شهرياً', '${s.referralMonthlyCap} إحالات'),
-          _row('رابط الدعوة', s.joinUrl),
+          _row(tr('مكافأة الداعي', 'Referrer bonus'),
+              formatCurrency(s.referrerBonus)),
+          _row(tr('مكافأة المدعوّ', 'Referee bonus'),
+              formatCurrency(s.refereeBonus)),
+          _row(
+              tr('الشرط', 'Requirement'),
+              tr('${s.referralDeliveries} توصيلة خلال ${s.referralWindowDays} يوماً',
+                  '${s.referralDeliveries} deliveries within ${s.referralWindowDays} days')),
+          _row(tr('سقف الداعي شهرياً', 'Monthly referrer cap'),
+              tr('${s.referralMonthlyCap} إحالات',
+                  '${s.referralMonthlyCap} referrals')),
+          _row(tr('رابط الدعوة', 'Invite link'), s.joinUrl),
           const Divider(height: 18),
-          _row('تحدي نهاية الأسبوع',
-              s.challengeEnabled ? 'مفعّل — ${s.weekdaysLabel}' : 'موقوف',
+          _row(
+              tr('تحدي نهاية الأسبوع', 'Weekend challenge'),
+              s.challengeEnabled
+                  ? tr('مفعّل — ${s.weekdaysLabel}', 'On — ${s.weekdaysLabel}')
+                  : tr('موقوف', 'Off'),
               highlight: !s.challengeEnabled),
-          ...s.tiers.map((t) => _row('  ${t.deliveries} توصيلة',
+          ...s.tiers.map((t) => _row(
+              tr('  ${t.deliveries} توصيلة', '  ${t.deliveries} deliveries'),
               formatCurrency(t.bonus))),
           const Divider(height: 18),
           _row(
-              'درع النقد',
+              tr('درع النقد', 'Cash shield'),
               (s.firstCashOrderCap > 0 ||
                       s.maxConcurrentCashOrders > 0 ||
                       s.cashNoShowLimit > 0)
-                  ? 'سقف ${s.firstCashOrderCap.toStringAsFixed(0)} · تزامن ${s.maxConcurrentCashOrders} · رفض ${s.cashNoShowLimit}'
-                  : 'معطّل — كل المقابض صفر',
+                  ? tr('سقف ${s.firstCashOrderCap.toStringAsFixed(0)} · تزامن ${s.maxConcurrentCashOrders} · رفض ${s.cashNoShowLimit}',
+                      'Cap ${s.firstCashOrderCap.toStringAsFixed(0)} · concurrent ${s.maxConcurrentCashOrders} · no-show ${s.cashNoShowLimit}')
+                  : tr('معطّل — كل المقابض صفر', 'Off — all knobs at zero'),
               highlight: s.firstCashOrderCap == 0 &&
                   s.maxConcurrentCashOrders == 0 &&
                   s.cashNoShowLimit == 0),
           _row(
-              'نقطة التعادل اليومية',
+              tr('نقطة التعادل اليومية', 'Daily break-even'),
               s.dailyOrdersTarget > 0
-                  ? '${s.dailyOrdersTarget} طلباً/يوم'
-                  : 'غير محددة — البطاقة مخفية',
+                  ? tr('${s.dailyOrdersTarget} طلباً/يوم',
+                      '${s.dailyOrdersTarget} orders/day')
+                  : tr('غير محددة — البطاقة مخفية', 'Not set — card hidden'),
               highlight: s.dailyOrdersTarget == 0),
           const Divider(height: 18),
-          _row('إحالة العميل',
+          _row(tr('إحالة العميل', 'Customer referral'),
               s.customerReferralEnabled && s.customerReferrerBonus > 0
-                  ? 'داعٍ ${formatCurrency(s.customerReferrerBonus)} · '
-                      'مدعوّ ${formatCurrency(s.customerRefereeBonus)} · '
-                      '${s.customerReferralOrders} طلب'
-                  : 'معطّلة',
+                  ? tr(
+                      'داعٍ ${formatCurrency(s.customerReferrerBonus)} · '
+                          'مدعوّ ${formatCurrency(s.customerRefereeBonus)} · '
+                          '${s.customerReferralOrders} طلب',
+                      'Referrer ${formatCurrency(s.customerReferrerBonus)} · '
+                          'referee ${formatCurrency(s.customerRefereeBonus)} · '
+                          '${s.customerReferralOrders} orders')
+                  : tr('معطّلة', 'Off'),
               highlight: !s.customerReferralEnabled),
-          _row('الكاش باك',
+          _row(tr('الكاش باك', 'Cashback'),
               s.cashbackPercent > 0
-                  ? '${s.cashbackPercent.toStringAsFixed(1)}٪'
-                      '${s.cashbackMaxPerOrder > 0 ? ' · سقف ${formatCurrency(s.cashbackMaxPerOrder)}' : ''}'
-                  : 'معطّل',
+                  ? tr(
+                      '${s.cashbackPercent.toStringAsFixed(1)}٪'
+                          '${s.cashbackMaxPerOrder > 0 ? ' · سقف ${formatCurrency(s.cashbackMaxPerOrder)}' : ''}',
+                      '${s.cashbackPercent.toStringAsFixed(1)}%'
+                          '${s.cashbackMaxPerOrder > 0 ? ' · cap ${formatCurrency(s.cashbackMaxPerOrder)}' : ''}')
+                  : tr('معطّل', 'Off'),
               highlight: s.cashbackPercent == 0),
           const Divider(height: 18),
-          _row('الصرف التلقائي',
-              s.autoPay ? 'مفعّل — يصرف فور تحقّق الشرط' : 'يدوي بضغطة'),
+          _row(
+              tr('الصرف التلقائي', 'Auto payout'),
+              s.autoPay
+                  ? tr('مفعّل — يصرف فور تحقّق الشرط',
+                      'On — pays as soon as the condition is met')
+                  : tr('يدوي بضغطة', 'Manual, one tap')),
           if (s.autoPay)
-            const Padding(
-              padding: EdgeInsets.only(top: 4),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
               child: Text(
-                  'يعمل ما دامت هذه الشاشة مفتوحة — الأتمتة على الخادم مع ترقية Blaze',
-                  style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                  tr('يعمل ما دامت هذه الشاشة مفتوحة — الأتمتة على الخادم مع ترقية Blaze',
+                      'Runs while this screen stays open — server automation comes with the Blaze upgrade'),
+                  style: const TextStyle(
+                      fontSize: 11.5, color: AppColors.textGray)),
             ),
         ]),
       ),
@@ -565,7 +603,7 @@ class _SettingsFormState extends State<_SettingsForm> {
     _compPct = TextEditingController(
         text: s.restaurantCancelCompensationPercent.toStringAsFixed(0));
     _tipOptions = TextEditingController(
-        text: s.tipOptions.map((v) => v.toStringAsFixed(0)).join('، '));
+        text: s.tipOptions.map((v) => v.toStringAsFixed(0)).join(tr('، ', ', ')));
     _delivBase = TextEditingController(text: s.deliveryBaseFee.toStringAsFixed(0));
     _delivKm = TextEditingController(text: s.deliveryBaseKm.toStringAsFixed(0));
     _delivPerKm =
@@ -632,11 +670,17 @@ class _SettingsFormState extends State<_SettingsForm> {
     tiers.sort((a, b) => a.deliveries.compareTo(b.deliveries));
 
     if (_challengeOn && tiers.isEmpty) {
-      showError(context, 'أضف مستوى واحداً على الأقل للتحدي أو أوقفه');
+      showError(
+          context,
+          tr('أضف مستوى واحداً على الأقل للتحدي أو أوقفه',
+              'Add at least one challenge tier, or turn the challenge off'));
       return;
     }
     if (_challengeOn && _days.isEmpty) {
-      showError(context, 'اختر يوماً واحداً على الأقل للتحدي');
+      showError(
+          context,
+          tr('اختر يوماً واحداً على الأقل للتحدي',
+              'Pick at least one challenge day'));
       return;
     }
 
@@ -709,11 +753,11 @@ class _SettingsFormState extends State<_SettingsForm> {
             ),
           );
       if (mounted) {
-        showSuccess(context, 'حُفظت الإعدادات');
+        showSuccess(context, tr('حُفظت الإعدادات', 'Settings saved'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الحفظ');
+      if (mounted) showError(context, tr('تعذّر الحفظ', 'Could not save'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -721,14 +765,14 @@ class _SettingsFormState extends State<_SettingsForm> {
 
   @override
   Widget build(BuildContext context) {
-    const names = {
-      DateTime.saturday: 'السبت',
-      DateTime.sunday: 'الأحد',
-      DateTime.monday: 'الاثنين',
-      DateTime.tuesday: 'الثلاثاء',
-      DateTime.wednesday: 'الأربعاء',
-      DateTime.thursday: 'الخميس',
-      DateTime.friday: 'الجمعة',
+    final names = {
+      DateTime.saturday: tr('السبت', 'Saturday'),
+      DateTime.sunday: tr('الأحد', 'Sunday'),
+      DateTime.monday: tr('الاثنين', 'Monday'),
+      DateTime.tuesday: tr('الثلاثاء', 'Tuesday'),
+      DateTime.wednesday: tr('الأربعاء', 'Wednesday'),
+      DateTime.thursday: tr('الخميس', 'Thursday'),
+      DateTime.friday: tr('الجمعة', 'Friday'),
     };
 
     return Padding(
@@ -739,40 +783,50 @@ class _SettingsFormState extends State<_SettingsForm> {
           bottom: MediaQuery.of(context).viewInsets.bottom + 16),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('إعدادات الحوافز',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          Text(tr('إعدادات الحوافز', 'Incentive settings'),
+              style:
+                  const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
 
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _referralOn,
             onChanged: (v) => setState(() => _referralOn = v),
-            title: const Text('برنامج الإحالة',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            title: Text(tr('برنامج الإحالة', 'Referral program'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           Row(children: [
-            Expanded(child: _num(_referrer, 'مكافأة الداعي (ر.س)')),
+            Expanded(
+                child: _num(
+                    _referrer, tr('مكافأة الداعي (ر.س)', 'Referrer bonus (SAR)'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_referee, 'مكافأة المدعوّ (ر.س)')),
+            Expanded(
+                child: _num(
+                    _referee, tr('مكافأة المدعوّ (ر.س)', 'Referee bonus (SAR)'))),
           ]),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _num(_deliveries, 'التوصيلات المطلوبة')),
+            Expanded(
+                child: _num(_deliveries,
+                    tr('التوصيلات المطلوبة', 'Required deliveries'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_windowDays, 'خلال (يوم)')),
+            Expanded(child: _num(_windowDays, tr('خلال (يوم)', 'Within (days)'))),
           ]),
           const SizedBox(height: 10),
-          _num(_cap, 'سقف إحالات الداعي شهرياً'),
+          _num(_cap,
+              tr('سقف إحالات الداعي شهرياً', 'Monthly referral cap per referrer')),
           const SizedBox(height: 10),
           TextField(
             controller: _joinUrl,
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(
-              labelText: 'رابط صفحة التسجيل',
-              helperText: 'يُلحَق به ?ref=كود الداعي — صفحة رفع المستندات',
+            decoration: InputDecoration(
+              labelText: tr('رابط صفحة التسجيل', 'Sign-up page link'),
+              helperText: tr('يُلحَق به ?ref=كود الداعي — صفحة رفع المستندات',
+                  "?ref=referrer's code is appended — the document-upload page"),
               helperMaxLines: 2,
               isDense: true,
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
             ),
           ),
 
@@ -784,171 +838,255 @@ class _SettingsFormState extends State<_SettingsForm> {
             contentPadding: EdgeInsets.zero,
             value: _custRefOn,
             onChanged: (v) => setState(() => _custRefOn = v),
-            title: const Text('إحالة العميل',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            title: Text(tr('إحالة العميل', 'Customer referral'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           Row(children: [
-            Expanded(child: _num(_custReferrer, 'مكافأة الداعي (ر.س)')),
+            Expanded(
+                child: _num(_custReferrer,
+                    tr('مكافأة الداعي (ر.س)', 'Referrer bonus (SAR)'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_custReferee, 'مكافأة المدعوّ (ر.س)')),
+            Expanded(
+                child: _num(_custReferee,
+                    tr('مكافأة المدعوّ (ر.س)', 'Referee bonus (SAR)'))),
           ]),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _num(_custRefOrders, 'طلبات المدعوّ المطلوبة')),
+            Expanded(
+                child: _num(_custRefOrders,
+                    tr('طلبات المدعوّ المطلوبة', "Referee's required orders"))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_custRefWindow, 'خلال (يوم)')),
+            Expanded(
+                child: _num(_custRefWindow, tr('خلال (يوم)', 'Within (days)'))),
           ]),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'المدعوّ يكتب كود الداعي عند التسجيل. حين يُكمل عدد الطلبات '
-                'المسلَّمة خلال المدّة، تُضاف المكافأتان لمحفظتَيهما.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('المدعوّ يكتب كود الداعي عند التسجيل. حين يُكمل عدد الطلبات '
+                        'المسلَّمة خلال المدّة، تُضاف المكافأتان لمحفظتَيهما.',
+                    "The referee enters the referrer's code at sign-up. Once they "
+                        'complete the required delivered orders within the window, '
+                        'both bonuses go to their wallets.'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
           const SizedBox(height: 14),
-          const Align(
+          Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('الكاش باك',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            child: Text(tr('الكاش باك', 'Cashback'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _num(_cashbackPct, 'نسبة الكاش باك (٪)')),
+            Expanded(
+                child: _num(
+                    _cashbackPct, tr('نسبة الكاش باك (٪)', 'Cashback rate (%)'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_cashbackMax, 'سقف للطلب (ر.س، صفر=بلا)')),
+            Expanded(
+                child: _num(_cashbackMax,
+                    tr('سقف للطلب (ر.س، صفر=بلا)', 'Cap per order (SAR, 0 = none)'))),
           ]),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'نسبةٌ من قيمة كل طلبٍ مسلَّم تُضاف لمحفظة العميل (تُخصم من '
-                'طلبه القادم). صفر = معطّل.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('نسبةٌ من قيمة كل طلبٍ مسلَّم تُضاف لمحفظة العميل (تُخصم من '
+                        'طلبه القادم). صفر = معطّل.',
+                    'A share of every delivered order credited to the customer '
+                        'wallet (deducted from their next order). 0 = off.'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),
           // سقف الإسناد المتزامن — ليس حافزاً، لكنه يسكن هنا لأن هذا
           // المستند وحده يقرؤه تطبيقا المطعم والكابتن (القواعد تقصر
           // `delivery_settings/config` على المدير).
-          const Align(
+          Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('الطلبات المتزامنة للكابتن',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            child: Text(
+                tr('الطلبات المتزامنة للكابتن', 'Simultaneous orders per captain'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _num(_maxLoad, 'أقصى طلبات معاً')),
+            Expanded(
+                child: _num(
+                    _maxLoad, tr('أقصى طلبات معاً', 'Max orders at once'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_stackKm, 'تقارب المطاعم (كم)')),
+            Expanded(
+                child: _num(_stackKm,
+                    tr('تقارب المطاعم (كم)', 'Restaurant proximity (km)'))),
           ]),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'الكابتن لا يحمل أكثر من العدد أعلاه، ولا يُضمّ إليه طلب '
-                'إلا إذا كان مطعمه ضمن مسافة التقارب من مطعم أول طلب بيده.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('الكابتن لا يحمل أكثر من العدد أعلاه، ولا يُضمّ إليه طلب '
+                        'إلا إذا كان مطعمه ضمن مسافة التقارب من مطعم أول طلب بيده.',
+                    'A captain never carries more than the number above, and an '
+                        'order is only stacked if its restaurant is within the '
+                        "proximity distance of the first order's restaurant."),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),
-          const Align(
+          Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('تعويض المطعم عند الإلغاء',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            child: Text(
+                tr('تعويض المطعم عند الإلغاء',
+                    'Restaurant compensation on cancellation'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
-          _num(_compPct, 'نسبة التعويض بعد بدء التحضير (٪)'),
+          _num(
+              _compPct,
+              tr('نسبة التعويض بعد بدء التحضير (٪)',
+                  'Compensation after prep starts (%)')),
           const SizedBox(height: 16),
-          const Align(
+          Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('إكرامية الكابتن',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            child: Text(tr('إكرامية الكابتن', 'Captain tips'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _tipOptions,
-            decoration: const InputDecoration(
-              labelText: 'خيارات الإكرامية (ريال، مفصولة بفواصل)',
-              hintText: '2، 5، 10',
+            decoration: InputDecoration(
+              labelText: tr('خيارات الإكرامية (ريال، مفصولة بفواصل)',
+                  'Tip options (SAR, comma-separated)'),
+              hintText: tr('2، 5، 10', '2, 5, 10'),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'تظهر للعميل في السلة وتصل الكابتن كاملة بلا اقتطاع — '
-                'نقديّها بيده مع التحصيل، وإلكترونيّها يُقيَّد له مع أجرته.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('تظهر للعميل في السلة وتصل الكابتن كاملة بلا اقتطاع — '
+                        'نقديّها بيده مع التحصيل، وإلكترونيّها يُقيَّد له مع أجرته.',
+                    'Shown to the customer at checkout and passed to the captain '
+                        'in full — cash tips in hand on collection, electronic '
+                        'tips credited with their fee.'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'طلبٌ أُلغي بعد «جاري التحضير» يُقيَّد للمطعم بهذه النسبة من '
-                'قيمة وجباته وبلا عمولة. ١٠٠٪ هو المعيار العالمي، وصفر يعني '
-                'لا تعويض. الإلغاء قبل التحضير لا يُعوَّض أصلاً.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('طلبٌ أُلغي بعد «جاري التحضير» يُقيَّد للمطعم بهذه النسبة من '
+                        'قيمة وجباته وبلا عمولة. ١٠٠٪ هو المعيار العالمي، وصفر يعني '
+                        'لا تعويض. الإلغاء قبل التحضير لا يُعوَّض أصلاً.',
+                    'An order cancelled after "Preparing" is credited to the '
+                        'restaurant at this share of its food value, commission-free. '
+                        '100% is the global standard; zero means no compensation. '
+                        'Cancellations before prep are never compensated.'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),
-          const Align(
+          Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('أجرة التوصيل (موحّدة لكل السائقين)',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            child: Text(
+                tr('أجرة التوصيل (موحّدة لكل السائقين)',
+                    'Delivery fee (same for all drivers)'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _num(_delivBase, 'أجرة الأساس (ر.س)')),
+            Expanded(
+                child: _num(_delivBase, tr('أجرة الأساس (ر.س)', 'Base fee (SAR)'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_delivKm, 'كم مشمولة بالأساس')),
+            Expanded(
+                child: _num(
+                    _delivKm, tr('كم مشمولة بالأساس', 'Km included in base'))),
           ]),
           const SizedBox(height: 10),
           Row(children: [
-            Expanded(child: _num(_delivPerKm, 'لكل كم إضافي (ر.س)')),
+            Expanded(
+                child: _num(_delivPerKm,
+                    tr('لكل كم إضافي (ر.س)', 'Per extra km (SAR)'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_delivAppCut, 'رسم المنصّة الثابت')),
+            Expanded(
+                child: _num(
+                    _delivAppCut, tr('رسم المنصّة الثابت', 'Fixed platform fee'))),
           ]),
           const SizedBox(height: 10),
-          _num(_maxDist, 'أقصى مسافة توصيل (كم)'),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          _num(_maxDist, tr('أقصى مسافة توصيل (كم)', 'Max delivery distance (km)')),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'مثال: ٩ ر.س لأول ٧ كم + ١ لكل كم إضافي، ورسم منصّة ثابت ٣. '
-                'تُطبَّق على كل السائقين بالتساوي — لتمييز سائقٍ مميّز استخدم '
-                'الحوافز لا أجرة أساس مختلفة. تسري على الطلبات الجديدة فقط.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('مثال: ٩ ر.س لأول ٧ كم + ١ لكل كم إضافي، ورسم منصّة ثابت ٣. '
+                        'تُطبَّق على كل السائقين بالتساوي — لتمييز سائقٍ مميّز استخدم '
+                        'الحوافز لا أجرة أساس مختلفة. تسري على الطلبات الجديدة فقط.',
+                    'Example: SAR 9 for the first 7 km + 1 per extra km, and a '
+                        'fixed platform fee of 3. Applied to all drivers equally — '
+                        'to reward a standout driver use incentives, not a '
+                        'different base fee. Applies to new orders only.'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),
-          const Align(
+          Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('درع النقد',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            child: Text(tr('درع النقد', 'Cash shield'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           const SizedBox(height: 8),
           Row(children: [
-            Expanded(child: _num(_cashCap, 'سقف أول طلب نقدي (ر.س)')),
+            Expanded(
+                child: _num(_cashCap,
+                    tr('سقف أول طلب نقدي (ر.س)', 'First cash order cap (SAR)'))),
             const SizedBox(width: 10),
-            Expanded(child: _num(_cashConcurrent, 'حد النقدي المتزامن')),
+            Expanded(
+                child: _num(_cashConcurrent,
+                    tr('حد النقدي المتزامن', 'Concurrent cash limit'))),
           ]),
           const SizedBox(height: 10),
-          _num(_noShowLimit, 'حد رفض الاستلام قبل حظر النقدي'),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          _num(
+              _noShowLimit,
+              tr('حد رفض الاستلام قبل حظر النقدي',
+                  'No-show limit before blocking cash')),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'صفر يعطّل أي مقبض. السقف يسري على من لم يُسلَّم له طلب بعد '
-                '(تحرسه القواعد نفسها)، والحد المتزامن تفحصه السلة، وحد '
-                'الرفض يُحظر به النقدي تلقائياً مع فتح المتابعة الحية — '
-                'ورفع الحظر من تبويب المستخدمين.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('صفر يعطّل أي مقبض. السقف يسري على من لم يُسلَّم له طلب بعد '
+                        '(تحرسه القواعد نفسها)، والحد المتزامن تفحصه السلة، وحد '
+                        'الرفض يُحظر به النقدي تلقائياً مع فتح المتابعة الحية — '
+                        'ورفع الحظر من تبويب المستخدمين.',
+                    'Zero disables any knob. The cap applies to customers with no '
+                        'delivered order yet (enforced by the security rules), the '
+                        'concurrent limit is checked at checkout, and the no-show '
+                        'limit auto-blocks cash and opens live tracking — unblock '
+                        'from the users tab.'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),
-          _num(_dailyTarget, 'نقطة التعادل اليومية (طلبات/يوم)'),
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
+          _num(
+              _dailyTarget,
+              tr('نقطة التعادل اليومية (طلبات/يوم)',
+                  'Daily break-even (orders/day)')),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
             child: Text(
-                'من الدراسة المالية — عدد الطلبات المكتملة يومياً الذي يغطي '
-                'مصاريف التشغيل. يظهر قياسه بطاقةً في رئيسة الإدارة (عرض '
-                '«اليوم»). صفر = إخفاء البطاقة. حدِّثه مع كل تغيير على '
-                'العمولة أو الرسم الثابت.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                tr('من الدراسة المالية — عدد الطلبات المكتملة يومياً الذي يغطي '
+                        'مصاريف التشغيل. يظهر قياسه بطاقةً في رئيسة الإدارة (عرض '
+                        '«اليوم»). صفر = إخفاء البطاقة. حدِّثه مع كل تغيير على '
+                        'العمولة أو الرسم الثابت.',
+                    'From the financial study — the completed orders per day that '
+                        'cover operating costs. Tracked as a card on the admin home '
+                        '("Today" view). 0 = hide the card. Update it whenever the '
+                        'commission or fixed fee changes.'),
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textGray)),
           ),
 
           const Divider(height: 26),
@@ -956,12 +1094,13 @@ class _SettingsFormState extends State<_SettingsForm> {
             contentPadding: EdgeInsets.zero,
             value: _challengeOn,
             onChanged: (v) => setState(() => _challengeOn = v),
-            title: const Text('تحدي نهاية الأسبوع',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+            title: Text(tr('تحدي نهاية الأسبوع', 'Weekend challenge'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
           ),
           Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('أيام التحدي',
+            child: Text(tr('أيام التحدي', 'Challenge days'),
                 style: TextStyle(
                     fontSize: 12.5, color: AppColors.textGray)),
           ),
@@ -992,16 +1131,19 @@ class _SettingsFormState extends State<_SettingsForm> {
           const SizedBox(height: 12),
           Align(
             alignment: AlignmentDirectional.centerStart,
-            child: Text('المستويات — يُصرف أعلى مستوى بلغه السائق',
+            child: Text(
+                tr('المستويات — يُصرف أعلى مستوى بلغه السائق',
+                    'Tiers — the highest tier the driver reaches is paid'),
                 style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
           ),
           const SizedBox(height: 6),
           ..._tiers.asMap().entries.map((e) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(children: [
-                  Expanded(child: _num(e.value.d, 'توصيلات')),
+                  Expanded(child: _num(e.value.d, tr('توصيلات', 'Deliveries'))),
                   const SizedBox(width: 10),
-                  Expanded(child: _num(e.value.b, 'مكافأة (ر.س)')),
+                  Expanded(
+                      child: _num(e.value.b, tr('مكافأة (ر.س)', 'Bonus (SAR)'))),
                   IconButton(
                     icon: const Icon(Icons.remove_circle_outline,
                         size: 20, color: AppColors.error),
@@ -1021,7 +1163,8 @@ class _SettingsFormState extends State<_SettingsForm> {
                     b: TextEditingController(),
                   ))),
               icon: const Icon(Icons.add, size: 16),
-              label: const Text('إضافة مستوى', style: TextStyle(fontSize: 12.5)),
+              label: Text(tr('إضافة مستوى', 'Add tier'),
+                  style: const TextStyle(fontSize: 12.5)),
             ),
           ),
 
@@ -1030,12 +1173,16 @@ class _SettingsFormState extends State<_SettingsForm> {
             contentPadding: EdgeInsets.zero,
             value: _autoPay,
             onChanged: (v) => setState(() => _autoPay = v),
-            title: const Text('الصرف التلقائي',
-                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
-            subtitle: const Text(
-                'تُصرف المكافأة فور تحقّق الشرط بلا ضغطة — ما دامت شاشة '
-                'الحوافز مفتوحة (الأتمتة على الخادم تنتظر ترقية Blaze)',
-                style: TextStyle(fontSize: 11.5)),
+            title: Text(tr('الصرف التلقائي', 'Auto payout'),
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700)),
+            subtitle: Text(
+                tr('تُصرف المكافأة فور تحقّق الشرط بلا ضغطة — ما دامت شاشة '
+                        'الحوافز مفتوحة (الأتمتة على الخادم تنتظر ترقية Blaze)',
+                    'Bonuses are paid the moment the condition is met, no tap '
+                        'needed — while the incentives screen stays open (server '
+                        'automation awaits the Blaze upgrade)'),
+                style: const TextStyle(fontSize: 11.5)),
           ),
 
           const SizedBox(height: 16),
@@ -1044,7 +1191,9 @@ class _SettingsFormState extends State<_SettingsForm> {
             height: 48,
             child: ElevatedButton(
               onPressed: _saving ? null : _save,
-              child: Text(_saving ? 'جارٍ الحفظ...' : 'حفظ'),
+              child: Text(_saving
+                  ? tr('جارٍ الحفظ...', 'Saving...')
+                  : tr('حفظ', 'Save')),
             ),
           ),
         ]),
@@ -1104,7 +1253,9 @@ class _ReferralsSection extends StatelessWidget {
                 color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
             Expanded(
-              child: Text('الإحالات (${eligible.length} مستحقّة)',
+              child: Text(
+                  tr('الإحالات (${eligible.length} مستحقّة)',
+                      'Referrals (${eligible.length} due)'),
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 14.5)),
             ),
@@ -1116,10 +1267,13 @@ class _ReferralsSection extends StatelessWidget {
                   final total = eligible.length *
                       (settings.referrerBonus + settings.refereeBonus);
                   final ok = await showConfirmDialog(context,
-                      title: 'صرف كل المستحقّين',
-                      content: '${eligible.length} إحالة — إجمالي '
-                          '${formatCurrency(total)} تُوزَّع على الطرفين.',
-                      confirmLabel: 'صرف الكل');
+                      title: tr('صرف كل المستحقّين', 'Pay all eligible'),
+                      content: tr(
+                          '${eligible.length} إحالة — إجمالي '
+                              '${formatCurrency(total)} تُوزَّع على الطرفين.',
+                          '${eligible.length} referrals — a total of '
+                              '${formatCurrency(total)} split between both sides.'),
+                      confirmLabel: tr('صرف الكل', 'Pay all'));
                   if (ok != true) return;
                   var done = 0;
                   for (final r in eligible) {
@@ -1136,16 +1290,23 @@ class _ReferralsSection extends StatelessWidget {
                     }
                   }
                   if (context.mounted) {
-                    showSuccess(context, 'صُرفت $done من ${eligible.length}');
+                    showSuccess(
+                        context,
+                        tr('صُرفت $done من ${eligible.length}',
+                            'Paid $done of ${eligible.length}'));
                   }
                 },
-                child: const Text('صرف الكل', style: TextStyle(fontSize: 12.5)),
+                child: Text(tr('صرف الكل', 'Pay all'),
+                    style: const TextStyle(fontSize: 12.5)),
               ),
           ]),
           if (rows.isEmpty) ...[
             const SizedBox(height: 10),
-            const Text('لا إحالات بعد — يشارك الكابتن كوده من تطبيقه',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+            Text(
+                tr('لا إحالات بعد — يشارك الكابتن كوده من تطبيقه',
+                    'No referrals yet — captains share their code from their app'),
+                style: const TextStyle(
+                    fontSize: 12.5, color: AppColors.textGray)),
           ],
           ...eligible.map((r) => _tile(context, service, r, ready: true)),
           ...inProgress.map((r) => _tile(context, service, r, ready: false)),
@@ -1170,9 +1331,11 @@ class _ReferralsSection extends StatelessWidget {
                     fontSize: 13.5, fontWeight: FontWeight.w700)),
           ),
           if (r.expired)
-            const StatusChip(label: 'انقضت المهلة', color: AppColors.textGray)
+            StatusChip(
+                label: tr('انقضت المهلة', 'Window expired'),
+                color: AppColors.textGray)
           else if (ready)
-            const StatusChip(label: 'مستحقّة', color: AppColors.success)
+            StatusChip(label: tr('مستحقّة', 'Due'), color: AppColors.success)
           else
             StatusChip(label: '${r.count}/$target', color: AppColors.warning),
         ]),
@@ -1190,8 +1353,10 @@ class _ReferralsSection extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           r.expired
-              ? 'أنجز ${r.count} من $target قبل انقضاء المهلة — لا تُصرف'
-              : 'أنجز ${r.count} من $target توصيلة',
+              ? tr('أنجز ${r.count} من $target قبل انقضاء المهلة — لا تُصرف',
+                  'Completed ${r.count} of $target before the window expired — not paid')
+              : tr('أنجز ${r.count} من $target توصيلة',
+                  'Completed ${r.count} of $target deliveries'),
           style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
         ),
         if (ready)
@@ -1200,17 +1365,23 @@ class _ReferralsSection extends StatelessWidget {
             child: TextButton.icon(
               icon: const Icon(Icons.payments_outlined, size: 16),
               label: Text(
-                  'صرف ${formatCurrency(settings.referrerBonus)} للداعي '
-                  'و${formatCurrency(settings.refereeBonus)} للمدعوّ',
+                  tr('صرف ${formatCurrency(settings.referrerBonus)} للداعي '
+                          'و${formatCurrency(settings.refereeBonus)} للمدعوّ',
+                      'Pay ${formatCurrency(settings.referrerBonus)} to the referrer '
+                          'and ${formatCurrency(settings.refereeBonus)} to the referee'),
                   style: const TextStyle(fontSize: 12.5)),
               onPressed: () async {
                 final ok = await showConfirmDialog(context,
-                    title: 'صرف مكافأة الإحالة',
-                    content:
+                    title: tr('صرف مكافأة الإحالة', 'Pay referral bonus'),
+                    content: tr(
                         'تُضاف ${formatCurrency(settings.referrerBonus)} لدفتر '
-                        '${r.referrer.name} و${formatCurrency(settings.refereeBonus)} '
-                        'لدفتر ${r.referee.name}.',
-                    confirmLabel: 'صرف');
+                            '${r.referrer.name} و${formatCurrency(settings.refereeBonus)} '
+                            'لدفتر ${r.referee.name}.',
+                        '${formatCurrency(settings.referrerBonus)} is added to '
+                            "${r.referrer.name}'s ledger and "
+                            '${formatCurrency(settings.refereeBonus)} to '
+                            "${r.referee.name}'s."),
+                    confirmLabel: tr('صرف', 'Pay'));
                 if (ok != true) return;
                 try {
                   await service.payReferralBonus(
@@ -1219,9 +1390,11 @@ class _ReferralsSection extends StatelessWidget {
                     referrerAmount: settings.referrerBonus,
                     refereeAmount: settings.refereeBonus,
                   );
-                  if (context.mounted) showSuccess(context, 'صُرفت المكافأة');
+                  if (context.mounted) showSuccess(context, tr('صُرفت المكافأة', 'Bonus paid'));
                 } catch (_) {
-                  if (context.mounted) showError(context, 'تعذّر الصرف');
+                  if (context.mounted) {
+                    showError(context, tr('تعذّر الصرف', 'Payout failed'));
+                  }
                 }
               },
             ),
@@ -1266,11 +1439,13 @@ class _ChallengeSection extends StatelessWidget {
     final window = settings.currentWindow(now);
 
     if (!settings.challengeEnabled) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(14),
-          child: Text('تحدي نهاية الأسبوع موقوف',
-              style: TextStyle(fontSize: 13.5, color: AppColors.textGray)),
+          padding: const EdgeInsets.all(14),
+          child: Text(
+              tr('تحدي نهاية الأسبوع موقوف', 'Weekend challenge is off'),
+              style:
+                  const TextStyle(fontSize: 13.5, color: AppColors.textGray)),
         ),
       );
     }
@@ -1285,7 +1460,8 @@ class _ChallengeSection extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                  'التحدي يعمل ${settings.weekdaysLabel} — لا نافذة جارية الآن',
+                  tr('التحدي يعمل ${settings.weekdaysLabel} — لا نافذة جارية الآن',
+                      'The challenge runs ${settings.weekdaysLabel} — no window is active now'),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textGray)),
             ),
@@ -1308,9 +1484,10 @@ class _ChallengeSection extends StatelessWidget {
             const Icon(Icons.emoji_events_outlined,
                 color: AppColors.primary, size: 20),
             const SizedBox(width: 8),
-            const Expanded(
-              child: Text('تحدي نهاية الأسبوع',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+            Expanded(
+              child: Text(tr('تحدي نهاية الأسبوع', 'Weekend challenge'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14.5)),
             ),
             if (unpaid.length > 1)
               TextButton(
@@ -1318,10 +1495,13 @@ class _ChallengeSection extends StatelessWidget {
                   final total =
                       unpaid.fold<double>(0, (s, e) => s + e.tier.bonus);
                   final ok = await showConfirmDialog(context,
-                      title: 'صرف كل المستحقّين',
-                      content: '${unpaid.length} كابتن — إجمالي '
-                          '${formatCurrency(total)}.',
-                      confirmLabel: 'صرف الكل');
+                      title: tr('صرف كل المستحقّين', 'Pay all eligible'),
+                      content: tr(
+                          '${unpaid.length} كابتن — إجمالي '
+                              '${formatCurrency(total)}.',
+                          '${unpaid.length} captains — a total of '
+                              '${formatCurrency(total)}.'),
+                      confirmLabel: tr('صرف الكل', 'Pay all'));
                   if (ok != true) return;
                   var done = 0;
                   for (final e in unpaid) {
@@ -1338,22 +1518,31 @@ class _ChallengeSection extends StatelessWidget {
                     }
                   }
                   if (context.mounted) {
-                    showSuccess(context, 'صُرفت $done من ${unpaid.length}');
+                    showSuccess(
+                        context,
+                        tr('صُرفت $done من ${unpaid.length}',
+                            'Paid $done of ${unpaid.length}'));
                   }
                 },
-                child: const Text('صرف الكل', style: TextStyle(fontSize: 12.5)),
+                child: Text(tr('صرف الكل', 'Pay all'),
+                    style: const TextStyle(fontSize: 12.5)),
               ),
           ]),
           const SizedBox(height: 4),
           Text(
-              'النافذة الجارية: ${start.day}/${start.month} — '
-              '${end.day}/${end.month}',
+              tr('النافذة الجارية: ${start.day}/${start.month} — '
+                      '${end.day}/${end.month}',
+                  'Current window: ${start.day}/${start.month} — '
+                      '${end.day}/${end.month}'),
               style:
                   const TextStyle(fontSize: 12.5, color: AppColors.textGray)),
           if (achieved.isEmpty) ...[
             const SizedBox(height: 10),
-            const Text('لم يبلغ أحد أدنى مستوى بعد',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+            Text(
+                tr('لم يبلغ أحد أدنى مستوى بعد',
+                    'No one has reached the lowest tier yet'),
+                style: const TextStyle(
+                    fontSize: 12.5, color: AppColors.textGray)),
           ],
           ...achieved.map((e) {
             final done = e.driver.lastChallengeWindow == key;
@@ -1367,24 +1556,30 @@ class _ChallengeSection extends StatelessWidget {
                         Text(e.driver.name,
                             style: const TextStyle(
                                 fontSize: 13.5, fontWeight: FontWeight.w700)),
-                        Text('${e.count} توصيلة • بلغ مستوى '
-                            '${e.tier.deliveries}',
+                        Text(
+                            tr('${e.count} توصيلة • بلغ مستوى '
+                                    '${e.tier.deliveries}',
+                                '${e.count} deliveries • reached the '
+                                    '${e.tier.deliveries} tier'),
                             style: const TextStyle(
                                 fontSize: 11.5, color: AppColors.textGray)),
                       ]),
                 ),
                 if (done)
-                  const StatusChip(label: 'صُرفت', color: AppColors.success)
+                  StatusChip(label: tr('صُرفت', 'Paid'), color: AppColors.success)
                 else
                   TextButton(
                     onPressed: () async {
                       final ok = await showConfirmDialog(context,
-                          title: 'صرف مكافأة التحدي',
-                          content:
+                          title: tr('صرف مكافأة التحدي', 'Pay challenge bonus'),
+                          content: tr(
                               'تُضاف ${formatCurrency(e.tier.bonus)} لدفتر '
-                              '${e.driver.name} عن ${e.count} توصيلة في هذه '
-                              'النافذة.',
-                          confirmLabel: 'صرف');
+                                  '${e.driver.name} عن ${e.count} توصيلة في هذه '
+                                  'النافذة.',
+                              '${formatCurrency(e.tier.bonus)} is added to '
+                                  "${e.driver.name}'s ledger for ${e.count} "
+                                  'deliveries in this window.'),
+                          confirmLabel: tr('صرف', 'Pay'));
                       if (ok != true) return;
                       try {
                         await service.payChallengeBonus(
@@ -1394,7 +1589,7 @@ class _ChallengeSection extends StatelessWidget {
                           windowStart: start,
                         );
                         if (context.mounted) {
-                          showSuccess(context, 'صُرفت المكافأة');
+                          showSuccess(context, tr('صُرفت المكافأة', 'Bonus paid'));
                         }
                       } catch (err) {
                         if (context.mounted) {
@@ -1406,7 +1601,9 @@ class _ChallengeSection extends StatelessWidget {
                         }
                       }
                     },
-                    child: Text('صرف ${formatCurrency(e.tier.bonus)}',
+                    child: Text(
+                        tr('صرف ${formatCurrency(e.tier.bonus)}',
+                            'Pay ${formatCurrency(e.tier.bonus)}'),
                         style: const TextStyle(fontSize: 12.5)),
                   ),
               ]),
@@ -1427,7 +1624,9 @@ class DriverReferralCodeChip extends StatelessWidget {
   Widget build(BuildContext context) => InkWell(
         onTap: () async {
           await Clipboard.setData(ClipboardData(text: driver.referralCode));
-          if (context.mounted) showSuccess(context, 'نُسخ كود الإحالة');
+          if (context.mounted) {
+            showSuccess(context, tr('نُسخ كود الإحالة', 'Referral code copied'));
+          }
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1435,7 +1634,9 @@ class DriverReferralCodeChip extends StatelessWidget {
             color: AppColors.primary.withOpacity(0.08),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Text('كود الإحالة: ${driver.referralCode}',
+          child: Text(
+              tr('كود الإحالة: ${driver.referralCode}',
+                  'Referral code: ${driver.referralCode}'),
               style: const TextStyle(
                   fontSize: 11.5, fontWeight: FontWeight.w700,
                   color: AppColors.primary)),
@@ -1492,20 +1693,25 @@ class _MinVersionCardState extends State<_MinVersionCard> {
                     const Icon(Icons.system_update_alt_rounded,
                         color: AppColors.primary, size: 20),
                     const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text('أدنى إصدار مسموح',
-                          style: TextStyle(
+                    Expanded(
+                      child: Text(
+                          tr('أدنى إصدار مسموح', 'Minimum allowed version'),
+                          style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 14.5)),
                     ),
-                    Text('نسخة هذا الجهاز $kAppVersion',
+                    Text(
+                        tr('نسخة هذا الجهاز $kAppVersion',
+                            'This device runs $kAppVersion'),
                         style: const TextStyle(
                             fontSize: 11.5, color: AppColors.textGray)),
                   ]),
                   const SizedBox(height: 4),
                   Text(
                       active
-                          ? 'النسخ الأقدم من ${snap.data} محجوبة الآن'
-                          : 'لا حجب — كل النسخ تعمل',
+                          ? tr('النسخ الأقدم من ${snap.data} محجوبة الآن',
+                              'Versions older than ${snap.data} are blocked now')
+                          : tr('لا حجب — كل النسخ تعمل',
+                              'No block — all versions work'),
                       style: TextStyle(
                           fontSize: 12.5,
                           color: active
@@ -1517,10 +1723,12 @@ class _MinVersionCardState extends State<_MinVersionCard> {
                       child: TextField(
                         controller: _ctrl,
                         textDirection: TextDirection.ltr,
-                        decoration: const InputDecoration(
-                          labelText: 'مثال 4.0.0 — واتركه فارغاً لإلغاء الحجب',
+                        decoration: InputDecoration(
+                          labelText: tr(
+                              'مثال 4.0.0 — واتركه فارغاً لإلغاء الحجب',
+                              'e.g. 4.0.0 — leave empty to lift the block'),
                           isDense: true,
-                          border: OutlineInputBorder(),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -1529,7 +1737,7 @@ class _MinVersionCardState extends State<_MinVersionCard> {
                       onPressed: _saving ? null : () => _save(service),
                       style: ElevatedButton.styleFrom(
                           minimumSize: const Size(0, 46)),
-                      child: const Text('حفظ'),
+                      child: Text(tr('حفظ', 'Save')),
                     ),
                   ]),
                 ]),
@@ -1545,11 +1753,16 @@ class _MinVersionCardState extends State<_MinVersionCard> {
     // فيُستأذن فيه صراحةً بذكر أثره.
     if (value.isNotEmpty && isVersionBelow(kAppVersion, value)) {
       final ok = await showConfirmDialog(context,
-          title: 'تحذير — سيحجبك أنت أيضاً',
-          content: 'نسخة جهازك $kAppVersion أقدم من $value، فستُحجب هذه '
-              'الشاشة نفسها بعد الحفظ ولن تستطيع التراجع إلا من كونسول '
-              'Firestore. تابع؟',
-          confirmLabel: 'أفهم — احفظ',
+          title: tr('تحذير — سيحجبك أنت أيضاً',
+              'Warning — this will block you too'),
+          content: tr(
+              'نسخة جهازك $kAppVersion أقدم من $value، فستُحجب هذه '
+                  'الشاشة نفسها بعد الحفظ ولن تستطيع التراجع إلا من كونسول '
+                  'Firestore. تابع؟',
+              'Your device runs $kAppVersion, older than $value, so this very '
+                  'screen will be blocked after saving and you can only undo it '
+                  'from the Firestore console. Continue?'),
+          confirmLabel: tr('أفهم — احفظ', 'I understand — save'),
           confirmColor: AppColors.error);
       if (ok != true) return;
     }
@@ -1558,11 +1771,15 @@ class _MinVersionCardState extends State<_MinVersionCard> {
     try {
       await service.setMinAppVersion(value);
       if (mounted) {
-        showSuccess(context,
-            value.isEmpty ? 'أُلغي الحجب' : 'أدنى إصدار مسموح: $value');
+        showSuccess(
+            context,
+            value.isEmpty
+                ? tr('أُلغي الحجب', 'Block lifted')
+                : tr('أدنى إصدار مسموح: $value',
+                    'Minimum allowed version: $value'));
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الحفظ');
+      if (mounted) showError(context, tr('تعذّر الحفظ', 'Could not save'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

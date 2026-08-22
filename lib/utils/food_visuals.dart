@@ -4,6 +4,7 @@
 // صور مطاعم/أصناف قد لا تتوفر أو تكون مكسورة.
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'app_lang.dart';
 import 'theme.dart';
 
 /// تدرج لوني ثابت من هوية ZadGo يُستخدم خلفية لبطاقات المطاعم بدل الصور.
@@ -53,7 +54,7 @@ class RestaurantAvatar extends StatelessWidget {
 
   String get _initial {
     final trimmed = name.trim();
-    return trimmed.isEmpty ? '؟' : trimmed.substring(0, 1);
+    return trimmed.isEmpty ? tr('؟', '?') : trimmed.substring(0, 1);
   }
 
   Widget _fallback() => Container(

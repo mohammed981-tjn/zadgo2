@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -29,20 +30,23 @@ class AdminPayoutRequestsScreen extends StatelessWidget {
             .toList();
 
         if (all.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
               emoji: '💸',
-              title: 'لا توجد طلبات سحب',
-              subtitle: 'يقدّمها السائقون من زر «اسحب أموالي» في محفظتهم');
+              title: tr('لا توجد طلبات سحب', 'No payout requests'),
+              subtitle: tr('يقدّمها السائقون من زر «اسحب أموالي» في محفظتهم',
+                  'Drivers submit them via the "Withdraw my money" button in their wallet'));
         }
 
         return ListView(padding: const EdgeInsets.all(12), children: [
           if (pending.isNotEmpty) ...[
-            SectionHeader(title: 'قيد المعالجة (${pending.length})'),
+            SectionHeader(
+                title: tr('قيد المعالجة (${pending.length})',
+                    'Pending (${pending.length})')),
             ...pending.map((r) => _RequestCard(request: r, pending: true)),
             const SizedBox(height: 12),
           ],
           if (processed.isNotEmpty) ...[
-            const SectionHeader(title: 'السجلّ'),
+            SectionHeader(title: tr('السجلّ', 'History')),
             ...processed.map((r) => _RequestCard(request: r, pending: false)),
           ],
         ]);
@@ -89,7 +93,10 @@ class _RequestCard extends StatelessWidget {
           ]),
           const SizedBox(height: 6),
           InfoRow(icon: Icons.account_balance_outlined, text: r.method),
-          InfoRow(icon: Icons.schedule_outlined, text: 'قُدّم ${_fmt(r.createdAt)}'),
+          InfoRow(
+              icon: Icons.schedule_outlined,
+              text: tr('قُدّم ${_fmt(r.createdAt)}',
+                  'Submitted ${_fmt(r.createdAt)}')),
           if (!pending) ...[
             Row(children: [
               StatusChip(label: r.status.label, color: statusColor),
@@ -103,7 +110,7 @@ class _RequestCard extends StatelessWidget {
             if ((r.adminNote ?? '').isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text('ملاحظة: ${r.adminNote}',
+                child: Text(tr('ملاحظة: ${r.adminNote}', 'Note: ${r.adminNote}'),
                     style: const TextStyle(fontSize: 12.5)),
               ),
           ],
@@ -121,7 +128,8 @@ class _RequestCard extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
-                              'رصيده الحالي: ${formatCurrency(d.balance)}',
+                              tr('رصيده الحالي: ${formatCurrency(d.balance)}',
+                                  'Current balance: ${formatCurrency(d.balance)}'),
                               style: TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w600,
@@ -142,7 +150,7 @@ class _RequestCard extends StatelessWidget {
                       side: const BorderSide(color: AppColors.error)),
                   onPressed: () => _reject(context, service),
                   icon: const Icon(Icons.close_rounded, size: 17),
-                  label: const Text('رفض'),
+                  label: Text(tr('رفض', 'Reject')),
                 ),
               ),
               const SizedBox(width: 10),
@@ -153,7 +161,7 @@ class _RequestCard extends StatelessWidget {
                       backgroundColor: AppColors.success),
                   onPressed: () => _pay(context, service),
                   icon: const Icon(Icons.done_all_rounded, size: 17),
-                  label: const Text('صُرف — قيّده'),
+                  label: Text(tr('صُرف — قيّده', 'Paid — record it')),
                 ),
               ),
             ]),
@@ -166,17 +174,23 @@ class _RequestCard extends StatelessWidget {
   Future<void> _pay(BuildContext context, FirebaseService service) async {
     final ok = await showConfirmDialog(
       context,
-      title: 'تأكيد الصرف',
-      content:
+      title: tr('تأكيد الصرف', 'Confirm payout'),
+      content: tr(
           'صرف ${formatCurrency(request.amount)} للسائق ${request.driverName} '
           '(${request.method})؟\n\nسيُخصم من رصيده وتُقيَّد حركة «صرف مستحقّات» '
           'في دفتره. اضغط بعد تنفيذ التحويل/التسليم فعلياً.',
-      confirmLabel: 'صُرف فعلاً',
+          'Pay ${formatCurrency(request.amount)} to driver ${request.driverName} '
+          '(${request.method})?\n\nIt will be deducted from their balance and a "payout" '
+          'entry recorded in their ledger. Confirm only after the transfer/handover actually happened.'),
+      confirmLabel: tr('صُرف فعلاً', 'Paid for real'),
     );
     if (ok != true || !context.mounted) return;
     try {
       await service.payPayoutRequest(request);
-      if (context.mounted) showSuccess(context, 'قُيّد الصرف في دفتر السائق');
+      if (context.mounted) {
+        showSuccess(context, tr('قُيّد الصرف في دفتر السائق',
+            'Payout recorded in the driver ledger'));
+      }
     } catch (e) {
       if (context.mounted) {
         showError(context, e.toString().replaceFirst('Exception: ', ''));
@@ -189,34 +203,40 @@ class _RequestCard extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: const Text('رفض طلب السحب'),
+        title: Text(tr('رفض طلب السحب', 'Reject payout request')),
         content: TextField(
           controller: noteCtrl,
-          decoration: const InputDecoration(
-            labelText: 'سبب الرفض (يظهر للسائق)',
-            hintText: 'مثال: الرجاء مراجعة الإدارة لتسوية العُهدة أولاً',
+          decoration: InputDecoration(
+            labelText: tr('سبب الرفض (يظهر للسائق)',
+                'Rejection reason (visible to the driver)'),
+            hintText: tr('مثال: الرجاء مراجعة الإدارة لتسوية العُهدة أولاً',
+                'Example: please contact management to settle the cash custody first'),
           ),
           maxLines: 2,
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dCtx, false),
-              child: const Text('إلغاء')),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('رفض')),
+              child: Text(tr('رفض', 'Reject'))),
         ],
       ),
     );
     if (ok != true || !context.mounted) return;
     if (noteCtrl.text.trim().isEmpty) {
-      showError(context, 'اكتب سبب الرفض — السائق يستحق جواباً');
+      showError(context, tr('اكتب سبب الرفض — السائق يستحق جواباً',
+          'Write a rejection reason — the driver deserves an answer'));
       return;
     }
     try {
       await service.rejectPayoutRequest(request.id, noteCtrl.text);
-      if (context.mounted) showSuccess(context, 'رُفض الطلب وأُبلغ السائق بالسبب');
+      if (context.mounted) {
+        showSuccess(context, tr('رُفض الطلب وأُبلغ السائق بالسبب',
+            'Request rejected and the driver was told why'));
+      }
     } catch (e) {
       if (context.mounted) {
         showError(context, e.toString().replaceFirst('Exception: ', ''));
@@ -265,10 +285,15 @@ class _BalanceAudit extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                  'الرصيد لا يطابق الدفتر: المخزَّن '
-                  '${formatCurrency(driver.balance)} وآخر رصيد في الحركات '
-                  '${formatCurrency(expected)} '
-                  '(فرق ${formatCurrency(gap.abs())}). راجع الدفتر قبل الصرف.',
+                  tr(
+                      'الرصيد لا يطابق الدفتر: المخزَّن '
+                      '${formatCurrency(driver.balance)} وآخر رصيد في الحركات '
+                      '${formatCurrency(expected)} '
+                      '(فرق ${formatCurrency(gap.abs())}). راجع الدفتر قبل الصرف.',
+                      'Balance does not match the ledger: stored '
+                      '${formatCurrency(driver.balance)} vs latest ledger balance '
+                      '${formatCurrency(expected)} '
+                      '(gap ${formatCurrency(gap.abs())}). Review the ledger before paying.'),
                   style: const TextStyle(
                       fontSize: 11.5,
                       color: AppColors.error,

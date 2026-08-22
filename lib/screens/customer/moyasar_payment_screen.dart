@@ -12,6 +12,7 @@
 // و[Order.isPaid] لا تصبح true إلا بوجود معرّف عملية حقيقي من البوابة.
 import 'package:flutter/material.dart';
 import 'package:moyasar/moyasar.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/payment_config.dart';
 
 /// نتيجة محاولة الدفع تُعاد إلى شاشة إتمام الطلب.
@@ -43,13 +44,16 @@ class MoyasarPaymentScreen extends StatelessWidget {
     // تُعرض رسالة صريحة توضّح سبب التعطّل لمن يشغّل التطبيق.
     if (!PaymentConfig_.isConfigured) {
       return Scaffold(
-        appBar: AppBar(title: const Text('الدفع بالبطاقة')),
-        body: const Padding(
-          padding: EdgeInsets.all(24),
+        appBar: AppBar(title: Text(tr('الدفع بالبطاقة', 'Pay by card'))),
+        body: Padding(
+          padding: const EdgeInsets.all(24),
           child: Center(
             child: Text(
-              'الدفع بالبطاقة غير مفعّل بعد.\n'
-              'يلزم ضبط مفتاح بوابة الدفع في إعدادات التطبيق.',
+              tr(
+                  'الدفع بالبطاقة غير مفعّل بعد.\n'
+                  'يلزم ضبط مفتاح بوابة الدفع في إعدادات التطبيق.',
+                  'Card payments aren\'t enabled yet.\n'
+                  'The payment gateway key needs to be set in the app settings.'),
               textAlign: TextAlign.center,
             ),
           ),
@@ -81,18 +85,20 @@ class MoyasarPaymentScreen extends StatelessWidget {
           case PaymentStatus.failed:
             Navigator.pop(
               context,
-              const MoyasarPaymentResult(
+              MoyasarPaymentResult(
                 success: false,
-                errorMessage: 'فشلت عملية الدفع، تأكّد من بيانات البطاقة أو الرصيد',
+                errorMessage: tr(
+                    'فشلت عملية الدفع، تأكّد من بيانات البطاقة أو الرصيد',
+                    'Payment failed — check your card details or balance'),
               ),
             );
             break;
           default:
             Navigator.pop(
               context,
-              const MoyasarPaymentResult(
+              MoyasarPaymentResult(
                 success: false,
-                errorMessage: 'لم تكتمل عملية الدفع',
+                errorMessage: tr('لم تكتمل عملية الدفع', 'Payment wasn\'t completed'),
               ),
             );
         }
@@ -102,14 +108,15 @@ class MoyasarPaymentScreen extends StatelessWidget {
           context,
           MoyasarPaymentResult(
             success: false,
-            errorMessage: 'تعذّر الاتصال ببوابة الدفع، حاول مرة أخرى',
+            errorMessage: tr('تعذّر الاتصال ببوابة الدفع، حاول مرة أخرى',
+                'Couldn\'t reach the payment gateway, please try again'),
           ),
         );
       }
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الدفع بالبطاقة')),
+      appBar: AppBar(title: Text(tr('الدفع بالبطاقة', 'Pay by card'))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -124,21 +131,26 @@ class MoyasarPaymentScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('المبلغ المطلوب',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text('${amountSar.toStringAsFixed(2)} ر.س',
+                  Text(tr('المبلغ المطلوب', 'Amount due'),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                      tr('${amountSar.toStringAsFixed(2)} ر.س',
+                          '${amountSar.toStringAsFixed(2)} SAR'),
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 17)),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            // نموذج البطاقة بالعربية واتجاه RTL — الحزمة توفّرهما جاهزين،
-            // فلا داعي لنموذج من تصميمنا يخرجنا من نطاق PCI.
+            // نموذج البطاقة بلغة التطبيق الحالية — الحزمة توفّر العربية
+            // والإنجليزية جاهزتين، فلا داعي لنموذج من تصميمنا يخرجنا من
+            // نطاق PCI.
             CreditCard(
               config: paymentConfig,
               onPaymentResult: onPaymentResult,
-              locale: const Localization.ar(),
+              locale: AppLang.en
+                  ? const Localization.en()
+                  : const Localization.ar(),
             ),
           ],
         ),

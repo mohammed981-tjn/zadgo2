@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -22,7 +23,7 @@ class AdminBannersScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showEditSheet(context),
         icon: const Icon(Icons.add_photo_alternate_outlined),
-        label: const Text('بنر جديد'),
+        label: Text(tr('بنر جديد', 'New banner')),
       ),
       body: Column(children: [
         // مفتاح البنر الافتراضي (دفعة «الإعلانات الذكية»): حين لا حملة فعّالة
@@ -37,12 +38,14 @@ class AdminBannersScreen extends StatelessWidget {
                 value: show,
                 activeColor: AppColors.success,
                 onChanged: (v) => service.setShowDefaultBanner(v),
-                title: const Text('البنر الافتراضي',
-                    style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
+                title: Text(tr('البنر الافتراضي', 'Default banner'),
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold)),
                 subtitle: Text(
                     show
-                        ? 'يظهر بنرٌ تعريفيّ حين لا يوجد إعلان فعّال'
-                        : 'الشاشة بلا إعلان حين لا يوجد إعلان فعّال',
+                        ? tr('يظهر بنرٌ تعريفيّ حين لا يوجد إعلان فعّال',
+                            'An intro banner shows when no active ad exists')
+                        : tr('الشاشة بلا إعلان حين لا يوجد إعلان فعّال',
+                            'The screen shows no ad when no active ad exists'),
                     style: const TextStyle(fontSize: 11.5)),
                 secondary: const Icon(Icons.auto_awesome_outlined),
               ),
@@ -54,11 +57,12 @@ class AdminBannersScreen extends StatelessWidget {
             stream: service.streamAllBanners,
             builder: (context, banners) {
               if (banners.isEmpty) {
-                return const AppEmpty(
+                return AppEmpty(
                   emoji: '🖼️',
-                  title: 'لا بنرات بعد',
-                  subtitle:
+                  title: tr('لا بنرات بعد', 'No banners yet'),
+                  subtitle: tr(
                       'أضف بنر عروض أو مطعم جديد — يظهر فوراً أعلى شاشة العميل',
+                      'Add an offers or new-restaurant banner — it shows immediately at the top of the customer screen'),
                 );
               }
               return ListView.builder(
@@ -95,8 +99,9 @@ class _BannerCard extends StatelessWidget {
               errorBuilder: (_, __, ___) => Container(
                 color: AppColors.error.withOpacity(0.08),
                 alignment: Alignment.center,
-                child: const Text('تعذّر تحميل الصورة — تحقق من الرابط',
-                    style: TextStyle(fontSize: 12.5, color: AppColors.error)),
+                child: Text(tr('تعذّر تحميل الصورة — تحقق من الرابط',
+                        'Image failed to load — check the URL'),
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.error)),
               ),
             ),
             // طبقةٌ سوداء ونصّ الحالة: «مُوقَف» يدوياً، أو «منتهٍ» زمنياً —
@@ -105,7 +110,7 @@ class _BannerCard extends StatelessWidget {
               Container(
                 color: Colors.black45,
                 alignment: Alignment.center,
-                child: Text(b.isExpired ? 'منتهٍ' : 'مُوقَف',
+                child: Text(b.isExpired ? tr('منتهٍ', 'Expired') : tr('مُوقَف', 'Paused'),
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -118,14 +123,14 @@ class _BannerCard extends StatelessWidget {
           child: Row(children: [
             Expanded(
               child: Text(
-                b.title.trim().isEmpty ? '(بلا عنوان)' : b.title,
+                b.title.trim().isEmpty ? tr('(بلا عنوان)', '(no title)') : b.title,
                 style:
                     const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            Text('ترتيب ${b.sortOrder}',
+            Text(tr('ترتيب ${b.sortOrder}', 'Order ${b.sortOrder}'),
                 style:
                     const TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ]),
@@ -146,12 +151,16 @@ class _BannerCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   b.isExpired
-                      ? 'انتهى في ${_fmtDate(b.endsAt!)}'
+                      ? tr('انتهى في ${_fmtDate(b.endsAt!)}',
+                          'Ended on ${_fmtDate(b.endsAt!)}')
                       : [
                           if (b.startsAt != null &&
                               b.startsAt!.isAfter(DateTime.now()))
-                            'يبدأ ${_fmtDate(b.startsAt!)}',
-                          if (b.endsAt != null) 'ينتهي ${_fmtDate(b.endsAt!)}',
+                            tr('يبدأ ${_fmtDate(b.startsAt!)}',
+                                'Starts ${_fmtDate(b.startsAt!)}'),
+                          if (b.endsAt != null)
+                            tr('ينتهي ${_fmtDate(b.endsAt!)}',
+                                'Ends ${_fmtDate(b.endsAt!)}'),
                         ].join(' • '),
                   style: TextStyle(
                       fontSize: 11.5,
@@ -168,23 +177,24 @@ class _BannerCard extends StatelessWidget {
             activeColor: AppColors.success,
             onChanged: (v) => service.setBannerActive(b.id, v),
           ),
-          Text(b.isActive ? 'فعّال' : 'موقَف',
+          Text(b.isActive ? tr('فعّال', 'Active') : tr('موقَف', 'Paused'),
               style: const TextStyle(fontSize: 12.5)),
           const Spacer(),
           IconButton(
-            tooltip: 'تعديل',
+            tooltip: tr('تعديل', 'Edit'),
             icon: const Icon(Icons.edit_outlined, size: 20),
             onPressed: () => _showEditSheet(context, existing: b),
           ),
           IconButton(
-            tooltip: 'حذف',
+            tooltip: tr('حذف', 'Delete'),
             icon: const Icon(Icons.delete_outline,
                 size: 20, color: AppColors.error),
             onPressed: () async {
               final ok = await showConfirmDialog(context,
-                  title: 'حذف البنر',
-                  content: 'يُحذف نهائياً ويختفي من شاشة العملاء فوراً.',
-                  confirmLabel: 'حذف',
+                  title: tr('حذف البنر', 'Delete banner'),
+                  content: tr('يُحذف نهائياً ويختفي من شاشة العملاء فوراً.',
+                      'It is permanently deleted and disappears from the customer screen immediately.'),
+                  confirmLabel: tr('حذف', 'Delete'),
                   confirmColor: AppColors.error);
               if (ok == true) await service.deleteBanner(b.id);
             },
@@ -227,26 +237,29 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(existing == null ? 'بنر جديد' : 'تعديل البنر',
+                Text(existing == null
+                        ? tr('بنر جديد', 'New banner')
+                        : tr('تعديل البنر', 'Edit banner'),
                     style: const TextStyle(
                         fontSize: 17, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: urlCtrl,
                   textDirection: TextDirection.ltr,
-                  decoration: const InputDecoration(
-                    labelText: 'رابط الصورة',
+                  decoration: InputDecoration(
+                    labelText: tr('رابط الصورة', 'Image URL'),
                     hintText: 'https://zadgo.co/images/offer-1.jpg',
-                    helperText:
+                    helperText: tr(
                         'الأنسب: صورة عرضية بنسبة ~2.4:1 على zadgo.co/images',
+                        'Best: a wide image at ~2.4:1 on zadgo.co/images'),
                     helperMaxLines: 2,
                   ),
                   validator: (v) {
                     final t = v?.trim() ?? '';
-                    if (t.isEmpty) return 'الرابط مطلوب';
+                    if (t.isEmpty) return tr('الرابط مطلوب', 'URL is required');
                     final uri = Uri.tryParse(t);
                     if (uri == null || !uri.isScheme('https')) {
-                      return 'رابط https صالح مطلوب';
+                      return tr('رابط https صالح مطلوب', 'A valid https URL is required');
                     }
                     return null;
                   },
@@ -254,17 +267,17 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: titleCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'عنوان (اختياري)',
-                    hintText: 'خصم الافتتاح ٢٠٪',
+                  decoration: InputDecoration(
+                    labelText: tr('عنوان (اختياري)', 'Title (optional)'),
+                    hintText: tr('خصم الافتتاح ٢٠٪', 'Opening discount 20%'),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
                   controller: orderCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'الترتيب (الأصغر أولاً)',
+                  decoration: InputDecoration(
+                    labelText: tr('الترتيب (الأصغر أولاً)', 'Order (lowest first)'),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -274,12 +287,13 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                       DropdownButtonFormField<String?>(
                     value: restaurantId,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'يفتح مطعماً عند الضغط (اختياري)',
+                    decoration: InputDecoration(
+                      labelText: tr('يفتح مطعماً عند الضغط (اختياري)',
+                          'Opens a restaurant on tap (optional)'),
                     ),
                     items: [
-                      const DropdownMenuItem<String?>(
-                          value: null, child: Text('بلا ربط')),
+                      DropdownMenuItem<String?>(
+                          value: null, child: Text(tr('بلا ربط', 'No link'))),
                       ...restaurants.map((r) => DropdownMenuItem<String?>(
                             value: r.id,
                             child: Text(r.displayName,
@@ -292,15 +306,16 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                 const SizedBox(height: 16),
                 // نافذة العرض المجدولة (دفعة «الإعلانات الذكية»): «ينتهي في»
                 // يُخفي البنر وحده — علاجاً لشكوى «الإعلان يستمر بلا نهاية».
-                const Text('نافذة العرض (اختيارية)',
-                    style: TextStyle(
+                Text(tr('نافذة العرض (اختيارية)', 'Display window (optional)'),
+                    style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textDark)),
                 const SizedBox(height: 2),
-                const Text(
-                    'اتركها فارغة ليظهر دائماً، أو حدّد «ينتهي في» فيختفي وحده.',
-                    style: TextStyle(fontSize: 11.5, color: AppColors.textGray)),
+                Text(
+                    tr('اتركها فارغة ليظهر دائماً، أو حدّد «ينتهي في» فيختفي وحده.',
+                        'Leave empty to always show, or set "ends on" so it hides itself.'),
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.textGray)),
                 const SizedBox(height: 8),
                 Row(children: [
                   Expanded(
@@ -308,8 +323,9 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                       icon: const Icon(Icons.event_outlined, size: 16),
                       label: Text(
                           startsAt == null
-                              ? 'يبدأ: الآن'
-                              : 'يبدأ: ${_fmtDate(startsAt!)}',
+                              ? tr('يبدأ: الآن', 'Starts: now')
+                              : tr('يبدأ: ${_fmtDate(startsAt!)}',
+                                  'Starts: ${_fmtDate(startsAt!)}'),
                           style: const TextStyle(fontSize: 12.5),
                           overflow: TextOverflow.ellipsis),
                       onPressed: () async {
@@ -331,8 +347,9 @@ Future<void> _showEditSheet(BuildContext context, {PromoBanner? existing}) {
                       icon: const Icon(Icons.event_busy_outlined, size: 16),
                       label: Text(
                           endsAt == null
-                              ? 'ينتهي: بلا حدّ'
-                              : 'ينتهي: ${_fmtDate(endsAt!)}',
+                              ? tr('ينتهي: بلا حدّ', 'Ends: never')
+                              : tr('ينتهي: ${_fmtDate(endsAt!)}',
+                                  'Ends: ${_fmtDate(endsAt!)}'),
                           style: const TextStyle(fontSize: 12.5),
                           overflow: TextOverflow.ellipsis),
                       onPressed: () async {

@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -23,11 +24,12 @@ class AdminRestaurantRequestsScreen extends StatelessWidget {
       stream: service.streamRestaurantRequests,
       builder: (ctx, requests) {
         if (requests.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
               emoji: '🗺️',
-              title: 'لا طلبات بعد',
-              subtitle:
-                  'حين يبحث عميل عن مطعم غير موجود ويضغط «اطلب إضافته» يظهر هنا');
+              title: tr('لا طلبات بعد', 'No requests yet'),
+              subtitle: tr(
+                  'حين يبحث عميل عن مطعم غير موجود ويضغط «اطلب إضافته» يظهر هنا',
+                  'When a customer searches for a missing restaurant and taps "Request it", it shows up here'));
         }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -47,22 +49,27 @@ class AdminRestaurantRequestsScreen extends StatelessWidget {
                 title: Text(r.name,
                     style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text(
-                    '${r.count} ${r.count >= 3 && r.count <= 10 ? "عملاء طلبوه" : "عميلاً طلبه"}'
-                    ' — آخرهم ${formatDateTime(r.lastRequestedAt)}',
+                    tr(
+                        '${r.count} ${r.count >= 3 && r.count <= 10 ? "عملاء طلبوه" : "عميلاً طلبه"}'
+                        ' — آخرهم ${formatDateTime(r.lastRequestedAt)}',
+                        '${r.count} ${r.count == 1 ? "customer" : "customers"} requested it'
+                        ' — latest ${formatDateTime(r.lastRequestedAt)}'),
                     style: const TextStyle(fontSize: 12.5)),
                 trailing: TextButton.icon(
                   icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('أُضيف'),
+                  label: Text(tr('أُضيف', 'Added')),
                   onPressed: () async {
                     // «أُضيف» بعد توقيع المطعم فعلاً: يحذف الطلب من
                     // القائمة، وبثُّ الخبر للعملاء («مطعمكم وصل!») من
                     // شاشة البث — خبرٌ يستحق صياغتك لا قالباً آلياً.
                     final ok = await showConfirmDialog(context,
-                        title: 'أُضيف «${r.name}»؟',
-                        content:
+                        title: tr('أُضيف «${r.name}»؟', 'Mark "${r.name}" as added?'),
+                        content: tr(
                             'يُحذف من قائمة الطلبات. لا تنسَ بثّ الخبر لعملائك '
                             'من شاشة «بث جماعي» — من طلبوه ينتظرونه.',
-                        confirmLabel: 'أُضيف');
+                            'It will be removed from the requests list. Remember to announce it to your customers '
+                            'from the Broadcast screen — those who requested it are waiting.'),
+                        confirmLabel: tr('أُضيف', 'Added'));
                     if (ok == true) {
                       await service.removeRestaurantRequest(r.id);
                     }

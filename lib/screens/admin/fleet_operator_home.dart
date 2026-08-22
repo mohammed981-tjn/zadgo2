@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -23,17 +24,20 @@ class FleetOperatorHome extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('أسطولي — ${auth.user?.name ?? ''}'),
+        title: Text(tr('أسطولي — ${auth.user?.name ?? ''}',
+            'My fleet — ${auth.user?.name ?? ''}')),
         actions: [
           IconButton(
-            tooltip: 'تسجيل الخروج',
+            tooltip: tr('تسجيل الخروج', 'Sign out'),
             icon: const Icon(Icons.logout),
             onPressed: () => auth.logout(),
           ),
         ],
       ),
       body: uid.isEmpty
-          ? const AppEmpty(emoji: '👤', title: 'تعذّر تحميل حسابك')
+          ? AppEmpty(
+              emoji: '👤',
+              title: tr('تعذّر تحميل حسابك', 'Could not load your account'))
           : StreamBuilder<FleetOperator?>(
               stream: service.streamFleetOperator(uid),
               builder: (ctx, opSnap) {
@@ -67,22 +71,23 @@ class _OperatorBody extends StatelessWidget {
         // المتراكم يُجمع من طلبات كباتنك المسلَّمة (حصّة المشغّل من كلٍّ).
         _SummaryCard(uid: uid, operator: operator, driverCount: drivers.length),
         const SizedBox(height: 12),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Text('كباتنك',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Text(tr('كباتنك', 'Your captains'),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         ),
         if (drivers.isEmpty)
-          const AppEmpty(
+          AppEmpty(
               emoji: '🛵',
-              title: 'لا كباتن بعد',
-              subtitle: 'يسند المدير كباتنك إليك فيظهرون هنا.')
+              title: tr('لا كباتن بعد', 'No captains yet'),
+              subtitle: tr('يسند المدير كباتنك إليك فيظهرون هنا.',
+                  'Captains assigned to you by the admin show up here.'))
         else
           ...drivers.map((d) => _DriverCard(driver: d)),
         const SizedBox(height: 24),
-        const Center(
-          child: Text('مشغّل الأسطول — زاد جو',
-              style: TextStyle(fontSize: 11, color: AppColors.textGray)),
+        Center(
+          child: Text(tr('مشغّل الأسطول — زاد جو', 'Fleet operator — ZadGo'),
+              style: const TextStyle(fontSize: 11, color: AppColors.textGray)),
         ),
       ],
     );
@@ -117,11 +122,13 @@ class _SummaryCard extends StatelessWidget {
               return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('إجمالي مستحقّاتك المتراكمة',
-                        style: TextStyle(
+                    Text(tr('إجمالي مستحقّاتك المتراكمة',
+                            'Your total accumulated earnings'),
+                        style: const TextStyle(
                             fontSize: 12.5, color: AppColors.textGray)),
                     const SizedBox(height: 2),
-                    Text('${earned.toStringAsFixed(2)} ر.س',
+                    Text(tr('${earned.toStringAsFixed(2)} ر.س',
+                            'SAR ${earned.toStringAsFixed(2)}'),
                         style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
@@ -129,8 +136,10 @@ class _SummaryCard extends StatelessWidget {
                     if (ledger != 0)
                       Text(
                           ledger > 0
-                              ? 'رصيد دفترك: ${ledger.toStringAsFixed(2)} ر.س'
-                              : 'صُرف لك: ${(-ledger).toStringAsFixed(2)} ر.س',
+                              ? tr('رصيد دفترك: ${ledger.toStringAsFixed(2)} ر.س',
+                                  'Ledger balance: SAR ${ledger.toStringAsFixed(2)}')
+                              : tr('صُرف لك: ${(-ledger).toStringAsFixed(2)} ر.س',
+                                  'Paid out to you: SAR ${(-ledger).toStringAsFixed(2)}'),
                           style: const TextStyle(
                               fontSize: 12, color: AppColors.textGray)),
                   ]);
@@ -138,10 +147,14 @@ class _SummaryCard extends StatelessWidget {
           ),
           const Divider(height: 20),
           Row(children: [
-            _stat('كباتنك', '$driverCount'),
+            _stat(tr('كباتنك', 'Your captains'), '$driverCount'),
             const SizedBox(width: 20),
-            _stat('حصّة الكابتن/توصيلة',
-                share > 0 ? '${share.toStringAsFixed(2)} ر.س' : 'يحدّدها المدير'),
+            _stat(
+                tr('حصّة الكابتن/توصيلة', 'Captain share per delivery'),
+                share > 0
+                    ? tr('${share.toStringAsFixed(2)} ر.س',
+                        'SAR ${share.toStringAsFixed(2)}')
+                    : tr('يحدّدها المدير', 'Set by the admin')),
           ]),
         ]),
       ),
@@ -171,8 +184,8 @@ class _DriverCard extends StatelessWidget {
         ? AppColors.success
         : (d.isAvailable ? AppColors.warning : AppColors.textGray);
     final statusText = d.isOnline
-        ? 'متصل'
-        : (d.isAvailable ? 'متاح' : 'غير متاح');
+        ? tr('متصل', 'Online')
+        : (d.isAvailable ? tr('متاح', 'Available') : tr('غير متاح', 'Unavailable'));
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -180,7 +193,7 @@ class _DriverCard extends StatelessWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(
-              child: Text(d.name.isEmpty ? '(بلا اسم)' : d.name,
+              child: Text(d.name.isEmpty ? tr('(بلا اسم)', '(no name)') : d.name,
                   style: const TextStyle(
                       fontSize: 14.5, fontWeight: FontWeight.bold)),
             ),
@@ -199,13 +212,21 @@ class _DriverCard extends StatelessWidget {
           ]),
           const SizedBox(height: 6),
           Row(children: [
-            _chip(Icons.local_shipping_outlined, '${d.totalDeliveries} توصيلة'),
+            _chip(
+                Icons.local_shipping_outlined,
+                tr('${d.totalDeliveries} توصيلة',
+                    '${d.totalDeliveries} deliveries')),
             const SizedBox(width: 10),
-            _chip(Icons.star_rounded,
-                d.ratingCount <= 0 ? 'جديد' : d.rating.toStringAsFixed(1)),
+            _chip(
+                Icons.star_rounded,
+                d.ratingCount <= 0
+                    ? tr('جديد', 'New')
+                    : d.rating.toStringAsFixed(1)),
             const SizedBox(width: 10),
             if (d.warningCount > 0)
-              _chip(Icons.warning_amber_rounded, '${d.warningCount} إنذار',
+              _chip(
+                  Icons.warning_amber_rounded,
+                  tr('${d.warningCount} إنذار', '${d.warningCount} warnings'),
                   color: AppColors.error),
           ]),
           if (d.phone.isNotEmpty) ...[
