@@ -11,6 +11,7 @@ import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import 'application_gate_screen.dart';
 
 class ApplicantRegisterScreen extends StatefulWidget {
@@ -56,7 +57,8 @@ class _ApplicantRegisterScreenState extends State<ApplicantRegisterScreen> {
         (_) => false,
       );
     } else {
-      showError(context, auth.error ?? 'فشل إنشاء الحساب');
+      showError(
+          context, auth.error ?? tr('فشل إنشاء الحساب', "Couldn't create account"));
     }
   }
 
@@ -65,24 +67,32 @@ class _ApplicantRegisterScreenState extends State<ApplicantRegisterScreen> {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
       appBar: AppBar(
-          title:
-              Text(_isDriverFlavor ? 'الانضمام ككابتن' : 'تسجيل مطعمك')),
+          title: Text(_isDriverFlavor
+              ? tr('الانضمام ككابتن', 'Join as a captain')
+              : tr('تسجيل مطعمك', 'Register your restaurant'))),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(20), children: [
           Text(
             _isDriverFlavor
-                ? 'أنشئ حسابك، ثم املأ نموذج الانضمام وارفع مستنداتك — '
-                    'وتبدأ فور اعتماد الإدارة.'
-                : 'أنشئ حسابك، ثم سجّل بيانات مطعمك ومستنداته — '
-                    'ويظهر مطعمك للعملاء فور اعتماد الإدارة.',
+                ? tr(
+                    'أنشئ حسابك، ثم املأ نموذج الانضمام وارفع مستنداتك — '
+                        'وتبدأ فور اعتماد الإدارة.',
+                    'Create your account, fill in the application, and upload '
+                        'your documents — you start as soon as you are approved.')
+                : tr(
+                    'أنشئ حسابك، ثم سجّل بيانات مطعمك ومستنداته — '
+                        'ويظهر مطعمك للعملاء فور اعتماد الإدارة.',
+                    "Create your account, then register your restaurant's "
+                        'details and documents — it goes live for customers '
+                        'once approved.'),
             style: const TextStyle(fontSize: 13.5, color: AppColors.textGray),
           ),
           const SizedBox(height: 18),
           TextFormField(
             controller: _name,
-            decoration: const InputDecoration(labelText: 'الاسم الكامل'),
-            validator: (v) => validateRequired(v, 'الاسم'),
+            decoration: InputDecoration(labelText: tr('الاسم الكامل', 'Full name')),
+            validator: (v) => validateRequired(v, tr('الاسم', 'Name')),
           ),
           const SizedBox(height: 10),
           TextFormField(
@@ -90,14 +100,15 @@ class _ApplicantRegisterScreenState extends State<ApplicantRegisterScreen> {
             keyboardType: TextInputType.emailAddress,
             textDirection: TextDirection.ltr,
             decoration:
-                const InputDecoration(labelText: 'البريد الإلكتروني'),
+                InputDecoration(labelText: tr('البريد الإلكتروني', 'Email')),
             validator: validateEmail,
           ),
           const SizedBox(height: 10),
           TextFormField(
             controller: _phone,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'رقم الجوال'),
+            decoration:
+                InputDecoration(labelText: tr('رقم الجوال', 'Mobile number')),
             validator: validatePhone,
           ),
           const SizedBox(height: 10),
@@ -105,7 +116,7 @@ class _ApplicantRegisterScreenState extends State<ApplicantRegisterScreen> {
             controller: _pass,
             obscureText: _obscure,
             decoration: InputDecoration(
-              labelText: 'كلمة المرور',
+              labelText: tr('كلمة المرور', 'Password'),
               suffixIcon: IconButton(
                 icon: Icon(
                     _obscure ? Icons.visibility_off : Icons.visibility,
@@ -120,7 +131,9 @@ class _ApplicantRegisterScreenState extends State<ApplicantRegisterScreen> {
             height: 50,
             child: ElevatedButton(
               onPressed: auth.loading ? null : _submit,
-              child: Text(auth.loading ? 'ينشئ الحساب...' : 'إنشاء الحساب'),
+              child: Text(auth.loading
+                  ? tr('ينشئ الحساب...', 'Creating account...')
+                  : tr('إنشاء الحساب', 'Create account')),
             ),
           ),
         ]),

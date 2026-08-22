@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../utils/theme.dart';
 import '../app_flavor.dart';
 import '../navigator_key.dart';
+import '../utils/app_lang.dart';
 import '../widgets/z_mark.dart';
 import 'customer/onboarding_screen.dart';
 
@@ -132,7 +133,11 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final label = AppFlavorConfig.flavorLabel;
+    final label = AppFlavorConfig.flavorLabel == null
+        ? null
+        : (AppLang.en
+            ? (AppFlavorConfig.flavorLabelEn ?? AppFlavorConfig.flavorLabel!)
+            : AppFlavorConfig.flavorLabel!);
     final fc = context.flavorColors;
 
     // تطبيق العميل — واجهة الجمهور — يفتح ببوستر العلامة الكامل (الشعار
@@ -239,7 +244,8 @@ class _SplashScreenState extends State<SplashScreen>
                 Opacity(
                   opacity: _tagline.value,
                   child: Text(
-                    AppFlavorConfig.flavorTagline,
+                    tr(AppFlavorConfig.flavorTagline,
+                        AppFlavorConfig.flavorTaglineEn),
                     style: TextStyle(
                       fontSize: 13.5,
                       color: Colors.white.withOpacity(0.6),
@@ -321,7 +327,7 @@ class _AuthWaitIndicator extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            Text('جارٍ استعادة جلستك…',
+            Text(tr('جارٍ استعادة جلستك…', 'Restoring your session…'),
                 style: TextStyle(
                     fontSize: 12.5, color: Colors.white.withOpacity(0.7))),
           ]),

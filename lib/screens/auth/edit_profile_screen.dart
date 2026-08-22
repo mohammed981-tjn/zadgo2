@@ -13,6 +13,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -58,13 +59,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
       auth.applyProfile(name: _name.text, phone: _phone.text);
       if (mounted) {
-        showSuccess(context, 'حُفظ ملفك الشخصي');
+        showSuccess(context, tr('حُفظ ملفك الشخصي', 'Profile saved'));
         Navigator.pop(context);
       }
     } catch (_) {
       if (mounted) {
         setState(() => _saving = false);
-        showError(context, 'تعذّر الحفظ — حاول مجدداً');
+        showError(context, tr('تعذّر الحفظ — حاول مجدداً', "Couldn't save — try again"));
       }
     }
   }
@@ -73,10 +74,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     final u = context.watch<app_auth.AuthProvider>().user;
     if (u == null) {
-      return const Scaffold(body: Center(child: Text('سجّل الدخول أولاً')));
+      return Scaffold(
+          body: Center(child: Text(tr('سجّل الدخول أولاً', 'Sign in first'))));
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('الملف الشخصي')),
+      appBar: AppBar(title: Text(tr('الملف الشخصي', 'Profile'))),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(20), children: [
@@ -85,7 +87,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               radius: 38,
               backgroundColor: AppColors.primary.withOpacity(0.12),
               child: Text(
-                u.name.trim().isEmpty ? '؟' : u.name.trim().substring(0, 1),
+                u.name.trim().isEmpty
+                    ? tr('؟', '?')
+                    : u.name.trim().substring(0, 1),
                 style: const TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.bold,
@@ -103,23 +107,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           TextFormField(
             controller: _name,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
-                labelText: 'الاسم', prefixIcon: Icon(Icons.person_outline)),
-            validator: (v) =>
-                (v == null || v.trim().length < 2) ? 'أدخل اسمك' : null,
+            decoration: InputDecoration(
+                labelText: tr('الاسم', 'Name'),
+                prefixIcon: const Icon(Icons.person_outline)),
+            validator: (v) => (v == null || v.trim().length < 2)
+                ? tr('أدخل اسمك', 'Enter your name')
+                : null,
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _phone,
             keyboardType: TextInputType.phone,
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(
-                labelText: 'رقم الجوال',
+            decoration: InputDecoration(
+                labelText: tr('رقم الجوال', 'Mobile number'),
                 hintText: '05xxxxxxxx',
-                prefixIcon: Icon(Icons.phone_outlined)),
+                prefixIcon: const Icon(Icons.phone_outlined)),
             validator: (v) {
               final digits = (v ?? '').replaceAll(RegExp(r'\D'), '');
-              return digits.length < 9 ? 'أدخل رقم جوال صحيح' : null;
+              return digits.length < 9
+                  ? tr('أدخل رقم جوال صحيح', 'Enter a valid mobile number')
+                  : null;
             },
           ),
           const SizedBox(height: 12),
@@ -127,9 +135,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           TextFormField(
             initialValue: u.email,
             enabled: false,
-            decoration: const InputDecoration(
-                labelText: 'البريد الإلكتروني (هوية الدخول — لا يُعدَّل)',
-                prefixIcon: Icon(Icons.email_outlined)),
+            decoration: InputDecoration(
+                labelText: tr('البريد الإلكتروني (هوية الدخول — لا يُعدَّل)',
+                    'Email (sign-in ID — cannot be changed)'),
+                prefixIcon: const Icon(Icons.email_outlined)),
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -143,7 +152,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.check_rounded, size: 18),
-              label: Text(_saving ? 'جارٍ الحفظ…' : 'حفظ'),
+              label: Text(_saving ? tr('جارٍ الحفظ…', 'Saving…') : tr('حفظ', 'Save')),
             ),
           ),
         ]),
