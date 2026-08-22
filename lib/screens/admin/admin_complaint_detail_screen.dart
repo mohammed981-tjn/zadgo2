@@ -222,6 +222,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 ),
                 const Divider(height: 24),
               ],
+              // م٧ (فحص مساعد الويب): الشكاوى تُقدَّم غالباً على طلبات
+              // **مُسلَّمة** — نقلُها كان يمحو دَين حامل النقد ويقيّده على
+              // بريء. المنتقي يظهر للطلب النشط وحده (والخدمة تحرسه أيضاً).
+              if (!order.status.isActive)
+                Text(
+                    tr('الطلب منتهٍ (${order.status.label}) — لا يُنقل لسائق آخر.',
+                        'Order is finished (${order.status.label}) — it can\'t be reassigned.'),
+                    style: const TextStyle(
+                        fontSize: 12.5, color: AppColors.textGray))
+              else ...[
               Text(
                   tr('نقل الطلب لسائق آخر (اختياري)',
                       'Reassign the order to another driver (optional)'),
@@ -251,6 +261,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   );
                 },
               ),
+              ],
             ]),
           ),
           actions: [

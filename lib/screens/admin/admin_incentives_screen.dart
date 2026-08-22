@@ -239,19 +239,28 @@ List<_ReferralRow> referralRows(
     if (referrer == null || referrer.id == referee.id) continue;
 
     final joined = referee.createdAt;
-    final deadline = joined?.add(Duration(days: s.referralWindowDays));
+    // م٢٢ (فحص مساعد الويب): «بلا تاريخ انضمام» كان يعني نافذةً مفتوحة
+    // للأبد — فمحوُ التاريخ (أو مسارُ إنشاءٍ نسي كتابته) يجعل الشرط
+    // يُستوفى متى شاء صاحبه. الآن: بلا تاريخ = غير مستحق حتى يصحّحه
+    // المدير، وتظهر صفراً هنا فيَبين الخلل بدل أن يُصرف عليه.
+    if (joined == null) {
+      rows.add(_ReferralRow(
+          referrer: referrer, referee: referee, count: 0, expired: false));
+      continue;
+    }
+    final deadline = joined.add(Duration(days: s.referralWindowDays));
     final count = delivered
         .where((o) =>
             o.driverId == referee.id &&
-            (joined == null || !o.createdAt.isBefore(joined)) &&
-            (deadline == null || !o.createdAt.isAfter(deadline)))
+            !o.createdAt.isBefore(joined) &&
+            !o.createdAt.isAfter(deadline))
         .length;
 
     rows.add(_ReferralRow(
       referrer: referrer,
       referee: referee,
       count: count,
-      expired: deadline != null && now.isAfter(deadline),
+      expired: now.isAfter(deadline),
     ));
   }
   rows.sort((a, b) => b.count.compareTo(a.count));

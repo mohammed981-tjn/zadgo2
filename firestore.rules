@@ -51,7 +51,12 @@ service cloud.firestore {
     function hasRole(role) {
       return isSignedIn() &&
           exists(/databases/$(database)/documents/users/$(currentUid())) &&
-          userData().role == role;
+          userData().role == role &&
+          // م١١ (فحص مساعد الويب): «إيقاف الحساب» كان تجميل واجهة —
+          // الموقوف يحتفظ بكل ما يمنحه دوره. الافتراض «مفعَّل» (د٣:
+          // حسابات قديمة بلا الحقل لا تنقطع). لا يمسّ صفة المدير
+          // الموقَّعة — سحبها من ورشة GitHub.
+          userData().get('isActive', true) != false;
     }
 
     /// صفة المدير — **الادّعاء الموقّع وحده** (بند ١٢-ب، أُغلق المسار القديم
@@ -148,7 +153,9 @@ service cloud.firestore {
               'walletUsed', 'discountAmount', 'custodyDebited',
               'operatorId', 'operatorShare',
               'paymentMethod', 'paymentId', 'cardAmountHalalas',
-              'itemsTotal'];
+              // م٣/م٢٣: اسم الكوبون يُثبَّت لحظة الإنشاء (تلفيق الإرجاع)،
+              // وعلم «تعذّر التسليم» بيّنةُ الكابتن لا يمحوها العميل.
+              'itemsTotal', 'couponCode', 'deliveryFailed'];
     }
 
     /// القائمة نفسها بلا operatorId (دفعة ٨ — ختم التبعية عند الإسناد):
@@ -163,7 +170,7 @@ service cloud.firestore {
               'walletUsed', 'discountAmount', 'custodyDebited',
               'operatorShare',
               'paymentMethod', 'paymentId', 'cardAmountHalalas',
-              'itemsTotal'];
+              'itemsTotal', 'couponCode', 'deliveryFailed'];
     }
 
     /// هل يمنح الكوبون خصماً بهذا المبلغ الآن؟ يُفحص لحظة إنشاء الطلب:
@@ -397,7 +404,10 @@ service cloud.firestore {
                 // للمدير وحده فلا يُعاد ضبطه ليُصرف مرتين.
                 !changedKeys().hasAny(['role', 'isActive', 'restaurantId',
                     'cashTrusted', 'cashBlocked', 'cashNoShowCount',
-                    'referredByCode', 'referralRewarded']) &&
+                    'referredByCode', 'referralRewarded',
+                    // م٢٦ (فحص مساعد الويب): تاريخ الإنشاء أساس نافذة
+                    // إحالة العميل — تحريره يفتحها بأثر رجعي.
+                    'createdAt']) &&
                 // الرصيد: يجوز لصاحبه **إنقاصه** فقط (الدفع من محفظته عند
                 // الطلب)، ولا يجوز له زيادته إطلاقاً — الزيادة استرداد أو
                 // تسوية من المدير وحده. بلا هذا التمييز كان الدفع بالمحفظة
@@ -677,62 +687,7 @@ service cloud.firestore {
             // وrestaurantChargeback وcommissionPercent، فسائقٌ معدَّل على
             // طلبه المُسنَد كان يصفّر تعويض المطعم أو يخفّض عمولة المنصّة (د١).
             (resource.data.driverId == currentUid() &&
-                // ح٢(أ): خلعُ الاسم عن طلبٍ منتهٍ كان أول خطوات «حلقة سكّ
-                // المال» (تجريد ← إعادة إسناد ← تسليم ثانٍ يقبض الأجرة
-                // مجدداً) — التجريد للرفض المشروع يقع قبل الانتهاء حصراً.
-                (!changedKeys().hasAny(['driverId']) ||
-                    !(resource.data.status in
-                        ['delivered', 'cancelled', 'refunded'])) &&
-                !changedKeys().hasAny(['items', 'driverShare', 'appShare',
-                                       'customerId', 'restaurantId',
-                                       'orderNumber', 'driverTip',
-                                       'restaurantCompensation',
-                                       'restaurantChargeback',
-                                       'commissionPercent',
-                                       'walletUsed', 'discountAmount',
-                                       // ح١ (فحص مساعد الويب): قلبُ «نقدي»
-                                       // إلى «إلكتروني» كان يُسقط العُهدة
-                                       // ويُقبض الأجرة عن نقدٍ في جيبه.
-                                       'paymentMethod', 'paymentId',
-                                       'cardAmountHalalas', 'itemsTotal',
-                                       // وعلما الردّ ليسا للكابتن أصلاً.
-                                       'walletRefundPending',
-                                       'cardRefundPending']) &&
-                // مصفوفة انتقالات حالة الكابتن (ثغرة H3): الحالتان الوحيدتان
-                // اللتان يكتبهما تطبيق الكابتن هما الاستلام (→onTheWay) والتسليم
-                // (→delivered من onTheWay). أي كتابة لا تمسّ الحالة تمرّ (وصولٌ
-                // للمطعم، قبول/رفض العرض، تعذّر التسليم — كلها بلا status).
-                // بلا هذا القيد كان الكابتن يكتب delivered من أي مكان فيقبض
-                // أجرته دون وصول الطعام. (نمط مصفوفة المطعم أدناه.)
-                (!changedKeys().hasAny(['status']) ||
-                    (request.resource.data.status == 'onTheWay' &&
-                        resource.data.status in ['readyForPickup',
-                            'searchingDriver', 'driverAssigned', 'pickedUp']) ||
-                    (request.resource.data.status == 'delivered' &&
-                        resource.data.status == 'onTheWay')) &&
-                // عُهدة النقد (ثغرة C2): custodyDebited لا يُرفع إلا مقروناً
-                // بانتقال الاستلام نفسه. كان الكابتن يرفعه قبل الاستلام
-                // فيتخطّى markPickedUpBySelf قيدَ العُهدة (needsCustody=false)
-                // ويحصّل كامل النقد بلا قيدٍ عليه.
-                (!changedKeys().hasAny(['custodyDebited']) ||
-                    (request.resource.data.get('custodyDebited', false) == true &&
-                        resource.data.get('custodyDebited', false) == false &&
-                        request.resource.data.status == 'onTheWay' &&
-                        resource.data.status in ['readyForPickup',
-                            'searchingDriver', 'driverAssigned', 'pickedUp'])) &&
-                // مال المشغّل (ثغرة H1، بند د١ — عُمّم في دفعة ٨): operatorId
-                // يطابق تبعيّة السائق المُسنَد في الكتابة نفسها (لا الكاتب)،
-                // ويُجرَّد مع تجريد driverId — فلا نسبةَ لمشغّلٍ آخر، ولا
-                // تصفيرَ تبعيةٍ عند التسليم يُسقط الحصّة. وoperatorShare يبقى
-                // بالحصّة المحسوبة (±0.01 دفاعٌ ضد انحراف الفاصلة).
-                (!changedKeys().hasAny(['operatorId', 'driverId']) ||
-                    operatorIdMatchesAssignedDriver()) &&
-                (!changedKeys().hasAny(['operatorShare']) ||
-                    (myOperatorId() != '' &&
-                        request.resource.data.get('operatorShare', 0) >=
-                            expectedOperatorShare(resource.data.get('driverShare', 0)) - 0.01 &&
-                        request.resource.data.get('operatorShare', 0) <=
-                            expectedOperatorShare(resource.data.get('driverShare', 0)) + 0.01))) ||
+                captainOrderWriteOk()) ||
             // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
             // بعد رفضه إياه — يمرّره جهازُه تلقائياً لأقرب سائق آخر
             // (driverId لغيره). كان الشرط يُلزم أن يكون المعرّف الجديد هو
@@ -785,10 +740,18 @@ service cloud.firestore {
                     'prepMinutes', 'restaurantReply',
                     'restaurantRepliedAt']) &&
                 (!changedKeys().hasAny(['status']) ||
-                    request.resource.data.status in ['restaurantAccepted',
+                    (request.resource.data.status in ['restaurantAccepted',
                         'preparing', 'readyForPickup', 'searchingDriver',
                         'driverAssigned', 'noDriverFound',
-                        'restaurantRejected']) &&
+                        'restaurantRejected'] &&
+                     // م٢ (فحص مساعد الويب — أُثبت بالمحاكي): بلا فحص
+                     // المصدر كان مطعمٌ معدَّل يرجع بالمُسلَّم إلى «جاهز»
+                     // ومعه كابتن يختاره (طريق ثانٍ لحلقة سكّ المال)، أو
+                     // بالملغى إلى «قيد التحضير» فيفسد عدّادات اليوم.
+                     resource.data.status in ['created',
+                        'restaurantPending', 'restaurantAccepted',
+                        'preparing', 'readyForPickup', 'searchingDriver',
+                        'driverAssigned', 'noDriverFound'])) &&
                 (!changedKeys().hasAny(['walletRefundPending']) ||
                     (request.resource.data.walletRefundPending == true &&
                         request.resource.data.status == 'restaurantRejected' &&
@@ -871,7 +834,28 @@ service cloud.firestore {
                      'lastChallengeWindow',
                      // تبعيّة المشغّل وحصّته يضبطهما المدير وحده (بند ج١/د١):
                      // لا يدّعي كابتنٌ تبعيةً لمشغّل أو يفكّها أو يرفع حصّته.
-                     'operatorId', 'operatorDriverShare']) &&
+                     'operatorId', 'operatorDriverShare',
+                     // م٢٢ (فحص مساعد الويب): تاريخ الانضمام أساسُ نافذة
+                     // شرط الإحالة — محوُه كان يفتحها للأبد. المدير يصحّحه.
+                     'createdAt',
+                     // م٢٠: علم الحظر بيد المدير ومشغّل الأسطول لا الكابتن.
+                     'isActive']) &&
+                // م٢٠ (فحص مساعد الويب): عدّادا معدل القبول يتحركان +1
+                // حصراً (لا تصفير يجمّل المعدل الذي يوزّع رزق الكباتن)،
+                // والحمولة تتحرك درجةً درجة في مداها — لا «صفر» دائم
+                // يقفز به فوق سقف الحمولة الصارم.
+                (!changedKeys().hasAny(['offersTotal']) ||
+                    request.resource.data.get('offersTotal', 0) ==
+                        resource.data.get('offersTotal', 0) + 1) &&
+                (!changedKeys().hasAny(['offersAccepted']) ||
+                    request.resource.data.get('offersAccepted', 0) ==
+                        resource.data.get('offersAccepted', 0) + 1) &&
+                // الحمولة (activeOrders) تبقى بثّاً استرشادياً من جهازه —
+                // م٢٠ عولجت من الجذر: الترشيح يشتقّها من الطلبات الفعلية
+                // (autoAssign) فتزويرها لا يقفز به فوق السقف الصارم.
+                (!changedKeys().hasAny(['activeOrders']) ||
+                    (request.resource.data.get('activeOrders', 0) >= 0 &&
+                        request.resource.data.get('activeOrders', 0) <= 50)) &&
                 // رصيد الكابتن (دفعة ٠-ب، C1/H2): لم يعد مكشوفاً — أي تغيير في
                 // balance يستلزم حركة دفتر مطابقة تُنشأ في نفس الدفعة (انظر
                 // ledgerBackedBalance). فلا يصفّر دَينه ولا يضخّم مستحقّه.
@@ -882,7 +866,12 @@ service cloud.firestore {
             // يسمح به لأي مصادَقٍ بلا دور «عميل» — بمن فيهم المصادَق مجهولاً
             // من صفحة الانضمام — فيعطّل منافساً أو يدفعه لطلبات وهو غير جاهز.
             // حصرناه بالأدوار الثلاثة الفعلية فأُغلق باب المجهول دون كسر الإسناد.
-            ((isDriver() || isAdmin() || hasRole('restaurantManager')) &&
+            // م٢١ (فحص مساعد الويب): كان أي كابتن يقلب توفّر كل زملائه
+            // بكتابةٍ واحدة (احتكار العروض أو شلّ الإسناد كله). الكابتن
+            // على مستنده عبر فرعه أعلاه؛ وقلبُ الغير لجهاز المطعم (الإسناد
+            // التلقائي) والمدير — وجهاز الكابتن عند إعادة الترشيح يمرّر
+            // الإسناد بلا قفلِ مرشَّحٍ (lockCandidate=false في الخدمة).
+            ((isAdmin() || hasRole('restaurantManager')) &&
                 changedKeys().hasOnly(['isAvailable'])) ||
             // مشغّل الأسطول على كباتنه **حصراً** (دفعة ٨ — roles-design §ثانياً):
             // ثلاث صلاحيات مسمّاة لا «كل شيء»:
@@ -993,7 +982,11 @@ service cloud.firestore {
                     ['orderCustody', 'deliveryCash', 'deliveryOnline'] &&
                 request.resource.data.get('orderId', '') != '' &&
                 existsAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)) &&
-                getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.get('driverId', '') == currentUid()) ||
+                getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.get('driverId', '') == currentUid() &&
+                // م١٨ (فحص مساعد الويب): المبلغ كان حرّاً تماماً — والذراع
+                // الخادمية تشتقّ الرصيد من مجموع الدفتر. يُسقَف بنوعه من
+                // قيم الطلب نفسه فلا سكَّ لمبلغٍ منتفخ باسم طلبٍ حقيقي.
+                driverTxAmountOk()) ||
             // تسوية المشغّل (دفعة ٨): نوعٌ واحد مسمّى، باسمه (createdBy)،
             // وعلى كابتنٍ تابعٍ له — وقاعدة drivers تربطها بتغيّر الرصيد
             // المطابق ذرّياً، فلا حركةَ تجميلٍ ولا تحريكَ رصيدٍ بلا أثر.
@@ -1552,6 +1545,80 @@ service cloud.firestore {
     // نفذ ٢): الإنقاص الحرّ يعني إعادة تعبئة أكواد مستنفدة وإعادة استخدام
     // «مرة واحدة لكل عميل» بلا حدّ. فيُقيَّد بواقعة قابلة للتحقق: سجلُّ
     // استخدام المستخدم نفسه يشير لطلبٍ **ملغى فعلاً** بهذا الكود وباسمه.
+    /// فرع الكابتن المُسنَد على طلبه — استُخرج دالةً تحسب مفاتيح التغيير
+    /// **مرةً واحدة** (let): كانت القاعدة تعيد حساب diff ~١٥ مرة فتخترق
+    /// سقف تقييم القواعد (١٠٠٠ تعبير) وترفض قيد العُهدة المشروع — أمسكه
+    /// فحص harden0b_a. المنطق نفسه حرفاً: قائمة المنع (ح١/م١٩ وأخواتها)،
+    /// منع خلع الاسم عن المنتهي (ح٢أ)، مصفوفة الحالات (H3)، قِران العُهدة
+    /// بانتقال الاستلام (C2)، قِران حصّة المشغّل بانتقال التسليم وقيمتها
+    /// المحسوبة (H1/م١٣)، ومطابقة التبعية (دفعة ٨).
+    function captainOrderWriteOk() {
+      let ck = request.resource.data.diff(resource.data).affectedKeys();
+      let rd = request.resource.data;
+      let cur = resource.data;
+      return !ck.hasAny(['items', 'driverShare', 'appShare',
+                 'customerId', 'restaurantId', 'orderNumber', 'driverTip',
+                 'restaurantCompensation', 'restaurantChargeback',
+                 'commissionPercent', 'walletUsed', 'discountAmount',
+                 'paymentMethod', 'paymentId', 'cardAmountHalalas',
+                 'itemsTotal', 'walletRefundPending', 'cardRefundPending',
+                 'isRated', 'restaurantReply', 'restaurantRepliedAt']) &&
+             (!ck.hasAny(['driverId']) ||
+                 !(cur.status in ['delivered', 'cancelled', 'refunded'])) &&
+             (!ck.hasAny(['status']) ||
+                 (rd.status == 'onTheWay' &&
+                     cur.status in ['readyForPickup', 'searchingDriver',
+                         'driverAssigned', 'pickedUp']) ||
+                 (rd.status == 'delivered' && cur.status == 'onTheWay')) &&
+             (!ck.hasAny(['custodyDebited']) ||
+                 (rd.get('custodyDebited', false) == true &&
+                     cur.get('custodyDebited', false) == false &&
+                     rd.status == 'onTheWay' &&
+                     cur.status in ['readyForPickup', 'searchingDriver',
+                         'driverAssigned', 'pickedUp'])) &&
+             (!ck.hasAny(['operatorShare']) ||
+                 (rd.status == 'delivered' && cur.status == 'onTheWay' &&
+                     myOperatorId() != '' &&
+                     rd.get('operatorShare', 0) >=
+                         expectedOperatorShare(cur.get('driverShare', 0)) - 0.01 &&
+                     rd.get('operatorShare', 0) <=
+                         expectedOperatorShare(cur.get('driverShare', 0)) + 0.01)) &&
+             (!ck.hasAny(['operatorId', 'driverId']) ||
+                 operatorIdMatchesAssignedDriver());
+    }
+
+    /// م١٨: سقف مبلغ حركة الكابتن بنوعها من قيم طلبها — قراءةٌ واحدة
+    /// (getAfter) تُشتق منها العُهدة كما يشتقّها النموذج حرفياً
+    /// (custodyAmount getter — **ليست حقلاً مخزَّناً**): الوجبات + رسم
+    /// المنصّة − المحفظة − الخصم. الضغط في دالةٍ واحدة مقصود: سقف تقييم
+    /// القواعد ١٠٠٠ تعبيرٍ للدفعة، وتكرار getAfter فجّره في فحص العُهدة.
+    function driverTxAmountOk() {
+      let d = request.resource.data;
+      let o = getAfter(/databases/$(database)/documents/orders/$(d.orderId)).data;
+      let custody = o.get('itemsTotal', 0) + o.get('appShare', 0) -
+          o.get('walletUsed', 0) - o.get('discountAmount', 0);
+      return (d.type == 'orderCustody' &&
+                 d.amount <= 0 && d.amount >= -custody) ||
+             (d.type == 'deliveryCash' &&
+                 d.amount <= 0 &&
+                 d.amount >= -(custody + o.get('driverShare', 0))) ||
+             (d.type == 'deliveryOnline' &&
+                 d.amount >= 0 &&
+                 d.amount <= o.get('driverShare', 0) + o.get('driverTip', 0));
+    }
+
+    /// م٤ (فحص مساعد الويب): زيادة عدّاد الكوبون كانت متاحة لأي مسجَّل
+    /// (حتى الهوية المجهولة) بلا أي شراء — فيحرق منافسٌ حملة «أول ١٠٠٠
+    /// طلب» مجاناً. الربط: نفس دفعة الزيادة تكتب علامة استخدامٍ للكاتب
+    /// يشير آخرُ طلبها لطلبٍ له بهذا الكود وبخصمٍ فعلي.
+    function couponUseBacked(code) {
+      let u = getAfter(/databases/$(database)/documents/coupon_usages/$(code + '_' + currentUid())).data;
+      let o = getAfter(/databases/$(database)/documents/orders/$(u.lastOrderId)).data;
+      return o.get('customerId', '') == currentUid() &&
+             o.get('couponCode', '') == code &&
+             o.get('discountAmount', 0) > 0;
+    }
+
     function couponReleaseJustified(code) {
       let usage = get(/databases/$(database)/documents/coupon_usages/$(code + '_' + currentUid())).data;
       let orderPath = /databases/$(database)/documents/orders/$(usage.lastOrderId);
@@ -1563,6 +1630,11 @@ service cloud.firestore {
              // ويُرفع ختمه couponReleased في هذه الدفعة نفسها — فمحاولةٌ ثانية
              // ترى الختم ملتزَماً true فتُرفض، فلا يُعاد فتح كوبونٍ مستنفَد بالتكرار.
              order.get('couponReleased', false) != true &&
+             // م٣ (فحص مساعد الويب): طلبٌ حمل كوداً بخصمٍ صفر كان يكفي
+             // لتلفيق «واقعة إرجاع» تُنقص العدّاد — الآن لا إرجاع إلا لما
+             // قُيّد استخدامه بخصمٍ حقيقي عند الإنشاء (وذلك المسار نفسه
+             // زاد العدّاد، فالإرجاع يعيده لا يسكّ حصصاً).
+             order.get('discountAmount', 0) > 0 &&
              getAfter(orderPath).data.get('couponReleased', false) == true;
     }
 
@@ -1579,6 +1651,7 @@ service cloud.firestore {
             isSignedIn() &&
             changedKeys().hasOnly(['usedCount']) &&
             request.resource.data.usedCount == resource.data.usedCount + 1 &&
+            couponUseBacked(code) &&
             resource.data.get('isActive', false) == true &&
             (resource.data.get('expiresAt', null) == null ||
                 request.time < resource.data.get('expiresAt', null)) &&

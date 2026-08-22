@@ -136,7 +136,11 @@ class AdminUsersTab extends StatelessWidget {
                   items: [
                     DropdownMenuItem(value: UserRole.restaurantManager, child: Text(tr('مدير مطعم', 'Restaurant manager'))),
                     DropdownMenuItem(value: UserRole.driver, child: Text(tr('سائق', 'Driver'))),
-                    DropdownMenuItem(value: UserRole.admin, child: Text(tr('مدير عام', 'Admin'))),
+                    // م١٤ (فحص مساعد الويب): خيار «مدير عام» حُذف — الكود
+                    // كان يمنح حقل الدور فقط بينما الصلاحية الفعلية صارت
+                    // بالادّعاء الموقّع (ورشة Admin claim في GitHub)، فيفتح
+                    // لوحةً كاملة تُرفض عليها كل قراءة وكتابة. المدير
+                    // الثاني يُمنح من الورشة كما في دليل الإدارة.
                     // كود «موظف دعم» يفتح لوحة إدارة منكمشة: شكاوى
                     // ومتابعة بلا مالٍ ولا صلاحيات — القيد في القواعد.
                     DropdownMenuItem(value: UserRole.support, child: Text(tr('موظف دعم', 'Support agent'))),
