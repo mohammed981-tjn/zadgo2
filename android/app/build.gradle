@@ -75,17 +75,19 @@ android {
         customer {
             dimension "app"
             applicationIdSuffix ".customer"
-            resValue "string", "app_name", "ZadGo عميل"
+            // أسماء المتجر اعتمدها المالك 2026-08-22 (هـ٣) — «السائق» بالهمزة
+            // إملاءً صحيحاً، وقوقل بلاي يقبل الأسماء العربية كاملةً.
+            resValue "string", "app_name", "ZadGo العميل"
         }
         driver {
             dimension "app"
             applicationIdSuffix ".driver"
-            resValue "string", "app_name", "ZadGo سائق"
+            resValue "string", "app_name", "ZadGo السائق"
         }
         restaurant {
             dimension "app"
             applicationIdSuffix ".restaurant"
-            resValue "string", "app_name", "ZadGo مطعم"
+            resValue "string", "app_name", "ZadGo المطعم"
         }
         admin {
             dimension "app"

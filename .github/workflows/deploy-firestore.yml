@@ -35,10 +35,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      # جافا 21 لا 17: أداة فايربيز منذ v15 ترفض ما دون 21 — فشل النشر
+      # الأول (2026-08-22) كان هنا لا في الفحوص، والبوابة منعت النشر كما صُمّمت.
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
       - name: تثبيت اعتماديات فحوص القواعد
         working-directory: tools/rules-test
         run: npm ci || npm install
