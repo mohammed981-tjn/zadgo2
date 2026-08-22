@@ -681,11 +681,12 @@ service cloud.firestore {
                         (!changedKeys().hasAny(['cardRefundPending']) ||
                             (request.resource.data.cardRefundPending == true &&
                                 resource.data.get('paymentId', '') != ''))))) ||
-            // السائق المُسنَد يكتب isPaid وplatformCommission وحدهما من
-            // الحقول المالية (عند التسليم markOrderDelivered)، فقائمته =
-            // orderMoneyKeys() ناقص هذين. كانت تنقصها restaurantCompensation
-            // وrestaurantChargeback وcommissionPercent، فسائقٌ معدَّل على
-            // طلبه المُسنَد كان يصفّر تعويض المطعم أو يخفّض عمولة المنصّة (د١).
+            // السائق المُسنَد على طلبه: **قائمة سماح صريحة** (أمر المالك
+            // 2026-08-22 — العلاج الجذري) بمفاتيح دورته الستة عشر حصراً؛
+            // من المال لا يكتب إلا isPaid وplatformCommission (التسليم)
+            // وoperatorShare (محروسة القيمة والتوقيت) — والحقل المالي
+            // الجديد يولد ممنوعاً عنه تلقائياً (د١). التفصيل في
+            // captainOrderWriteOk() أدناه.
             (resource.data.driverId == currentUid() &&
                 captainOrderWriteOk()) ||
             // طلب بلا سائق مُسنَد: السائق يقبله لنفسه (تصميم مقصود)، أو —
@@ -1611,21 +1612,28 @@ service cloud.firestore {
     /// فرع الكابتن المُسنَد على طلبه — استُخرج دالةً تحسب مفاتيح التغيير
     /// **مرةً واحدة** (let): كانت القاعدة تعيد حساب diff ~١٥ مرة فتخترق
     /// سقف تقييم القواعد (١٠٠٠ تعبير) وترفض قيد العُهدة المشروع — أمسكه
-    /// فحص harden0b_a. المنطق نفسه حرفاً: قائمة المنع (ح١/م١٩ وأخواتها)،
-    /// منع خلع الاسم عن المنتهي (ح٢أ)، مصفوفة الحالات (H3)، قِران العُهدة
-    /// بانتقال الاستلام (C2)، قِران حصّة المشغّل بانتقال التسليم وقيمتها
-    /// المحسوبة (H1/م١٣)، ومطابقة التبعية (دفعة ٨).
+    /// فحص harden0b_a. الحرّاس: منع خلع الاسم عن المنتهي (ح٢أ)، مصفوفة
+    /// الحالات (H3)، قِران العُهدة بانتقال الاستلام (C2)، قِران حصّة
+    /// المشغّل بانتقال التسليم وقيمتها المحسوبة (H1/م١٣)، ومطابقة
+    /// التبعية (دفعة ٨).
+    ///
+    /// **قائمة سماح لا قائمة منع** (العلاج الجذري — أمر المالك 2026-08-22):
+    /// كانت قائمة منعٍ بـ٢١ حقلاً محظوراً، وكل حقلٍ ماليٍّ جديد يولد
+    /// **مكشوفاً** حتى يتذكّر أحدٌ إضافته إليها — وهكذا تسرّبت paymentMethod
+    /// (ح١) وisRated (م١٩) أصلاً. الآن المفاتيح الستة عشر التي يكتبها
+    /// جهاز الكابتن فعلاً (دورة التسليم، قيد العُهدة، تجريد الرفض، تعذّر
+    /// التسليم، ختم الوصول) هي **كلُّ** المباح — والحقل الجديد يولد
+    /// ممنوعاً تلقائياً حتى يُضاف هنا قصداً.
     function captainOrderWriteOk() {
       let ck = request.resource.data.diff(resource.data).affectedKeys();
       let rd = request.resource.data;
       let cur = resource.data;
-      return !ck.hasAny(['items', 'driverShare', 'appShare',
-                 'customerId', 'restaurantId', 'orderNumber', 'driverTip',
-                 'restaurantCompensation', 'restaurantChargeback',
-                 'commissionPercent', 'walletUsed', 'discountAmount',
-                 'paymentMethod', 'paymentId', 'cardAmountHalalas',
-                 'itemsTotal', 'walletRefundPending', 'cardRefundPending',
-                 'isRated', 'restaurantReply', 'restaurantRepliedAt']) &&
+      return ck.hasOnly(['status', 'updatedAt', 'statusChangedAt',
+                 'custodyDebited', 'isPaid', 'platformCommission',
+                 'operatorShare', 'driverAcknowledged',
+                 'driverId', 'driverName', 'driverPhone', 'operatorId',
+                 'deliveryFailed', 'undeliveredAt', 'undeliveredReason',
+                 'arrivedAtRestaurantAt']) &&
              (!ck.hasAny(['driverId']) ||
                  !(cur.status in ['delivered', 'cancelled', 'refunded'])) &&
              (!ck.hasAny(['status']) ||
