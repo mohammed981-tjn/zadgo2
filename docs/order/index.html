@@ -1575,7 +1575,15 @@ function listenDriver(driverId) {
   if (S.driverUnsub) { S.driverUnsub(); S.driverUnsub = null; }
   S.driverDoc = null;
   if (!driverId) return;
-  S.driverUnsub = onSnapshot(doc(db, 'drivers', driverId),
+  /* المرآة الرفيعة `drivers_public` لا مستند الكابتن الكامل.
+   *
+   * الصفحة لا تستعمل إلا `lat`/`lng` — والمستند الكامل يحمل معهما جوّال
+   * الكابتن ورصيده وبياناته، فكانت تُنزَّل كلها إلى متصفّح كل عميلٍ ينتظر
+   * طلبه. والمرآة أُنشئت في الدفعة الهيكلية (م٥) لهذا الغرض حرفاً: سبعة
+   * حقول استرشادية لا غير، يبثّها الكابتن على مرآته هو.
+   * (والقاعدة ما زالت تسمح بقراءة المستند الكامل لأي مسجَّل — فهذا
+   * تقليلُ ما نأخذه لا ما نستطيع أخذه، وهو الصواب في الحالين.) */
+  S.driverUnsub = onSnapshot(doc(db, 'drivers_public', driverId),
     (d) => {
       S.driverDoc = d.exists() ? d.data() : null;
       if (S.page === 'order') render();
