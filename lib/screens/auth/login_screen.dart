@@ -8,6 +8,7 @@ import '../../utils/theme.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/common_widgets.dart';
 import '../../app_flavor.dart';
+import '../../utils/app_lang.dart';
 import 'applicant_register_screen.dart';
 import 'application_gate_screen.dart';
 
@@ -67,7 +68,10 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         await auth.logout();
         if (!mounted) return;
-        showError(context, AppFlavorConfig.restrictedMessage);
+        showError(
+            context,
+            tr(AppFlavorConfig.restrictedMessage,
+                AppFlavorConfig.restrictedMessageEn));
         return;
       }
       if (widget.fromCheckout) {
@@ -76,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       _navigate(auth.user!.role);
     } else {
-      showError(context, auth.error ?? 'فشل تسجيل الدخول');
+      showError(context, auth.error ?? tr('فشل تسجيل الدخول', 'Sign-in failed'));
     }
   }
 
@@ -127,7 +131,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 8),
+                    // تبديل اللغة قبل الدخول: أول شاشة يراها الجميع — من لا
+                    // يقرأ العربية يجب أن يجد مخرجه هنا لا بعد تسجيلٍ لن
+                    // يستطيع إتمامه.
+                    const Align(
+                      alignment: AlignmentDirectional.topEnd,
+                      child: LanguageToggleButton(),
+                    ),
                     // الشعار المتوهّج — نفس القرص المستخدم في الجولة
                     // التعريفية بحلقاته ولمعته، بحجم أصغر: لغة بصرية واحدة
                     // بين أول شاشتين يراهما المستخدم.
@@ -158,7 +169,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      AppFlavorConfig.flavorTagline,
+                      tr(AppFlavorConfig.flavorTagline,
+                          AppFlavorConfig.flavorTaglineEn),
                       style: TextStyle(
                         fontSize: 13.5,
                         color: Colors.white.withOpacity(0.55),
@@ -190,7 +202,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             Icon(AppFlavorConfig.flavorIcon, color: fc.onPrimary, size: 15),
                             const SizedBox(width: 6),
                             Text(
-                              AppFlavorConfig.flavorLabel!,
+                              AppLang.en
+                                  ? (AppFlavorConfig.flavorLabelEn ??
+                                      AppFlavorConfig.flavorLabel!)
+                                  : AppFlavorConfig.flavorLabel!,
                               style: TextStyle(
                                 color: fc.onPrimary,
                                 fontSize: 14.5,
@@ -215,7 +230,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           Align(
                             alignment: AlignmentDirectional.centerStart,
                             child: Text(
-                              AppFlavorConfig.flavorLoginTitle ?? 'تسجيل الدخول',
+                              AppLang.en
+                                  ? (AppFlavorConfig.flavorLoginTitleEn ??
+                                      'Sign in')
+                                  : (AppFlavorConfig.flavorLoginTitle ??
+                                      'تسجيل الدخول'),
                               style: const TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
@@ -233,8 +252,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               AutofillHints.email,
                             ],
                             style: const TextStyle(color: Colors.white),
-                            decoration:
-                                _fieldDecoration('البريد الإلكتروني', Icons.email_outlined, fc.primaryLight),
+                            decoration: _fieldDecoration(
+                                tr('البريد الإلكتروني', 'Email'),
+                                Icons.email_outlined,
+                                fc.primaryLight),
                             validator: validateEmail,
                           ),
                           const SizedBox(height: 14),
@@ -246,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onFieldSubmitted: (_) => _login(),
                             style: const TextStyle(color: Colors.white),
                             decoration: _fieldDecoration(
-                              'كلمة المرور',
+                              tr('كلمة المرور', 'Password'),
                               Icons.lock_outline,
                               fc.primaryLight,
                               suffix: IconButton(
@@ -262,7 +283,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 26),
                           ZadGradientButton(
-                            label: 'دخول',
+                            label: tr('دخول', 'Sign in'),
                             loading: auth.loading,
                             onPressed: auth.loading ? null : _login,
                           ),
@@ -282,7 +303,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   }
                                 },
                                 child: Text(
-                                  'ليس لديك حساب؟ سجّل الآن',
+                                  tr('ليس لديك حساب؟ سجّل الآن',
+                                      "Don't have an account? Sign up"),
                                   style: TextStyle(
                                     color: fc.primaryLight,
                                     fontWeight: FontWeight.w600,
@@ -306,8 +328,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 child: Text(
                                   AppFlavorConfig.flavor == AppFlavor.driver
-                                      ? 'كابتن جديد؟ انضم من هنا ✨'
-                                      : 'صاحب مطعم؟ سجّل مطعمك من هنا ✨',
+                                      ? tr('كابتن جديد؟ انضم من هنا ✨',
+                                          'New captain? Join here ✨')
+                                      : tr('صاحب مطعم؟ سجّل مطعمك من هنا ✨',
+                                          'Restaurant owner? Register here ✨'),
                                   style: TextStyle(
                                     color: fc.primaryLight,
                                     fontWeight: FontWeight.w700,
@@ -325,7 +349,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       builder: (_) => AppFlavorConfig.buildRegisterWithCodeScreen!()),
                                 ),
                                 child: Text(
-                                  'لديك كود تسجيل؟ سجّل الآن',
+                                  tr('لديك كود تسجيل؟ سجّل الآن',
+                                      'Have a registration code? Sign up'),
                                   style: TextStyle(
                                     color: AppColors.silver.withOpacity(0.85),
                                     fontWeight: FontWeight.w600,

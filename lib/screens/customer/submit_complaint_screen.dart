@@ -8,6 +8,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/doc_capture_field.dart';
 
 class SubmitComplaintScreen extends StatefulWidget {
@@ -83,31 +84,53 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     final options = <(String, String?, UserRole)>[];
 
     if (widget.submittedByRole != UserRole.customer) {
-      options.add(('العميل (${order.customerName})', order.customerId, UserRole.customer));
+      options.add((
+        tr('العميل (${order.customerName})', 'Customer (${order.customerName})'),
+        order.customerId,
+        UserRole.customer
+      ));
     }
     if (widget.submittedByRole != UserRole.driver &&
         order.driverId != null &&
         order.driverId!.isNotEmpty) {
-      options.add(('السائق (${order.driverName ?? "غير معروف"})', order.driverId, UserRole.driver));
+      options.add((
+        tr('السائق (${order.driverName ?? "غير معروف"})',
+            'Driver (${order.driverName ?? "unknown"})'),
+        order.driverId,
+        UserRole.driver
+      ));
     }
     if (widget.submittedByRole != UserRole.restaurantManager) {
-      options.add(('المطعم (${order.restaurantName})', order.restaurantId, UserRole.restaurantManager));
+      options.add((
+        tr('المطعم (${order.restaurantName})',
+            'Restaurant (${order.restaurantName})'),
+        order.restaurantId,
+        UserRole.restaurantManager
+      ));
     }
-    options.add(('شكوى عامة عن الطلب', null, UserRole.admin));
+    options.add((
+      tr('شكوى عامة عن الطلب', 'General complaint about the order'),
+      null,
+      UserRole.admin
+    ));
 
     return options;
   }
 
   Future<void> _submit() async {
     if (_descriptionCtrl.text.trim().isEmpty) {
-      showError(context, 'يرجى كتابة تفاصيل الشكوى');
+      showError(context,
+          tr('يرجى كتابة تفاصيل الشكوى', 'Please write the complaint details'));
       return;
     }
     // حارس المهلة عند الإرسال لا عند الفتح: من فتح الشاشة قبل انقضائها ثم
     // أطال الكتابة كان يُرسل شكوى بعد إغلاق النافذة. تُردّ هنا برسالة
     // مفهومة بدل أن تُقبل ثم تُرفض إدارياً.
     if (!widget.order.canSubmitComplaint) {
-      showError(context, 'انتهت مهلة تقديم الشكوى على هذا الطلب (٢٤ ساعة)');
+      showError(
+          context,
+          tr('انتهت مهلة تقديم الشكوى على هذا الطلب (٢٤ ساعة)',
+              'The complaint window for this order has closed (24 hours)'));
       Navigator.pop(context);
       return;
     }
@@ -135,11 +158,19 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
       );
       await service.submitComplaint(complaint);
       if (mounted) {
-        showSuccess(context, 'تم إرسال شكواك بنجاح، سنراجعها قريباً');
+        showSuccess(
+            context,
+            tr('تم إرسال شكواك بنجاح، سنراجعها قريباً',
+                'Your complaint was sent — we\'ll review it soon'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر إرسال الشكوى، حاول مرة أخرى');
+      if (mounted) {
+        showError(
+            context,
+            tr('تعذّر إرسال الشكوى، حاول مرة أخرى',
+                'Couldn\'t send the complaint, please try again'));
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -150,7 +181,7 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
     final options = _againstOptions;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('تقديم شكوى')),
+      appBar: AppBar(title: Text(tr('تقديم شكوى', 'File a complaint'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -163,12 +194,16 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             child: Row(children: [
               const Icon(Icons.receipt_long_outlined, color: AppColors.primary),
               const SizedBox(width: 8),
-              Text('طلب #${widget.order.orderNumber}',
+              Text(
+                  tr('طلب #${widget.order.orderNumber}',
+                      'Order #${widget.order.orderNumber}'),
                   style: const TextStyle(fontWeight: FontWeight.bold)),
             ]),
           ),
           const SizedBox(height: 20),
-          const Text('نوع الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          Text(tr('نوع الشكوى', 'Complaint type'),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -191,7 +226,9 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             }).toList(),
           ),
           const SizedBox(height: 20),
-          const Text('الشكوى ضد', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          Text(tr('الشكوى ضد', 'Complaint against'),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 8),
           ...options.map((opt) {
             final label = opt.$1;
@@ -211,24 +248,29 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
             );
           }),
           const SizedBox(height: 12),
-          const Text('تفاصيل الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          Text(tr('تفاصيل الشكوى', 'Complaint details'),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 8),
           TextField(
             controller: _descriptionCtrl,
             maxLines: 5,
-            decoration: const InputDecoration(
-              hintText: 'اشرح المشكلة بالتفصيل...',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              hintText: tr('اشرح المشكلة بالتفصيل...',
+                  'Describe the problem in detail...'),
+              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 12),
           // صورة اختيارية (2026-08-20): شكوى جودةٍ أو صنفٍ خاطئ بلا صورة
           // نصفُ دليل. DocCaptureField نفسه الذي يلتقط مستندات التقديم.
-          const Text('أرفق صورة (اختياري)',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+          Text(tr('أرفق صورة (اختياري)', 'Attach a photo (optional)'),
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 14.5)),
           const SizedBox(height: 8),
           DocCaptureField(
-            label: 'صورة توضّح المشكلة — الصنف أو الحالة',
+            label: tr('صورة توضّح المشكلة — الصنف أو الحالة',
+                'A photo showing the issue — the item or its condition'),
             value: _imageBytes,
             onChanged: (b) => setState(() => _imageBytes = b),
           ),
@@ -244,7 +286,8 @@ class _SubmitComplaintScreenState extends State<SubmitComplaintScreen> {
                       width: 20, height: 20,
                       // كحليّ لا أبيض على الزر الذهبي.
                       child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.dark))
-                  : const Text('إرسال الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
+                  : Text(tr('إرسال الشكوى', 'Send complaint'),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],

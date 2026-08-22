@@ -14,6 +14,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 
 class SubmitTicketScreen extends StatefulWidget {
   final String submittedByUid;
@@ -51,7 +52,10 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
 
   Future<void> _submit() async {
     if (_descCtrl.text.trim().length < 10) {
-      showError(context, 'اشرح طلبك بجملة واحدة على الأقل (10 أحرف)');
+      showError(
+          context,
+          tr('اشرح طلبك بجملة واحدة على الأقل (10 أحرف)',
+              'Describe your request in at least one sentence (10 characters)'));
       return;
     }
     setState(() => _submitting = true);
@@ -77,13 +81,19 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
         submittedByRole: widget.submittedByRole,
       ));
       if (mounted) {
-        showSuccess(context, 'أُرسلت التذكرة — نرد خلال 24 ساعة، وتابعها من «شكاواي»');
+        showSuccess(
+            context,
+            tr('أُرسلت التذكرة — نرد خلال 24 ساعة، وتابعها من «شكاواي»',
+                'Ticket sent — we reply within 24 hours; track it in "My complaints"'));
         Navigator.pop(context);
       }
     } catch (_) {
       if (mounted) {
         setState(() => _submitting = false);
-        showError(context, 'تعذّر إرسال التذكرة — حاول مجدداً');
+        showError(
+            context,
+            tr('تعذّر إرسال التذكرة — حاول مجدداً',
+                'Couldn\'t send the ticket — please try again'));
       }
     }
   }
@@ -92,7 +102,7 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
   Widget build(BuildContext context) {
     final fc = context.flavorColors;
     return Scaffold(
-      appBar: AppBar(title: const Text('تذكرة جديدة')),
+      appBar: AppBar(title: Text(tr('تذكرة جديدة', 'New ticket'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         Container(
           padding: const EdgeInsets.all(12),
@@ -100,15 +110,18 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
             color: fc.primary.withOpacity(0.08),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Text(
-            'للمشاكل المتعلقة بطلب توصيل معيّن استخدم زر «تقديم شكوى» على '
-            'الطلب نفسه — هذه التذكرة للمواضيع العامة.',
-            style: TextStyle(fontSize: 12.5, height: 1.6),
+          child: Text(
+            tr(
+                'للمشاكل المتعلقة بطلب توصيل معيّن استخدم زر «تقديم شكوى» على '
+                'الطلب نفسه — هذه التذكرة للمواضيع العامة.',
+                'For issues with a specific delivery order, use the "File a complaint" '
+                'button on that order — this ticket is for general topics.'),
+            style: const TextStyle(fontSize: 12.5, height: 1.6),
           ),
         ),
         const SizedBox(height: 16),
-        const Text('نوع التذكرة',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+        Text(tr('نوع التذكرة', 'Ticket type'),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -131,9 +144,10 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
         TextField(
           controller: _descCtrl,
           maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'اشرح طلبك',
-            hintText: 'مثال: أرجو تحديث رقم الآيبان في ملفي إلى ...',
+          decoration: InputDecoration(
+            labelText: tr('اشرح طلبك', 'Describe your request'),
+            hintText: tr('مثال: أرجو تحديث رقم الآيبان في ملفي إلى ...',
+                'Example: Please update the IBAN on my profile to ...'),
             alignLabelWithHint: true,
           ),
         ),
@@ -151,7 +165,9 @@ class _SubmitTicketScreenState extends State<SubmitTicketScreen> {
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: AppColors.dark))
                 : const Icon(Icons.send_rounded, size: 18),
-            label: Text(_submitting ? 'جارٍ الإرسال…' : 'إرسال التذكرة'),
+            label: Text(_submitting
+                ? tr('جارٍ الإرسال…', 'Sending…')
+                : tr('إرسال التذكرة', 'Send ticket')),
           ),
         ),
       ]),

@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -23,16 +24,17 @@ class AdminCouponsScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCouponForm(context, null),
         icon: const Icon(Icons.add),
-        label: const Text('كود جديد'),
+        label: Text(tr('كود جديد', 'New code')),
       ),
       body: AppStreamBuilder<List<Coupon>>(
         stream: () => service.streamCoupons(),
         builder: (ctx, coupons) {
           if (coupons.isEmpty) {
-            return const AppEmpty(
+            return AppEmpty(
                 emoji: '🎟️',
-                title: 'لا توجد أكواد خصم',
-                subtitle: 'أنشئ كوداً ترويجياً لجذب أول الطلبات');
+                title: tr('لا توجد أكواد خصم', 'No coupon codes'),
+                subtitle: tr('أنشئ كوداً ترويجياً لجذب أول الطلبات',
+                    'Create a promo code to attract the first orders'));
           }
           return ListView(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
@@ -75,31 +77,42 @@ Future<void> _showPerformanceSheet(BuildContext context, Coupon c) async {
           return Column(mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Text('أداء ${c.code}',
+              Text(tr('أداء ${c.code}', '${c.code} performance'),
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 17)),
               const Spacer(),
-              Text('آخر ${snap.data!.length} طلب',
+              Text(
+                  tr('آخر ${snap.data!.length} طلب',
+                      'Last ${snap.data!.length} orders'),
                   style: const TextStyle(
                       fontSize: 11.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 12),
-            PriceRow(label: 'طلبات مكتملة بالكود', value: '${delivered.length}'),
-            PriceRow(label: 'عملاء فريدون', value: '$uniqueCustomers'),
+            PriceRow(
+                label: tr('طلبات مكتملة بالكود', 'Completed orders with the code'),
+                value: '${delivered.length}'),
+            PriceRow(
+                label: tr('عملاء فريدون', 'Unique customers'),
+                value: '$uniqueCustomers'),
             if (cancelled > 0)
-              PriceRow(label: 'أُلغيت (أُرجع كودها)', value: '$cancelled'),
+              PriceRow(
+                  label: tr('أُلغيت (أُرجع كودها)', 'Cancelled (code returned)'),
+                  value: '$cancelled'),
             const Divider(height: 20),
             PriceRow(
-                label: 'كلفة الخصومات (تتحمّلها المنصّة)',
+                label: tr('كلفة الخصومات (تتحمّلها المنصّة)',
+                    'Discount cost (borne by the platform)'),
                 value: '- ${formatCurrency(cost)}'),
             PriceRow(
-                label: 'مبيعات جلبتها الطلبات المكتملة',
+                label: tr('مبيعات جلبتها الطلبات المكتملة',
+                    'Sales from completed orders'),
                 value: formatCurrency(revenue), bold: true),
             const SizedBox(height: 8),
             Text(
               cost > 0
-                  ? 'كل ريال خصم جلب ${(revenue / cost).toStringAsFixed(1)} ريال مبيعات'
-                  : 'لا خصومات مكتملة بعد',
+                  ? tr('كل ريال خصم جلب ${(revenue / cost).toStringAsFixed(1)} ريال مبيعات',
+                      'Every riyal of discount brought ${(revenue / cost).toStringAsFixed(1)} riyals in sales')
+                  : tr('لا خصومات مكتملة بعد', 'No completed discounts yet'),
               style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
             ),
           ]);
@@ -119,12 +132,12 @@ class _CouponCard extends StatelessWidget {
     final service = context.read<FirebaseService>();
     final dead = !c.isActive || c.isExpired || c.isExhausted;
     final statusLabel = !c.isActive
-        ? 'موقوف'
+        ? tr('موقوف', 'Paused')
         : c.isExpired
-            ? 'منتهٍ'
+            ? tr('منتهٍ', 'Expired')
             : c.isExhausted
-                ? 'مستنفد'
-                : 'فعّال';
+                ? tr('مستنفد', 'Exhausted')
+                : tr('فعّال', 'Active');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -157,51 +170,68 @@ class _CouponCard extends StatelessWidget {
           const SizedBox(height: 8),
           Wrap(spacing: 14, runSpacing: 2, children: [
             if (c.minOrderTotal > 0)
-              _meta('حد أدنى', '${c.minOrderTotal.toStringAsFixed(0)} ر.س'),
-            _meta('الاستخدام',
+              _meta(tr('حد أدنى', 'Minimum'),
+                  tr('${c.minOrderTotal.toStringAsFixed(0)} ر.س',
+                      '${c.minOrderTotal.toStringAsFixed(0)} SAR')),
+            _meta(tr('الاستخدام', 'Usage'),
                 c.usageLimit > 0 ? '${c.usedCount}/${c.usageLimit}' : '${c.usedCount}'),
-            _meta('لكل عميل', c.perUserLimit > 0 ? '${c.perUserLimit}' : 'بلا حد'),
+            _meta(tr('لكل عميل', 'Per customer'),
+                c.perUserLimit > 0 ? '${c.perUserLimit}' : tr('بلا حد', 'No limit')),
             if (c.expiresAt != null)
-              _meta('ينتهي',
+              _meta(tr('ينتهي', 'Expires'),
                   '${c.expiresAt!.year}/${c.expiresAt!.month}/${c.expiresAt!.day}'),
-            if (c.restaurantId.isNotEmpty) _meta('مقصور على', 'مطعم محدد'),
+            if (c.restaurantId.isNotEmpty)
+              _meta(tr('مقصور على', 'Limited to'),
+                  tr('مطعم محدد', 'one restaurant')),
           ]),
           const SizedBox(height: 6),
           Row(children: [
             TextButton.icon(
               onPressed: () => _showCouponForm(context, c),
               icon: const Icon(Icons.edit_outlined, size: 16),
-              label: const Text('تعديل', style: TextStyle(fontSize: 12.5)),
+              label: Text(tr('تعديل', 'Edit'),
+                  style: const TextStyle(fontSize: 12.5)),
             ),
             TextButton.icon(
               onPressed: () => service.setCouponActive(c.code, !c.isActive),
               icon: Icon(c.isActive ? Icons.pause : Icons.play_arrow, size: 16),
-              label: Text(c.isActive ? 'إيقاف' : 'تفعيل',
+              label: Text(
+                  c.isActive ? tr('إيقاف', 'Pause') : tr('تفعيل', 'Activate'),
                   style: const TextStyle(fontSize: 12.5)),
             ),
             TextButton.icon(
               onPressed: () => _showPerformanceSheet(context, c),
               icon: const Icon(Icons.insights_outlined, size: 16),
-              label: const Text('أداء', style: TextStyle(fontSize: 12.5)),
+              label: Text(tr('أداء', 'Performance'),
+                  style: const TextStyle(fontSize: 12.5)),
             ),
             const Spacer(),
             IconButton(
-              tooltip: 'حذف',
+              tooltip: tr('حذف', 'Delete'),
               icon: const Icon(Icons.delete_outline,
                   size: 18, color: AppColors.error),
               onPressed: () async {
                 // كود استُخدم فعلاً: الحذف يُفقد أثره عند مراجعة الحملة،
                 // والإيقاف يمنع استخدامه ويُبقي سجلّه — فيُوجَّه إليه.
                 final ok = await showConfirmDialog(context,
-                    title: 'حذف الكود',
+                    title: tr('حذف الكود', 'Delete code'),
                     content: c.usedCount > 0
-                        ? 'استُخدم ${c.code} ${c.usedCount} مرة. حذفه يُفقد '
-                            'أثره عند مراجعة الحملة — «إيقاف» أفضل: يمنع '
-                            'استخدامه ويُبقي سجلّه. الطلبات السابقة تحتفظ '
-                            'بخصمها المسجَّل فيها.'
-                        : 'حذف ${c.code} نهائياً؟ الطلبات السابقة تحتفظ '
-                            'بخصمها المسجَّل فيها.',
-                    confirmLabel: 'حذف',
+                        ? tr(
+                            'استُخدم ${c.code} ${c.usedCount} مرة. حذفه يُفقد '
+                                'أثره عند مراجعة الحملة — «إيقاف» أفضل: يمنع '
+                                'استخدامه ويُبقي سجلّه. الطلبات السابقة تحتفظ '
+                                'بخصمها المسجَّل فيها.',
+                            '${c.code} was used ${c.usedCount} times. Deleting '
+                                'it loses its trail when reviewing the campaign '
+                                '— "Pause" is better: it blocks use and keeps '
+                                'the record. Past orders keep their recorded '
+                                'discount.')
+                        : tr(
+                            'حذف ${c.code} نهائياً؟ الطلبات السابقة تحتفظ '
+                                'بخصمها المسجَّل فيها.',
+                            'Delete ${c.code} permanently? Past orders keep '
+                                'their recorded discount.'),
+                    confirmLabel: tr('حذف', 'Delete'),
                     confirmColor: AppColors.error);
                 if (ok == true) await service.deleteCoupon(c.code);
               },
@@ -272,21 +302,27 @@ class _CouponFormState extends State<_CouponForm> {
     final code = _code.text.trim().toUpperCase();
     final value = double.tryParse(_value.text.trim()) ?? 0;
     if (code.length < 3 || code.length > 24) {
-      showError(context, 'الكود من ٣ إلى ٢٤ خانة');
+      showError(context,
+          tr('الكود من ٣ إلى ٢٤ خانة', 'The code is 3 to 24 characters'));
       return;
     }
     // حروف إنجليزية وأرقام فقط: الكود معرّف المستند، والعميل يكتبه بلوحة
     // مفاتيح قد تُدخل مسافة أو حرفاً عربياً فلا يطابق أبداً.
     if (!RegExp(r'^[A-Z0-9]+$').hasMatch(code)) {
-      showError(context, 'الكود حروف إنجليزية وأرقام فقط بلا مسافات');
+      showError(
+          context,
+          tr('الكود حروف إنجليزية وأرقام فقط بلا مسافات',
+              'The code is English letters and digits only, no spaces'));
       return;
     }
     if (value <= 0) {
-      showError(context, 'أدخل قيمة خصم أكبر من صفر');
+      showError(context,
+          tr('أدخل قيمة خصم أكبر من صفر', 'Enter a discount value above zero'));
       return;
     }
     if (_type == CouponType.percentage && value > 100) {
-      showError(context, 'النسبة لا تتجاوز 100%');
+      showError(
+          context, tr('النسبة لا تتجاوز 100%', 'The rate cannot exceed 100%'));
       return;
     }
     // سقف الخصم صار **إلزامياً** لكوبون النسبة (تحصين 2026-08-15): القواعد
@@ -294,9 +330,13 @@ class _CouponFormState extends State<_CouponForm> {
     // في الواجهة ثم يفشل عند الدفع. يُمنع من المنبع برسالة تشرح السبب.
     if (_type == CouponType.percentage &&
         (double.tryParse(_maxDiscount.text.trim()) ?? 0) <= 0) {
-      showError(context,
-          'كوبون النسبة يحتاج «سقف الخصم» — بلا سقف يمكن أن يبتلع خصمُ طلبٍ '
-          'كبير دخلَ يومٍ كامل، والنظام يرفضه عند الدفع');
+      showError(
+          context,
+          tr('كوبون النسبة يحتاج «سقف الخصم» — بلا سقف يمكن أن يبتلع خصمُ طلبٍ '
+                  'كبير دخلَ يومٍ كامل، والنظام يرفضه عند الدفع',
+              'A percentage coupon needs a "discount cap" — without one, the '
+                  "discount on a large order can swallow a full day's income, "
+                  'and the system rejects it at checkout'));
       return;
     }
     setState(() => _saving = true);
@@ -307,7 +347,10 @@ class _CouponFormState extends State<_CouponForm> {
         if (await context.read<FirebaseService>().couponExists(code)) {
           if (!mounted) return;
           setState(() => _saving = false);
-          showError(context, 'الكود $code موجود مسبقاً — عدّله من قائمة الأكواد');
+          showError(
+              context,
+              tr('الكود $code موجود مسبقاً — عدّله من قائمة الأكواد',
+                  'Code $code already exists — edit it from the code list'));
           return;
         }
       } catch (_) {
@@ -331,12 +374,12 @@ class _CouponFormState extends State<_CouponForm> {
           ));
       if (mounted) {
         Navigator.pop(context);
-        showSuccess(context, 'حُفظ الكود $code');
+        showSuccess(context, tr('حُفظ الكود $code', 'Code $code saved'));
       }
     } catch (_) {
       if (mounted) {
         setState(() => _saving = false);
-        showError(context, 'تعذّر حفظ الكود');
+        showError(context, tr('تعذّر حفظ الكود', 'Could not save the code'));
       }
     }
   }
@@ -355,7 +398,10 @@ class _CouponFormState extends State<_CouponForm> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.existing == null ? 'كود خصم جديد' : 'تعديل الكود',
+            Text(
+                widget.existing == null
+                    ? tr('كود خصم جديد', 'New coupon code')
+                    : tr('تعديل الكود', 'Edit code'),
                 style:
                     const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
@@ -363,20 +409,20 @@ class _CouponFormState extends State<_CouponForm> {
               controller: _code,
               enabled: widget.existing == null,
               textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                  labelText: 'الكود', hintText: 'ZADGO20'),
+              decoration: InputDecoration(
+                  labelText: tr('الكود', 'Code'), hintText: 'ZADGO20'),
             ),
             const SizedBox(height: 10),
             SegmentedButton<CouponType>(
-              segments: const [
+              segments: [
                 ButtonSegment(
                     value: CouponType.percentage,
-                    label: Text('نسبة %'),
-                    icon: Icon(Icons.percent, size: 16)),
+                    label: Text(tr('نسبة %', 'Rate %')),
+                    icon: const Icon(Icons.percent, size: 16)),
                 ButtonSegment(
                     value: CouponType.fixed,
-                    label: Text('مبلغ ثابت'),
-                    icon: Icon(Icons.payments_outlined, size: 16)),
+                    label: Text(tr('مبلغ ثابت', 'Fixed amount')),
+                    icon: const Icon(Icons.payments_outlined, size: 16)),
               ],
               selected: {_type},
               onSelectionChanged: (s) => setState(() => _type = s.first),
@@ -387,30 +433,34 @@ class _CouponFormState extends State<_CouponForm> {
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                   labelText: _type == CouponType.percentage
-                      ? 'نسبة الخصم (%)'
-                      : 'مبلغ الخصم (ر.س)'),
+                      ? tr('نسبة الخصم (%)', 'Discount rate (%)')
+                      : tr('مبلغ الخصم (ر.س)', 'Discount amount (SAR)')),
             ),
             if (_type == CouponType.percentage)
               TextField(
                 controller: _maxDiscount,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                    labelText: 'سقف الخصم (ر.س) — إلزامي لكوبون النسبة',
-                    hintText: 'يمنع خصماً ضخماً على طلب كبير'),
+                decoration: InputDecoration(
+                    labelText: tr('سقف الخصم (ر.س) — إلزامي لكوبون النسبة',
+                        'Discount cap (SAR) — required for rate coupons'),
+                    hintText: tr('يمنع خصماً ضخماً على طلب كبير',
+                        'Prevents a huge discount on a large order')),
               ),
             TextField(
               controller: _minOrder,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: 'حد أدنى لقيمة الوجبات (ر.س) — اختياري'),
+              decoration: InputDecoration(
+                  labelText: tr('حد أدنى لقيمة الوجبات (ر.س) — اختياري',
+                      'Minimum food total (SAR) — optional')),
             ),
             Row(children: [
               Expanded(
                 child: TextField(
                   controller: _usageLimit,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                      labelText: 'حد الاستخدام الكلي', hintText: 'بلا حد'),
+                  decoration: InputDecoration(
+                      labelText: tr('حد الاستخدام الكلي', 'Total usage limit'),
+                      hintText: tr('بلا حد', 'No limit')),
                 ),
               ),
               const SizedBox(width: 10),
@@ -419,7 +469,7 @@ class _CouponFormState extends State<_CouponForm> {
                   controller: _perUser,
                   keyboardType: TextInputType.number,
                   decoration:
-                      const InputDecoration(labelText: 'لكل عميل'),
+                      InputDecoration(labelText: tr('لكل عميل', 'Per customer')),
                 ),
               ),
             ]),
@@ -430,10 +480,12 @@ class _CouponFormState extends State<_CouponForm> {
               loading: const SizedBox.shrink(),
               builder: (ctx, restaurants) => DropdownButtonFormField<String>(
                 value: _restaurantId.isEmpty ? null : _restaurantId,
-                decoration:
-                    const InputDecoration(labelText: 'مقصور على مطعم (اختياري)'),
+                decoration: InputDecoration(
+                    labelText: tr('مقصور على مطعم (اختياري)',
+                        'Limited to a restaurant (optional)')),
                 items: [
-                  const DropdownMenuItem(value: '', child: Text('كل المطاعم')),
+                  DropdownMenuItem(
+                      value: '', child: Text(tr('كل المطاعم', 'All restaurants'))),
                   ...restaurants.map((r) =>
                       DropdownMenuItem(value: r.id, child: Text(r.name))),
                 ],
@@ -445,8 +497,9 @@ class _CouponFormState extends State<_CouponForm> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.event_outlined),
               title: Text(_expiresAt == null
-                  ? 'بلا تاريخ انتهاء'
-                  : 'ينتهي في ${_expiresAt!.year}/${_expiresAt!.month}/${_expiresAt!.day}'),
+                  ? tr('بلا تاريخ انتهاء', 'No expiry date')
+                  : tr('ينتهي في ${_expiresAt!.year}/${_expiresAt!.month}/${_expiresAt!.day}',
+                      'Expires on ${_expiresAt!.year}/${_expiresAt!.month}/${_expiresAt!.day}')),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 if (_expiresAt != null)
                   IconButton(
@@ -470,7 +523,7 @@ class _CouponFormState extends State<_CouponForm> {
                           picked.year, picked.month, picked.day, 23, 59, 59));
                     }
                   },
-                  child: const Text('اختيار'),
+                  child: Text(tr('اختيار', 'Pick')),
                 ),
               ]),
             ),
@@ -481,10 +534,12 @@ class _CouponFormState extends State<_CouponForm> {
                 color: AppColors.warning.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text(
-                'الخصم تتحمّله المنصّة من حصّتها — مستحق المطعم وأجرة السائق '
-                'لا تتأثران.',
-                style: TextStyle(fontSize: 12.5),
+              child: Text(
+                tr('الخصم تتحمّله المنصّة من حصّتها — مستحق المطعم وأجرة السائق '
+                        'لا تتأثران.',
+                    "The discount comes out of the platform's share — the "
+                        "restaurant's due and the driver's fee are untouched."),
+                style: const TextStyle(fontSize: 12.5),
               ),
             ),
             const SizedBox(height: 14),
@@ -493,7 +548,9 @@ class _CouponFormState extends State<_CouponForm> {
               height: 48,
               child: ElevatedButton(
                 onPressed: _saving ? null : _save,
-                child: Text(_saving ? 'جارٍ الحفظ…' : 'حفظ الكود'),
+                child: Text(_saving
+                    ? tr('جارٍ الحفظ…', 'Saving…')
+                    : tr('حفظ الكود', 'Save code')),
               ),
             ),
           ],

@@ -7,6 +7,7 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import '../utils/app_lang.dart';
 import '../utils/theme.dart';
 
 class ConnectivityBanner extends StatefulWidget {
@@ -56,13 +57,14 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
-                  SizedBox(width: 8),
-                  Text('لا يوجد اتصال بالإنترنت',
-                      style: TextStyle(
+                  const Icon(Icons.wifi_off_rounded,
+                      color: Colors.white, size: 16),
+                  const SizedBox(width: 8),
+                  Text(tr('لا يوجد اتصال بالإنترنت', 'No internet connection'),
+                      style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12.5,
                           fontWeight: FontWeight.w700)),

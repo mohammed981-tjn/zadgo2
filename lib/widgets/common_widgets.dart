@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
+import '../utils/app_lang.dart';
 import '../utils/theme.dart';
 
 /// الزر الأساسي الموحّد للمنصة: تدرّج لوني بهوية النكهة الحالية + توهج ناعم
@@ -127,14 +128,17 @@ class AppError extends StatelessWidget {
           const Icon(Icons.error_outline, color: AppColors.error, size: 48),
           const SizedBox(height: 16),
           Text(
-            message ?? 'حدث خطأ أثناء تحميل البيانات',
+            message ??
+                tr('حدث خطأ أثناء تحميل البيانات',
+                    'Something went wrong while loading data'),
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
-          const Text(
-            'تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى',
-            style: TextStyle(fontSize: 13.5, color: AppColors.textGray),
+          Text(
+            tr('تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى',
+                'Check your internet connection and try again'),
+            style: const TextStyle(fontSize: 13.5, color: AppColors.textGray),
             textAlign: TextAlign.center,
           ),
           // رمز الخطأ المختصر يبقى ظاهراً حتى في نسخة الإصدار: سطر صغير مثل
@@ -145,7 +149,8 @@ class AppError extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                'رمز الخطأ: ${_errorCode(error)}',
+                tr('رمز الخطأ: ${_errorCode(error)}',
+                    'Error code: ${_errorCode(error)}'),
                 textDirection: TextDirection.ltr,
                 style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
               ),
@@ -177,9 +182,10 @@ class AppError extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'تفاصيل تقنية (مؤقتة للتشخيص):',
-                    style: TextStyle(
+                  Text(
+                    tr('تفاصيل تقنية (مؤقتة للتشخيص):',
+                        'Technical details (temporary, for diagnosis):'),
+                    style: const TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.bold,
                       color: AppColors.error,
@@ -207,7 +213,7 @@ class AppError extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('إعادة المحاولة'),
+              label: Text(tr('إعادة المحاولة', 'Retry')),
             ),
           ],
         ]),
@@ -546,7 +552,7 @@ class _BroadcastBannerState extends State<BroadcastBanner> {
         IconButton(
           icon: const Icon(Icons.close_rounded, size: 18),
           color: AppColors.textGray,
-          tooltip: 'إخفاء',
+          tooltip: tr('إخفاء', 'Dismiss'),
           onPressed: _dismiss,
         ),
       ]),
@@ -561,13 +567,15 @@ class OrderTrackingTimeline extends StatelessWidget {
   final OrderStatus status;
   const OrderTrackingTimeline({super.key, required this.status});
 
-  static const _steps = [
-    _TimelineStep('تنفيذ الطلب', Icons.receipt_long_rounded),
-    _TimelineStep('استلام المطعم', Icons.storefront_rounded),
-    _TimelineStep('جاري التحضير', Icons.restaurant_rounded),
-    _TimelineStep('تسليم المندوب', Icons.delivery_dining_rounded),
-    _TimelineStep('توصيل الطلب', Icons.home_rounded),
-  ];
+  // getter لا const: التسميات تمرّ بـ tr() فتُقيَّم بلغة العرض الحالية عند
+  // كل بناء — وconst كان سيجمّدها على العربية.
+  static List<_TimelineStep> get _steps => [
+        _TimelineStep(tr('تنفيذ الطلب', 'Order placed'), Icons.receipt_long_rounded),
+        _TimelineStep(tr('استلام المطعم', 'Restaurant accepted'), Icons.storefront_rounded),
+        _TimelineStep(tr('جاري التحضير', 'Preparing'), Icons.restaurant_rounded),
+        _TimelineStep(tr('تسليم المندوب', 'Courier pickup'), Icons.delivery_dining_rounded),
+        _TimelineStep(tr('توصيل الطلب', 'Delivery'), Icons.home_rounded),
+      ];
 
   /// فهرس المرحلة الحالية ضمن المراحل الخمس، أو -1 إن كان الطلب منتهياً
   /// بحالة استثنائية (إلغاء/رفض/تعذر سائق/استرداد).
@@ -688,9 +696,13 @@ class WindowCapNotice extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'يغطي هذا العرض أحدث ٥٠٠ طلب'
-              '${trueTotal != null ? ' من أصل $trueTotal' : ''}'
-              ' — اختر نطاقاً زمنياً محدداً لأرقام كاملة.',
+              tr(
+                  'يغطي هذا العرض أحدث ٥٠٠ طلب'
+                  '${trueTotal != null ? ' من أصل $trueTotal' : ''}'
+                  ' — اختر نطاقاً زمنياً محدداً لأرقام كاملة.',
+                  'This view covers the latest 500 orders'
+                  '${trueTotal != null ? ' of $trueTotal' : ''}'
+                  ' — pick a specific date range for complete figures.'),
               style: const TextStyle(fontSize: 12, color: AppColors.textDark),
             ),
           ),

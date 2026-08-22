@@ -11,6 +11,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../utils/app_lang.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 
@@ -26,12 +27,12 @@ Future<Uint8List?> pickDocImage(BuildContext context) async {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(
           leading: const Icon(Icons.photo_camera_outlined),
-          title: const Text('التقط بالكاميرا'),
+          title: Text(tr('التقط بالكاميرا', 'Take with camera')),
           onTap: () => Navigator.pop(ctx, ImageSource.camera),
         ),
         ListTile(
           leading: const Icon(Icons.photo_library_outlined),
-          title: const Text('من المعرض'),
+          title: Text(tr('من المعرض', 'From gallery')),
           onTap: () => Navigator.pop(ctx, ImageSource.gallery),
         ),
       ]),
@@ -48,8 +49,10 @@ Future<Uint8List?> pickDocImage(BuildContext context) async {
   final bytes = await picked.readAsBytes();
   if (bytes.length > kDocImageMaxBytes) {
     if (context.mounted) {
-      showError(context,
-          'الصورة كبيرة جداً — أعد التصوير للمستند وحده (بلا خلفية واسعة)');
+      showError(
+          context,
+          tr('الصورة كبيرة جداً — أعد التصوير للمستند وحده (بلا خلفية واسعة)',
+              'Image too large — retake with the document only (no wide background)'));
     }
     return null;
   }
@@ -100,8 +103,9 @@ class DocCaptureField extends StatelessWidget {
         title: Text(label, style: const TextStyle(fontSize: 13.5)),
         subtitle: Text(
           has
-              ? 'التُقطت — اضغط للتبديل، مطوّلاً للحذف'
-              : (required ? 'إلزامي' : 'اختياري'),
+              ? tr('التُقطت — اضغط للتبديل، مطوّلاً للحذف',
+                  'Captured — tap to replace, long-press to delete')
+              : (required ? tr('إلزامي', 'Required') : tr('اختياري', 'Optional')),
           style: TextStyle(
             fontSize: 11.5,
             color: has

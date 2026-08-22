@@ -14,6 +14,7 @@ import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 
 class RestaurantReviewsTab extends StatelessWidget {
@@ -31,10 +32,12 @@ class RestaurantReviewsTab extends StatelessWidget {
             .toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         if (rated.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
               emoji: '⭐',
-              title: 'لا تقييمات بعد',
-              subtitle: 'حين يقيّم عملاؤك طلباتهم تظهر هنا وتستطيع الرد عليها.');
+              title: tr('لا تقييمات بعد', 'No reviews yet'),
+              subtitle: tr(
+                  'حين يقيّم عملاؤك طلباتهم تظهر هنا وتستطيع الرد عليها.',
+                  'When customers rate their orders, reviews appear here and you can reply.'));
         }
         final avg = rated.fold(0.0, (s, o) => s + (o.customerRating ?? 0)) /
             rated.length;
@@ -50,7 +53,9 @@ class RestaurantReviewsTab extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 8),
-                Text('من ${rated.length} تقييم ضمن آخر ${orders.length} طلب',
+                Text(
+                    tr('من ${rated.length} تقييم ضمن آخر ${orders.length} طلب',
+                        'from ${rated.length} reviews across the last ${orders.length} orders'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.textGray)),
               ]),
@@ -106,7 +111,9 @@ class _ReviewCard extends StatelessWidget {
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text('ردّكم: ${o.restaurantReply}',
+              child: Text(
+                  tr('ردّكم: ${o.restaurantReply}',
+                      'Your reply: ${o.restaurantReply}'),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textDark)),
             )
@@ -115,8 +122,8 @@ class _ReviewCard extends StatelessWidget {
               alignment: AlignmentDirectional.centerEnd,
               child: TextButton.icon(
                 icon: const Icon(Icons.reply_rounded, size: 16),
-                label: const Text('ردّ على التقييم',
-                    style: TextStyle(fontSize: 12.5)),
+                label: Text(tr('ردّ على التقييم', 'Reply to review'),
+                    style: const TextStyle(fontSize: 12.5)),
                 onPressed: () => _reply(context),
               ),
             ),
@@ -130,23 +137,26 @@ class _ReviewCard extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: Text('الردّ على تقييم #${order.orderNumber}'),
+        title: Text(tr('الردّ على تقييم #${order.orderNumber}',
+            'Reply to review #${order.orderNumber}')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           maxLines: 3,
           maxLength: 300,
-          decoration: const InputDecoration(
-            hintText: 'ردٌّ مهذّب يظهر للعميل تحت تقييمه — ولا يُعدَّل بعد الإرسال',
+          decoration: InputDecoration(
+            hintText: tr(
+                'ردٌّ مهذّب يظهر للعميل تحت تقييمه — ولا يُعدَّل بعد الإرسال',
+                'A polite reply shown to the customer under their review — cannot be edited after sending'),
           ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dCtx, false),
-              child: const Text('إلغاء')),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('إرسال')),
+              child: Text(tr('إرسال', 'Send'))),
         ],
       ),
     );
@@ -155,9 +165,16 @@ class _ReviewCard extends StatelessWidget {
       await context
           .read<FirebaseService>()
           .replyToOrderReview(order.id, ctrl.text);
-      if (context.mounted) showSuccess(context, 'أُرسل ردّكم وسيراه العميل');
+      if (context.mounted) {
+        showSuccess(
+            context,
+            tr('أُرسل ردّكم وسيراه العميل',
+                'Your reply was sent and the customer will see it'));
+      }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر إرسال الرد');
+      if (context.mounted) {
+        showError(context, tr('تعذّر إرسال الرد', 'Failed to send reply'));
+      }
     }
   }
 }

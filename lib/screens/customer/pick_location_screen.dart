@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/osm_attribution.dart';
 
 class PickLocationScreen extends StatefulWidget {
@@ -56,7 +57,8 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
       if (!enabled) {
         setState(() {
           _loadingGps = false;
-          _gpsError = 'خدمة الموقع غير مفعّلة على الجهاز';
+          _gpsError = tr('خدمة الموقع غير مفعّلة على الجهاز',
+              'Location services are turned off on this device');
         });
         return;
       }
@@ -70,7 +72,8 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
           perm == LocationPermission.deniedForever) {
         setState(() {
           _loadingGps = false;
-          _gpsError = 'تم رفض إذن الوصول للموقع';
+          _gpsError = tr('تم رفض إذن الوصول للموقع',
+              'Location permission was denied');
         });
         return;
       }
@@ -99,7 +102,8 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
       if (!mounted) return;
       setState(() {
         _loadingGps = false;
-        _gpsError = 'تعذّر تحديد موقعك الحالي';
+        _gpsError = tr('تعذّر تحديد موقعك الحالي',
+            'Couldn\'t find your current location');
       });
     }
   }
@@ -118,10 +122,10 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('اختيار الموقع'),
+        title: Text(tr('اختيار الموقع', 'Choose location')),
         actions: [
           IconButton(
-            tooltip: 'تحديد موقعي الحالي',
+            tooltip: tr('تحديد موقعي الحالي', 'Use my current location'),
             icon: _loadingGps
                 ? const SizedBox(
                     width: 20,
@@ -188,15 +192,20 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                   color: AppColors.error,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.gps_off_rounded, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
+                    const Icon(Icons.gps_off_rounded,
+                        color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'الموقع المُلتقط مُحاكى وليس حقيقياً — اضغط على الخريطة '
-                        'لتحديد موقعك الفعلي',
-                        style: TextStyle(color: Colors.white, fontSize: 12.5),
+                        tr(
+                            'الموقع المُلتقط مُحاكى وليس حقيقياً — اضغط على الخريطة '
+                            'لتحديد موقعك الفعلي',
+                            'This location looks mocked, not real — tap the map '
+                            'to set your actual location'),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 12.5),
                       ),
                     ),
                   ],
@@ -247,8 +256,10 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                 ),
                 child: Text(
                   _selected == null
-                      ? 'اضغط على الخريطة لتحديد موقعك'
-                      : 'اضغط على الخريطة لتعديل الموقع',
+                      ? tr('اضغط على الخريطة لتحديد موقعك',
+                          'Tap the map to set your location')
+                      : tr('اضغط على الخريطة لتعديل الموقع',
+                          'Tap the map to adjust the location'),
                   style: const TextStyle(color: Colors.white, fontSize: 12.5),
                 ),
               ),
@@ -273,7 +284,9 @@ class _PickLocationScreenState extends State<PickLocationScreen> {
                 backgroundColor: AppColors.primary,
               ),
               child: Text(
-                _selected == null ? 'حدّد موقعاً أولاً' : 'تأكيد هذا الموقع',
+                _selected == null
+                    ? tr('حدّد موقعاً أولاً', 'Pick a location first')
+                    : tr('تأكيد هذا الموقع', 'Confirm this location'),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),

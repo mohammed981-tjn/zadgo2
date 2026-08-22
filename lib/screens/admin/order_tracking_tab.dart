@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -98,7 +99,8 @@ class _OrderTrackingTabState extends State<OrderTrackingTab> {
     try {
       final freed = await service.reconcileDriverAvailability();
       if (freed > 0 && mounted) {
-        showSuccess(context, 'حُرِّر $freed كابتن كان عالقاً «غير متاح»');
+        showSuccess(context, tr('حُرِّر $freed كابتن كان عالقاً «غير متاح»',
+            'Freed $freed captains stuck as "unavailable"'));
       }
     } catch (_) {
       // المصالحة تحسينٌ لا شرط لعمل الشاشة.
@@ -112,9 +114,11 @@ class _OrderTrackingTabState extends State<OrderTrackingTab> {
           (swept.reclaimedOffers > 0 || swept.cancelledIgnored > 0)) {
         final parts = <String>[
           if (swept.reclaimedOffers > 0)
-            'أُعيد ترشيح ${swept.reclaimedOffers} طلب كان عرضه معلّقاً على جهاز ميت',
+            tr('أُعيد ترشيح ${swept.reclaimedOffers} طلب كان عرضه معلّقاً على جهاز ميت',
+                'Re-dispatched ${swept.reclaimedOffers} orders whose offer was stuck on a dead device'),
           if (swept.cancelledIgnored > 0)
-            'أُلغي ${swept.cancelledIgnored} طلب تجاهله مطعمه ورُدّت أمواله',
+            tr('أُلغي ${swept.cancelledIgnored} طلب تجاهله مطعمه ورُدّت أمواله',
+                'Cancelled ${swept.cancelledIgnored} orders ignored by their restaurant and refunded'),
         ];
         showSuccess(context, parts.join(' · '));
       }
@@ -125,7 +129,8 @@ class _OrderTrackingTabState extends State<OrderTrackingTab> {
       final flags = await service.reconcileCashFlags();
       if (mounted && flags.blocked > 0) {
         showSuccess(context,
-            'دِرع النقد: حُظر الدفع النقدي عن ${flags.blocked} عميل تكرر رفضه للاستلام');
+            tr('دِرع النقد: حُظر الدفع النقدي عن ${flags.blocked} عميل تكرر رفضه للاستلام',
+                'Cash shield: cash payment blocked for ${flags.blocked} customers who repeatedly refused delivery'));
       }
     } catch (_) {}
   }
@@ -161,7 +166,9 @@ class _OrderTrackingTabState extends State<OrderTrackingTab> {
       stream: service.streamActiveOrders,
       builder: (ctx, orders) {
         if (orders.isEmpty) {
-          return const AppEmpty(emoji: '🛰️', title: 'لا يوجد طلبات نشطة حالياً');
+          return AppEmpty(
+              emoji: '🛰️',
+              title: tr('لا يوجد طلبات نشطة حالياً', 'No active orders right now'));
         }
         return ListView.builder(
           padding: const EdgeInsets.all(12),
@@ -181,8 +188,12 @@ class _TrackedOrderCard extends StatelessWidget {
   String _elapsedLabel() {
     final elapsed = DateTime.now().difference(order.createdAt);
     final remaining = _baselineExpectedDeliveryMinutes - elapsed.inMinutes;
-    if (remaining <= 0) return 'تجاوز الوقت التقديري للتوصيل';
-    return 'الوقت المتبقي المتوقع: ~$remaining د';
+    if (remaining <= 0) {
+      return tr('تجاوز الوقت التقديري للتوصيل',
+          'Past the estimated delivery time');
+    }
+    return tr('الوقت المتبقي المتوقع: ~$remaining د',
+        'Expected time remaining: ~$remaining min');
   }
 
   /// وقت دخول الطلب — كان غائباً عن بطاقة المتابعة كلها (بلاغ المالك
@@ -193,8 +204,11 @@ class _TrackedOrderCard extends StatelessWidget {
     final t = order.createdAt;
     final clock =
         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-    return 'دخل الطلب ${t.day}/${t.month} — $clock '
-        '(منذ ${formatRemaining(DateTime.now().difference(t))})';
+    return tr(
+        'دخل الطلب ${t.day}/${t.month} — $clock '
+            '(منذ ${formatRemaining(DateTime.now().difference(t))})',
+        'Order placed ${t.day}/${t.month} — $clock '
+            '(${formatRemaining(DateTime.now().difference(t))} ago)');
   }
 
   /// ✅ الخلل المُصلَح: كانت كل الطلبات (حتى الجديدة منها) تُحسب أحياناً
@@ -220,17 +234,21 @@ class _TrackedOrderCard extends StatelessWidget {
         return _AlertBanner(
           color: AppColors.warning,
           icon: Icons.warning_amber_rounded,
-          text:
+          text: tr(
               'المطعم لم يستجب منذ $minutes د (المهلة ${timeouts.restaurantResponseMinutes} د) — '
-              'يمكن إلغاء الطلب يدوياً من الأسفل إن لم يُتوقَّع رد.',
+                  'يمكن إلغاء الطلب يدوياً من الأسفل إن لم يُتوقَّع رد.',
+              'The restaurant has not responded for $minutes min (limit ${timeouts.restaurantResponseMinutes} min) — '
+                  'you can cancel the order manually below if no reply is expected.'),
         );
       }
     }
     if (order.status == OrderStatus.noDriverFound) {
-      return const _AlertBanner(
+      return _AlertBanner(
         color: Colors.deepOrange,
         icon: Icons.person_off_rounded,
-        text: 'تعذّر إيجاد سائق تلقائياً خلال المهلة المحددة — يتطلب إسناد سائق يدوياً الآن.',
+        text: tr(
+            'تعذّر إيجاد سائق تلقائياً خلال المهلة المحددة — يتطلب إسناد سائق يدوياً الآن.',
+            'No driver was found automatically within the set limit — assign a driver manually now.'),
       );
     }
     return null;
@@ -243,10 +261,14 @@ class _TrackedOrderCard extends StatelessWidget {
     try {
       final launched = await launchUrl(uri);
       if (!launched && context.mounted) {
-        showError(context, 'تعذّر فتح تطبيق الاتصال على هذا الجهاز');
+        showError(context, tr('تعذّر فتح تطبيق الاتصال على هذا الجهاز',
+            'Could not open the phone app on this device'));
       }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+      if (context.mounted) {
+        showError(context, tr('تعذّر فتح تطبيق الاتصال',
+            'Could not open the phone app'));
+      }
     }
   }
 
@@ -268,7 +290,7 @@ class _TrackedOrderCard extends StatelessWidget {
             Text('#${order.orderNumber}', style: const TextStyle(fontWeight: FontWeight.bold)),
             const Spacer(),
             if (isLate) ...[
-              const StatusBadge(label: 'متأخر', color: AppColors.error, icon: Icons.timer_off_rounded),
+              StatusBadge(label: tr('متأخر', 'Late'), color: AppColors.error, icon: Icons.timer_off_rounded),
               const SizedBox(width: 6),
             ],
             StatusBadge(label: order.status.label, color: order.status.color),
@@ -293,7 +315,7 @@ class _TrackedOrderCard extends StatelessWidget {
             ),
             if (order.customerPhone.trim().isNotEmpty)
               IconButton(
-                tooltip: 'الاتصال بالعميل',
+                tooltip: tr('الاتصال بالعميل', 'Call the customer'),
                 icon: const Icon(Icons.call_outlined, color: AppColors.success, size: 20),
                 visualDensity: VisualDensity.compact,
                 onPressed: () => _call(context, order.customerPhone),
@@ -307,19 +329,21 @@ class _TrackedOrderCard extends StatelessWidget {
               builder: (ctx, snap) {
                 final driver = snap.data;
                 final phone = driver?.phone.trim() ?? '';
-                final name = order.driverName ?? driver?.name ?? 'سائق';
+                final name = order.driverName ?? driver?.name ?? tr('سائق', 'Driver');
                 return Row(children: [
                   const Icon(Icons.delivery_dining_outlined, size: 15, color: AppColors.textGray),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      phone.isNotEmpty ? 'السائق: $name — $phone' : 'السائق: $name',
+                      phone.isNotEmpty
+                          ? tr('السائق: $name — $phone', 'Driver: $name — $phone')
+                          : tr('السائق: $name', 'Driver: $name'),
                       style: const TextStyle(fontSize: 13.5, color: AppColors.textGray),
                     ),
                   ),
                   if (phone.isNotEmpty)
                     IconButton(
-                      tooltip: 'الاتصال بالسائق',
+                      tooltip: tr('الاتصال بالسائق', 'Call the driver'),
                       icon: const Icon(Icons.call_outlined, color: AppColors.primary, size: 20),
                       visualDensity: VisualDensity.compact,
                       onPressed: () => _call(context, phone),
@@ -328,7 +352,9 @@ class _TrackedOrderCard extends StatelessWidget {
               },
             )
           else
-            const InfoRow(icon: Icons.delivery_dining_outlined, text: 'لم يُعيّن سائق بعد'),
+            InfoRow(
+                icon: Icons.delivery_dining_outlined,
+                text: tr('لم يُعيّن سائق بعد', 'No driver assigned yet')),
           InfoRow(icon: Icons.event_available_outlined, text: _placedLabel()),
           InfoRow(icon: Icons.timer_outlined, text: _elapsedLabel()),
           // بلاغ «تعذّر التسليم» من الكابتن (درع النقد): أعلى أولوية في
@@ -345,8 +371,11 @@ class _TrackedOrderCard extends StatelessWidget {
                 border: Border.all(color: AppColors.error.withOpacity(0.5)),
               ),
               child: Text(
-                '⛔ تعذّر التسليم — ${order.undeliveredReason ?? 'بلا سبب'}\n'
-                'الكابتن ينتظر قرارك: إلغاء أو إعادة محاولة.',
+                tr(
+                    '⛔ تعذّر التسليم — ${order.undeliveredReason ?? 'بلا سبب'}\n'
+                        'الكابتن ينتظر قرارك: إلغاء أو إعادة محاولة.',
+                    '⛔ Delivery failed — ${order.undeliveredReason ?? 'no reason'}\n'
+                        'The captain is waiting for your decision: cancel or retry.'),
                 style: const TextStyle(
                     fontSize: 12.5,
                     color: AppColors.error,
@@ -377,7 +406,7 @@ class _TrackedOrderCard extends StatelessWidget {
           Wrap(spacing: 8, runSpacing: 8, children: [
             _pill(
               icon: Icons.chat_bubble_outline,
-              label: 'محادثة الطلب',
+              label: tr('محادثة الطلب', 'Order chat'),
               color: AppColors.secondary,
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => OrderChatScreen(order: order))),
@@ -390,7 +419,7 @@ class _TrackedOrderCard extends StatelessWidget {
                     order.status == OrderStatus.noDriverFound))
               _pill(
                 icon: Icons.person_add_alt_1,
-                label: 'إسناد سائق يدوياً',
+                label: tr('إسناد سائق يدوياً', 'Assign driver manually'),
                 color: Colors.deepOrange,
                 filled: order.status == OrderStatus.noDriverFound,
                 onTap: () => _showAssignDriverDialog(context, service, order),
@@ -406,14 +435,14 @@ class _TrackedOrderCard extends StatelessWidget {
                     UserRole.support)
               _pill(
                 icon: Icons.swap_horiz,
-                label: 'تحويل لسائق آخر',
+                label: tr('تحويل لسائق آخر', 'Reassign to another driver'),
                 color: AppColors.secondary,
                 onTap: () => _showReassignDialog(context, service, order),
               ),
             if (order.driverId != null && order.driverId!.isNotEmpty)
               _pill(
                 icon: Icons.map_outlined,
-                label: 'الخريطة',
+                label: tr('الخريطة', 'Map'),
                 color: AppColors.secondary,
                 onTap: () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => OrderMapScreen(order: order))),
@@ -426,28 +455,29 @@ class _TrackedOrderCard extends StatelessWidget {
                 order.status == OrderStatus.noDriverFound) ...[
               _pill(
                 icon: Icons.check_circle_outline,
-                label: 'إنهاء الطلب',
+                label: tr('إنهاء الطلب', 'Complete order'),
                 color: AppColors.success,
                 onTap: order.driverId == null || order.driverId!.isEmpty
                     ? null
                     : () async {
                         final ok = await showConfirmDialog(context,
-                            title: 'إنهاء الطلب',
-                            content:
+                            title: tr('إنهاء الطلب', 'Complete order'),
+                            content: tr(
                                 'هل تم توصيل الطلب فعلياً للعميل؟ سيُعتبر الطلب منتهياً.',
-                            confirmLabel: 'إنهاء');
+                                'Was the order actually delivered to the customer? It will be marked as completed.'),
+                            confirmLabel: tr('إنهاء', 'Complete'));
                         if (ok == true) {
                           await service.markOrderDelivered(
                               order.id, order.driverId!);
                           if (context.mounted) {
-                            showSuccess(context, 'تم إنهاء الطلب');
+                            showSuccess(context, tr('تم إنهاء الطلب', 'Order completed'));
                           }
                         }
                       },
               ),
               _pill(
                 icon: Icons.cancel_outlined,
-                label: 'إلغاء الطلب',
+                label: tr('إلغاء الطلب', 'Cancel order'),
                 color: AppColors.error,
                 onTap: () async {
                   // مصارحة بالأثر المالي قبل الضغط لا بعده: الإلغاء بعد
@@ -459,16 +489,24 @@ class _TrackedOrderCard extends StatelessWidget {
                       order.status == OrderStatus.pickedUp ||
                       order.status == OrderStatus.onTheWay;
                   final ok = await showConfirmDialog(context,
-                      title: 'إلغاء الطلب',
+                      title: tr('إلغاء الطلب', 'Cancel order'),
                       content: cooked
-                          ? 'المطعم بدأ التحضير — سيُقيَّد له تعويض بقيمة '
-                              '${formatCurrency(order.itemsTotal)} تتحمّله المنصّة، '
-                              'ويُعاد للعميل ما خُصم من محفظته.\n\nإلغاء الطلب؟'
-                          : 'هل تريد إلغاء هذا الطلب نهائياً؟ (كأنه لم يُطلب)',
-                      confirmLabel: 'إلغاء الطلب');
+                          ? tr(
+                              'المطعم بدأ التحضير — سيُقيَّد له تعويض بقيمة '
+                                  '${formatCurrency(order.itemsTotal)} تتحمّله المنصّة، '
+                                  'ويُعاد للعميل ما خُصم من محفظته.\n\nإلغاء الطلب؟'
+                              ,
+                              'The restaurant has started preparing — a compensation of '
+                                  '${formatCurrency(order.itemsTotal)} will be recorded for them, borne by the platform, '
+                                  'and whatever was deducted from the customer\'s wallet is refunded.\n\nCancel the order?')
+                          : tr('هل تريد إلغاء هذا الطلب نهائياً؟ (كأنه لم يُطلب)',
+                              'Cancel this order for good? (as if it was never placed)'),
+                      confirmLabel: tr('إلغاء الطلب', 'Cancel order'));
                   if (ok == true) {
                     await service.cancelOrder(order.id);
-                    if (context.mounted) showSuccess(context, 'تم إلغاء الطلب');
+                    if (context.mounted) {
+                      showSuccess(context, tr('تم إلغاء الطلب', 'Order cancelled'));
+                    }
                   }
                 },
               ),
@@ -522,10 +560,12 @@ class _TrackedOrderCard extends StatelessWidget {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx, setState) => AlertDialog(
-          title: const Text('تحويل الطلب لسائق آخر'),
+          title: Text(tr('تحويل الطلب لسائق آخر', 'Reassign order to another driver')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('الطلب #${order.orderNumber} — السائق الحالي: ${order.driverName ?? "غير معيّن"}'),
+              Text(tr(
+                  'الطلب #${order.orderNumber} — السائق الحالي: ${order.driverName ?? "غير معيّن"}',
+                  'Order #${order.orderNumber} — current driver: ${order.driverName ?? "unassigned"}')),
               const SizedBox(height: 14),
               AppStreamBuilder<List<Driver>>(
                 stream: service.streamDrivers,
@@ -534,12 +574,14 @@ class _TrackedOrderCard extends StatelessWidget {
                       .where((d) => d.id != order.driverId && d.isOnline)
                       .toList();
                   if (drivers.isEmpty) {
-                    return const Text('لا يوجد سائقون متاحون آخرون حالياً',
-                        style: TextStyle(color: Colors.orange));
+                    return Text(tr('لا يوجد سائقون متاحون آخرون حالياً',
+                            'No other drivers available right now'),
+                        style: const TextStyle(color: Colors.orange));
                   }
                   return DropdownButtonFormField<String>(
                     value: selectedDriverId,
-                    decoration: const InputDecoration(labelText: 'السائق الجديد'),
+                    decoration: InputDecoration(
+                        labelText: tr('السائق الجديد', 'New driver')),
                     items: drivers
                         .map((d) => DropdownMenuItem(value: d.id, child: Text(d.name)))
                         .toList(),
@@ -553,20 +595,25 @@ class _TrackedOrderCard extends StatelessWidget {
               const SizedBox(height: 10),
               TextField(
                 controller: reasonCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'سبب التحويل', hintText: 'مثال: عطل مركبة، حادث، تأخر...'),
+                decoration: InputDecoration(
+                    labelText: tr('سبب التحويل', 'Reassignment reason'),
+                    hintText: tr('مثال: عطل مركبة، حادث، تأخر...',
+                        'Example: vehicle breakdown, accident, delay...')),
                 maxLines: 2,
               ),
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
               onPressed: loading
                   ? null
                   : () async {
                       if (selectedDriverId == null || reasonCtrl.text.trim().isEmpty) {
-                        showError(dialogCtx, 'يرجى اختيار سائق جديد وتوضيح السبب');
+                        showError(dialogCtx, tr('يرجى اختيار سائق جديد وتوضيح السبب',
+                            'Please pick a new driver and state the reason'));
                         return;
                       }
                       setState(() => loading = true);
@@ -581,12 +628,15 @@ class _TrackedOrderCard extends StatelessWidget {
                         if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                       } catch (e) {
                         setState(() => loading = false);
-                        if (dialogCtx.mounted) showError(dialogCtx, 'فشل التحويل: $e');
+                        if (dialogCtx.mounted) {
+                          showError(dialogCtx, tr('فشل التحويل: $e',
+                              'Reassignment failed: $e'));
+                        }
                       }
                     },
               child: loading
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('تأكيد التحويل'),
+                  : Text(tr('تأكيد التحويل', 'Confirm reassignment')),
             ),
           ],
         ),
@@ -605,10 +655,11 @@ class _TrackedOrderCard extends StatelessWidget {
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx, setState) => AlertDialog(
-          title: const Text('إسناد سائق يدوياً'),
+          title: Text(tr('إسناد سائق يدوياً', 'Assign driver manually')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('الطلب #${order.orderNumber} — تعذّر إيجاد سائق تلقائياً.'),
+              Text(tr('الطلب #${order.orderNumber} — تعذّر إيجاد سائق تلقائياً.',
+                  'Order #${order.orderNumber} — no driver was found automatically.')),
               const SizedBox(height: 14),
               // كل السائقين المتصلين لا المتاحين وحدهم: «غير متاح» قد يكون
               // عالقاً من طلبٍ أُلغي، وحصر القائمة فيه كان يترك المدير بلا
@@ -619,18 +670,19 @@ class _TrackedOrderCard extends StatelessWidget {
                   final drivers = allDrivers.where((d) => d.isOnline).toList()
                     ..sort((a, b) => a.activeOrders.compareTo(b.activeOrders));
                   if (drivers.isEmpty) {
-                    return const Text('لا يوجد كابتن متصل الآن',
-                        style: TextStyle(color: Colors.orange));
+                    return Text(tr('لا يوجد كابتن متصل الآن', 'No captain online right now'),
+                        style: const TextStyle(color: Colors.orange));
                   }
                   return DropdownButtonFormField<String>(
                     value: selectedDriverId,
-                    decoration: const InputDecoration(labelText: 'السائق'),
+                    decoration: InputDecoration(labelText: tr('السائق', 'Driver')),
                     items: drivers
                         .map((d) => DropdownMenuItem(
                             value: d.id,
                             child: Text(d.activeOrders == 0
                                 ? d.name
-                                : '${d.name} — ${d.activeOrders} طلب بيده')))
+                                : tr('${d.name} — ${d.activeOrders} طلب بيده',
+                                    '${d.name} — ${d.activeOrders} orders in hand'))))
                         .toList(),
                     onChanged: (v) {
                       selectedDriverId = v;
@@ -642,13 +694,15 @@ class _TrackedOrderCard extends StatelessWidget {
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('إلغاء')),
+            TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
               onPressed: loading
                   ? null
                   : () async {
                       if (selectedDriverId == null) {
-                        showError(dialogCtx, 'يرجى اختيار سائق');
+                        showError(dialogCtx, tr('يرجى اختيار سائق', 'Please pick a driver'));
                         return;
                       }
                       setState(() => loading = true);
@@ -657,12 +711,15 @@ class _TrackedOrderCard extends StatelessWidget {
                         if (dialogCtx.mounted) Navigator.pop(dialogCtx);
                       } catch (e) {
                         setState(() => loading = false);
-                        if (dialogCtx.mounted) showError(dialogCtx, 'فشل الإسناد: $e');
+                        if (dialogCtx.mounted) {
+                          showError(dialogCtx, tr('فشل الإسناد: $e',
+                              'Assignment failed: $e'));
+                        }
                       }
                     },
               child: loading
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('تأكيد الإسناد'),
+                  : Text(tr('تأكيد الإسناد', 'Confirm assignment')),
             ),
           ],
         ),

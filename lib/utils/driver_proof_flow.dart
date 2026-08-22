@@ -21,6 +21,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/models.dart';
 import '../providers/firebase_service.dart';
+import 'app_lang.dart';
 import 'helpers.dart';
 import 'location_guard.dart';
 
@@ -32,9 +33,12 @@ class DriverProofFlow {
   /// تعديل موقع فرعَي فطير ستيشن ٢٠٢٦-٠٨-١١، فبدا العطل وكأنه في التطبيق).
   /// بلا هذا التذييل يقرأ الكابتن «أنت بعيد» وهو يرى لافتة المطعم أمامه،
   /// فلا يعرف ماذا يفعل ولا تصل الإدارة أي إشارة إلى أن النقطة تحتاج تصحيحاً.
-  static String _restaurantRangeHint(String err) =>
+  static String _restaurantRangeHint(String err) => tr(
       '$err\n\nإن كنت عند المطعم الآن فموقعه المسجّل على الخريطة غير صحيح — '
-      'أبلغ الإدارة لتصحيحه من لوحة التحكم.';
+      'أبلغ الإدارة لتصحيحه من لوحة التحكم.',
+      '$err\n\nIf you are at the restaurant right now, its registered map '
+      'location is wrong — tell the admin so they can fix it from the '
+      'dashboard.');
 
   /// التقاط صورة من الكاميرا مضغوطة. `null` إن ألغى السائق التصوير.
   static Future<Uint8List?> _capturePhoto() async {
@@ -64,9 +68,12 @@ class DriverProofFlow {
     if (!context.mounted) return (false, null);
     final proceed = await showConfirmDialog(
       context,
-      title: 'بدون صورة؟',
-      content: 'الصورة حجّتك عند أي نزاع، ولا يراها العميل. المتابعة بدونها؟',
-      confirmLabel: 'متابعة بدون صورة',
+      title: tr('بدون صورة؟', 'No photo?'),
+      content: tr(
+          'الصورة حجّتك عند أي نزاع، ولا يراها العميل. المتابعة بدونها؟',
+          'The photo is your evidence in any dispute, and the customer never '
+          'sees it. Continue without it?'),
+      confirmLabel: tr('متابعة بدون صورة', 'Continue without photo'),
     );
     return (proceed == true, null);
   }
@@ -84,7 +91,7 @@ class DriverProofFlow {
     final err = await LocationGuard.checkNear(
       targetLat: order.restaurantLat,
       targetLng: order.restaurantLng,
-      targetLabel: 'المطعم',
+      targetLabel: tr('المطعم', 'the restaurant'),
     );
     if (err != null) {
       if (context.mounted) showError(context, _restaurantRangeHint(err));
@@ -94,10 +101,16 @@ class DriverProofFlow {
       final pos = await LocationGuard.currentPosition();
       await service.recordArrivalAtRestaurant(
           order: order, lat: pos.latitude, lng: pos.longitude);
-      if (context.mounted) showSuccess(context, 'سُجّل وصولك إلى المطعم');
+      if (context.mounted) {
+        showSuccess(context,
+            tr('سُجّل وصولك إلى المطعم', 'Your arrival at the restaurant was recorded'));
+      }
       return true;
     } catch (e) {
-      if (context.mounted) showError(context, 'تعذّر تسجيل الوصول: $e');
+      if (context.mounted) {
+        showError(context,
+            tr('تعذّر تسجيل الوصول: $e', 'Could not record arrival: $e'));
+      }
       return false;
     }
   }
@@ -115,7 +128,7 @@ class DriverProofFlow {
     final err = await LocationGuard.checkNear(
       targetLat: order.restaurantLat,
       targetLng: order.restaurantLng,
-      targetLabel: 'المطعم',
+      targetLabel: tr('المطعم', 'the restaurant'),
     );
     if (err != null) {
       if (context.mounted) showError(context, _restaurantRangeHint(err));
@@ -141,15 +154,24 @@ class DriverProofFlow {
     final isCash = order.paymentMethod == PaymentMethod.cash;
     final ok = await showConfirmDialog(
       context,
-      title: 'استلام الطلب',
-      content: 'هل طابقت رقم الطلب #${order.orderNumber} على ملصق الكيس '
-              'وعدد الأصناف؟\n\n' +
+      title: tr('استلام الطلب', 'Pick up order'),
+      content: tr(
+              'هل طابقت رقم الطلب #${order.orderNumber} على ملصق الكيس '
+              'وعدد الأصناف؟\n\n',
+              'Did you match order #${order.orderNumber} on the bag label '
+              'and check the item count?\n\n') +
           (isCash && order.custodyAmount > 0
-              ? 'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
-                  '(قيمة الطلب) حتى تحصيلها من العميل.\n\n'
+              ? tr(
+                  'سيُقيَّد على محفظتك ${formatCurrency(order.custodyAmount)} '
+                  '(قيمة الطلب) حتى تحصيلها من العميل.\n\n',
+                  '${formatCurrency(order.custodyAmount)} (the order value) '
+                  'will be held against your wallet until you collect it '
+                  'from the customer.\n\n')
               : '') +
-          'التالي: صورة سريعة للطلب — اختيارية، لكنها حجّتك في أي نزاع.',
-      confirmLabel: 'طابقتُ — متابعة',
+          tr('التالي: صورة سريعة للطلب — اختيارية، لكنها حجّتك في أي نزاع.',
+              'Next: a quick photo of the order — optional, but it is your '
+              'evidence in any dispute.'),
+      confirmLabel: tr('طابقتُ — متابعة', 'Matched — continue'),
     );
     if (ok != true || !context.mounted) return false;
 
@@ -185,7 +207,7 @@ class DriverProofFlow {
     final err = await LocationGuard.checkNear(
       targetLat: order.deliveryLat,
       targetLng: order.deliveryLng,
-      targetLabel: 'موقع العميل',
+      targetLabel: tr('موقع العميل', "the customer's location"),
       radius: LocationGuard.deliveryProximityMeters,
     );
     if (err != null) {
@@ -213,10 +235,14 @@ class DriverProofFlow {
 
     final ok = await showConfirmDialog(
       context,
-      title: 'تأكيد التوصيل',
-      content: 'التالي: صورة سريعة للطلب عند التسليم — اختيارية، '
+      title: tr('تأكيد التوصيل', 'Confirm delivery'),
+      content: tr(
+          'التالي: صورة سريعة للطلب عند التسليم — اختيارية، '
           'وهي حجّتك الأقوى في نزاع «لم يصلني الطلب». لا يراها العميل.',
-      confirmLabel: 'متابعة',
+          'Next: a quick photo of the order at handover — optional, but your '
+          'strongest evidence in a "my order never arrived" dispute. The '
+          'customer never sees it.'),
+      confirmLabel: tr('متابعة', 'Continue'),
     );
     if (ok != true || !context.mounted) return false;
 

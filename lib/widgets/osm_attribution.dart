@@ -13,13 +13,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../utils/app_lang.dart';
 
 class OsmAttribution extends StatelessWidget {
   const OsmAttribution({super.key});
 
   @override
   Widget build(BuildContext context) => SimpleAttributionWidget(
-        source: const Text('© مساهمو OpenStreetMap'),
+        source: Text(tr('© مساهمو OpenStreetMap', '© OpenStreetMap contributors')),
         // الضغط يفتح صفحة حقوق OSM — الرابط جزء من الإسناد المتعارف.
         onTap: () => launchUrl(
           Uri.parse('https://www.openstreetmap.org/copyright'),

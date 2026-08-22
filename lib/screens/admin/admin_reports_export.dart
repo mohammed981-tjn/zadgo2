@@ -13,6 +13,7 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 
 /// صف تجميعة مطعم في التقرير: (الاسم، عدد الطلبات، المبيعات، العمولة، الصافي).
@@ -97,44 +98,61 @@ Future<void> exportAdminReportPdf({
         pw.Header(
           level: 0,
           child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text('ZadGo — التقرير المالي',
+            pw.Text(tr('ZadGo — التقرير المالي', 'ZadGo — Financial report'),
                 textDirection: pw.TextDirection.rtl,
                 style: const pw.TextStyle(fontSize: 20)),
-            pw.Text('$scopeLabel • $periodLabel • ${orders.length} طلب مكتمل',
+            pw.Text(
+                tr('$scopeLabel • $periodLabel • ${orders.length} طلب مكتمل',
+                    '$scopeLabel • $periodLabel • ${orders.length} completed orders'),
                 textDirection: pw.TextDirection.rtl,
                 style: const pw.TextStyle(fontSize: 11)),
-            pw.Text('صدر في ${dateFmt.format(DateTime.now())}',
+            pw.Text(
+                tr('صدر في ${dateFmt.format(DateTime.now())}',
+                    'Issued ${dateFmt.format(DateTime.now())}'),
                 textDirection: pw.TextDirection.rtl,
                 style: const pw.TextStyle(fontSize: 9)),
           ]),
         ),
         pw.SizedBox(height: 8),
-        pw.Text('الدورة المالية',
+        pw.Text(tr('الدورة المالية', 'Money flow'),
             textDirection: pw.TextDirection.rtl,
             style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.Divider(),
-        row('دفعه العملاء (شامل التوصيل والرسوم)', formatCurrency(t.revenue),
+        row(
+            tr('دفعه العملاء (شامل التوصيل والرسوم)',
+                'Paid by customers (incl. delivery & fees)'),
+            formatCurrency(t.revenue),
             bold: true),
-        row('صافي مستحقّات المطاعم', formatCurrency(t.meals - t.commission)),
-        row('أجرة السائقين', formatCurrency(t.delivery)),
-        row('دخل المنصّة (عمولة + رسم ثابت)',
+        row(tr('صافي مستحقّات المطاعم', 'Restaurants net due'),
+            formatCurrency(t.meals - t.commission)),
+        row(tr('أجرة السائقين', 'Driver fees'), formatCurrency(t.delivery)),
+        row(
+            tr('دخل المنصّة (عمولة + رسم ثابت)',
+                'Platform income (commission + fixed fee)'),
             formatCurrency(t.commission + t.fixedFee)),
         if (t.discounts > 0) ...[
-          row('خصومات الكوبونات (تتحمّلها المنصّة)',
+          row(
+              tr('خصومات الكوبونات (تتحمّلها المنصّة)',
+                  'Coupon discounts (borne by the platform)'),
               '- ${formatCurrency(t.discounts)}'),
-          row('صافي دخل المنصّة',
+          row(tr('صافي دخل المنصّة', 'Platform net income'),
               formatCurrency(t.commission + t.fixedFee - t.discounts),
               bold: true),
         ],
         pw.SizedBox(height: 6),
-        row('حصّله السائقون نقداً', formatCurrency(t.cash)),
-        row('قبضته المنصّة (بطاقات ومحافظ)',
+        row(tr('حصّله السائقون نقداً', 'Collected in cash by drivers'),
+            formatCurrency(t.cash)),
+        row(
+            tr('قبضته المنصّة (بطاقات ومحافظ)',
+                'Received by the platform (cards & wallets)'),
             formatCurrency(t.revenue - t.cash)),
         pw.SizedBox(height: 6),
-        row('ضريبة القيمة المضافة ضمن المبيعات (15%)',
+        row(
+            tr('ضريبة القيمة المضافة ضمن المبيعات (15%)',
+                'VAT included in sales (15%)'),
             formatCurrency(Pricing.vatIncludedIn(t.meals))),
         pw.SizedBox(height: 16),
-        pw.Text('تفصيل المطاعم',
+        pw.Text(tr('تفصيل المطاعم', 'Restaurant breakdown'),
             textDirection: pw.TextDirection.rtl,
             style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 6),
@@ -144,7 +162,13 @@ Future<void> exportAdminReportPdf({
           cellStyle: const pw.TextStyle(fontSize: 10),
           headerStyle:
               pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-          headers: ['الصافي', 'العمولة', 'المبيعات', 'الطلبات', 'المطعم'],
+          headers: [
+            tr('الصافي', 'Net'),
+            tr('العمولة', 'Commission'),
+            tr('المبيعات', 'Sales'),
+            tr('الطلبات', 'Orders'),
+            tr('المطعم', 'Restaurant'),
+          ],
           data: restaurants
               .map((r) => [
                     formatCurrency(r.$5),
@@ -160,7 +184,8 @@ Future<void> exportAdminReportPdf({
   );
 
   await Printing.sharePdf(
-      bytes: await doc.save(), filename: 'تقرير_ZadGo_$scopeLabel.pdf');
+      bytes: await doc.save(),
+      filename: tr('تقرير_ZadGo_$scopeLabel.pdf', 'ZadGo_report_$scopeLabel.pdf'));
 }
 
 Future<void> exportAdminReportExcel({
@@ -173,36 +198,40 @@ Future<void> exportAdminReportExcel({
   final dateFmt = DateFormat('yyyy-MM-dd HH:mm');
 
   // ورقة الملخص
-  final summary = workbook['الملخص'];
-  workbook.setDefaultSheet('الملخص');
+  final summaryName = tr('الملخص', 'Summary');
+  final summary = workbook[summaryName];
+  workbook.setDefaultSheet(summaryName);
   void put(String label, double value) => summary.appendRow(
       [xl.TextCellValue(label), xl.DoubleCellValue(value)]);
   summary.appendRow(
-      [xl.TextCellValue('النطاق'), xl.TextCellValue(scopeLabel)]);
+      [xl.TextCellValue(tr('النطاق', 'Scope')), xl.TextCellValue(scopeLabel)]);
   summary.appendRow([
-    xl.TextCellValue('عدد الطلبات المكتملة'),
+    xl.TextCellValue(tr('عدد الطلبات المكتملة', 'Completed orders')),
     xl.IntCellValue(orders.length)
   ]);
-  put('دفعه العملاء', t.revenue);
-  put('مبيعات الوجبات', t.meals);
-  put('صافي مستحقّات المطاعم', t.meals - t.commission);
-  put('أجرة السائقين', t.delivery);
-  put('عمولة الوجبات', t.commission);
-  put('رسم التوصيل الثابت', t.fixedFee);
-  put('خصومات الكوبونات', t.discounts);
-  put('صافي دخل المنصّة', t.commission + t.fixedFee - t.discounts);
-  put('حصّله السائقون نقداً', t.cash);
-  put('قبضته المنصّة', t.revenue - t.cash);
-  put('ضريبة القيمة المضافة ضمن المبيعات', Pricing.vatIncludedIn(t.meals));
+  put(tr('دفعه العملاء', 'Paid by customers'), t.revenue);
+  put(tr('مبيعات الوجبات', 'Food sales'), t.meals);
+  put(tr('صافي مستحقّات المطاعم', 'Restaurants net due'),
+      t.meals - t.commission);
+  put(tr('أجرة السائقين', 'Driver fees'), t.delivery);
+  put(tr('عمولة الوجبات', 'Food commission'), t.commission);
+  put(tr('رسم التوصيل الثابت', 'Fixed delivery fee'), t.fixedFee);
+  put(tr('خصومات الكوبونات', 'Coupon discounts'), t.discounts);
+  put(tr('صافي دخل المنصّة', 'Platform net income'),
+      t.commission + t.fixedFee - t.discounts);
+  put(tr('حصّله السائقون نقداً', 'Collected in cash by drivers'), t.cash);
+  put(tr('قبضته المنصّة', 'Received by the platform'), t.revenue - t.cash);
+  put(tr('ضريبة القيمة المضافة ضمن المبيعات', 'VAT included in sales'),
+      Pricing.vatIncludedIn(t.meals));
 
   // ورقة المطاعم
-  final rSheet = workbook['المطاعم'];
+  final rSheet = workbook[tr('المطاعم', 'Restaurants')];
   rSheet.appendRow([
-    xl.TextCellValue('المطعم'),
-    xl.TextCellValue('الطلبات'),
-    xl.TextCellValue('المبيعات'),
-    xl.TextCellValue('العمولة'),
-    xl.TextCellValue('الصافي'),
+    xl.TextCellValue(tr('المطعم', 'Restaurant')),
+    xl.TextCellValue(tr('الطلبات', 'Orders')),
+    xl.TextCellValue(tr('المبيعات', 'Sales')),
+    xl.TextCellValue(tr('العمولة', 'Commission')),
+    xl.TextCellValue(tr('الصافي', 'Net')),
   ]);
   for (final r in restaurants) {
     rSheet.appendRow([
@@ -215,18 +244,18 @@ Future<void> exportAdminReportExcel({
   }
 
   // ورقة الطلبات التفصيلية — أساس أي مراجعة محاسبية.
-  final oSheet = workbook['الطلبات'];
+  final oSheet = workbook[tr('الطلبات', 'Orders')];
   oSheet.appendRow([
-    xl.TextCellValue('رقم الطلب'),
-    xl.TextCellValue('التاريخ'),
-    xl.TextCellValue('المطعم'),
-    xl.TextCellValue('الوجبات'),
-    xl.TextCellValue('التوصيل'),
-    xl.TextCellValue('الرسم الثابت'),
-    xl.TextCellValue('العمولة'),
-    xl.TextCellValue('الخصم'),
-    xl.TextCellValue('المدفوع'),
-    xl.TextCellValue('طريقة الدفع'),
+    xl.TextCellValue(tr('رقم الطلب', 'Order no.')),
+    xl.TextCellValue(tr('التاريخ', 'Date')),
+    xl.TextCellValue(tr('المطعم', 'Restaurant')),
+    xl.TextCellValue(tr('الوجبات', 'Food')),
+    xl.TextCellValue(tr('التوصيل', 'Delivery')),
+    xl.TextCellValue(tr('الرسم الثابت', 'Fixed fee')),
+    xl.TextCellValue(tr('العمولة', 'Commission')),
+    xl.TextCellValue(tr('الخصم', 'Discount')),
+    xl.TextCellValue(tr('المدفوع', 'Paid')),
+    xl.TextCellValue(tr('طريقة الدفع', 'Payment method')),
   ]);
   for (final o in orders) {
     oSheet.appendRow([
@@ -249,12 +278,12 @@ Future<void> exportAdminReportExcel({
     [
       XFile.fromData(
         Uint8List.fromList(bytes),
-        name: 'تقرير_ZadGo_$scopeLabel.xlsx',
+        name: tr('تقرير_ZadGo_$scopeLabel.xlsx', 'ZadGo_report_$scopeLabel.xlsx'),
         mimeType:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       ),
     ],
-    subject: 'التقرير المالي — $scopeLabel',
+    subject: tr('التقرير المالي — $scopeLabel', 'Financial report — $scopeLabel'),
   );
 }
 
@@ -282,13 +311,19 @@ Future<void> exportRestaurantInvoicePdf({
         pw.Header(
           level: 0,
           child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text('فاتورة مستحقّات — $restaurantName',
+            pw.Text(
+                tr('فاتورة مستحقّات — $restaurantName',
+                    'Statement of dues — $restaurantName'),
                 textDirection: pw.TextDirection.rtl,
                 style: const pw.TextStyle(fontSize: 20)),
-            pw.Text('$periodLabel • ${orders.length} طلب مكتمل',
+            pw.Text(
+                tr('$periodLabel • ${orders.length} طلب مكتمل',
+                    '$periodLabel • ${orders.length} completed orders'),
                 textDirection: pw.TextDirection.rtl,
                 style: const pw.TextStyle(fontSize: 11)),
-            pw.Text('صدرت عن منصّة ZadGo في ${dateFmt.format(DateTime.now())}',
+            pw.Text(
+                tr('صدرت عن منصّة ZadGo في ${dateFmt.format(DateTime.now())}',
+                    'Issued by the ZadGo platform on ${dateFmt.format(DateTime.now())}'),
                 textDirection: pw.TextDirection.rtl,
                 style: const pw.TextStyle(fontSize: 9)),
           ]),
@@ -300,7 +335,13 @@ Future<void> exportRestaurantInvoicePdf({
           cellStyle: const pw.TextStyle(fontSize: 10),
           headerStyle:
               pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-          headers: ['الصافي', 'العمولة', 'قيمة الوجبات', 'التاريخ', 'رقم الطلب'],
+          headers: [
+            tr('الصافي', 'Net'),
+            tr('العمولة', 'Commission'),
+            tr('قيمة الوجبات', 'Food value'),
+            tr('التاريخ', 'Date'),
+            tr('رقم الطلب', 'Order no.'),
+          ],
           data: orders
               .map((o) => [
                     formatCurrency(o.itemsTotal - o.effectiveCommission),
@@ -317,14 +358,14 @@ Future<void> exportRestaurantInvoicePdf({
           decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.8)),
           child: pw.Column(children: [
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text('إجمالي مبيعات الوجبات',
+              pw.Text(tr('إجمالي مبيعات الوجبات', 'Total food sales'),
                   textDirection: pw.TextDirection.rtl,
                   style: const pw.TextStyle(fontSize: 11)),
               pw.Text(formatCurrency(meals),
                   style: const pw.TextStyle(fontSize: 11)),
             ]),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text('عمولة المنصّة (15%)',
+              pw.Text(tr('عمولة المنصّة (15%)', 'Platform commission (15%)'),
                   textDirection: pw.TextDirection.rtl,
                   style: const pw.TextStyle(fontSize: 11)),
               pw.Text('- ${formatCurrency(commission)}',
@@ -332,7 +373,7 @@ Future<void> exportRestaurantInvoicePdf({
             ]),
             pw.Divider(),
             pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-              pw.Text('صافي المستحق للمطعم',
+              pw.Text(tr('صافي المستحق للمطعم', 'Net due to the restaurant'),
                   textDirection: pw.TextDirection.rtl,
                   style: pw.TextStyle(
                       fontSize: 13, fontWeight: pw.FontWeight.bold)),
@@ -344,9 +385,13 @@ Future<void> exportRestaurantInvoicePdf({
         ),
         pw.SizedBox(height: 8),
         pw.Text(
-            'الأسعار شاملة ضريبة القيمة المضافة (15%)، وقيمتها ضمن المبيعات: '
-            '${formatCurrency(Pricing.vatIncludedIn(meals))}. '
-            'أجرة التوصيل ورسومها لا تخصّ المطعم فلا تظهر في هذه الفاتورة.',
+            tr('الأسعار شاملة ضريبة القيمة المضافة (15%)، وقيمتها ضمن المبيعات: '
+                    '${formatCurrency(Pricing.vatIncludedIn(meals))}. '
+                    'أجرة التوصيل ورسومها لا تخصّ المطعم فلا تظهر في هذه الفاتورة.',
+                'Prices include VAT (15%); its value within sales: '
+                    '${formatCurrency(Pricing.vatIncludedIn(meals))}. '
+                    'Delivery fees do not concern the restaurant, so they do not '
+                    'appear on this statement.'),
             textDirection: pw.TextDirection.rtl,
             style: const pw.TextStyle(fontSize: 9)),
       ],
@@ -354,5 +399,7 @@ Future<void> exportRestaurantInvoicePdf({
   );
 
   await Printing.sharePdf(
-      bytes: await doc.save(), filename: 'فاتورة_$restaurantName.pdf');
+      bytes: await doc.save(),
+      filename:
+          tr('فاتورة_$restaurantName.pdf', 'invoice_$restaurantName.pdf'));
 }

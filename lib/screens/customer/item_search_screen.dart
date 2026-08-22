@@ -12,6 +12,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import 'restaurant_detail_screen.dart';
 
@@ -83,7 +84,7 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ابحث عن صنف'),
+        title: Text(tr('ابحث عن صنف', 'Search dishes')),
       ),
       body: Column(children: [
         Padding(
@@ -96,7 +97,7 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
             // بلا تجاوز للحشو/الحافة: يرث حقل البحث ارتفاع الثيم وحوافه
             // الموحّدة (نصف قطر ١٦) كبقيّة حقول البحث، فلا ارتفاعٌ ثالث مختلف.
             decoration: InputDecoration(
-              hintText: 'شاورما، برجر، كبسة…',
+              hintText: tr('شاورما، برجر، كبسة…', 'Shawarma, burger, kabsa…'),
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _query.isEmpty
                   ? null
@@ -117,21 +118,25 @@ class _ItemSearchScreenState extends State<ItemSearchScreen> {
 
   Widget _buildBody() {
     if (_error != null) {
-      return AppError(error: _error, message: 'تعذّر تحميل الأصناف');
+      return AppError(
+          error: _error,
+          message: tr('تعذّر تحميل الأصناف', 'Couldn\'t load dishes'));
     }
     if (_catalog == null) {
       return const Center(child: CircularProgressIndicator());
     }
     final q = _query.trim();
     if (q.length < 2) {
-      return const AppEmpty(
+      return AppEmpty(
           emoji: '🍽️',
-          title: 'اكتب اسم صنف',
-          subtitle: 'ابحث عمّا تشتهيه في كل مطاعم المدينة دفعةً واحدة');
+          title: tr('اكتب اسم صنف', 'Type a dish name'),
+          subtitle: tr('ابحث عمّا تشتهيه في كل مطاعم المدينة دفعةً واحدة',
+              'Search every restaurant in the city at once for what you\'re craving'));
     }
     final results = _results;
     if (results.isEmpty) {
-      return const AppEmpty(emoji: '🔍', title: 'لا أصناف مطابقة');
+      return AppEmpty(
+          emoji: '🔍', title: tr('لا أصناف مطابقة', 'No matching dishes'));
     }
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 20),
@@ -190,7 +195,7 @@ class _ItemResultTile extends StatelessWidget {
               size: 13, color: AppColors.textGray),
           const SizedBox(width: 4),
           Expanded(
-            child: Text(restaurant?.name ?? 'مطعم',
+            child: Text(restaurant?.name ?? tr('مطعم', 'Restaurant'),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style:

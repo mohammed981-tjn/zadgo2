@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -25,24 +26,25 @@ Future<void> exportDriverLedgerExcel({
   required List<DriverTransaction> txs,
 }) async {
   final workbook = xl.Excel.createExcel();
-  final sheet = workbook['الدفتر'];
-  workbook.setDefaultSheet('الدفتر');
+  final sheetName = tr('الدفتر', 'Ledger');
+  final sheet = workbook[sheetName];
+  workbook.setDefaultSheet(sheetName);
   final dateFmt = DateFormat('yyyy-MM-dd HH:mm');
 
   sheet.appendRow([
-    xl.TextCellValue('السائق'),
+    xl.TextCellValue(tr('السائق', 'Driver')),
     xl.TextCellValue(driver.name),
-    xl.TextCellValue('الرصيد الحالي'),
+    xl.TextCellValue(tr('الرصيد الحالي', 'Current balance')),
     xl.DoubleCellValue(driver.balance),
   ]);
   sheet.appendRow([xl.TextCellValue('')]);
   sheet.appendRow([
-    xl.TextCellValue('التاريخ'),
-    xl.TextCellValue('النوع'),
-    xl.TextCellValue('المبلغ'),
-    xl.TextCellValue('الرصيد بعدها'),
-    xl.TextCellValue('رقم الطلب'),
-    xl.TextCellValue('ملاحظة'),
+    xl.TextCellValue(tr('التاريخ', 'Date')),
+    xl.TextCellValue(tr('النوع', 'Type')),
+    xl.TextCellValue(tr('المبلغ', 'Amount')),
+    xl.TextCellValue(tr('الرصيد بعدها', 'Balance after')),
+    xl.TextCellValue(tr('رقم الطلب', 'Order no.')),
+    xl.TextCellValue(tr('ملاحظة', 'Note')),
   ]);
   for (final t in txs) {
     sheet.appendRow([
@@ -61,12 +63,12 @@ Future<void> exportDriverLedgerExcel({
     [
       XFile.fromData(
         Uint8List.fromList(bytes),
-        name: 'دفتر_${driver.name}.xlsx',
+        name: tr('دفتر_${driver.name}.xlsx', 'ledger_${driver.name}.xlsx'),
         mimeType:
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       ),
     ],
-    subject: 'دفتر حساب ${driver.name}',
+    subject: tr('دفتر حساب ${driver.name}', 'Account ledger for ${driver.name}'),
   );
 }
 
@@ -79,7 +81,8 @@ class AdminDriverLedgerScreen extends StatelessWidget {
     final service = context.read<FirebaseService>();
 
     return Scaffold(
-      appBar: AppBar(title: Text('حساب ${driver.name}')),
+      appBar: AppBar(
+          title: Text(tr('حساب ${driver.name}', '${driver.name} account'))),
       // يُتابَع السائق لحظياً ليظهر الرصيد محدَّثاً فور تسجيل أي حركة.
       body: AppStreamBuilder<List<Driver>>(
         stream: service.streamDrivers,
@@ -106,7 +109,9 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(owes ? 'على السائق للتطبيق' : 'للسائق لدى التطبيق',
+                    Text(owes
+                            ? tr('على السائق للتطبيق', 'Driver owes the app')
+                            : tr('للسائق لدى التطبيق', 'App owes the driver'),
                         style: const TextStyle(color: Colors.white70, fontSize: 13.5)),
                     const SizedBox(height: 4),
                     Text(formatCurrency(d.balance.abs()),
@@ -115,8 +120,11 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                             fontSize: 30,
                             fontWeight: FontWeight.bold)),
                     const SizedBox(height: 6),
-                    Text('${d.totalDeliveries} توصيلة • صُرف له '
-                        '${formatCurrency(d.totalEarnings)}',
+                    Text(tr(
+                            '${d.totalDeliveries} توصيلة • صُرف له '
+                                '${formatCurrency(d.totalEarnings)}',
+                            '${d.totalDeliveries} deliveries • paid out '
+                                '${formatCurrency(d.totalEarnings)}'),
                         style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
                     const SizedBox(height: 8),
                     // كود إحالته — يسأل عنه السائق أحياناً عبر الهاتف.
@@ -129,13 +137,14 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.south_west_rounded, size: 18),
-                    label: const Text('إيداع نقد'),
+                    label: Text(tr('إيداع نقد', 'Cash deposit')),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.success),
                     onPressed: () => _showEntryDialog(
                       context,
-                      title: 'تسجيل إيداع',
-                      hint: 'المبلغ الذي سلّمه السائق نقداً',
+                      title: tr('تسجيل إيداع', 'Record deposit'),
+                      hint: tr('المبلغ الذي سلّمه السائق نقداً',
+                          'Amount the driver handed over in cash'),
                       onConfirm: (amount, note) => service.recordDriverDeposit(
                           driverId: d.id, amount: amount, note: note),
                     ),
@@ -145,13 +154,13 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.north_east_rounded, size: 18),
-                    label: const Text('صرف مستحقّات'),
+                    label: Text(tr('صرف مستحقّات', 'Pay out earnings')),
                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.warning),
                     onPressed: () => _showEntryDialog(
                       context,
-                      title: 'تسجيل صرف',
-                      hint: 'المبلغ المدفوع للسائق',
+                      title: tr('تسجيل صرف', 'Record payout'),
+                      hint: tr('المبلغ المدفوع للسائق', 'Amount paid to the driver'),
                       onConfirm: (amount, note) => service.recordDriverPayout(
                           driverId: d.id, amount: amount, note: note),
                     ),
@@ -163,13 +172,14 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.emoji_events_outlined, size: 18),
-                  label: const Text('منح مكافأة 🎉'),
+                  label: Text(tr('منح مكافأة 🎉', 'Grant bonus 🎉')),
                   style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary),
                   onPressed: () => _showEntryDialog(
                     context,
-                    title: 'منح مكافأة',
-                    hint: 'المبلغ — واذكر السبب في الملاحظة (تحدٍّ/إحالة/تميّز)',
+                    title: tr('منح مكافأة', 'Grant bonus'),
+                    hint: tr('المبلغ — واذكر السبب في الملاحظة (تحدٍّ/إحالة/تميّز)',
+                        'Amount — state the reason in the note (challenge/referral/excellence)'),
                     onConfirm: (amount, note) => service.recordDriverBonus(
                         driverId: d.id, amount: amount, note: note),
                   ),
@@ -180,11 +190,12 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.tune_rounded, size: 18),
-                  label: const Text('تسوية يدوية'),
+                  label: Text(tr('تسوية يدوية', 'Manual adjustment')),
                   onPressed: () => _showEntryDialog(
                     context,
-                    title: 'تسوية يدوية',
-                    hint: 'موجب يزيد الرصيد، سالب ينقصه',
+                    title: tr('تسوية يدوية', 'Manual adjustment'),
+                    hint: tr('موجب يزيد الرصيد، سالب ينقصه',
+                        'Positive raises the balance, negative lowers it'),
                     allowNegative: true,
                     onConfirm: (amount, note) => service.recordDriverAdjustment(
                         driverId: d.id, amount: amount, note: note),
@@ -192,12 +203,14 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              const SectionHeader(title: 'سجلّ الحركات'),
+              SectionHeader(title: tr('سجلّ الحركات', 'Transaction log')),
               AppStreamBuilder<List<DriverTransaction>>(
                 stream: () => service.streamDriverTransactions(d.id),
                 builder: (ctx2, txs) {
                   if (txs.isEmpty) {
-                    return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات بعد');
+                    return AppEmpty(
+                        emoji: '🧾',
+                        title: tr('لا توجد حركات بعد', 'No transactions yet'));
                   }
                   return Column(children: [
                     // تصدير الدفتر لتسليمه للسائق عند التسوية — بنفس أعمدة
@@ -208,8 +221,8 @@ class AdminDriverLedgerScreen extends StatelessWidget {
                         onPressed: () =>
                             exportDriverLedgerExcel(driver: d, txs: txs),
                         icon: const Icon(Icons.table_view_outlined, size: 16),
-                        label: const Text('تصدير الدفتر Excel',
-                            style: TextStyle(fontSize: 12.5)),
+                        label: Text(tr('تصدير الدفتر Excel', 'Export ledger to Excel'),
+                            style: const TextStyle(fontSize: 12.5)),
                       ),
                     ),
                     ...txs.map((t) => _LedgerTile(tx: t)),
@@ -244,21 +257,23 @@ class AdminDriverLedgerScreen extends StatelessWidget {
             controller: amountCtrl,
             keyboardType: const TextInputType.numberWithOptions(
                 decimal: true, signed: true),
-            decoration: InputDecoration(labelText: 'المبلغ', hintText: hint),
+            decoration: InputDecoration(
+                labelText: tr('المبلغ', 'Amount'), hintText: hint),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: noteCtrl,
-            decoration: const InputDecoration(labelText: 'ملاحظة (اختياري)'),
+            decoration: InputDecoration(
+                labelText: tr('ملاحظة (اختياري)', 'Note (optional)')),
           ),
         ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('إلغاء')),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('تأكيد')),
+              child: Text(tr('تأكيد', 'Confirm'))),
         ],
       ),
     );
@@ -266,15 +281,19 @@ class AdminDriverLedgerScreen extends StatelessWidget {
 
     final amount = double.tryParse(amountCtrl.text.trim());
     if (amount == null || amount == 0 || (!allowNegative && amount < 0)) {
-      showError(context, 'أدخل مبلغاً صحيحاً');
+      showError(context, tr('أدخل مبلغاً صحيحاً', 'Enter a valid amount'));
       return;
     }
     final note = noteCtrl.text.trim();
     try {
       await onConfirm(amount, note.isEmpty ? null : note);
-      if (context.mounted) showSuccess(context, 'تم تسجيل الحركة');
+      if (context.mounted) {
+        showSuccess(context, tr('تم تسجيل الحركة', 'Transaction recorded'));
+      }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر تسجيل الحركة');
+      if (context.mounted) {
+        showError(context, tr('تعذّر تسجيل الحركة', 'Could not record the transaction'));
+      }
     }
   }
 }
@@ -299,7 +318,8 @@ class _LedgerTile extends StatelessWidget {
         title: Text(tx.type.label, style: const TextStyle(fontSize: 13.5)),
         subtitle: Text(
           [
-            if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
+            if (tx.orderNumber != null)
+              tr('طلب #${tx.orderNumber}', 'Order #${tx.orderNumber}'),
             if (tx.note != null && tx.note!.isNotEmpty) tx.note!,
             '${tx.createdAt.day}/${tx.createdAt.month} '
                 '${tx.createdAt.hour}:${tx.createdAt.minute.toString().padLeft(2, '0')}',
@@ -313,7 +333,8 @@ class _LedgerTile extends StatelessWidget {
             Text('${positive ? '+' : '−'}${formatCurrency(tx.amount.abs())}',
                 style: TextStyle(
                     fontWeight: FontWeight.bold, color: color, fontSize: 13.5)),
-            Text('الرصيد: ${formatCurrency(tx.balanceAfter)}',
+            Text(tr('الرصيد: ${formatCurrency(tx.balanceAfter)}',
+                    'Balance: ${formatCurrency(tx.balanceAfter)}'),
                 style: const TextStyle(fontSize: 10.5, color: AppColors.textGray)),
           ],
         ),

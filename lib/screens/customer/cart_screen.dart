@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 
 import '../auth/login_screen.dart';
@@ -46,9 +47,9 @@ class CartScreen extends StatelessWidget {
     final cart = context.watch<CartProvider>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('السلة')),
+      appBar: AppBar(title: Text(tr('السلة', 'Cart'))),
       body: cart.isEmpty
-          ? const AppEmpty(emoji: '🛒', title: 'السلة فارغة')
+          ? AppEmpty(emoji: '🛒', title: tr('السلة فارغة', 'Your cart is empty'))
           : Column(
               children: [
                 Expanded(
@@ -98,11 +99,14 @@ class CartScreen extends StatelessWidget {
                       ),
                       const Divider(),
                       PriceRow(
-                        label: 'الوجبات',
+                        label: tr('الوجبات', 'Food'),
                         value: formatCurrency(cart.itemsTotal),
                         bold: true,
                       ),
-                      PriceRow(label: 'التوصيل', value: 'يُحسب عند تحديد الموقع'),
+                      PriceRow(
+                          label: tr('التوصيل', 'Delivery'),
+                          value: tr('يُحسب عند تحديد الموقع',
+                              'Calculated after setting your location')),
                     ],
                   ),
                 ),
@@ -114,7 +118,7 @@ class CartScreen extends StatelessWidget {
                       height: 52,
                       child: ElevatedButton(
                         onPressed: () => _proceedToCheckout(context),
-                        child: const Text('المتابعة للدفع'),
+                        child: Text(tr('المتابعة للدفع', 'Continue to checkout')),
                       ),
                     ),
                   ),
@@ -240,7 +244,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final cart = context.read<CartProvider>();
     final service = context.read<FirebaseService>();
     if (!auth.isLoggedIn) {
-      showError(context, 'سجّل الدخول أولاً لتطبيق كود الخصم');
+      showError(
+          context,
+          tr('سجّل الدخول أولاً لتطبيق كود الخصم',
+              'Sign in first to apply a promo code'));
       return;
     }
     setState(() => _checkingCoupon = true);
@@ -256,7 +263,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _coupon = coupon;
         _checkingCoupon = false;
       });
-      showSuccess(context, 'طُبّق الخصم: ${formatCurrency(_discount)}');
+      showSuccess(
+          context,
+          tr('طُبّق الخصم: ${formatCurrency(_discount)}',
+              'Discount applied: ${formatCurrency(_discount)}'));
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -295,7 +305,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       return "${p.street}, ${p.locality}, ${p.administrativeArea}";
     } catch (e) {
-      return "تعذر جلب العنوان";
+      return tr('تعذر جلب العنوان', 'Couldn\'t fetch the address');
     }
   }
 
@@ -328,12 +338,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _placeOrder() async {
     if (_addrCtrl.text.trim().isEmpty) {
-      showError(context, 'أدخل عنوان التوصيل');
+      showError(context, tr('أدخل عنوان التوصيل', 'Enter the delivery address'));
       return;
     }
 
     if (_lat == null || _lng == null) {
-      showError(context, 'حدد موقعك على الخريطة');
+      showError(context,
+          tr('حدد موقعك على الخريطة', 'Set your location on the map'));
       return;
     }
 
@@ -341,9 +352,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // لا يستطيع أي سائق تنفيذه.
     final distance = _distanceKm;
     if (distance != null && _settings.isOutOfRange(distance)) {
-      showError(context,
-          'الموقع خارج نطاق التوصيل (${distance.toStringAsFixed(0)} كم). '
-          'الحد الأقصى ${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم');
+      showError(
+          context,
+          tr(
+              'الموقع خارج نطاق التوصيل (${distance.toStringAsFixed(0)} كم). '
+                  'الحد الأقصى ${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم',
+              'Location is outside the delivery area (${distance.toStringAsFixed(0)} km). '
+                  'Maximum is ${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} km'));
       return;
     }
 
@@ -366,7 +381,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       });
     } catch (_) {
       if (mounted) {
-        showError(context, 'تعذّر تحديث بيانات المطعم — تحقق من الاتصال وحاول');
+        showError(
+            context,
+            tr('تعذّر تحديث بيانات المطعم — تحقق من الاتصال وحاول',
+                'Couldn\'t refresh restaurant details — check your connection and try again'));
       }
       return;
     }
@@ -375,9 +393,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (freshRestaurant != null &&
         !freshRestaurant.isOpenNow &&
         _scheduledFor == null) {
-      showError(context,
-          '${freshRestaurant.displayName} ${freshRestaurant.openStatusLabel} — '
-          'جرّب الطلب المجدول أو عُد في وقت العمل');
+      showError(
+          context,
+          tr(
+              '${freshRestaurant.displayName} ${freshRestaurant.openStatusLabel} — '
+                  'جرّب الطلب المجدول أو عُد في وقت العمل',
+              '${freshRestaurant.displayName} ${freshRestaurant.openStatusLabel} — '
+                  'try scheduling the order or come back during opening hours'));
       return;
     }
 
@@ -397,8 +419,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       } catch (e) {
         setState(() => _coupon = null);
         if (mounted) {
-          showError(context,
-              'أُزيل الكوبون: ${e.toString().replaceFirst('Exception: ', '')}');
+          showError(
+              context,
+              tr('أُزيل الكوبون: ${e.toString().replaceFirst('Exception: ', '')}',
+                  'Coupon removed: ${e.toString().replaceFirst('Exception: ', '')}'));
         }
         return;
       }
@@ -412,15 +436,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final me = context.read<app_auth.AuthProvider>().user;
       final s = _settings;
       if (me?.cashBlocked == true) {
-        showError(context,
-            'الدفع النقدي موقوف لحسابك بعد تكرار رفض الاستلام — يمكنك الدفع بالمحفظة أو البطاقة، أو تواصل مع الدعم');
+        showError(
+            context,
+            tr('الدفع النقدي موقوف لحسابك بعد تكرار رفض الاستلام — يمكنك الدفع بالمحفظة أو البطاقة، أو تواصل مع الدعم',
+                'Cash payment is suspended on your account after repeated refused deliveries — pay by wallet or card, or contact support'));
         return;
       }
       if (s.firstCashOrderCap > 0 &&
           me?.cashTrusted != true &&
           _orderTotal() > s.firstCashOrderCap) {
-        showError(context,
-            'سقف أول طلب نقدي ${s.firstCashOrderCap.toStringAsFixed(0)} ر.س — قلّل السلة أو ادفع بالمحفظة/البطاقة، وبعد أول توصيلة يُرفع السقف');
+        showError(
+            context,
+            tr('سقف أول طلب نقدي ${s.firstCashOrderCap.toStringAsFixed(0)} ر.س — قلّل السلة أو ادفع بالمحفظة/البطاقة، وبعد أول توصيلة يُرفع السقف',
+                'First cash order is capped at ${s.firstCashOrderCap.toStringAsFixed(0)} SAR — trim your cart or pay by wallet/card; the cap lifts after your first delivery'));
         return;
       }
       if (s.maxConcurrentCashOrders > 0 && me != null) {
@@ -436,8 +464,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               .length;
           if (activeCash >= s.maxConcurrentCashOrders) {
             if (mounted) {
-              showError(context,
-                  'لديك $activeCash طلبات نقدية جارية — أكمل استلامها قبل طلبٍ نقدي جديد');
+              showError(
+                  context,
+                  tr('لديك $activeCash طلبات نقدية جارية — أكمل استلامها قبل طلبٍ نقدي جديد',
+                      'You have $activeCash active cash orders — receive them before placing a new cash order'));
             }
             return;
           }
@@ -464,7 +494,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         MaterialPageRoute(
           builder: (_) => MoyasarPaymentScreen(
             amountSar: totalToCharge,
-            orderDescription: 'طلب ZadGo — ${_restaurant?.displayName ?? ''}',
+            orderDescription: tr('طلب ZadGo — ${_restaurant?.displayName ?? ''}',
+                'ZadGo order — ${_restaurant?.displayName ?? ''}'),
           ),
         ),
       );
@@ -472,7 +503,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (result == null) return;
       if (!result.success) {
         if (mounted) {
-          showError(context, result.errorMessage ?? 'فشلت عملية الدفع');
+          showError(context,
+              result.errorMessage ?? tr('فشلت عملية الدفع', 'Payment failed'));
         }
         return;
       }
@@ -489,11 +521,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (!mounted) return;
         final retry = await showConfirmDialog(
           context,
-          title: 'تعذّر توثيق الدفعة',
-          content: 'دفعتك محجوزة برقم ($paymentId) لكن تعذّر توثيقها الآن '
-              '(اتصال أو خادم). أعد المحاولة، أو احتفظ بالرقم وتواصل مع '
-              'الدعم — لن يضيع مبلغك.',
-          confirmLabel: 'إعادة المحاولة',
+          title: tr('تعذّر توثيق الدفعة', 'Couldn\'t verify the payment'),
+          content: tr(
+              'دفعتك محجوزة برقم ($paymentId) لكن تعذّر توثيقها الآن '
+                  '(اتصال أو خادم). أعد المحاولة، أو احتفظ بالرقم وتواصل مع '
+                  'الدعم — لن يضيع مبلغك.',
+              'Your payment is held under reference ($paymentId) but couldn\'t '
+                  'be verified right now (connection or server). Retry, or keep '
+                  'the reference and contact support — your money won\'t be lost.'),
+          confirmLabel: tr('إعادة المحاولة', 'Retry'),
         );
         if (retry != true) return;
       }
@@ -587,7 +623,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         (r) => r.isFirst,
       );
 
-      showSuccess(context, 'تم إرسال طلبك بنجاح!');
+      showSuccess(context, tr('تم إرسال طلبك بنجاح!', 'Your order is in!'));
     } catch (e) {
       setState(() => _loading = false);
       if (!mounted) return;
@@ -598,13 +634,19 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       if (paymentId != null) {
         await showConfirmDialog(
           context,
-          title: 'تعذّر إنشاء الطلب بعد الدفع',
-          content: 'خُصم مبلغ بطاقتك (رقم العملية: $paymentId) لكن تعذّر إنشاء '
-              'الطلب. احتفظ بالرقم وتواصل مع الدعم — سيُستردّ مبلغك كاملاً.',
-          confirmLabel: 'حسناً',
+          title: tr('تعذّر إنشاء الطلب بعد الدفع',
+              'Couldn\'t create the order after payment'),
+          content: tr(
+              'خُصم مبلغ بطاقتك (رقم العملية: $paymentId) لكن تعذّر إنشاء '
+                  'الطلب. احتفظ بالرقم وتواصل مع الدعم — سيُستردّ مبلغك كاملاً.',
+              'Your card was charged (reference: $paymentId) but the order '
+                  'couldn\'t be created. Keep the reference and contact support '
+                  '— you\'ll be refunded in full.'),
+          confirmLabel: tr('حسناً', 'OK'),
         );
       } else {
-        showError(context, 'فشل إرسال الطلب، حاول مجدداً');
+        showError(context,
+            tr('فشل إرسال الطلب، حاول مجدداً', 'Couldn\'t place the order, please try again'));
       }
     }
   }
@@ -625,7 +667,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final outOfRange = _distanceKm != null && _settings.isOutOfRange(_distanceKm!);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('إتمام الطلب')),
+      appBar: AppBar(title: Text(tr('إتمام الطلب', 'Checkout'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -646,8 +688,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('عناويني',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+                  Text(tr('عناويني', 'My addresses'),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14.5)),
                   const SizedBox(height: 6),
                   Wrap(
                     spacing: 8,
@@ -676,7 +719,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             maxLines: 2,
             // أيقونة Phosphor ليست ثابتة تصريفياً — فك const عن الزخرفة.
             decoration: InputDecoration(
-              hintText: 'عنوان التوصيل بالتفصيل',
+              hintText: tr('عنوان التوصيل بالتفصيل', 'Full delivery address'),
               prefixIcon: PhosphorIcon(PhosphorIcons.mapPin(), size: 20),
             ),
           ),
@@ -687,9 +730,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             controller: _noteCtrl,
             maxLines: 2,
             maxLength: 200,
-            decoration: const InputDecoration(
-              hintText: 'ملاحظة للمطعم أو الكابتن (اختياري) — مثل: بلا بصل',
-              prefixIcon: Icon(Icons.sticky_note_2_outlined, size: 20),
+            decoration: InputDecoration(
+              hintText: tr('ملاحظة للمطعم أو الكابتن (اختياري) — مثل: بلا بصل',
+                  'Note for the restaurant or captain (optional) — e.g. no onions'),
+              prefixIcon: const Icon(Icons.sticky_note_2_outlined, size: 20),
               counterText: '',
             ),
           ),
@@ -704,8 +748,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             Expanded(
               child: Text(
                 _scheduledFor == null
-                    ? 'التوصيل: في أقرب وقت'
-                    : 'مجدول: ${formatDateTime(_scheduledFor!)}',
+                    ? tr('التوصيل: في أقرب وقت', 'Delivery: as soon as possible')
+                    : tr('مجدول: ${formatDateTime(_scheduledFor!)}',
+                        'Scheduled: ${formatDateTime(_scheduledFor!)}'),
                 style: const TextStyle(fontSize: 13.5),
               ),
             ),
@@ -729,19 +774,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     time.hour, time.minute);
                 if (picked.isBefore(now.add(const Duration(hours: 1)))) {
                   if (context.mounted) {
-                    showError(context,
-                        'أقرب موعد جدولة بعد ساعة من الآن — لما هو أعجل اختر «في أقرب وقت»');
+                    showError(
+                        context,
+                        tr('أقرب موعد جدولة بعد ساعة من الآن — لما هو أعجل اختر «في أقرب وقت»',
+                            'Earliest scheduling is one hour from now — for anything sooner choose "as soon as possible"'));
                   }
                   return;
                 }
                 setState(() => _scheduledFor = picked);
               },
-              child: Text(_scheduledFor == null ? 'جدولة' : 'تغيير'),
+              child: Text(_scheduledFor == null
+                  ? tr('جدولة', 'Schedule')
+                  : tr('تغيير', 'Change')),
             ),
             if (_scheduledFor != null)
               IconButton(
                 icon: const Icon(Icons.close, size: 16),
-                tooltip: 'إلغاء الجدولة',
+                tooltip: tr('إلغاء الجدولة', 'Remove schedule'),
                 onPressed: () => setState(() => _scheduledFor = null),
               ),
           ]),
@@ -751,20 +800,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           Row(children: [
             const Text('🛵', style: TextStyle(fontSize: 17)),
             const SizedBox(width: 6),
-            const Expanded(
-              child: Text('إكرامية للكابتن؟ تصله كاملة',
-                  style: TextStyle(fontSize: 13.5)),
+            Expanded(
+              child: Text(
+                  tr('إكرامية للكابتن؟ تصله كاملة',
+                      'Tip the captain? They keep 100%'),
+                  style: const TextStyle(fontSize: 13.5)),
             ),
           ]),
           const SizedBox(height: 6),
           Wrap(spacing: 8, children: [
             ChoiceChip(
-              label: const Text('بلا'),
+              label: Text(tr('بلا', 'No tip')),
               selected: _tip == 0,
               onSelected: (_) => setState(() => _tip = 0),
             ),
             ..._tipOptions.map((v) => ChoiceChip(
-                  label: Text('${v.toStringAsFixed(0)} ر.س'),
+                  label: Text(tr('${v.toStringAsFixed(0)} ر.س',
+                      '${v.toStringAsFixed(0)} SAR')),
                   selected: _tip == v,
                   onSelected: (_) => setState(() => _tip = v),
                 )),
@@ -778,8 +830,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             label: Text(
               _lat != null
-                  ? 'الموقع محدد ✓ (اضغط للتعديل)'
-                  : 'حدد موقعك على الخريطة',
+                  ? tr('الموقع محدد ✓ (اضغط للتعديل)', 'Location set ✓ (tap to change)')
+                  : tr('حدد موقعك على الخريطة', 'Set your location on the map'),
             ),
           ),
           if (outOfRange)
@@ -796,9 +848,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'الموقع يبعد ${_distanceKm!.toStringAsFixed(0)} كم عن المطعم — '
-                    'خارج نطاق التوصيل (${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
-                    'اختر موقعاً أقرب.',
+                    tr(
+                        'الموقع يبعد ${_distanceKm!.toStringAsFixed(0)} كم عن المطعم — '
+                            'خارج نطاق التوصيل (${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} كم). '
+                            'اختر موقعاً أقرب.',
+                        'This location is ${_distanceKm!.toStringAsFixed(0)} km from the restaurant — '
+                            'outside the delivery area (${_settings.maxDeliveryDistanceKm.toStringAsFixed(0)} km). '
+                            'Pick somewhere closer.'),
                     style: const TextStyle(color: AppColors.error, fontSize: 12.5),
                   ),
                 ),
@@ -815,12 +871,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 onChanged: (v) => setState(() => _useWallet = v),
                 secondary: PhosphorIcon(PhosphorIcons.wallet(),
                     color: AppColors.success),
-                title: Text('استخدام رصيد المحفظة (${formatCurrency(walletBalance)})',
+                title: Text(
+                    tr('استخدام رصيد المحفظة (${formatCurrency(walletBalance)})',
+                        'Use wallet balance (${formatCurrency(walletBalance)})'),
                     style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
                 subtitle: Text(
                   _useWallet && walletApplied > 0
-                      ? 'سيُخصم ${formatCurrency(walletApplied)} من رصيدك'
-                      : 'الرصيد لن يُستخدم في هذا الطلب',
+                      ? tr('سيُخصم ${formatCurrency(walletApplied)} من رصيدك',
+                          '${formatCurrency(walletApplied)} will be deducted from your balance')
+                      : tr('الرصيد لن يُستخدم في هذا الطلب',
+                          'Your balance won\'t be used on this order'),
                   style: const TextStyle(fontSize: 11.5),
                 ),
               ),
@@ -829,7 +889,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ],
           // إن غطّى الرصيد كامل المبلغ فلا حاجة لاختيار وسيلة دفع أصلاً.
           if (amountDue > 0)
-            const Text('طريقة الدفع', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(tr('طريقة الدفع', 'Payment method'),
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           // خيار البطاقة يظهر فقط عند تهيئة بوابة الدفع، فلا يصطدم العميل بخيار
           // لا يعمل. المحفظة مخفيّة حتى تُنفَّذ فعلياً.
           if (amountDue > 0)
@@ -844,8 +905,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               onChanged: (v) => setState(() => _payment = v!),
               title: Text(p.label),
               subtitle: p == PaymentMethod.card && PaymentConfig_.isTestKey
-                  ? const Text('وضع الاختبار — لن يُسحب مبلغ حقيقي',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.warning))
+                  ? Text(
+                      tr('وضع الاختبار — لن يُسحب مبلغ حقيقي',
+                          'Test mode — no real money will be charged'),
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.warning))
                   : null,
             ),
           ),
@@ -860,12 +924,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 textCapitalization: TextCapitalization.characters,
                 enabled: _coupon == null,
                 decoration: InputDecoration(
-                  labelText: 'كود الخصم (اختياري)',
+                  labelText: tr('كود الخصم (اختياري)', 'Promo code (optional)'),
                   prefixIcon: PhosphorIcon(PhosphorIcons.ticket(), size: 20),
                   suffixIcon: _coupon == null
                       ? null
                       : IconButton(
-                          tooltip: 'إزالة الكود',
+                          tooltip: tr('إزالة الكود', 'Remove code'),
                           icon: const Icon(Icons.close, color: AppColors.error),
                           onPressed: () => setState(() {
                             _coupon = null;
@@ -883,7 +947,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     (_checkingCoupon || _coupon != null) ? null : _applyCoupon,
                 child: Text(_checkingCoupon
                     ? '...'
-                    : (_coupon == null ? 'تطبيق' : 'مُطبَّق ✓')),
+                    : (_coupon == null
+                        ? tr('تطبيق', 'Apply')
+                        : tr('مُطبَّق ✓', 'Applied ✓'))),
               ),
             ),
           ]),
@@ -897,29 +963,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
             child: Column(
               children: [
-                PriceRow(label: 'الوجبات', value: formatCurrency(itemsTotal)),
+                PriceRow(
+                    label: tr('الوجبات', 'Food'),
+                    value: formatCurrency(itemsTotal)),
                 // قاعدة المالك: «إجمالي التوصيل = التوصيل + العمولة الثابتة»
                 // سطراً واحداً للعميل — الرسم الثابت (3 ر.س) حصّة المنصّة
                 // تُضاف داخل التوصيل لا بنداً مستقلاً يستدعي التساؤل.
                 // التقسيم الداخلي (أجرة السائق/حصّة المنصّة) باقٍ في الطلب
                 // والتقارير كما هو.
                 PriceRow(
-                  label: 'التوصيل',
+                  label: tr('التوصيل', 'Delivery'),
                   value: locationSet
                       ? formatCurrency(delivery + fixedFee)
-                      : 'يُحسب بعد تحديد الموقع',
+                      : tr('يُحسب بعد تحديد الموقع',
+                          'Calculated after setting your location'),
                 ),
                 if (discount > 0)
                   PriceRow(
-                      label: 'خصم الكود ${_coupon!.code}',
+                      label: tr('خصم الكود ${_coupon!.code}',
+                          'Promo code ${_coupon!.code}'),
                       value: '- ${formatCurrency(discount)}'),
                 if (walletApplied > 0)
                   PriceRow(
-                      label: 'خصم من المحفظة',
+                      label: tr('خصم من المحفظة', 'Wallet credit'),
                       value: '- ${formatCurrency(walletApplied)}'),
                 const Divider(),
                 PriceRow(
-                  label: walletApplied > 0 ? 'المتبقّي للدفع' : 'الإجمالي',
+                  label: walletApplied > 0
+                      ? tr('المتبقّي للدفع', 'Remaining to pay')
+                      : tr('الإجمالي', 'Total'),
                   value: locationSet ? formatCurrency(amountDue) : '—',
                   bold: true,
                 ),
@@ -932,8 +1004,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('شامل ضريبة القيمة المضافة (15٪)',
-                            style: TextStyle(
+                        Text(tr('شامل ضريبة القيمة المضافة (15٪)', 'Includes 15% VAT'),
+                            style: const TextStyle(
                                 fontSize: 11.5, color: AppColors.textGray)),
                         Text(
                           formatCurrency(Pricing.vatIncludedIn(
@@ -958,12 +1030,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   // كحليّ لا أبيض: خلفية الزر ذهبية ومقدّمتها كحلية عبر الثيم.
                   ? const CircularProgressIndicator(color: AppColors.dark)
                   : Text(!locationSet
-                      ? 'حدّد موقعك أولاً'
+                      ? tr('حدّد موقعك أولاً', 'Set your location first')
                       : outOfRange
-                          ? 'الموقع خارج نطاق التوصيل'
+                          ? tr('الموقع خارج نطاق التوصيل',
+                              'Location outside the delivery area')
                           : (amountDue <= 0
-                              ? 'تأكيد الطلب • مدفوع من المحفظة'
-                              : 'تأكيد الطلب • ${formatCurrency(amountDue)}')),
+                              ? tr('تأكيد الطلب • مدفوع من المحفظة',
+                                  'Place order • paid from wallet')
+                              : tr('تأكيد الطلب • ${formatCurrency(amountDue)}',
+                                  'Place order • ${formatCurrency(amountDue)}'))),
             ),
           ),
         ],

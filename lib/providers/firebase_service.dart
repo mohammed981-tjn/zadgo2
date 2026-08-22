@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:http/http.dart' as http;
 import '../models/models.dart' as models;
+import '../utils/app_lang.dart';
 import '../utils/api_config.dart';
 import '../utils/dispatch_score.dart';
 import '../utils/helpers.dart' show haversineDistanceKm;
@@ -172,7 +173,7 @@ class FirebaseService {
   /// يزيدون — والقواعد تضبط الزيادة +1 كنمط عدّاد الكوبون.
   Future<void> requestRestaurant(String rawName) async {
     final name = rawName.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (name.length < 2) throw Exception('اكتب اسم المطعم');
+    if (name.length < 2) throw Exception(tr('اكتب اسم المطعم', 'Enter the restaurant name'));
     final slug = name.replaceAll(' ', '-');
     await _restaurantRequests.doc(slug).set({
       'name': name,
@@ -208,9 +209,9 @@ class FirebaseService {
   Future<void> submitSuggestion(String text,
       {String? name, String? phone}) async {
     final t = text.trim();
-    if (t.length < 5) throw Exception('اكتب اقتراحك (٥ أحرف على الأقل)');
+    if (t.length < 5) throw Exception(tr('اكتب اقتراحك (٥ أحرف على الأقل)', 'Write your suggestion (at least 5 characters)'));
     final uid = currentUser?.uid;
-    if (uid == null) throw Exception('تعذّر الإرسال — أعد فتح التطبيق');
+    if (uid == null) throw Exception(tr('تعذّر الإرسال — أعد فتح التطبيق', 'Couldn\'t send — reopen the app'));
     final n = (name ?? '').trim();
     final p = (phone ?? '').trim();
     await _suggestions.add({
@@ -291,11 +292,11 @@ class FirebaseService {
       final snap = await transaction.get(userRef);
       final data = snap.data();
       if (!snap.exists || data == null) {
-        throw Exception('حساب العميل غير موجود');
+        throw Exception(tr('حساب العميل غير موجود', 'Customer account not found'));
       }
       final current = (data['walletBalance'] as num?)?.toDouble() ?? 0;
       if (current + 0.001 < amount) {
-        throw Exception('رصيد المحفظة غير كافٍ');
+        throw Exception(tr('رصيد المحفظة غير كافٍ', 'Insufficient wallet balance'));
       }
       transaction.update(userRef, {'walletBalance': current - amount});
       transaction.set(
@@ -444,7 +445,7 @@ class FirebaseService {
   Future<void> deleteMyAccount({required String password}) async {
     final user = _auth.currentUser;
     if (user == null || user.email == null) {
-      throw Exception('لا حساب مسجّل دخوله');
+      throw Exception(tr('لا حساب مسجّل دخوله', 'No signed-in account'));
     }
     // إعادة مصادقة إلزامية: حذف حساب بجلسة قديمة مخاطرة يمنعها Firebase.
     await user.reauthenticateWithCredential(EmailAuthProvider.credential(
@@ -560,7 +561,7 @@ class FirebaseService {
           '${restaurantName.isEmpty ? '' : ' — $restaurantName'}');
       return entry;
     }
-    throw Exception('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى');
+    throw Exception(tr('تعذّر توليد كود تسجيل فريد، حاول مرة أخرى', 'Couldn\'t generate a unique registration code, try again'));
   }
 
   Stream<List<models.RegistrationCode>> streamRegistrationCodes(
@@ -604,17 +605,17 @@ class FirebaseService {
 
     final initialSnap = await ref.get();
     if (!initialSnap.exists || initialSnap.data() == null) {
-      throw Exception('كود التسجيل غير صحيح');
+      throw Exception(tr('كود التسجيل غير صحيح', 'Invalid registration code'));
     }
     final initial = models.RegistrationCode.fromMap(initialSnap.data()!, initialSnap.id);
     if (initial.isUsed) {
-      throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+      throw Exception(tr('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد', 'This code was already used — request a new one'));
     }
     if (initial.isExpired) {
-      throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
+      throw Exception(tr('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة', 'This code has expired — request a new one from admin'));
     }
     if (allowedRoles != null && !allowedRoles.contains(initial.role)) {
-      throw Exception('هذا الكود غير مخصص لهذا التطبيق');
+      throw Exception(tr('هذا الكود غير مخصص لهذا التطبيق', 'This code is not for this app'));
     }
 
     final cred = await register(email.trim(), password.trim());
@@ -624,17 +625,17 @@ class FirebaseService {
       final claimed = await _db.runTransaction<models.RegistrationCode>((tx) async {
         final snap = await tx.get(ref);
         if (!snap.exists || snap.data() == null) {
-          throw Exception('كود التسجيل غير صحيح');
+          throw Exception(tr('كود التسجيل غير صحيح', 'Invalid registration code'));
         }
         final current = models.RegistrationCode.fromMap(snap.data()!, snap.id);
         if (current.isUsed) {
-          throw Exception('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد');
+          throw Exception(tr('تم استخدام هذا الرمز من قبل، يرجى طلب رمز جديد', 'This code was already used — request a new one'));
         }
         if (current.isExpired) {
-          throw Exception('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة');
+          throw Exception(tr('انتهت صلاحية هذا الرمز، اطلب رمزاً جديداً من الإدارة', 'This code has expired — request a new one from admin'));
         }
         if (allowedRoles != null && !allowedRoles.contains(current.role)) {
-          throw Exception('هذا الكود غير مخصص لهذا التطبيق');
+          throw Exception(tr('هذا الكود غير مخصص لهذا التطبيق', 'This code is not for this app'));
         }
         // ختم الكود باسم صاحبه **داخل المعاملة** لا بعد إنشاء المستخدم:
         // حارس القواعد الجديد يتحقّق أن مستند المستخدم يحمل كوداً مختوماً
@@ -944,11 +945,11 @@ class FirebaseService {
       final snap = await transaction.get(userRef);
       final data = snap.data();
       if (!snap.exists || data == null) {
-        throw Exception('حساب العميل غير موجود');
+        throw Exception(tr('حساب العميل غير موجود', 'Customer account not found'));
       }
       final current = (data['walletBalance'] as num?)?.toDouble() ?? 0;
       if (current + 0.001 < walletAmount) {
-        throw Exception('رصيد المحفظة غير كافٍ');
+        throw Exception(tr('رصيد المحفظة غير كافٍ', 'Insufficient wallet balance'));
       }
       transaction.update(userRef, {'walletBalance': current - walletAmount});
       transaction.set(
@@ -1119,7 +1120,7 @@ class FirebaseService {
 
     final current = models.Order.fromMap(doc.data()!, doc.id);
     if (!_isValidStatusTransition(current.status, status)) {
-      throw Exception('انتقال حالة غير صالح: من ${current.status.name} إلى ${status.name}');
+      throw Exception(tr('انتقال حالة غير صالح: من ${current.status.name} إلى ${status.name}', 'Invalid status transition: ${current.status.name} to ${status.name}'));
     }
 
     await ref.update({
@@ -1139,10 +1140,10 @@ class FirebaseService {
   /// يُحتكم إليه في نزاع «سلّمتُه» / «لم يصلني».
   Future<void> confirmRestaurantHandover(String orderId) async {
     final order = await getOrderOnce(orderId);
-    if (order == null) throw Exception('الطلب غير موجود');
+    if (order == null) throw Exception(tr('الطلب غير موجود', 'Order not found'));
     if (order.restaurantHandoverAt != null) return; // ختمٌ لا يتكرر
     if (order.status.isFinished) {
-      throw Exception('الطلب لم يعد نشطاً — حالته: ${order.status.label}');
+      throw Exception(tr('الطلب لم يعد نشطاً — حالته: ${order.status.label}', 'Order is no longer active — status: ${order.status.label}'));
     }
     await _orders.doc(orderId).update({
       'restaurantHandoverAt': FieldValue.serverTimestamp(),
@@ -1154,12 +1155,12 @@ class FirebaseService {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
     if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
+      throw Exception(tr('الطلب غير موجود', 'Order not found'));
     }
 
     final current = models.Order.fromMap(doc.data()!, doc.id);
     if (current.status != models.OrderStatus.restaurantPending) {
-      throw Exception('لا يمكن رفض الطلب بعد قبوله — حالته الحالية: ${current.status.label}');
+      throw Exception(tr('لا يمكن رفض الطلب بعد قبوله — حالته الحالية: ${current.status.label}', 'Can\'t reject an accepted order — current status: ${current.status.label}'));
     }
 
     await ref.update({
@@ -1199,7 +1200,7 @@ class FirebaseService {
     await _db.runTransaction((tx) async {
       final snap = await tx.get(ref);
       if (!snap.exists || snap.data() == null) {
-        throw Exception('الطلب غير موجود');
+        throw Exception(tr('الطلب غير موجود', 'Order not found'));
       }
       final current = models.Order.fromMap(snap.data()!, snap.id);
       // حصانة التكرار: استُلم فعلاً (في الطريق أو أبعد) أو أُنهي — لا قيد ثانٍ.
@@ -1213,7 +1214,7 @@ class FirebaseService {
           current.status != models.OrderStatus.searchingDriver &&
           current.status != models.OrderStatus.driverAssigned &&
           current.status != models.OrderStatus.pickedUp) {
-        throw Exception('لا يمكن تأكيد الاستلام من حالة ${current.status.label}');
+        throw Exception(tr('لا يمكن تأكيد الاستلام من حالة ${current.status.label}', 'Can\'t confirm pickup from status ${current.status.label}'));
       }
 
       final driverId = current.driverId ?? '';
@@ -1512,7 +1513,7 @@ class FirebaseService {
   Future<void> assignDriver(String orderId, String driverId, String driverName) async {
     final ref = _orders.doc(orderId);
     var current = await getOrderOnce(orderId);
-    if (current == null) throw Exception('الطلب غير موجود');
+    if (current == null) throw Exception(tr('الطلب غير موجود', 'Order not found'));
 
     // إسناد مبكر (الطلب ما زال عند المطعم): يُربط السائق **بلا تغيير حالة**،
     // تماماً كما يفعل الإسناد التلقائي لحظة قبول المطعم. تحويل الحالة هنا
@@ -1530,7 +1531,7 @@ class FirebaseService {
       if (!_isValidStatusTransition(
           current.status, models.OrderStatus.driverAssigned)) {
         throw Exception(
-            'انتقال حالة غير صالح: من ${current.status.name} إلى ${models.OrderStatus.driverAssigned.name}');
+            tr('انتقال حالة غير صالح: من ${current.status.name} إلى ${models.OrderStatus.driverAssigned.name}', 'Invalid status transition: ${current.status.name} to ${models.OrderStatus.driverAssigned.name}'));
       }
     }
 
@@ -1837,12 +1838,12 @@ class FirebaseService {
   Future<void> acceptOrderWithPrep(String orderId, int? prepMinutes) async {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
-    if (!doc.exists || doc.data() == null) throw Exception('الطلب غير موجود');
+    if (!doc.exists || doc.data() == null) throw Exception(tr('الطلب غير موجود', 'Order not found'));
     final current = models.Order.fromMap(doc.data()!, doc.id);
     if (!_isValidStatusTransition(
         current.status, models.OrderStatus.restaurantAccepted)) {
       throw Exception(
-          'انتقال حالة غير صالح: من ${current.status.name} إلى restaurantAccepted');
+          tr('انتقال حالة غير صالح: من ${current.status.name} إلى restaurantAccepted', 'Invalid status transition: ${current.status.name} to restaurantAccepted'));
     }
     await ref.update({
       'status': models.OrderStatus.restaurantAccepted.name,
@@ -2056,7 +2057,7 @@ class FirebaseService {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
     if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
+      throw Exception(tr('الطلب غير موجود', 'Order not found'));
     }
     final current = models.Order.fromMap(doc.data()!, doc.id);
     if (!current.needsDriverAcknowledgement) {
@@ -2089,11 +2090,11 @@ class FirebaseService {
     final ref = _orders.doc(orderId);
     final doc = await ref.get();
     if (!doc.exists || doc.data() == null) {
-      throw Exception('الطلب غير موجود');
+      throw Exception(tr('الطلب غير موجود', 'Order not found'));
     }
     final current = models.Order.fromMap(doc.data()!, doc.id);
     if (!current.needsDriverAcknowledgement) {
-      throw Exception('لا يمكن رفض هذا الطلب في حالته الحالية');
+      throw Exception(tr('لا يمكن رفض هذا الطلب في حالته الحالية', 'Can\'t reject this order in its current status'));
     }
 
     if (dueToTimeout) {
@@ -2236,7 +2237,7 @@ class FirebaseService {
     await _db.runTransaction((tx) async {
       final orderSnap = await tx.get(_orders.doc(orderId));
       if (!orderSnap.exists || orderSnap.data() == null) {
-        throw Exception('الطلب غير موجود');
+        throw Exception(tr('الطلب غير موجود', 'Order not found'));
       }
       final order = models.Order.fromMap(orderSnap.data()!, orderSnap.id);
       // حصانة التكرار: طلبٌ سُلّم فعلاً يخرج بلا أثر. الفحص هنا لا في
@@ -2246,7 +2247,7 @@ class FirebaseService {
       if (!_isValidStatusTransition(
           order.status, models.OrderStatus.delivered)) {
         throw Exception(
-            'انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}');
+            tr('انتقال حالة غير صالح: من ${order.status.name} إلى ${models.OrderStatus.delivered.name}', 'Invalid status transition: ${order.status.name} to ${models.OrderStatus.delivered.name}'));
       }
       // أثر التوصيل على رصيد السائق يعتمد على طريقة الدفع:
       //
@@ -2390,7 +2391,7 @@ class FirebaseService {
     if (amount == 0) return;
     final doc = await _drivers.doc(driverId).get();
     if (!doc.exists || doc.data() == null) {
-      throw Exception('السائق غير موجود');
+      throw Exception(tr('السائق غير موجود', 'Captain not found'));
     }
     final current = models.Driver.fromMap(doc.data()!, doc.id).balance;
     final txRef = _driverTransactions.doc();
@@ -2432,7 +2433,7 @@ class FirebaseService {
     String method = '',
     String? note,
   }) async {
-    if (amount <= 0) throw Exception('أدخل مبلغاً أكبر من صفر');
+    if (amount <= 0) throw Exception(tr('أدخل مبلغاً أكبر من صفر', 'Enter an amount greater than zero'));
     final ref = _restaurantSettlements.doc();
     await ref.set(models.RestaurantSettlement(
       id: ref.id,
@@ -2548,33 +2549,33 @@ class FirebaseService {
     required String restaurantId,
   }) async {
     final code = rawCode.trim().toUpperCase();
-    if (code.isEmpty) throw Exception('اكتب كود الخصم');
+    if (code.isEmpty) throw Exception(tr('اكتب كود الخصم', 'Enter the promo code'));
     final doc = await _coupons.doc(code).get();
     if (!doc.exists || doc.data() == null) {
-      throw Exception('كود الخصم غير صحيح');
+      throw Exception(tr('كود الخصم غير صحيح', 'Invalid promo code'));
     }
     final coupon = models.Coupon.fromMap(doc.data()!, doc.id);
     // كوبون نسبة بلا سقف: القواعد (بعد تحصين 2026-08-15) ترفضه لحظة إنشاء
     // الطلب — فلو مرّ من هنا لفشل الطلب **بعد** شحن البطاقة. يُرفض مبكراً
     // برسالة تدلّ المدير على العلاج بدل فشلٍ غامض عند الدفع.
     if (coupon.type == models.CouponType.percentage && coupon.maxDiscount <= 0) {
-      throw Exception('هذا الكود يحتاج ضبط «سقف الخصم» من لوحة الإدارة');
+      throw Exception(tr('هذا الكود يحتاج ضبط «سقف الخصم» من لوحة الإدارة', 'This code needs a discount cap set in the admin panel'));
     }
-    if (!coupon.isActive) throw Exception('هذا الكود موقوف');
-    if (coupon.isExpired) throw Exception('انتهت صلاحية هذا الكود');
-    if (coupon.isExhausted) throw Exception('استُنفد هذا الكود');
+    if (!coupon.isActive) throw Exception(tr('هذا الكود موقوف', 'This code is disabled'));
+    if (coupon.isExpired) throw Exception(tr('انتهت صلاحية هذا الكود', 'This code has expired'));
+    if (coupon.isExhausted) throw Exception(tr('استُنفد هذا الكود', 'This code has been fully used'));
     if (coupon.restaurantId.isNotEmpty && coupon.restaurantId != restaurantId) {
-      throw Exception('هذا الكود لا يسري على هذا المطعم');
+      throw Exception(tr('هذا الكود لا يسري على هذا المطعم', 'This code doesn\'t apply to this restaurant'));
     }
     if (itemsTotal < coupon.minOrderTotal) {
       throw Exception(
-          'الكود يبدأ من ${coupon.minOrderTotal.toStringAsFixed(0)} ر.س للوجبات');
+          tr('الكود يبدأ من ${coupon.minOrderTotal.toStringAsFixed(0)} ر.س للوجبات', 'This code needs a food subtotal of at least ${coupon.minOrderTotal.toStringAsFixed(0)} SAR'));
     }
     if (coupon.perUserLimit > 0) {
       final usageDoc = await _couponUsages.doc(_usageId(code, userId)).get();
       final used = (usageDoc.data()?['count'] as num?)?.toInt() ?? 0;
       if (used >= coupon.perUserLimit) {
-        throw Exception('استخدمت هذا الكود من قبل');
+        throw Exception(tr('استخدمت هذا الكود من قبل', 'You\'ve already used this code'));
       }
     }
     return coupon;
@@ -2641,14 +2642,14 @@ class FirebaseService {
     required double amount,
     required String method,
   }) async {
-    if (amount <= 0) throw Exception('أدخل مبلغاً أكبر من صفر');
+    if (amount <= 0) throw Exception(tr('أدخل مبلغاً أكبر من صفر', 'Enter an amount greater than zero'));
     final driverDoc = await _drivers.doc(driverId).get();
     final balance = driverDoc.exists && driverDoc.data() != null
         ? models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance
         : 0.0;
     if (amount > balance) {
       throw Exception(
-          'المبلغ أكبر من رصيدك المتاح (${balance.toStringAsFixed(2)} ر.س)');
+          tr('المبلغ أكبر من رصيدك المتاح (${balance.toStringAsFixed(2)} ر.س)', 'Amount exceeds your available balance (${balance.toStringAsFixed(2)} SAR)'));
     }
     final existing = await _payoutRequests
         .where('driverId', isEqualTo: driverId)
@@ -2657,7 +2658,7 @@ class FirebaseService {
         .map((d) => models.PayoutRequest.fromMap(d.data(), d.id))
         .any((r) => r.status == models.PayoutRequestStatus.pending);
     if (hasPending) {
-      throw Exception('لديك طلب سحب قيد المعالجة بالفعل — انتظر بتّه أولاً');
+      throw Exception(tr('لديك طلب سحب قيد المعالجة بالفعل — انتظر بتّه أولاً', 'You already have a pending payout request — wait for it first'));
     }
     final ref = _payoutRequests.doc();
     await ref.set(models.PayoutRequest(
@@ -2701,22 +2702,21 @@ class FirebaseService {
       {String? adminNote}) async {
     final freshReq = await _payoutRequests.doc(request.id).get();
     if (!freshReq.exists || freshReq.data() == null) {
-      throw Exception('الطلب غير موجود');
+      throw Exception(tr('الطلب غير موجود', 'Order not found'));
     }
     final fresh = models.PayoutRequest.fromMap(freshReq.data()!, freshReq.id);
     if (fresh.status != models.PayoutRequestStatus.pending) {
-      throw Exception('هذا الطلب ${fresh.status.label} بالفعل');
+      throw Exception(tr('هذا الطلب ${fresh.status.label} بالفعل', 'This order is already ${fresh.status.label}'));
     }
     final driverDoc = await _drivers.doc(fresh.driverId).get();
     if (!driverDoc.exists || driverDoc.data() == null) {
-      throw Exception('السائق غير موجود');
+      throw Exception(tr('السائق غير موجود', 'Captain not found'));
     }
     final balance =
         models.Driver.fromMap(driverDoc.data()!, driverDoc.id).balance;
     if (fresh.amount > balance) {
       throw Exception(
-          'رصيد السائق الحالي (${balance.toStringAsFixed(2)} ر.س) أقل من المبلغ — '
-          'تغيّر بعد تقديم الطلب. ارفض الطلب أو انتظر تسويته');
+          tr('رصيد السائق الحالي (${balance.toStringAsFixed(2)} ر.س) أقل من المبلغ — تغيّر بعد تقديم الطلب. ارفض الطلب أو انتظر تسويته', 'Captain\'s current balance (${balance.toStringAsFixed(2)} SAR) is below the amount — it changed after the request. Reject it or wait for settlement'));
     }
     final txRef = _driverTransactions.doc();
     final batch = _db.batch();
@@ -2753,11 +2753,11 @@ class FirebaseService {
   Future<void> rejectPayoutRequest(String requestId, String adminNote) async {
     final freshReq = await _payoutRequests.doc(requestId).get();
     if (!freshReq.exists || freshReq.data() == null) {
-      throw Exception('الطلب غير موجود');
+      throw Exception(tr('الطلب غير موجود', 'Order not found'));
     }
     final fresh = models.PayoutRequest.fromMap(freshReq.data()!, freshReq.id);
     if (fresh.status != models.PayoutRequestStatus.pending) {
-      throw Exception('هذا الطلب ${fresh.status.label} بالفعل');
+      throw Exception(tr('هذا الطلب ${fresh.status.label} بالفعل', 'This order is already ${fresh.status.label}'));
     }
     await _payoutRequests.doc(requestId).update({
       'status': models.PayoutRequestStatus.rejected.name,
@@ -2934,7 +2934,7 @@ class FirebaseService {
   Future<void> cancelOrderByCustomer(String orderId) async {
     final order = await _getOrderOrThrow(orderId);
     if (!order.canCustomerCancel) {
-      throw Exception('لا يمكن إلغاء الطلب بعد بدء التحضير، تواصل مع الإدارة');
+      throw Exception(tr('لا يمكن إلغاء الطلب بعد بدء التحضير، تواصل مع الإدارة', 'Can\'t cancel after preparation starts — contact support'));
     }
     // القلب معاملةً (نفس حصانة الإلغاء الإداري)، **وبلا استرداد من جهاز
     // العميل** (مراجعة 2026-08-15): القواعد — بحق — تمنع العميل من زيادة
@@ -2945,7 +2945,7 @@ class FirebaseService {
     await _db.runTransaction((tx) async {
       final snap = await tx.get(_orders.doc(orderId));
       final data = snap.data();
-      if (!snap.exists || data == null) throw Exception('الطلب غير موجود');
+      if (!snap.exists || data == null) throw Exception(tr('الطلب غير موجود', 'Order not found'));
       final status = models.OrderStatus.values.firstWhere(
         (s) => s.name == (data['status'] as String? ?? ''),
         orElse: () => models.OrderStatus.created,
@@ -3000,7 +3000,7 @@ class FirebaseService {
     final doc = await _orders.doc(orderId).get();
     final data = doc.data();
     if (!doc.exists || data == null) {
-      throw Exception('الطلب غير موجود');
+      throw Exception(tr('الطلب غير موجود', 'Order not found'));
     }
     return models.Order.fromMap(data, doc.id);
   }
@@ -3393,7 +3393,7 @@ class FirebaseService {
     await _db.runTransaction((tx) async {
       final snap = await tx.get(_drivers.doc(referee.id));
       if (snap.data()?['referralRewarded'] as bool? ?? false) {
-        throw Exception('صُرفت مكافأة هذه الإحالة مسبقاً');
+        throw Exception(tr('صُرفت مكافأة هذه الإحالة مسبقاً', 'This referral bonus was already paid'));
       }
       tx.update(_drivers.doc(referee.id), {'referralRewarded': true});
     });
@@ -3431,7 +3431,7 @@ class FirebaseService {
     await _db.runTransaction((tx) async {
       final snap = await tx.get(_users.doc(referee.uid));
       if (snap.data()?['referralRewarded'] as bool? ?? false) {
-        throw Exception('صُرفت مكافأة هذه الإحالة مسبقاً');
+        throw Exception(tr('صُرفت مكافأة هذه الإحالة مسبقاً', 'This referral bonus was already paid'));
       }
       tx.update(_users.doc(referee.uid), {'referralRewarded': true});
     });
@@ -3473,7 +3473,7 @@ class FirebaseService {
     await _db.runTransaction((tx) async {
       final snap = await tx.get(ref);
       if (snap.exists) {
-        throw Exception('صُرف الكاش باك عن هذا الطلب مسبقاً');
+        throw Exception(tr('صُرف الكاش باك عن هذا الطلب مسبقاً', 'Cashback for this order was already paid'));
       }
       tx.set(ref, {
         'customerId': customerId,
@@ -3514,7 +3514,7 @@ class FirebaseService {
     final snap = await _drivers.doc(driverId).get();
     final current = snap.data()?['lastChallengeWindow'] as String? ?? '';
     if (current == key) {
-      throw Exception('صُرفت مكافأة هذه النافذة لهذا السائق مسبقاً');
+      throw Exception(tr('صُرفت مكافأة هذه النافذة لهذا السائق مسبقاً', 'This challenge bonus was already paid to this captain'));
     }
     await _drivers.doc(driverId).update({'lastChallengeWindow': key});
     await recordDriverBonus(
@@ -3740,7 +3740,7 @@ class FirebaseService {
         .status;
     if (freshStatus == models.ComplaintStatus.resolved ||
         freshStatus == models.ComplaintStatus.closed) {
-      throw Exception('هذه الشكوى محلولة مسبقاً — لا يُنفَّذ الحل مرتين');
+      throw Exception(tr('هذه الشكوى محلولة مسبقاً — لا يُنفَّذ الحل مرتين', 'This complaint was already resolved — a resolution can\'t run twice'));
     }
 
     if (refundPercentage != null && refundPercentage > 0) {

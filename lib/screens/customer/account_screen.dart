@@ -23,6 +23,7 @@ import 'my_complaints_screen.dart';
 import 'pick_location_screen.dart';
 import 'help_center_screen.dart';
 import 'customer_referral_screen.dart';
+import '../../utils/app_lang.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -34,7 +35,9 @@ class AccountScreen extends StatelessWidget {
     final uid = auth.user?.uid ?? '';
 
     if (uid.isEmpty) {
-      return const AppEmpty(emoji: '👤', title: 'سجّل الدخول لعرض حسابك');
+      return AppEmpty(
+          emoji: '👤',
+          title: tr('سجّل الدخول لعرض حسابك', 'Sign in to view your account'));
     }
 
     // يُتابَع المستخدم لحظياً حتى يظهر رصيد المحفظة والعناوين محدَّثة فور
@@ -47,14 +50,20 @@ class AccountScreen extends StatelessWidget {
       stream: service.streamUser(uid),
       builder: (ctx, snap) {
         if (snap.hasError) {
-          return const AppEmpty(emoji: '⚠️', title: 'تعذّر تحميل بيانات الحساب');
+          return AppEmpty(
+              emoji: '⚠️',
+              title: tr('تعذّر تحميل بيانات الحساب',
+                  'Couldn\'t load account details'));
         }
         if (snap.connectionState == ConnectionState.waiting) {
           return const AppLoading();
         }
         final user = snap.data;
         if (user == null) {
-          return const AppEmpty(emoji: '👤', title: 'تعذّر تحميل بيانات الحساب');
+          return AppEmpty(
+              emoji: '👤',
+              title: tr('تعذّر تحميل بيانات الحساب',
+                  'Couldn\'t load account details'));
         }
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -70,11 +79,13 @@ class AccountScreen extends StatelessWidget {
               child: ListTile(
                 leading: const Icon(Icons.support_agent_rounded,
                     color: AppColors.primary),
-                title: const Text('شكاواي',
-                    style:
-                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
-                subtitle: const Text('متابعة شكاواك والتواصل مع الإدارة',
-                    style: TextStyle(fontSize: 12.5)),
+                title: Text(tr('شكاواي', 'My complaints'),
+                    style: const TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                    tr('متابعة شكاواك والتواصل مع الإدارة',
+                        'Track your complaints and talk to support'),
+                    style: const TextStyle(fontSize: 12.5)),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.push(
                   context,
@@ -91,9 +102,9 @@ class AccountScreen extends StatelessWidget {
               child: ListTile(
                 leading:
                     const Icon(Icons.lock_outline, color: AppColors.primary),
-                title: const Text('تغيير كلمة المرور',
-                    style:
-                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
+                title: Text(tr('تغيير كلمة المرور', 'Change password'),
+                    style: const TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.bold)),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.push(
                   context,
@@ -110,11 +121,12 @@ class AccountScreen extends StatelessWidget {
               child: ListTile(
                 leading: const Icon(Icons.card_giftcard_rounded,
                     color: AppColors.primary),
-                title: const Text('ادعُ أصدقاءك',
-                    style:
-                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
-                subtitle: const Text('شارك كودك واربحا معاً',
-                    style: TextStyle(fontSize: 12.5)),
+                title: Text(tr('ادعُ أصدقاءك', 'Invite friends'),
+                    style: const TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                    tr('شارك كودك واربحا معاً', 'Share your code and both earn'),
+                    style: const TextStyle(fontSize: 12.5)),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.push(
                   context,
@@ -124,6 +136,9 @@ class AccountScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+            // تبديل اللغة (دفعة «اللغة الثانية»): عربية ↔ إنجليزية.
+            const Card(margin: EdgeInsets.zero, child: LanguageToggleTile()),
+            const SizedBox(height: 8),
             // مركز المساعدة (دفعة ٥): مدخلٌ للأسئلة الشائعة قبل التذكرة —
             // يجيب أكثر الأسئلة فوراً ويقلّل ضغط الدعم.
             Card(
@@ -131,11 +146,13 @@ class AccountScreen extends StatelessWidget {
               child: ListTile(
                 leading: const Icon(Icons.help_outline_rounded,
                     color: AppColors.primary),
-                title: const Text('مركز المساعدة',
-                    style:
-                        TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
-                subtitle: const Text('أسئلة شائعة وتواصل مع الدعم',
-                    style: TextStyle(fontSize: 12.5)),
+                title: Text(tr('مركز المساعدة', 'Help center'),
+                    style: const TextStyle(
+                        fontSize: 14.5, fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                    tr('أسئلة شائعة وتواصل مع الدعم',
+                        'FAQs and contact support'),
+                    style: const TextStyle(fontSize: 12.5)),
                 trailing: const Icon(Icons.chevron_left_rounded),
                 onTap: () => Navigator.push(
                   context,
@@ -145,15 +162,18 @@ class AccountScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            const SectionHeader(title: 'حركات المحفظة'),
+            SectionHeader(title: tr('حركات المحفظة', 'Wallet transactions')),
             AppStreamBuilder<List<WalletTransaction>>(
               stream: () => service.streamWalletTransactions(uid),
               builder: (c, txs) {
                 if (txs.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text('لا توجد حركات على محفظتك بعد',
-                        style: TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                        tr('لا توجد حركات على محفظتك بعد',
+                            'No wallet activity yet'),
+                        style: const TextStyle(
+                            fontSize: 12.5, color: AppColors.textGray)),
                   );
                 }
                 return Column(
@@ -166,16 +186,17 @@ class AccountScreen extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.logout, size: 18),
-                label: const Text('تسجيل الخروج'),
+                label: Text(tr('تسجيل الخروج', 'Log out')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.error,
                   side: const BorderSide(color: AppColors.error),
                 ),
                 onPressed: () async {
                   final ok = await showConfirmDialog(context,
-                      title: 'تسجيل الخروج',
-                      content: 'هل تريد تسجيل الخروج من حسابك؟',
-                      confirmLabel: 'خروج',
+                      title: tr('تسجيل الخروج', 'Log out'),
+                      content: tr('هل تريد تسجيل الخروج من حسابك؟',
+                          'Do you want to log out of your account?'),
+                      confirmLabel: tr('خروج', 'Log out'),
                       confirmColor: AppColors.error);
                   if (ok != true || !context.mounted) return;
                   await context.read<app_auth.AuthProvider>().logout();
@@ -196,9 +217,9 @@ class AccountScreen extends StatelessWidget {
               child: TextButton.icon(
                 icon: const Icon(Icons.delete_forever_outlined,
                     size: 17, color: AppColors.textGray),
-                label: const Text('حذف الحساب نهائياً',
-                    style:
-                        TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+                label: Text(tr('حذف الحساب نهائياً', 'Delete account permanently'),
+                    style: const TextStyle(
+                        fontSize: 12.5, color: AppColors.textGray)),
                 onPressed: () => _deleteAccount(context),
               ),
             ),
@@ -214,30 +235,36 @@ class AccountScreen extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('حذف الحساب نهائياً'),
+        title: Text(tr('حذف الحساب نهائياً', 'Delete account permanently')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text(
-            'سيُحذف حساب دخولك وتُمحى بياناتك التعريفية (الاسم والجوال '
-            'والبريد) نهائياً ولا يمكن التراجع. سجلّ الطلبات والحركات '
-            'المالية يبقى محفوظاً باسم «مستخدم محذوف» كما تُلزمنا الأنظمة '
-            'المحاسبية.\n\nأدخل كلمة مرورك للتأكيد:',
-            style: TextStyle(fontSize: 13.5, height: 1.7),
+          Text(
+            tr(
+                'سيُحذف حساب دخولك وتُمحى بياناتك التعريفية (الاسم والجوال '
+                'والبريد) نهائياً ولا يمكن التراجع. سجلّ الطلبات والحركات '
+                'المالية يبقى محفوظاً باسم «مستخدم محذوف» كما تُلزمنا الأنظمة '
+                'المحاسبية.\n\nأدخل كلمة مرورك للتأكيد:',
+                'Your login account will be deleted and your personal details '
+                '(name, phone, email) permanently erased — this can\'t be '
+                'undone. Order and financial records remain stored under '
+                '"Deleted user" as accounting regulations require us.\n\n'
+                'Enter your password to confirm:'),
+            style: const TextStyle(fontSize: 13.5, height: 1.7),
           ),
           const SizedBox(height: 10),
           TextField(
             controller: pwCtrl,
             obscureText: true,
-            decoration: const InputDecoration(labelText: 'كلمة المرور'),
+            decoration: InputDecoration(labelText: tr('كلمة المرور', 'Password')),
           ),
         ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('تراجع')),
+              child: Text(tr('تراجع', 'Cancel'))),
           ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('احذف حسابي')),
+              child: Text(tr('احذف حسابي', 'Delete my account'))),
         ],
       ),
     );
@@ -254,8 +281,10 @@ class AccountScreen extends StatelessWidget {
       }
     } catch (_) {
       if (context.mounted) {
-        showError(context,
-            'تعذّر الحذف — تأكد من كلمة المرور واتصالك بالإنترنت');
+        showError(
+            context,
+            tr('تعذّر الحذف — تأكد من كلمة المرور واتصالك بالإنترنت',
+                'Couldn\'t delete — check your password and internet connection'));
       }
     }
   }
@@ -276,7 +305,9 @@ class _ProfileCard extends StatelessWidget {
             radius: 28,
             backgroundColor: AppColors.primary.withOpacity(0.12),
             child: Text(
-              user.name.trim().isEmpty ? '؟' : user.name.trim().substring(0, 1),
+              user.name.trim().isEmpty
+                  ? tr('؟', '?')
+                  : user.name.trim().substring(0, 1),
               style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -307,7 +338,7 @@ class _ProfileCard extends StatelessWidget {
           ),
           // تعديل الاسم والجوال — البطاقة كانت عرضاً فقط (ملاحظة المالك).
           IconButton(
-            tooltip: 'تعديل الملف الشخصي',
+            tooltip: tr('تعديل الملف الشخصي', 'Edit profile'),
             icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
             onPressed: () => Navigator.push(
               context,
@@ -342,7 +373,7 @@ class _WalletCard extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('رصيد المحفظة',
+            Text(tr('رصيد المحفظة', 'Wallet balance'),
                 style: TextStyle(
                     color: AppColors.dark.withOpacity(0.75), fontSize: 13.5)),
             Text(formatCurrency(balance),
@@ -370,27 +401,29 @@ class _AddressesSection extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx2, setDialogState) => AlertDialog(
-          title: const Text('عنوان جديد'),
+          title: Text(tr('عنوان جديد', 'New address')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(
                 controller: labelCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'الاسم', hintText: 'المنزل، العمل...'),
+                decoration: InputDecoration(
+                    labelText: tr('الاسم', 'Name'),
+                    hintText: tr('المنزل، العمل...', 'Home, work...')),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: addrCtrl,
                 maxLines: 2,
-                decoration: const InputDecoration(labelText: 'العنوان بالتفصيل'),
+                decoration: InputDecoration(
+                    labelText: tr('العنوان بالتفصيل', 'Full address')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 icon: Icon(picked != null ? Icons.check_circle : Icons.map_outlined,
                     color: picked != null ? AppColors.success : null),
                 label: Text(picked != null
-                    ? 'الموقع محدد ✓'
-                    : 'حدد الموقع على الخريطة'),
+                    ? tr('الموقع محدد ✓', 'Location set ✓')
+                    : tr('حدد الموقع على الخريطة', 'Set location on the map')),
                 onPressed: () async {
                   final r = await Navigator.push<LatLng>(
                     ctx2,
@@ -405,10 +438,10 @@ class _AddressesSection extends StatelessWidget {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('إلغاء')),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('حفظ')),
+                child: Text(tr('حفظ', 'Save'))),
           ],
         ),
       ),
@@ -419,13 +452,17 @@ class _AddressesSection extends StatelessWidget {
     final label = labelCtrl.text.trim();
     final address = addrCtrl.text.trim();
     if (label.isEmpty || address.isEmpty) {
-      showError(context, 'أدخل اسم العنوان وتفاصيله');
+      showError(
+          context,
+          tr('أدخل اسم العنوان وتفاصيله',
+              'Enter the address name and details'));
       return;
     }
     if (picked == null) {
       // بلا إحداثيات لا يمكن حساب أجرة التوصيل، فالعنوان يصبح بلا فائدة عند
       // الطلب — يُمنع الحفظ الآن بدل مفاجأة العميل لاحقاً عند الدفع.
-      showError(context, 'حدد الموقع على الخريطة أولاً');
+      showError(context,
+          tr('حدد الموقع على الخريطة أولاً', 'Set the location on the map first'));
       return;
     }
 
@@ -441,9 +478,13 @@ class _AddressesSection extends StatelessWidget {
       await context
           .read<FirebaseService>()
           .updateSavedAddresses(user.uid, updated);
-      if (context.mounted) showSuccess(context, 'تم حفظ العنوان');
+      if (context.mounted) {
+        showSuccess(context, tr('تم حفظ العنوان', 'Address saved'));
+      }
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر حفظ العنوان');
+      if (context.mounted) {
+        showError(context, tr('تعذّر حفظ العنوان', 'Couldn\'t save the address'));
+      }
     }
   }
 
@@ -454,7 +495,10 @@ class _AddressesSection extends StatelessWidget {
           .read<FirebaseService>()
           .updateSavedAddresses(user.uid, updated);
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر حذف العنوان');
+      if (context.mounted) {
+        showError(
+            context, tr('تعذّر حذف العنوان', 'Couldn\'t delete the address'));
+      }
     }
   }
 
@@ -465,20 +509,24 @@ class _AddressesSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          const Expanded(child: SectionHeader(title: 'عناويني')),
+          Expanded(
+              child: SectionHeader(title: tr('عناويني', 'My addresses'))),
           TextButton.icon(
             icon: const Icon(Icons.add, size: 18),
-            label: const Text('إضافة'),
+            label: Text(tr('إضافة', 'Add')),
             onPressed: () => _addAddress(context),
           ),
         ]),
         if (addresses.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
-              'لا توجد عناوين محفوظة. أضف عنوانك لتختاره بنقرة عند الطلب بدل '
-              'تحديد الموقع في كل مرة.',
-              style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+              tr(
+                  'لا توجد عناوين محفوظة. أضف عنوانك لتختاره بنقرة عند الطلب بدل '
+                  'تحديد الموقع في كل مرة.',
+                  'No saved addresses. Add yours to pick it in one tap at '
+                  'checkout instead of setting the location every time.'),
+              style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
             ),
           )
         else
@@ -526,7 +574,8 @@ class _WalletTile extends StatelessWidget {
         title: Text(tx.type.label, style: const TextStyle(fontSize: 13.5)),
         subtitle: Text(
           [
-            if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
+            if (tx.orderNumber != null)
+              tr('طلب #${tx.orderNumber}', 'Order #${tx.orderNumber}'),
             if (tx.note != null && tx.note!.isNotEmpty) tx.note!,
             '${tx.createdAt.day}/${tx.createdAt.month}',
           ].join(' • '),

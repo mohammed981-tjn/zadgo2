@@ -11,6 +11,7 @@ import '../../providers/ai_assist.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -54,9 +55,11 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     final uri = Uri(scheme: 'tel', path: trimmed);
     try {
       final launched = await launchUrl(uri);
-      if (!launched && mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+      if (!launched && mounted) showError(
+          context, tr('تعذّر فتح تطبيق الاتصال', 'Could not open the phone app'));
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر فتح تطبيق الاتصال');
+      if (mounted) showError(
+          context, tr('تعذّر فتح تطبيق الاتصال', 'Could not open the phone app'));
     }
   }
 
@@ -102,15 +105,17 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
       context: context,
       builder: (dialogCtx) => StatefulBuilder(
         builder: (dialogCtx2, setDialogState) => AlertDialog(
-          title: const Text('حل الشكوى'),
+          title: Text(tr('حل الشكوى', 'Resolve complaint')),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
               TextField(
                 controller: resolutionCtrl,
                 maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'ردّك على مقدّم الشكوى (اختياري)',
-                  hintText: 'مثال: تحقّقنا مع الكابتن وأعدنا لك قيمة الوجبة',
+                decoration: InputDecoration(
+                  labelText: tr('ردّك على مقدّم الشكوى (اختياري)',
+                      'Your reply to the submitter (optional)'),
+                  hintText: tr('مثال: تحقّقنا مع الكابتن وأعدنا لك قيمة الوجبة',
+                      'e.g. We checked with the captain and refunded your meal'),
                   alignLabelWithHint: true,
                 ),
               ),
@@ -126,8 +131,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                           height: 14,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.auto_awesome, size: 16),
-                  label: const Text('اقترح رداً',
-                      style: TextStyle(fontSize: 12.5)),
+                  label: Text(tr('اقترح رداً', 'Suggest a reply'),
+                      style: const TextStyle(fontSize: 12.5)),
                   onPressed: aiLoading
                       ? null
                       : () async {
@@ -157,12 +162,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 ),
               ),
               const SizedBox(height: 4),
-              const Text('استرداد جزئي (نسبة من قيمة الطلب)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              Text(
+                  tr('استرداد جزئي (نسبة من قيمة الطلب)',
+                      'Partial refund (share of the order value)'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13.5)),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [0, 10, 20, 50, 100].map((pct) {
                 final selected = refundPercentage == pct.toDouble();
                 return ChoiceChip(
-                  label: Text(pct == 0 ? 'بلا استرداد' : '$pct%'),
+                  label: Text(pct == 0 ? tr('بلا استرداد', 'No refund') : '$pct%'),
                   selected: selected,
                   onSelected: (_) => setDialogState(() => refundPercentage = pct == 0 ? null : pct.toDouble()),
                 );
@@ -171,7 +180,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    'سيُضاف ${(refundPercentage! >= 100 ? order.payableTotal : order.itemsTotal * (refundPercentage! / 100)).toStringAsFixed(2)} ر.س لمحفظة العميل',
+                    tr('سيُضاف ${(refundPercentage! >= 100 ? order.payableTotal : order.itemsTotal * (refundPercentage! / 100)).toStringAsFixed(2)} ر.س لمحفظة العميل',
+                        '${(refundPercentage! >= 100 ? order.payableTotal : order.itemsTotal * (refundPercentage! / 100)).toStringAsFixed(2)} SAR will be added to the customer wallet'),
                     style: const TextStyle(fontSize: 12.5, color: AppColors.success, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -180,13 +190,19 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   value: chargeRestaurant,
                   onChanged: (v) =>
                       setDialogState(() => chargeRestaurant = v ?? false),
-                  title: const Text('الخصم على المطعم لصالح العميل',
-                      style: TextStyle(fontSize: 13.5)),
-                  subtitle: const Text(
-                      'لشكاوى الجودة (رديء/بارد/ناقص): يُطرح الاسترداد من '
-                      'مستحقّات المطعم بدل أن تتحمّله المنصّة — بسقف صافي '
-                      'المطعم من هذا الطلب',
-                      style: TextStyle(fontSize: 11.5)),
+                  title: Text(
+                      tr('الخصم على المطعم لصالح العميل',
+                          "Charge the restaurant for the customer's refund"),
+                      style: const TextStyle(fontSize: 13.5)),
+                  subtitle: Text(
+                      tr('لشكاوى الجودة (رديء/بارد/ناقص): يُطرح الاسترداد من '
+                              'مستحقّات المطعم بدل أن تتحمّله المنصّة — بسقف صافي '
+                              'المطعم من هذا الطلب',
+                          'For quality complaints (bad/cold/missing): the refund '
+                              "is deducted from the restaurant's dues instead of "
+                              "the platform — capped at the restaurant's net for "
+                              'this order'),
+                      style: const TextStyle(fontSize: 11.5)),
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
@@ -195,26 +211,38 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                 CheckboxListTile(
                   value: warnParty,
                   onChanged: (v) => setDialogState(() => warnParty = v ?? false),
-                  title: const Text('تسجيل إنذار للسائق', style: TextStyle(fontSize: 13.5)),
-                  subtitle: const Text('3 إنذارات = تعليق تلقائي للسائق', style: TextStyle(fontSize: 11.5)),
+                  title: Text(tr('تسجيل إنذار للسائق', 'Record a driver warning'),
+                      style: const TextStyle(fontSize: 13.5)),
+                  subtitle: Text(
+                      tr('3 إنذارات = تعليق تلقائي للسائق',
+                          '3 warnings = automatic driver suspension'),
+                      style: const TextStyle(fontSize: 11.5)),
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                 ),
                 const Divider(height: 24),
               ],
-              const Text('نقل الطلب لسائق آخر (اختياري)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              Text(
+                  tr('نقل الطلب لسائق آخر (اختياري)',
+                      'Reassign the order to another driver (optional)'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13.5)),
               const SizedBox(height: 6),
               AppStreamBuilder<List<Driver>>(
                 stream: service.streamDrivers,
                 builder: (ctx, drivers) {
                   final others = drivers.where((d) => d.id != order.driverId).toList();
                   if (others.isEmpty) {
-                    return const Text('لا يوجد سائقون آخرون', style: TextStyle(fontSize: 12.5, color: AppColors.textGray));
+                    return Text(tr('لا يوجد سائقون آخرون', 'No other drivers'),
+                        style: const TextStyle(
+                            fontSize: 12.5, color: AppColors.textGray));
                   }
                   return DropdownButtonFormField<Driver>(
                     value: reassignTo,
                     isExpanded: true,
-                    decoration: const InputDecoration(hintText: 'اختر سائقاً (اختياري)'),
+                    decoration: InputDecoration(
+                        hintText: tr('اختر سائقاً (اختياري)',
+                            'Pick a driver (optional)')),
                     items: others.map((d) => DropdownMenuItem(
                           value: d,
                           child: Text('${d.name} ${d.isOnline ? "🟢" : "⚪"}', overflow: TextOverflow.ellipsis),
@@ -226,11 +254,11 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
             ]),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('إلغاء')),
+            TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
               onPressed: () => Navigator.pop(dialogCtx, true),
-              child: const Text('تأكيد الحل'),
+              child: Text(tr('تأكيد الحل', 'Confirm resolution')),
             ),
           ],
         ),
@@ -257,11 +285,17 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
       );
       _logAiFeedback(service, aiSuggestion, resolutionCtrl.text.trim());
       if (mounted) {
-        showSuccess(context, 'تم حل الشكوى بنجاح');
+        showSuccess(
+            context, tr('تم حل الشكوى بنجاح', 'Complaint resolved successfully'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر حل الشكوى، حاول مرة أخرى');
+      if (mounted) {
+        showError(
+            context,
+            tr('تعذّر حل الشكوى، حاول مرة أخرى',
+                'Could not resolve the complaint, try again'));
+      }
     } finally {
       if (mounted) setState(() => _resolving = false);
     }
@@ -296,14 +330,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
       context: context,
       builder: (dCtx) => StatefulBuilder(
         builder: (dCtx2, setDialogState) => AlertDialog(
-          title: const Text('حل التذكرة'),
+          title: Text(tr('حل التذكرة', 'Resolve ticket')),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             TextField(
               controller: resolutionCtrl,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'القرار (يظهر لمقدّم التذكرة)',
-                hintText: 'مثال: حُدّث الآيبان في ملفك — تأكد منه في حسابك',
+              decoration: InputDecoration(
+                labelText: tr('القرار (يظهر لمقدّم التذكرة)',
+                    'Decision (shown to the submitter)'),
+                hintText: tr('مثال: حُدّث الآيبان في ملفك — تأكد منه في حسابك',
+                    'e.g. The IBAN on your profile was updated — verify it in your account'),
                 alignLabelWithHint: true,
               ),
             ),
@@ -317,8 +353,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                         height: 14,
                         child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.auto_awesome, size: 16),
-                label:
-                    const Text('اقترح رداً', style: TextStyle(fontSize: 12.5)),
+                label: Text(tr('اقترح رداً', 'Suggest a reply'),
+                    style: const TextStyle(fontSize: 12.5)),
                 onPressed: aiLoading
                     ? null
                     : () async {
@@ -346,17 +382,20 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(dCtx, false),
-                child: const Text('إلغاء')),
+                child: Text(tr('إلغاء', 'Cancel'))),
             ElevatedButton(
                 onPressed: () => Navigator.pop(dCtx, true),
-                child: const Text('حل التذكرة')),
+                child: Text(tr('حل التذكرة', 'Resolve ticket'))),
           ],
         ),
       ),
     );
     if (confirmed != true || !mounted) return;
     if (resolutionCtrl.text.trim().isEmpty) {
-      showError(context, 'اكتب القرار — مقدّم التذكرة يستحق جواباً');
+      showError(
+          context,
+          tr('اكتب القرار — مقدّم التذكرة يستحق جواباً',
+              'Write the decision — the submitter deserves an answer'));
       return;
     }
     setState(() => _resolving = true);
@@ -368,11 +407,19 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
       );
       _logAiFeedback(service, aiSuggestion, resolutionCtrl.text.trim());
       if (mounted) {
-        showSuccess(context, 'حُلّت التذكرة وأُبلغ صاحبها');
+        showSuccess(
+            context,
+            tr('حُلّت التذكرة وأُبلغ صاحبها',
+                'Ticket resolved and the submitter notified'));
         Navigator.pop(context);
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر حل التذكرة، حاول مرة أخرى');
+      if (mounted) {
+        showError(
+            context,
+            tr('تعذّر حل التذكرة، حاول مرة أخرى',
+                'Could not resolve the ticket, try again'));
+      }
     } finally {
       if (mounted) setState(() => _resolving = false);
     }
@@ -387,8 +434,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
     return Scaffold(
       appBar: AppBar(
           title: Text(c.isGeneralTicket
-              ? 'تذكرة ${c.displayNumber}'
-              : 'شكوى #${c.orderNumber}')),
+              ? tr('تذكرة ${c.displayNumber}', 'Ticket ${c.displayNumber}')
+              : tr('شكوى #${c.orderNumber}', 'Complaint #${c.orderNumber}'))),
       // التذكرة العامة بلا طلب أصلاً — تدفّق ثابت null بدل استعلام مستند
       // بمعرّف فارغ (مسار غير صالح في Firestore يرمي استثناءً).
       body: StreamBuilder<Order?>(
@@ -416,15 +463,18 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                       color: AppColors.error.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Row(children: [
-                      Icon(Icons.replay_circle_filled_rounded,
+                    child: Row(children: [
+                      const Icon(Icons.replay_circle_filled_rounded,
                           size: 18, color: AppColors.error),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'أعادها صاحبها بعد الحل — يرى أنها لم تُحل. '
-                          'راجع ردّك السابق قبل حلّها ثانية.',
-                          style: TextStyle(
+                          tr('أعادها صاحبها بعد الحل — يرى أنها لم تُحل. '
+                                  'راجع ردّك السابق قبل حلّها ثانية.',
+                              'The submitter reopened it after resolution — they '
+                                  "believe it wasn't solved. Review your previous "
+                                  'reply before resolving again.'),
+                          style: const TextStyle(
                               fontSize: 12.5,
                               color: AppColors.error,
                               fontWeight: FontWeight.bold),
@@ -449,8 +499,10 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'قُدّمت: ${formatDateTime(c.createdAt)}\n'
-                            '${overdue ? "⚠️ تجاوزت مهلة الرد (٢٤ ساعة)" : "مهلة الرد تنتهي: ${formatDateTime(c.expectedResponseBy)}"}',
+                            tr('قُدّمت: ${formatDateTime(c.createdAt)}\n'
+                                    '${overdue ? "⚠️ تجاوزت مهلة الرد (٢٤ ساعة)" : "مهلة الرد تنتهي: ${formatDateTime(c.expectedResponseBy)}"}',
+                                'Submitted: ${formatDateTime(c.createdAt)}\n'
+                                    '${overdue ? "⚠️ past the response window (24 h)" : "Response window ends: ${formatDateTime(c.expectedResponseBy)}"}'),
                             style: TextStyle(
                                 fontSize: 12.5,
                                 height: 1.6,
@@ -469,7 +521,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('تفاصيل الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(tr('تفاصيل الشكوى', 'Complaint details'),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       Text(c.description, style: const TextStyle(fontSize: 13.5)),
                       // صورة الشكوى المرفقة (2026-08-20): تُعرض مصغّرة
@@ -497,8 +550,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                           );
                         }),
                         const SizedBox(height: 4),
-                        const Text('اضغط الصورة للتكبير',
-                            style: TextStyle(
+                        Text(tr('اضغط الصورة للتكبير', 'Tap the photo to zoom'),
+                            style: const TextStyle(
                                 fontSize: 11, color: AppColors.textGray)),
                       ],
                     ]),
@@ -509,23 +562,35 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('الأطراف', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(tr('الأطراف', 'Parties'),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 10),
-                      _PartyRow(label: 'مقدّم الشكوى', name: c.submittedByName, role: c.submittedByRole),
+                      _PartyRow(
+                          label: tr('مقدّم الشكوى', 'Submitted by'),
+                          name: c.submittedByName,
+                          role: c.submittedByRole),
                       if (c.againstRole != null) ...[
                         const SizedBox(height: 8),
-                        _PartyRow(label: 'الشكوى ضد', name: c.againstRole!.label, role: c.againstRole),
+                        _PartyRow(
+                            label: tr('الشكوى ضد', 'Complaint against'),
+                            name: c.againstRole!.label,
+                            role: c.againstRole),
                       ],
                       if (order != null) ...[
                         const Divider(height: 20),
-                        InfoRow(icon: Icons.receipt_long_outlined, text: 'قيمة الطلب: ${formatCurrency(order.payableTotal)}'),
+                        InfoRow(
+                            icon: Icons.receipt_long_outlined,
+                            text: tr('قيمة الطلب: ${formatCurrency(order.payableTotal)}',
+                                'Order value: ${formatCurrency(order.payableTotal)}')),
                         if (order.customerPhone.trim().isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: OutlinedButton.icon(
                               onPressed: () => _call(order.customerPhone),
                               icon: const Icon(Icons.call_outlined, size: 16),
-                              label: Text('اتصال بالعميل: ${order.customerPhone}'),
+                              label: Text(
+                                  tr('اتصال بالعميل: ${order.customerPhone}',
+                                      'Call the customer: ${order.customerPhone}')),
                             ),
                           ),
                       ],
@@ -540,16 +605,20 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   _ProofTimeline(orderId: c.orderId),
                   const SizedBox(height: 12),
                 ],
-                const Text('محادثة مع مقدّم الشكوى', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+                Text(tr('محادثة مع مقدّم الشكوى', 'Chat with the submitter'),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14.5)),
                 const SizedBox(height: 8),
                 StreamBuilder<List<ChatMessage>>(
                   stream: service.streamComplaintChat(c.id),
                   builder: (ctx, chatSnap) {
                     final messages = chatSnap.data ?? [];
                     if (messages.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Text('لا توجد رسائل بعد', style: TextStyle(color: AppColors.textGray, fontSize: 12.5)),
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text(tr('لا توجد رسائل بعد', 'No messages yet'),
+                            style: const TextStyle(
+                                color: AppColors.textGray, fontSize: 12.5)),
                       );
                     }
                     return Column(
@@ -584,7 +653,9 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   Expanded(
                     child: TextField(
                       controller: _chatCtrl,
-                      decoration: const InputDecoration(hintText: 'اكتب رسالة...', border: OutlineInputBorder()),
+                      decoration: InputDecoration(
+                          hintText: tr('اكتب رسالة...', 'Write a message...'),
+                          border: const OutlineInputBorder()),
                     ),
                   ),
                   IconButton(
@@ -604,7 +675,7 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.replay_rounded, size: 18),
-                    label: const Text('إعادة فتح الشكوى'),
+                    label: Text(tr('إعادة فتح الشكوى', 'Reopen complaint')),
                     onPressed: _resolving
                         ? null
                         : () async {
@@ -613,13 +684,16 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                               await service.updateComplaintStatus(
                                   c.id, ComplaintStatus.inProgress);
                               if (context.mounted) {
-                                showSuccess(context,
-                                    'أُعيد فتحها — صارت «قيد المعالجة»');
+                                showSuccess(
+                                    context,
+                                    tr('أُعيد فتحها — صارت «قيد المعالجة»',
+                                        'Reopened — now "in progress"'));
                                 Navigator.pop(context);
                               }
                             } catch (_) {
                               if (context.mounted) {
-                                showError(context, 'تعذّرت إعادة الفتح');
+                                showError(context,
+                                    tr('تعذّرت إعادة الفتح', 'Could not reopen'));
                               }
                             } finally {
                               if (mounted) {
@@ -657,7 +731,8 @@ class _AdminComplaintDetailScreenState extends State<AdminComplaintDetailScreen>
                     icon: _resolving
                         ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.check_circle_outline_rounded),
-                    label: const Text('حل الشكوى', style: TextStyle(fontWeight: FontWeight.bold)),
+                    label: Text(tr('حل الشكوى', 'Resolve complaint'),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
@@ -709,49 +784,62 @@ class _ProofTimeline extends StatelessWidget {
           builder: (ctx, snap) {
             final proof = snap.data;
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('سجلّ الإثبات',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+              Text(tr('سجلّ الإثبات', 'Proof log'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14.5)),
               const SizedBox(height: 10),
               if (proof == null)
-                const Text(
-                  'لا توثيق لهذا الطلب — استُلم أو سُلّم بنسخة تطبيق سابقة '
-                  'لنظام التوثيق، أو لم يبدأ السائق رحلته بعد.',
-                  style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+                Text(
+                  tr('لا توثيق لهذا الطلب — استُلم أو سُلّم بنسخة تطبيق سابقة '
+                          'لنظام التوثيق، أو لم يبدأ السائق رحلته بعد.',
+                      'No proof for this order — it was picked up or delivered '
+                          'on an app version predating the proof system, or the '
+                          "driver hasn't started the trip yet."),
+                  style: const TextStyle(
+                      fontSize: 12.5, color: AppColors.textGray),
                 )
               else ...[
                 InfoRow(
                     icon: Icons.where_to_vote_outlined,
-                    text: 'وصول المطعم: ${_fmt(proof.arrivedAt)}'),
+                    text: tr('وصول المطعم: ${_fmt(proof.arrivedAt)}',
+                        'Arrived at restaurant: ${_fmt(proof.arrivedAt)}')),
                 InfoRow(
                     icon: Icons.shopping_bag_outlined,
-                    text: 'استلام الطلب: ${_fmt(proof.pickupAt)}'),
+                    text: tr('استلام الطلب: ${_fmt(proof.pickupAt)}',
+                        'Order pickup: ${_fmt(proof.pickupAt)}')),
                 InfoRow(
                     icon: Icons.done_all_rounded,
-                    text: 'تسليم للعميل: ${_fmt(proof.deliveryAt)}'),
+                    text: tr('تسليم للعميل: ${_fmt(proof.deliveryAt)}',
+                        'Delivered to customer: ${_fmt(proof.deliveryAt)}')),
                 if ((proof.deliveryDistanceMeters ?? 0) > 100)
                   InfoRow(
                       icon: Icons.social_distance_rounded,
-                      text: 'سُلّم على بُعد '
-                          '${proof.deliveryDistanceMeters! >= 1000 ? "${(proof.deliveryDistanceMeters! / 1000).toStringAsFixed(1)} كم" : "${proof.deliveryDistanceMeters} م"}'
-                          ' من موقع العميل المسجّل'),
+                      text: tr(
+                          'سُلّم على بُعد '
+                              '${proof.deliveryDistanceMeters! >= 1000 ? "${(proof.deliveryDistanceMeters! / 1000).toStringAsFixed(1)} كم" : "${proof.deliveryDistanceMeters} م"}'
+                              ' من موقع العميل المسجّل',
+                          'Delivered '
+                              '${proof.deliveryDistanceMeters! >= 1000 ? "${(proof.deliveryDistanceMeters! / 1000).toStringAsFixed(1)} km" : "${proof.deliveryDistanceMeters} m"}'
+                              " away from the customer's recorded location")),
                 const SizedBox(height: 10),
                 Row(children: [
                   if (proof.pickupPhoto != null)
                     Expanded(
                         child: _ProofPhoto(
-                            label: 'صورة الاستلام', bytes: proof.pickupPhoto!)),
+                            label: tr('صورة الاستلام', 'Pickup photo'),
+                            bytes: proof.pickupPhoto!)),
                   if (proof.pickupPhoto != null && proof.deliveryPhoto != null)
                     const SizedBox(width: 10),
                   if (proof.deliveryPhoto != null)
                     Expanded(
                         child: _ProofPhoto(
-                            label: 'صورة التسليم',
+                            label: tr('صورة التسليم', 'Delivery photo'),
                             bytes: proof.deliveryPhoto!)),
                 ]),
                 if (proof.pickupPhoto == null && proof.deliveryPhoto == null)
-                  const Text('لا صور محفوظة بعد',
-                      style:
-                          TextStyle(fontSize: 12.5, color: AppColors.textGray)),
+                  Text(tr('لا صور محفوظة بعد', 'No photos saved yet'),
+                      style: const TextStyle(
+                          fontSize: 12.5, color: AppColors.textGray)),
               ],
             ]);
           },

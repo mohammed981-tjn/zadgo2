@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/firebase_service.dart';
 import '../providers/cart_provider.dart';
+import 'app_lang.dart';
 import 'helpers.dart';
 
 /// يملأ السلة بأصناف [order] المتوفّرة حالياً. يُرجع `true` إن أُضيف صنفٌ
@@ -22,12 +23,16 @@ Future<bool> reorderIntoCart(BuildContext context, Order order) async {
   // سلة فيها أصناف من مطعم آخر ستُفرَّغ (قاعدة «مطعم واحد للسلة») —
   // بموافقة صريحة لا بمسح صامت.
   if (!cart.isEmpty && cart.restaurantId != order.restaurantId) {
+    final otherName =
+        cart.restaurantName ?? tr('مطعم آخر', 'another restaurant');
     final ok = await showConfirmDialog(
       context,
-      title: 'استبدال السلة؟',
-      content: 'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} — '
-          'ستُستبدل بأصناف هذا الطلب.',
-      confirmLabel: 'استبدال',
+      title: tr('استبدال السلة؟', 'Replace cart?'),
+      content: tr(
+          'سلتك تحوي أصنافاً من $otherName — ستُستبدل بأصناف هذا الطلب.',
+          'Your cart has items from $otherName — they will be replaced '
+          "with this order's items."),
+      confirmLabel: tr('استبدال', 'Replace'),
     );
     if (ok != true || !context.mounted) return false;
   }
@@ -35,12 +40,18 @@ Future<bool> reorderIntoCart(BuildContext context, Order order) async {
   try {
     final restaurant = await service.getRestaurantOnce(order.restaurantId);
     if (restaurant == null) {
-      if (context.mounted) showError(context, 'هذا المطعم لم يعد متوفراً');
+      if (context.mounted) {
+        showError(context,
+            tr('هذا المطعم لم يعد متوفراً', 'This restaurant is no longer available'));
+      }
       return false;
     }
     if (!restaurant.isOpenNow) {
       if (context.mounted) {
-        showError(context, '${restaurant.name} مغلق حالياً — جرّب لاحقاً');
+        showError(
+            context,
+            tr('${restaurant.name} مغلق حالياً — جرّب لاحقاً',
+                '${restaurant.name} is closed right now — try again later'));
       }
       return false;
     }
@@ -82,17 +93,25 @@ Future<bool> reorderIntoCart(BuildContext context, Order order) async {
 
     if (!context.mounted) return false;
     if (added == 0) {
-      showError(context, 'أصناف هذا الطلب لم تعد متوفرة في القائمة');
+      showError(
+          context,
+          tr('أصناف هذا الطلب لم تعد متوفرة في القائمة',
+              'The items from this order are no longer on the menu'));
       return false;
     }
     if (skipped > 0) {
-      showSuccess(context,
-          'أُضيف $added من الأصناف — و$skipped لم يعد متوفراً فتُرك');
+      showSuccess(
+          context,
+          tr('أُضيف $added من الأصناف — و$skipped لم يعد متوفراً فتُرك',
+              'Added $added items — $skipped no longer available, so skipped'));
     }
     return true;
   } catch (_) {
     if (context.mounted) {
-      showError(context, 'تعذّر تجهيز السلة — تحقق من اتصالك وحاول مجدداً');
+      showError(
+          context,
+          tr('تعذّر تجهيز السلة — تحقق من اتصالك وحاول مجدداً',
+              'Could not prepare the cart — check your connection and try again'));
     }
     return false;
   }

@@ -22,6 +22,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
 
@@ -37,12 +38,13 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
   static const _endpoint =
       'https://fbbrkwragezhztffbvxf.supabase.co/functions/v1/ad-copy-partner';
 
-  static const _platforms = [
-    ('instagram', 'إنستغرام'),
-    ('snapchat', 'سناب شات'),
-    ('twitter', 'X / تويتر'),
-    ('tiktok', 'تيك توك'),
-  ];
+  // getter لا const: التسميات تمرّ بـ tr() فتتبدّل مع تبديل اللغة.
+  static List<(String, String)> get _platforms => [
+        ('instagram', tr('إنستغرام', 'Instagram')),
+        ('snapchat', tr('سناب شات', 'Snapchat')),
+        ('twitter', tr('X / تويتر', 'X / Twitter')),
+        ('tiktok', tr('تيك توك', 'TikTok')),
+      ];
 
   final _productCtrl = TextEditingController();
   final _keyCtrl = TextEditingController();
@@ -83,7 +85,8 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
   Future<void> _saveKey() async {
     final key = _keyCtrl.text.trim();
     if (!key.startsWith('pk_')) {
-      showError(context, 'المفتاح يبدأ بـ pk_ — انسخه كاملاً كما صدر');
+      showError(context, tr('المفتاح يبدأ بـ pk_ — انسخه كاملاً كما صدر',
+          'The key starts with pk_ — copy it exactly as issued'));
       return;
     }
     setState(() => _saving = true);
@@ -92,10 +95,14 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
       _keyCtrl.clear();
       if (mounted) {
         setState(() => _storedKey = key);
-        showSuccess(context, 'حُفظ المفتاح — جاهز للتوليد');
+        showSuccess(context, tr('حُفظ المفتاح — جاهز للتوليد',
+            'Key saved — ready to generate'));
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الحفظ، حاول مرة أخرى');
+      if (mounted) {
+        showError(context, tr('تعذّر الحفظ، حاول مرة أخرى',
+            'Could not save, try again'));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -104,7 +111,8 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
   Future<void> _generate() async {
     final product = _productCtrl.text.trim();
     if (product.isEmpty) {
-      showError(context, 'اكتب ما تريد الإعلان عنه أولاً');
+      showError(context, tr('اكتب ما تريد الإعلان عنه أولاً',
+          'Write what you want to advertise first'));
       return;
     }
     final key = _storedKey;
@@ -135,9 +143,12 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
         setState(() {
           _variants = variants;
           _quotaLine = quota['limit'] == null
-              ? 'حصتك: بلا حدّ'
-              : 'حصتك الشهرية: استُخدم ${quota['used'] ?? '؟'} من '
-                  '${quota['limit']} — المتبقي ${quota['remaining'] ?? '؟'}';
+              ? tr('حصتك: بلا حدّ', 'Your quota: unlimited')
+              : tr(
+                  'حصتك الشهرية: استُخدم ${quota['used'] ?? '؟'} من '
+                      '${quota['limit']} — المتبقي ${quota['remaining'] ?? '؟'}',
+                  'Monthly quota: used ${quota['used'] ?? '?'} of '
+                      '${quota['limit']} — ${quota['remaining'] ?? '?'} remaining');
         });
       } else {
         // رموز البوابة الصادقة تُترجم لكلام المدير — لا تُبتلع (درس
@@ -145,19 +156,25 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
         final code = body?['error']?.toString() ?? 'HTTP ${res.statusCode}';
         setState(() {
           _error = switch (code) {
-            'invalid_key' =>
-              'المفتاح مرفوض — تأكد أنك لصقته كاملاً، أو أصدر بديلاً من zol',
-            'quota_exceeded' =>
-              'نفدت حصة هذا الشهر (${body?['used']}/${body?['quota']}) — '
-                  'تُرفع من لوحة zol',
-            'partner_suspended' => 'الشراكة موقوفة من طرف zol — راجعهم',
-            _ => 'تعذّر التوليد ($code) — حاول مجدداً',
+            'invalid_key' => tr(
+                'المفتاح مرفوض — تأكد أنك لصقته كاملاً، أو أصدر بديلاً من zol',
+                'Key rejected — make sure you pasted it in full, or issue a new one from zol'),
+            'quota_exceeded' => tr(
+                'نفدت حصة هذا الشهر (${body?['used']}/${body?['quota']}) — '
+                    'تُرفع من لوحة zol',
+                'This month\'s quota is used up (${body?['used']}/${body?['quota']}) — '
+                    'raise it from the zol dashboard'),
+            'partner_suspended' => tr('الشراكة موقوفة من طرف zol — راجعهم',
+                'Partnership suspended by zol — contact them'),
+            _ => tr('تعذّر التوليد ($code) — حاول مجدداً',
+                'Generation failed ($code) — try again'),
           };
         });
       }
     } catch (e) {
-      setState(
-          () => _error = 'تعذّر الاتصال بالبوابة — تأكد من الإنترنت ($e)');
+      setState(() => _error = tr(
+          'تعذّر الاتصال بالبوابة — تأكد من الإنترنت ($e)',
+          'Could not reach the gateway — check your connection ($e)'));
     } finally {
       if (mounted) setState(() => _generating = false);
     }
@@ -175,17 +192,21 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
       if ((v['cta'] ?? '').toString().trim().isNotEmpty) v['cta'],
     ].join('\n');
     if (title.isEmpty || body.isEmpty) {
-      showError(context, 'الصيغة ناقصة — جرّب صيغة أخرى');
+      showError(context, tr('الصيغة ناقصة — جرّب صيغة أخرى',
+          'This variant is incomplete — try another one'));
       return;
     }
 
     // تأكيد صريح: البث يصل **كل** العملاء دفعة واحدة ولا يُسترجع.
     final ok = await showConfirmDialog(
       context,
-      title: 'إرسال لكل العملاء؟',
-      content: 'سيصل هذا الإعلان إلى كل عملاء زاد قو داخل التطبيق:\n\n'
+      title: tr('إرسال لكل العملاء؟', 'Send to all customers?'),
+      content: tr(
+          'سيصل هذا الإعلان إلى كل عملاء زاد قو داخل التطبيق:\n\n'
           '«$title»\n$body\n\nالإرسال فوري ولا يمكن التراجع عنه.',
-      confirmLabel: 'أرسل الآن',
+          'This ad will reach every ZadGo customer inside the app:\n\n'
+          '"$title"\n$body\n\nSending is immediate and cannot be undone.'),
+      confirmLabel: tr('أرسل الآن', 'Send now'),
     );
     if (ok != true || !mounted) return;
 
@@ -200,9 +221,15 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
             sentBy: auth.user?.name ?? auth.user?.uid ?? 'admin',
             createdAt: DateTime.now(),
           ));
-      if (mounted) showSuccess(context, 'أُرسل الإعلان لكل العملاء ✓');
+      if (mounted) {
+        showSuccess(context, tr('أُرسل الإعلان لكل العملاء ✓',
+            'Ad sent to all customers ✓'));
+      }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الإرسال، حاول مرة أخرى');
+      if (mounted) {
+        showError(context, tr('تعذّر الإرسال، حاول مرة أخرى',
+            'Could not send, try again'));
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -235,52 +262,64 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('إعداد لمرة واحدة',
-                        style: TextStyle(
+                    Text(tr('إعداد لمرة واحدة', 'One-time setup'),
+                        style: const TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 14.5)),
                     const SizedBox(height: 6),
-                    const Text(
-                      'الصق مفتاح شريك الإعلانات (يبدأ بـ pk_live) — يُحفظ '
-                      'في مستند لا يقرؤه غير المدير، ولا يدخل كود التطبيق.',
-                      style:
-                          TextStyle(fontSize: 12.5, color: AppColors.textGray),
+                    Text(
+                      tr(
+                          'الصق مفتاح شريك الإعلانات (يبدأ بـ pk_live) — يُحفظ '
+                          'في مستند لا يقرؤه غير المدير، ولا يدخل كود التطبيق.',
+                          'Paste the ads partner key (starts with pk_live) — it is stored '
+                          'in a document only the admin can read, and never enters the app code.'),
+                      style: const TextStyle(
+                          fontSize: 12.5, color: AppColors.textGray),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: _keyCtrl,
                       obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'مفتاح الشريك',
+                      decoration: InputDecoration(
+                        labelText: tr('مفتاح الشريك', 'Partner key'),
                         hintText: 'pk_live_...',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                         isDense: true,
                       ),
                     ),
                     const SizedBox(height: 10),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.save_outlined, size: 18),
-                      label: Text(_saving ? 'جارٍ الحفظ…' : 'احفظ المفتاح'),
+                      label: Text(_saving
+                          ? tr('جارٍ الحفظ…', 'Saving…')
+                          : tr('احفظ المفتاح', 'Save key')),
                       onPressed: _saving ? null : _saveKey,
                     ),
                   ]),
             ),
           ),
         ] else ...[
-          const Text(
-            'اكتب ما تريد الإعلان عنه (منتج، عرض، مناسبة) واختر أسلوب '
-            'المنصة — تصلك ثلاث صيغ: **«أرسله للعملاء»** يصل إعلاناً '
-            'لكل عملاء زاد قو داخل التطبيق فوراً، و«انسخ النص» للنشر '
-            'في حساباتك الخارجية.',
-            style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+          Text(
+            tr(
+                'اكتب ما تريد الإعلان عنه (منتج، عرض، مناسبة) واختر أسلوب '
+                'المنصة — تصلك ثلاث صيغ: **«أرسله للعملاء»** يصل إعلاناً '
+                'لكل عملاء زاد قو داخل التطبيق فوراً، و«انسخ النص» للنشر '
+                'في حساباتك الخارجية.',
+                'Write what you want to advertise (a product, offer, occasion) and pick the '
+                'platform style — you get three variants: **"Send to customers"** delivers the ad '
+                'to every ZadGo customer inside the app instantly, and "Copy text" is for posting '
+                'on your external accounts.'),
+            style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _productCtrl,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'ماذا نعلن؟',
-              hintText: 'مثال: عرض فطيرة الجمعة — قطعتان بسعر واحدة، توصيل مجاني فوق ٥٠ ريالاً',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: tr('ماذا نعلن؟', 'What are we advertising?'),
+              hintText: tr(
+                  'مثال: عرض فطيرة الجمعة — قطعتان بسعر واحدة، توصيل مجاني فوق ٥٠ ريالاً',
+                  'Example: Friday pie deal — two for the price of one, free delivery over SAR 50'),
+              border: const OutlineInputBorder(),
               alignLabelWithHint: true,
             ),
           ),
@@ -306,7 +345,9 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.auto_awesome, size: 18),
-              label: Text(_generating ? 'جارٍ التوليد…' : 'ولّد إعلاناً ✨'),
+              label: Text(_generating
+                  ? tr('جارٍ التوليد…', 'Generating…')
+                  : tr('ولّد إعلاناً ✨', 'Generate an ad ✨')),
               onPressed: _generating ? null : _generate,
             ),
           ),
@@ -343,7 +384,7 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                             radius: 12,
                             backgroundColor:
                                 AppColors.primary.withOpacity(0.15),
-                            child: Text('${v['rank'] ?? '؟'}',
+                            child: Text(tr('${v['rank'] ?? '؟'}', '${v['rank'] ?? '?'}'),
                                 style: const TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.bold,
@@ -389,8 +430,8 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                                   backgroundColor: AppColors.success),
                               icon: const Icon(Icons.campaign_outlined,
                                   size: 17),
-                              label: const Text('أرسله للعملاء',
-                                  style: TextStyle(fontSize: 12.5)),
+                              label: Text(tr('أرسله للعملاء', 'Send to customers'),
+                                  style: const TextStyle(fontSize: 12.5)),
                               onPressed: _sending
                                   ? null
                                   : () => _sendAsBroadcast(v),
@@ -400,13 +441,14 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
                           Expanded(
                             child: OutlinedButton.icon(
                               icon: const Icon(Icons.copy_rounded, size: 17),
-                              label: const Text('انسخ النص',
-                                  style: TextStyle(fontSize: 12.5)),
+                              label: Text(tr('انسخ النص', 'Copy text'),
+                                  style: const TextStyle(fontSize: 12.5)),
                               onPressed: () {
                                 Clipboard.setData(
                                     ClipboardData(text: _variantText(v)));
                                 showSuccess(context,
-                                    'نُسخ — الصقه في أي منصة تريدها');
+                                    tr('نُسخ — الصقه في أي منصة تريدها',
+                                        'Copied — paste it on any platform'));
                               },
                             ),
                           ),
@@ -419,8 +461,8 @@ class _AdminAdsScreenState extends State<AdminAdsScreen> {
           Center(
             child: TextButton.icon(
               icon: const Icon(Icons.key_off_outlined, size: 16),
-              label: const Text('تبديل المفتاح',
-                  style: TextStyle(fontSize: 12.5)),
+              label: Text(tr('تبديل المفتاح', 'Replace key'),
+                  style: const TextStyle(fontSize: 12.5)),
               onPressed: () => setState(() => _storedKey = null),
             ),
           ),

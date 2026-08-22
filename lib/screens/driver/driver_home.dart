@@ -15,6 +15,7 @@ import '../../providers/local_alerts.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/complaint_window.dart';
 import '../auth/login_screen.dart';
@@ -212,9 +213,10 @@ class _DriverHomeState extends State<DriverHome> {
           // وحدها — والكابتن الحيّ في الخلفية (بفضل و2) كان يستقبل
           // العرض بلا أي صوت يخرج إليه. هذه هي الحلقة الناقصة.
           LocalAlerts.offerAlert(
-            title: '🛵 عرض توصيل جديد',
-            body:
+            title: tr('🛵 عرض توصيل جديد', '🛵 New delivery offer'),
+            body: tr(
                 'طلب #${o.orderNumber} من ${o.restaurantName} — افتح للقبول أو الرفض',
+                'Order #${o.orderNumber} from ${o.restaurantName} — open to accept or reject'),
           );
           _showDecisionBanner(o);
         }
@@ -225,8 +227,9 @@ class _DriverHomeState extends State<DriverHome> {
           _autoAssignedNotified.add(o.id);
           _playAssignmentSound();
           LocalAlerts.offerAlert(
-            title: '📦 طلب مُسند إليك',
-            body: 'طلب #${o.orderNumber} من ${o.restaurantName}',
+            title: tr('📦 طلب مُسند إليك', '📦 Order assigned to you'),
+            body: tr('طلب #${o.orderNumber} من ${o.restaurantName}',
+                'Order #${o.orderNumber} from ${o.restaurantName}'),
           );
           _showInfoBanner(o);
         }
@@ -261,7 +264,12 @@ class _DriverHomeState extends State<DriverHome> {
               await service.acceptAssignedOrder(order.id);
               LocalAlerts.clearOfferAlert();
             } catch (_) {
-              if (mounted) showError(context, 'تعذّر قبول الطلب — ربما أُلغي أو أُعيد إسناده');
+              if (mounted) {
+                showError(
+                    context,
+                    tr('تعذّر قبول الطلب — ربما أُلغي أو أُعيد إسناده',
+                        'Could not accept the order — it may have been canceled or reassigned'));
+              }
               return;
             }
             // بعد القبول تُفتح مذكرة الاستلام مباشرةً — هي وجهة السائق
@@ -275,7 +283,12 @@ class _DriverHomeState extends State<DriverHome> {
               await service.rejectAssignedOrder(order.id);
               LocalAlerts.clearOfferAlert();
             } catch (_) {
-              if (mounted) showError(context, 'تعذّر رفض الطلب — ربما تغيّرت حالته');
+              if (mounted) {
+                showError(
+                    context,
+                    tr('تعذّر رفض الطلب — ربما تغيّرت حالته',
+                        'Could not reject the order — its status may have changed'));
+              }
             }
           },
           onExpired: () {
@@ -325,7 +338,8 @@ class _DriverHomeState extends State<DriverHome> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'طلب جديد #${order.orderNumber} أُسند إليك — اضغط لمذكرة الاستلام',
+                    tr('طلب جديد #${order.orderNumber} أُسند إليك — اضغط لمذكرة الاستلام',
+                        'New order #${order.orderNumber} assigned to you — tap for the pickup memo'),
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
                   ),
                 ),
@@ -376,14 +390,20 @@ class _DriverHomeState extends State<DriverHome> {
         _syncKeepAlive(_isOnline);
         return Scaffold(
           appBar: AppBar(
-            title: Text('مرحباً ${auth.user?.name ?? ""}'),
+            title: Text(tr('مرحباً ${auth.user?.name ?? ""}',
+                'Welcome ${auth.user?.name ?? ""}')),
             actions: [
+              // تبديل اللغة (دفعة «اللغة الثانية»).
+              const LanguageToggleButton(),
               if (driver != null)
                 Row(children: [
                   // تباين حالة الاتصال (دفعة ٤): كان «غير متصل» بـwhite54 غيرَ
                   // مرئيّ على الشريط، و«متصل» بأخضر نيون خارج الهوية (~1.3:1).
                   // ألوان الهوية: أخضر النجاح للمتصل، والرماديّ المقروء لغيره.
-                  Text(driver.isOnline ? 'متصل' : 'غير متصل',
+                  Text(
+                      driver.isOnline
+                          ? tr('متصل', 'Online')
+                          : tr('غير متصل', 'Offline'),
                       style: TextStyle(
                           color: driver.isOnline
                               ? AppColors.success
@@ -396,14 +416,16 @@ class _DriverHomeState extends State<DriverHome> {
                         showSuccess(
                             context,
                             v
-                                ? 'أنت الآن متاح لاستقبال الطلبات — بالتوفيق! 🚀'
-                                : 'أصبحت غير متصل — لن تصلك طلبات جديدة');
+                                ? tr('أنت الآن متاح لاستقبال الطلبات — بالتوفيق! 🚀',
+                                    'You are now available for orders — good luck! 🚀')
+                                : tr('أصبحت غير متصل — لن تصلك طلبات جديدة',
+                                    'You are now offline — no new orders will reach you'));
                       }
                     },
                       activeColor: AppColors.success),
                 ]),
               IconButton(
-                tooltip: 'دليل الكابتن',
+                tooltip: tr('دليل الكابتن', 'Captain guide'),
                 icon: const Icon(Icons.school_outlined),
                 onPressed: () => Navigator.push(
                   context,
@@ -412,7 +434,7 @@ class _DriverHomeState extends State<DriverHome> {
                 ),
               ),
               IconButton(
-                tooltip: 'الشكاوى',
+                tooltip: tr('الشكاوى', 'Complaints'),
                 icon: const Icon(Icons.support_agent_rounded),
                 onPressed: () => Navigator.push(
                   context,
@@ -426,9 +448,10 @@ class _DriverHomeState extends State<DriverHome> {
                 // تأكيد قبل الخروج (كما في شاشة العميل): زرّ الخروج كان يُنفَّذ
                 // بلمسة واحدة بلا سؤال، ولمسةٌ خاطئة تُخرج الكابتن وسط جولة.
                 final ok = await showConfirmDialog(context,
-                    title: 'تسجيل الخروج',
-                    content: 'هل تريد تسجيل الخروج من حسابك؟',
-                    confirmLabel: 'خروج',
+                    title: tr('تسجيل الخروج', 'Sign out'),
+                    content: tr('هل تريد تسجيل الخروج من حسابك؟',
+                        'Do you want to sign out of your account?'),
+                    confirmLabel: tr('خروج', 'Sign out'),
                     confirmColor: AppColors.error);
                 if (ok != true || !mounted) return;
                 if (driver != null) await service.setDriverOnline(driverId, false);
@@ -470,9 +493,9 @@ class _DriverHomeState extends State<DriverHome> {
             ),
           ]),
           bottomNavigationBar: NavigationBar(selectedIndex: _tab, onDestinationSelected: (i) => setState(() => _tab = i),
-            destinations: const [
-              NavigationDestination(icon: Icon(Icons.delivery_dining_outlined), selectedIcon: Icon(Icons.delivery_dining), label: 'الطلبات'),
-              NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), selectedIcon: Icon(Icons.account_balance_wallet), label: 'أرباحي'),
+            destinations: [
+              NavigationDestination(icon: const Icon(Icons.delivery_dining_outlined), selectedIcon: const Icon(Icons.delivery_dining), label: tr('الطلبات', 'Orders')),
+              NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined), selectedIcon: const Icon(Icons.account_balance_wallet), label: tr('أرباحي', 'My earnings')),
             ]),
         );
       },
@@ -568,7 +591,9 @@ class _OfferBannerState extends State<_OfferBanner> {
             const Icon(Icons.local_shipping_rounded, color: Colors.white),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('عرض توصيل — طلب #${o.orderNumber}',
+              child: Text(
+                  tr('عرض توصيل — طلب #${o.orderNumber}',
+                      'Delivery offer — order #${o.orderNumber}'),
                   style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -581,7 +606,7 @@ class _OfferBannerState extends State<_OfferBanner> {
                 color: urgent ? AppColors.error : Colors.white.withOpacity(0.22),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text('${_secondsLeft}ث',
+              child: Text(tr('${_secondsLeft}ث', '${_secondsLeft}s'),
                   style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
@@ -614,7 +639,8 @@ class _OfferBannerState extends State<_OfferBanner> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                    'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                    tr('نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                        'Cash — you collect ${formatCurrency(o.payableTotal - o.walletUsed)} from the customer'),
                     style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13.5,
@@ -624,7 +650,9 @@ class _OfferBannerState extends State<_OfferBanner> {
           Row(children: [
             const Icon(Icons.payments_rounded, color: Colors.white, size: 17),
             const SizedBox(width: 6),
-            Text('أجرتك ${formatCurrency(o.driverShare)}',
+            Text(
+                tr('أجرتك ${formatCurrency(o.driverShare)}',
+                    'Your fee ${formatCurrency(o.driverShare)}'),
                 style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -635,9 +663,11 @@ class _OfferBannerState extends State<_OfferBanner> {
                 child: Text(
                   [
                     if (pickupKm != null)
-                      'الالتقاط ${pickupKm.toStringAsFixed(1)} كم',
+                      tr('الالتقاط ${pickupKm.toStringAsFixed(1)} كم',
+                          'Pickup ${pickupKm.toStringAsFixed(1)} km'),
                     if (dropKm != null)
-                      'التوصيل ${dropKm.toStringAsFixed(1)} كم',
+                      tr('التوصيل ${dropKm.toStringAsFixed(1)} كم',
+                          'Drop-off ${dropKm.toStringAsFixed(1)} km'),
                   ].join(' • '),
                   style: const TextStyle(color: Colors.white70, fontSize: 12.5),
                   maxLines: 1,
@@ -660,7 +690,7 @@ class _OfferBannerState extends State<_OfferBanner> {
                   foregroundColor: Colors.white,
                 ),
                 onPressed: widget.onReject,
-                child: const Text('رفض'),
+                child: Text(tr('رفض', 'Reject')),
               ),
             ),
             const SizedBox(width: 10),
@@ -673,8 +703,8 @@ class _OfferBannerState extends State<_OfferBanner> {
                 ),
                 onPressed: widget.onAccept,
                 icon: const Icon(Icons.check_rounded, size: 18),
-                label: const Text('قبول العرض',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
+                label: Text(tr('قبول العرض', 'Accept offer'),
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
               ),
             ),
           ]),
@@ -706,8 +736,10 @@ class _MyOrdersTab extends StatelessWidget {
       showSuccess(
           context,
           goOnline
-              ? 'أنت الآن متاح لاستقبال الطلبات — بالتوفيق! 🚀'
-              : 'أصبحت غير متصل — لن تصلك طلبات جديدة');
+              ? tr('أنت الآن متاح لاستقبال الطلبات — بالتوفيق! 🚀',
+                  'You are now available for orders — good luck! 🚀')
+              : tr('أصبحت غير متصل — لن تصلك طلبات جديدة',
+                  'You are now offline — no new orders will reach you'));
     }
     // نصيحة البطارية عند أول اتصال في عمر التثبيت — هنا لا عند فتح
     // التطبيق: لحظة «متصل» هي اللحظة التي يصير فيها بقاء العملية حيّةً
@@ -752,15 +784,20 @@ class _MyOrdersTab extends StatelessWidget {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(isOnline ? 'متاح لاستقبال الطلبات' : 'غير متصل',
+                      Text(
+                          isOnline
+                              ? tr('متاح لاستقبال الطلبات', 'Available for orders')
+                              : tr('غير متصل', 'Offline'),
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 14.5)),
                       Text(
                           isOnline
-                              ? 'تصلك العروض تلقائياً — اضغط للتوقف'
-                              : 'لن تصلك طلبات — اضغط للاتصال',
+                              ? tr('تصلك العروض تلقائياً — اضغط للتوقف',
+                                  'Offers reach you automatically — tap to go offline')
+                              : tr('لن تصلك طلبات — اضغط للاتصال',
+                                  'No orders will reach you — tap to go online'),
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 11.5)),
                     ]),
@@ -839,7 +876,8 @@ class _MyOrdersTab extends StatelessWidget {
                     ),
                   ),
                   if (pendingOffers.isNotEmpty) ...[
-                    const SectionHeader(title: 'عروض بانتظار قرارك'),
+                    SectionHeader(
+                        title: tr('عروض بانتظار قرارك', 'Offers awaiting your decision')),
                     ...pendingOffers.map(
                         (o) => _PendingOfferCard(key: ValueKey(o.id), order: o)),
                     const SizedBox(height: 6),
@@ -851,21 +889,23 @@ class _MyOrdersTab extends StatelessWidget {
                         Text(isOnline ? '📦' : '🔌',
                             style: const TextStyle(fontSize: 40)),
                         const SizedBox(height: 10),
-                        const Text('لا توجد طلبات نشطة حالياً',
-                            style: TextStyle(
+                        Text(tr('لا توجد طلبات نشطة حالياً', 'No active orders right now'),
+                            style: const TextStyle(
                                 fontSize: 17, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 5),
                         Text(
                           isOnline
-                              ? 'سيصلك عرض بأي طلب جديد فور توفره'
-                              : 'اتصل أولاً ليصلك أي عرض',
+                              ? tr('سيصلك عرض بأي طلب جديد فور توفره',
+                                  'An offer will reach you as soon as a new order is available')
+                              : tr('اتصل أولاً ليصلك أي عرض',
+                                  'Go online first to receive offers'),
                           style: const TextStyle(
                               fontSize: 13.5, color: AppColors.textGray),
                         ),
                       ]),
                     )
                   else if (confirmedActive.isNotEmpty) ...[
-                    const SectionHeader(title: 'طلباتي'),
+                    SectionHeader(title: tr('طلباتي', 'My orders')),
                     ...confirmedActive.map((o) => _OrderCard(order: o)),
                   ],
                 ],
@@ -1119,7 +1159,10 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
       }
     } catch (_) {
       if (mounted) {
-        showError(context, 'تعذّر تنفيذ القرار — ربما تغيّرت حالة الطلب');
+        showError(
+            context,
+            tr('تعذّر تنفيذ القرار — ربما تغيّرت حالة الطلب',
+                'Could not apply your decision — the order status may have changed'));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -1144,7 +1187,9 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
               size: 18, color: AppColors.warning),
           const SizedBox(width: 8),
           Expanded(
-            child: Text('عرض توصيل — طلب #${o.orderNumber}',
+            child: Text(
+                tr('عرض توصيل — طلب #${o.orderNumber}',
+                    'Delivery offer — order #${o.orderNumber}'),
                 style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 14.5,
@@ -1158,7 +1203,9 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
                   .withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text('${_secondsLeft > 0 ? _secondsLeft : 0} ث',
+            child: Text(
+                tr('${_secondsLeft > 0 ? _secondsLeft : 0} ث',
+                    '${_secondsLeft > 0 ? _secondsLeft : 0} s'),
                 style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 12.5,
@@ -1172,11 +1219,14 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
-                'نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                tr('نقدي — تستلم من العميل ${formatCurrency(o.payableTotal - o.walletUsed)}',
+                    'Cash — you collect ${formatCurrency(o.payableTotal - o.walletUsed)} from the customer'),
                 style: const TextStyle(
                     fontSize: 13.5, fontWeight: FontWeight.w800)),
           ),
-        Text('أجرتك ${formatCurrency(o.driverShare)}',
+        Text(
+            tr('أجرتك ${formatCurrency(o.driverShare)}',
+                'Your fee ${formatCurrency(o.driverShare)}'),
             style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
         const SizedBox(height: 4),
         Text('${o.restaurantName} ← ${o.deliveryAddress}',
@@ -1188,7 +1238,7 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
           Expanded(
             child: OutlinedButton(
               onPressed: _busy ? null : () => _decide(false),
-              child: const Text('رفض'),
+              child: Text(tr('رفض', 'Reject')),
             ),
           ),
           const SizedBox(width: 10),
@@ -1206,8 +1256,8 @@ class _PendingOfferCardState extends State<_PendingOfferCard> {
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.check_rounded, size: 18),
-              label: const Text('قبول العرض',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
+              label: Text(tr('قبول العرض', 'Accept offer'),
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
             ),
           ),
         ]),
@@ -1257,7 +1307,8 @@ class _AgeRowState extends State<_AgeRow> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'وقت الطلب $clock — منذ ${formatRemaining(age)}',
+            tr('وقت الطلب $clock — منذ ${formatRemaining(age)}',
+                'Ordered at $clock — ${formatRemaining(age)} ago'),
             style: TextStyle(
                 fontSize: 13.5,
                 color: late ? AppColors.error : AppColors.textGray,
@@ -1281,8 +1332,11 @@ class _OrderCard extends StatelessWidget {
     final lat = toCustomer ? order.deliveryLat : order.restaurantLat;
     final lng = toCustomer ? order.deliveryLng : order.restaurantLng;
     if (lat == null || lng == null) {
-      showError(context,
-          toCustomer ? 'لا يوجد موقع محفوظ للعميل' : 'لا يوجد موقع محفوظ للمطعم');
+      showError(
+          context,
+          toCustomer
+              ? tr('لا يوجد موقع محفوظ للعميل', 'No saved location for the customer')
+              : tr('لا يوجد موقع محفوظ للمطعم', 'No saved location for the restaurant'));
       return;
     }
     final uri = Uri.parse(
@@ -1290,7 +1344,10 @@ class _OrderCard extends StatelessWidget {
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
-      if (context.mounted) showError(context, 'تعذّر فتح تطبيق الخرائط');
+      if (context.mounted) {
+        showError(context,
+            tr('تعذّر فتح تطبيق الخرائط', 'Could not open the maps app'));
+      }
     }
   }
 
@@ -1319,7 +1376,7 @@ class _OrderCard extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.phone, color: AppColors.success),
                 onPressed: () => callPhone(context, order.customerPhone),
-                tooltip: 'الاتصال بالعميل',
+                tooltip: tr('الاتصال بالعميل', 'Call the customer'),
               ),
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline, color: AppColors.secondary),
@@ -1332,8 +1389,8 @@ class _OrderCard extends StatelessWidget {
             IconButton(
               tooltip: order.status == OrderStatus.pickedUp ||
                       order.status == OrderStatus.onTheWay
-                  ? 'الملاحة إلى العميل'
-                  : 'الملاحة إلى المطعم',
+                  ? tr('الملاحة إلى العميل', 'Navigate to customer')
+                  : tr('الملاحة إلى المطعم', 'Navigate to restaurant'),
               icon: const Icon(Icons.navigation_rounded,
                   color: AppColors.primary),
               onPressed: () => _navigate(context),
@@ -1359,8 +1416,9 @@ class _OrderCard extends StatelessWidget {
                           : Icons.report_problem_outlined,
                       color: urgent ? AppColors.error : AppColors.warning),
                   tooltip: left == null
-                      ? 'تقديم شكوى'
-                      : 'تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                      ? tr('تقديم شكوى', 'File a complaint')
+                      : tr('تقديم شكوى — يتبقّى ${formatRemaining(left)}',
+                          'File a complaint — ${formatRemaining(left)} left'),
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -1408,15 +1466,17 @@ class _OrderCard extends StatelessWidget {
         order.status == OrderStatus.restaurantAccepted ||
         order.status == OrderStatus.preparing) {
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Text('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
-            style: TextStyle(
+        Text(
+            tr('الطلب قيد التحضير عند المطعم — سنُعلمك فور جهوزيته',
+                'The restaurant is preparing the order — we will notify you once it is ready'),
+            style: const TextStyle(
                 color: AppColors.textGray, fontStyle: FontStyle.italic)),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: () => navigatorKey.currentState?.push(MaterialPageRoute(
               builder: (_) => PickupDocketScreen(orderId: order.id))),
           icon: const Icon(Icons.receipt_long_rounded, size: 18),
-          label: const Text('مذكرة الاستلام'),
+          label: Text(tr('مذكرة الاستلام', 'Pickup memo')),
         ),
       ]);
     }
@@ -1430,7 +1490,8 @@ class _OrderCard extends StatelessWidget {
         onPressed: () => navigatorKey.currentState?.push(MaterialPageRoute(
             builder: (_) => PickupDocketScreen(orderId: order.id))),
         icon: const Icon(Icons.receipt_long_rounded),
-        label: const Text('مذكرة الاستلام — اعرضها للمطعم'),
+        label: Text(tr('مذكرة الاستلام — اعرضها للمطعم',
+            'Pickup memo — show it to the restaurant')),
       ));
     }
     if (order.status == OrderStatus.onTheWay) {
@@ -1443,13 +1504,15 @@ class _OrderCard extends StatelessWidget {
             showSuccess(
                 ctx,
                 order.paymentMethod == PaymentMethod.cash
-                    ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
-                    : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
+                    ? tr('تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته',
+                        'Delivered! Your ${order.driverShare.toStringAsFixed(2)} SAR fee is part of the cash you collected')
+                    : tr('تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك',
+                        'Delivered! +${order.driverShare.toStringAsFixed(2)} SAR added to your wallet'));
           }
         },
         style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
         icon: const Icon(Icons.done_all_rounded),
-        label: const Text('تأكيد التوصيل'),
+        label: Text(tr('تأكيد التوصيل', 'Confirm delivery')),
       ));
     }
     return const SizedBox.shrink();
@@ -1512,7 +1575,10 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             const Icon(Icons.account_balance_wallet_rounded,
                 color: Colors.white70, size: 18),
             const SizedBox(width: 6),
-            Text(owesPlatform ? 'محفظتك — مبلغ عليك' : 'محفظتك — رصيدك',
+            Text(
+                owesPlatform
+                    ? tr('محفظتك — مبلغ عليك', 'Your wallet — amount you owe')
+                    : tr('محفظتك — رصيدك', 'Your wallet — your balance'),
                 style: const TextStyle(color: Colors.white70, fontSize: 14.5)),
           ]),
           const SizedBox(height: 6),
@@ -1521,8 +1587,10 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
           const SizedBox(height: 6),
           Text(
             owesPlatform
-                ? 'عُهدة طلبات نقدية بيدك — تُسدَّد بالشحن أو التسليم للإدارة'
-                : 'مستحقّاتك من الطلبات المدفوعة إلكترونياً',
+                ? tr('عُهدة طلبات نقدية بيدك — تُسدَّد بالشحن أو التسليم للإدارة',
+                    'Cash in hand from cash orders — settle by top-up or handing it to the office')
+                : tr('مستحقّاتك من الطلبات المدفوعة إلكترونياً',
+                    'Your dues from orders paid online'),
             style: const TextStyle(color: Colors.white70, fontSize: 11.5),
           ),
           const SizedBox(height: 12),
@@ -1538,8 +1606,8 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                         foregroundColor: context.flavorColors.primaryDark,
                       ),
                       icon: const Icon(Icons.savings_rounded, size: 18),
-                      label: const Text('اسحب أموالي',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      label: Text(tr('اسحب أموالي', 'Withdraw my money'),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                     )
                   : ElevatedButton.icon(
                       onPressed: () => _showTopUpSheet(context),
@@ -1550,13 +1618,13 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                             : context.flavorColors.primaryDark,
                       ),
                       icon: const Icon(Icons.add_card_rounded, size: 18),
-                      label: const Text('شحن المحفظة',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      label: Text(tr('شحن المحفظة', 'Top up wallet'),
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
             ),
             const SizedBox(width: 8),
             IconButton(
-              tooltip: 'كيف تعمل المحفظة؟',
+              tooltip: tr('كيف تعمل المحفظة؟', 'How does the wallet work?'),
               onPressed: () => _showHowItWorksSheet(context),
               icon: const Icon(Icons.help_outline_rounded, color: Colors.white),
             ),
@@ -1608,7 +1676,8 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                            'طلب سحب ${formatCurrency(r.amount)} — ${r.status.label}',
+                            tr('طلب سحب ${formatCurrency(r.amount)} — ${r.status.label}',
+                                'Withdrawal request ${formatCurrency(r.amount)} — ${r.status.label}'),
                             style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
@@ -1675,12 +1744,14 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               return Column(children: [
                 Row(children: [
                   Expanded(
-                      child: _incomeCard('دخل اليوم', today + bonusToday,
+                      child: _incomeCard(tr('دخل اليوم', "Today's income"),
+                          today + bonusToday,
                           todayCount, Icons.today_rounded,
                           context.flavorColors.primary)),
                   const SizedBox(width: 12),
                   Expanded(
-                      child: _incomeCard('آخر ٧ أيام', week + bonusWeek,
+                      child: _incomeCard(tr('آخر ٧ أيام', 'Last 7 days'),
+                          week + bonusWeek,
                           weekCount, Icons.date_range_rounded,
                           AppColors.success)),
                 ]),
@@ -1688,8 +1759,11 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                      'منها مكافآت: ${formatCurrency(bonusWeek)} هذا الأسبوع'
-                      '${bonusToday > 0 ? " (${formatCurrency(bonusToday)} اليوم)" : ""} 🎁',
+                      tr(
+                          'منها مكافآت: ${formatCurrency(bonusWeek)} هذا الأسبوع'
+                          '${bonusToday > 0 ? " (${formatCurrency(bonusToday)} اليوم)" : ""} 🎁',
+                          'Includes bonuses: ${formatCurrency(bonusWeek)} this week'
+                          '${bonusToday > 0 ? " (${formatCurrency(bonusToday)} today)" : ""} 🎁'),
                       style: const TextStyle(
                           fontSize: 11.5, color: AppColors.textGray),
                     ),
@@ -1702,16 +1776,17 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
       const SizedBox(height: 14),
       GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 1.5, children: [
-        _stat('التوصيلات', '${d.totalDeliveries}', Icons.local_shipping_outlined, context.flavorColors.primary),
-        _stat('استلمته فعلياً', formatCurrency(d.totalEarnings), Icons.savings_outlined, AppColors.success),
-        _stat('التقييم', d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
+        _stat(tr('التوصيلات', 'Deliveries'), '${d.totalDeliveries}', Icons.local_shipping_outlined, context.flavorColors.primary),
+        _stat(tr('استلمته فعلياً', 'Actually received'), formatCurrency(d.totalEarnings), Icons.savings_outlined, AppColors.success),
+        _stat(tr('التقييم', 'Rating'), d.rating.toStringAsFixed(1), Icons.star_rounded, Colors.amber),
         // معدل القبول (نمط تويو) — من عدّادات المستند الدائمة، و«—» قبل
         // أول عرض حتى لا يظهر صفر ظالم.
         _stat(
-            'معدل القبول',
+            tr('معدل القبول', 'Acceptance rate'),
             d.acceptanceRate == null
                 ? '—'
-                : '${(d.acceptanceRate! * 100).round()}٪',
+                : tr('${(d.acceptanceRate! * 100).round()}٪',
+                    '${(d.acceptanceRate! * 100).round()}%'),
             Icons.thumb_up_alt_outlined,
             (d.acceptanceRate ?? 1) >= 0.8
                 ? AppColors.success
@@ -1727,8 +1802,8 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
           ListTile(
             dense: true,
             leading: const Icon(Icons.person_outline, size: 20),
-            title: const Text('الملف الشخصي — الاسم والجوال',
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+            title: Text(tr('الملف الشخصي — الاسم والجوال', 'Profile — name & phone'),
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
             trailing: const Icon(Icons.chevron_left_rounded, size: 20),
             onTap: () => Navigator.push(
                 context,
@@ -1739,8 +1814,8 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
           ListTile(
             dense: true,
             leading: const Icon(Icons.lock_outline, size: 20),
-            title: const Text('تغيير كلمة المرور',
-                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+            title: Text(tr('تغيير كلمة المرور', 'Change password'),
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
             trailing: const Icon(Icons.chevron_left_rounded, size: 20),
             onTap: () => Navigator.push(
                 context,
@@ -1750,18 +1825,18 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
         ]),
       ),
       const SizedBox(height: 12),
-      const SectionHeader(title: 'سجلّ الحركات'),
+      SectionHeader(title: tr('سجلّ الحركات', 'Transaction log')),
       // فلاتر السجلّ — تصفية محلية على التدفّق القائم بلا استعلامات إضافية.
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            for (final (f, label) in const [
-              (_TxFilter.all, 'الكل'),
-              (_TxFilter.orders, 'الطلبات'),
-              (_TxFilter.bonuses, 'مكافآت'),
-              (_TxFilter.settlements, 'إيداع وصرف'),
-              (_TxFilter.adjustments, 'تسويات'),
+            for (final (f, label) in [
+              (_TxFilter.all, tr('الكل', 'All')),
+              (_TxFilter.orders, tr('الطلبات', 'Orders')),
+              (_TxFilter.bonuses, tr('مكافآت', 'Bonuses')),
+              (_TxFilter.settlements, tr('إيداع وصرف', 'Deposits & payouts')),
+              (_TxFilter.adjustments, tr('تسويات', 'Adjustments')),
             ])
               Padding(
                 padding: const EdgeInsetsDirectional.only(end: 8),
@@ -1795,7 +1870,9 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
           builder: (ctx, txs) {
             final filtered = txs.where(_txMatches).toList();
             if (filtered.isEmpty) {
-              return const AppEmpty(emoji: '🧾', title: 'لا توجد حركات هنا');
+              return AppEmpty(
+                  emoji: '🧾',
+                  title: tr('لا توجد حركات هنا', 'No transactions here'));
             }
             return ListView.builder(
               itemCount: filtered.length,
@@ -1824,7 +1901,7 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
             Text(formatCurrency(amount),
                 style: TextStyle(
                     fontSize: 17, fontWeight: FontWeight.w800, color: color)),
-            Text('$count توصيلة',
+            Text(tr('$count توصيلة', '$count deliveries'),
                 style:
                     const TextStyle(fontSize: 11.5, color: AppColors.textGray)),
           ]),
@@ -1864,11 +1941,13 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('طلب سحب المستحقّات',
-                    style:
-                        TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                Text(tr('طلب سحب المستحقّات', 'Withdrawal request'),
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                Text('رصيدك المتاح: ${formatCurrency(d.balance)}',
+                Text(
+                    tr('رصيدك المتاح: ${formatCurrency(d.balance)}',
+                        'Available balance: ${formatCurrency(d.balance)}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.textGray)),
                 const SizedBox(height: 14),
@@ -1876,18 +1955,19 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                   controller: amountCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'المبلغ (ر.س)',
-                    prefixIcon: Icon(Icons.payments_outlined),
+                  decoration: InputDecoration(
+                    labelText: tr('المبلغ (ر.س)', 'Amount (SAR)'),
+                    prefixIcon: const Icon(Icons.payments_outlined),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: methodCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'طريقة الاستلام',
-                    hintText: 'آيبان للتحويل، أو «نقداً من الإدارة»',
-                    prefixIcon: Icon(Icons.account_balance_outlined),
+                  decoration: InputDecoration(
+                    labelText: tr('طريقة الاستلام', 'Payout method'),
+                    hintText: tr('آيبان للتحويل، أو «نقداً من الإدارة»',
+                        'IBAN for a transfer, or "cash from the office"'),
+                    prefixIcon: const Icon(Icons.account_balance_outlined),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1900,7 +1980,8 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                             final amount =
                                 double.tryParse(amountCtrl.text.trim()) ?? 0;
                             if (methodCtrl.text.trim().isEmpty) {
-                              showError(sheetCtx, 'اكتب طريقة الاستلام');
+                              showError(sheetCtx,
+                                  tr('اكتب طريقة الاستلام', 'Enter a payout method'));
                               return;
                             }
                             setSheetState(() => submitting = true);
@@ -1913,8 +1994,10 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                               );
                               if (sheetCtx.mounted) {
                                 Navigator.pop(sheetCtx);
-                                showSuccess(context,
-                                    'أُرسل طلب السحب — ستجد نتيجته هنا في محفظتك');
+                                showSuccess(
+                                    context,
+                                    tr('أُرسل طلب السحب — ستجد نتيجته هنا في محفظتك',
+                                        'Withdrawal request sent — you will find its result here in your wallet'));
                               }
                             } catch (e) {
                               setSheetState(() => submitting = false);
@@ -1928,7 +2011,9 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                             }
                           },
                     icon: const Icon(Icons.send_rounded, size: 18),
-                    label: Text(submitting ? 'جارٍ الإرسال…' : 'إرسال الطلب'),
+                    label: Text(submitting
+                        ? tr('جارٍ الإرسال…', 'Sending…')
+                        : tr('إرسال الطلب', 'Send request')),
                   ),
                 ),
               ]),
@@ -1949,22 +2034,28 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('شحن المحفظة',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            Text(tr('شحن المحفظة', 'Top up wallet'),
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
             const SizedBox(height: 14),
-            const ListTile(
+            ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.payments_outlined, color: AppColors.primary),
-              title: Text('تسليم نقدي للإدارة', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
-              subtitle: Text('سلّم المبلغ وتقيّده الإدارة فوراً — يظهر في سجلّك «شحن / إيداع»',
-                  style: TextStyle(fontSize: 12.5)),
+              leading: const Icon(Icons.payments_outlined, color: AppColors.primary),
+              title: Text(tr('تسليم نقدي للإدارة', 'Cash handover to the office'),
+                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
+              subtitle: Text(
+                  tr('سلّم المبلغ وتقيّده الإدارة فوراً — يظهر في سجلّك «شحن / إيداع»',
+                      'Hand over the amount and the office records it immediately — it shows in your log as "Top-up / deposit"'),
+                  style: const TextStyle(fontSize: 12.5)),
             ),
-            const ListTile(
+            ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.account_balance_outlined, color: AppColors.primary),
-              title: Text('تحويل بنكي', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
-              subtitle: Text('حوّل لحساب الإدارة ثم أرسل الإيصال لها ليُقيَّد الرصيد',
-                  style: TextStyle(fontSize: 12.5)),
+              leading: const Icon(Icons.account_balance_outlined, color: AppColors.primary),
+              title: Text(tr('تحويل بنكي', 'Bank transfer'),
+                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.bold)),
+              subtitle: Text(
+                  tr('حوّل لحساب الإدارة ثم أرسل الإيصال لها ليُقيَّد الرصيد',
+                      "Transfer to the office's account then send them the receipt so the balance is recorded"),
+                  style: const TextStyle(fontSize: 12.5)),
             ),
             const SizedBox(height: 6),
             Container(
@@ -1973,9 +2064,10 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
                 color: AppColors.primary.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text(
-                'الشحن المباشر بالبطاقة من داخل التطبيق قادم قريباً.',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+              child: Text(
+                tr('الشحن المباشر بالبطاقة من داخل التطبيق قادم قريباً.',
+                    'Direct card top-up from inside the app is coming soon.'),
+                style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
               ),
             ),
           ]),
@@ -1992,28 +2084,42 @@ class _DriverEarningsTabState extends State<_DriverEarningsTab> {
       builder: (_) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: const [
-            Text('كيف تعمل محفظتك؟',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-            SizedBox(height: 12),
-            Text('📦  عند استلامك طلباً نقدياً من المطعم تُقيَّد قيمته على محفظتك '
-                '(عُهدة) — لأن الطلب صار بيدك حتى تسليمه.',
-                style: TextStyle(fontSize: 13.5, height: 1.7)),
-            SizedBox(height: 8),
-            Text('💵  عند تسليمه تقبض من العميل كامل المبلغ نقداً: قيمة الطلب '
-                'تسدّ العُهدة، وأجرة التوصيل ربحك تبقى بيدك.',
-                style: TextStyle(fontSize: 13.5, height: 1.7)),
-            SizedBox(height: 8),
-            Text('💳  الطلبات المدفوعة إلكترونياً: لا عُهدة عليك، وتُضاف أجرتك '
-                'لرصيدك وتُصرف لك من الإدارة.',
-                style: TextStyle(fontSize: 13.5, height: 1.7)),
-            SizedBox(height: 8),
-            Text('🚫  أُلغي الطلب بعد استلامك له؟ تُردّ العُهدة لمحفظتك تلقائياً.',
-                style: TextStyle(fontSize: 13.5, height: 1.7)),
-            SizedBox(height: 8),
-            Text('🧾  كل حركة مسجّلة في «سجلّ الحركات» برصيدك بعدها — '
-                'لا خصم ولا إضافة بلا سطر يفسّرها.',
-                style: TextStyle(fontSize: 13.5, height: 1.7)),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(tr('كيف تعمل محفظتك؟', 'How does your wallet work?'),
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Text(
+                tr('📦  عند استلامك طلباً نقدياً من المطعم تُقيَّد قيمته على محفظتك '
+                    '(عُهدة) — لأن الطلب صار بيدك حتى تسليمه.',
+                    '📦  When you pick up a cash order from the restaurant, its value is '
+                    'charged to your wallet (cash in hand) — the order is with you until delivery.'),
+                style: const TextStyle(fontSize: 13.5, height: 1.7)),
+            const SizedBox(height: 8),
+            Text(
+                tr('💵  عند تسليمه تقبض من العميل كامل المبلغ نقداً: قيمة الطلب '
+                    'تسدّ العُهدة، وأجرة التوصيل ربحك تبقى بيدك.',
+                    '💵  On delivery you collect the full amount in cash: the order value '
+                    'clears the charge, and the delivery fee is your profit to keep.'),
+                style: const TextStyle(fontSize: 13.5, height: 1.7)),
+            const SizedBox(height: 8),
+            Text(
+                tr('💳  الطلبات المدفوعة إلكترونياً: لا عُهدة عليك، وتُضاف أجرتك '
+                    'لرصيدك وتُصرف لك من الإدارة.',
+                    '💳  Orders paid online: no cash in hand, your fee is added to your '
+                    'balance and paid out by the office.'),
+                style: const TextStyle(fontSize: 13.5, height: 1.7)),
+            const SizedBox(height: 8),
+            Text(
+                tr('🚫  أُلغي الطلب بعد استلامك له؟ تُردّ العُهدة لمحفظتك تلقائياً.',
+                    '🚫  Order canceled after you picked it up? The charge is reversed to your wallet automatically.'),
+                style: const TextStyle(fontSize: 13.5, height: 1.7)),
+            const SizedBox(height: 8),
+            Text(
+                tr('🧾  كل حركة مسجّلة في «سجلّ الحركات» برصيدك بعدها — '
+                    'لا خصم ولا إضافة بلا سطر يفسّرها.',
+                    '🧾  Every movement is recorded in the "Transaction log" with your balance after it — '
+                    'no deduction or addition without a line explaining it.'),
+                style: const TextStyle(fontSize: 13.5, height: 1.7)),
           ]),
         ),
       ),
@@ -2040,7 +2146,8 @@ class _TransactionTile extends StatelessWidget {
       title: Text(tx.type.label, style: const TextStyle(fontSize: 13.5)),
       subtitle: Text(
         [
-          if (tx.orderNumber != null) 'طلب #${tx.orderNumber}',
+          if (tx.orderNumber != null)
+            tr('طلب #${tx.orderNumber}', 'Order #${tx.orderNumber}'),
           if (tx.note != null && tx.note!.isNotEmpty) tx.note!,
           '${tx.createdAt.day}/${tx.createdAt.month}',
         ].join(' • '),
@@ -2088,13 +2195,18 @@ class _IncentivesCards extends StatelessWidget {
     // يفتح صفحة التسجيل، يملأ بياناته ويرفق مستنداته، ويصل الكود معها.
     final link = s.inviteLinkFor(code);
     final invite = [
-      'انضم لكباتن ZadGo — أجرة واضحة لكل طلب واشتراطات مرنة.',
+      tr('انضم لكباتن ZadGo — أجرة واضحة لكل طلب واشتراطات مرنة.',
+          'Join ZadGo captains — a clear fee for every order and flexible requirements.'),
       if (link.isNotEmpty)
-        'سجّل من هنا (المستندات تُرفع في الصفحة نفسها):\n$link'
+        tr('سجّل من هنا (المستندات تُرفع في الصفحة نفسها):\n$link',
+            'Sign up here (documents are uploaded on the same page):\n$link')
       else
-        'اكتب كود الدعوة «$code» عند التسجيل.',
-      'وتنال ${s.refereeBonus.toStringAsFixed(0)} ر.س ترحيباً بعد '
-          '${s.referralDeliveries} توصيلة 🎁',
+        tr('اكتب كود الدعوة «$code» عند التسجيل.',
+            'Enter the invite code "$code" when signing up.'),
+      tr('وتنال ${s.refereeBonus.toStringAsFixed(0)} ر.س ترحيباً بعد '
+              '${s.referralDeliveries} توصيلة 🎁',
+          'You get a ${s.refereeBonus.toStringAsFixed(0)} SAR welcome bonus after '
+              '${s.referralDeliveries} deliveries 🎁'),
     ].join('\n');
 
     return Card(
@@ -2112,14 +2224,18 @@ class _IncentivesCards extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('ادعُ كابتناً واكسب',
-                        style: TextStyle(
+                    Text(tr('ادعُ كابتناً واكسب', 'Invite a captain and earn'),
+                        style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 14.5)),
                     Text(
-                        'لك ${s.referrerBonus.toStringAsFixed(0)} ر.س وله '
-                        '${s.refereeBonus.toStringAsFixed(0)} ر.س — بعد إكماله '
-                        '${s.referralDeliveries} توصيلة خلال '
-                        '${s.referralWindowDays} يوماً',
+                        tr('لك ${s.referrerBonus.toStringAsFixed(0)} ر.س وله '
+                                '${s.refereeBonus.toStringAsFixed(0)} ر.س — بعد إكماله '
+                                '${s.referralDeliveries} توصيلة خلال '
+                                '${s.referralWindowDays} يوماً',
+                            '${s.referrerBonus.toStringAsFixed(0)} SAR for you and '
+                                '${s.refereeBonus.toStringAsFixed(0)} SAR for them — after they complete '
+                                '${s.referralDeliveries} deliveries within '
+                                '${s.referralWindowDays} days'),
                         style: const TextStyle(fontSize: 11.5)),
                   ]),
             ),
@@ -2138,8 +2254,8 @@ class _IncentivesCards extends StatelessWidget {
                   border: Border.all(color: fc.primary.withOpacity(0.35)),
                 ),
                 child: Row(children: [
-                  const Text('كودك:',
-                      style: TextStyle(
+                  Text(tr('كودك:', 'Your code:'),
+                      style: const TextStyle(
                           fontSize: 12.5, color: AppColors.textGray)),
                   const SizedBox(width: 6),
                   Text(code,
@@ -2152,7 +2268,10 @@ class _IncentivesCards extends StatelessWidget {
                   InkWell(
                     onTap: () async {
                       await Clipboard.setData(ClipboardData(text: code));
-                      if (context.mounted) showSuccess(context, 'نُسخ كودك');
+                      if (context.mounted) {
+                        showSuccess(
+                            context, tr('نُسخ كودك', 'Your code was copied'));
+                      }
                     },
                     child: const Icon(Icons.copy_outlined,
                         size: 18, color: AppColors.textGray),
@@ -2164,7 +2283,7 @@ class _IncentivesCards extends StatelessWidget {
             ElevatedButton.icon(
               onPressed: () => Share.share(invite),
               icon: const Icon(Icons.share_outlined, size: 17),
-              label: const Text('دعوة'),
+              label: Text(tr('دعوة', 'Invite')),
               style: ElevatedButton.styleFrom(
                   minimumSize: const Size(0, 44),
                   padding: const EdgeInsets.symmetric(horizontal: 14)),
@@ -2188,13 +2307,15 @@ class _IncentivesCards extends StatelessWidget {
           dense: true,
           leading: const Icon(Icons.emoji_events_outlined,
               color: AppColors.textGray),
-          title: Text('تحدي ${s.weekdaysLabel}',
+          title: Text(
+              tr('تحدي ${s.weekdaysLabel}', '${s.weekdaysLabel} challenge'),
               style: const TextStyle(
                   fontWeight: FontWeight.w700, fontSize: 13.5)),
           subtitle: Text(
               s.tiers
-                  .map((t) =>
-                      '${t.deliveries} توصيلة = ${t.bonus.toStringAsFixed(0)} ر.س')
+                  .map((t) => tr(
+                      '${t.deliveries} توصيلة = ${t.bonus.toStringAsFixed(0)} ر.س',
+                      '${t.deliveries} deliveries = ${t.bonus.toStringAsFixed(0)} SAR'))
                   .join(' • '),
               style: const TextStyle(fontSize: 11.5)),
         ),
@@ -2228,7 +2349,9 @@ class _IncentivesCards extends StatelessWidget {
                     size: 22),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('تحدي ${s.weekdaysLabel} — جارٍ الآن',
+                  child: Text(
+                      tr('تحدي ${s.weekdaysLabel} — جارٍ الآن',
+                          '${s.weekdaysLabel} challenge — live now'),
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 14.5)),
                 ),
@@ -2251,17 +2374,23 @@ class _IncentivesCards extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 next != null
-                    ? 'أنجزتَ $count — بقيت ${next.deliveries - count} توصيلة '
-                        'لمكافأة ${next.bonus.toStringAsFixed(0)} ر.س'
-                    : 'بلغتَ أعلى مستوى — مكافأة '
-                        '${reached!.bonus.toStringAsFixed(0)} ر.س 🎉',
+                    ? tr('أنجزتَ $count — بقيت ${next.deliveries - count} توصيلة '
+                            'لمكافأة ${next.bonus.toStringAsFixed(0)} ر.س',
+                        'You did $count — ${next.deliveries - count} deliveries left '
+                            'for a ${next.bonus.toStringAsFixed(0)} SAR bonus')
+                    : tr('بلغتَ أعلى مستوى — مكافأة '
+                            '${reached!.bonus.toStringAsFixed(0)} ر.س 🎉',
+                        'You reached the top tier — a '
+                            '${reached!.bonus.toStringAsFixed(0)} SAR bonus 🎉'),
                 style: const TextStyle(fontSize: 12.5),
               ),
               if (reached != null) ...[
                 const SizedBox(height: 4),
                 Text(
-                    'مستحقّ الآن: ${reached.bonus.toStringAsFixed(0)} ر.س — '
-                    'تُضاف لدفترك بعد مراجعة الإدارة',
+                    tr('مستحقّ الآن: ${reached.bonus.toStringAsFixed(0)} ر.س — '
+                            'تُضاف لدفترك بعد مراجعة الإدارة',
+                        'Earned so far: ${reached.bonus.toStringAsFixed(0)} SAR — '
+                            'added to your ledger after admin review'),
                     style: const TextStyle(
                         fontSize: 11.5,
                         color: AppColors.success,
@@ -2269,8 +2398,10 @@ class _IncentivesCards extends StatelessWidget {
               ],
               const SizedBox(height: 4),
               Text(
-                  'المستويات: ${s.tiers.map((t) => '${t.deliveries}=${t.bonus.toStringAsFixed(0)}').join(' • ')}'
-                  ' — تنتهي ${end.day}/${end.month}',
+                  tr('المستويات: ${s.tiers.map((t) => '${t.deliveries}=${t.bonus.toStringAsFixed(0)}').join(' • ')}'
+                          ' — تنتهي ${end.day}/${end.month}',
+                      'Tiers: ${s.tiers.map((t) => '${t.deliveries}=${t.bonus.toStringAsFixed(0)}').join(' • ')}'
+                          ' — ends ${end.day}/${end.month}'),
                   style: const TextStyle(
                       fontSize: 11.5, color: AppColors.textGray)),
             ]),

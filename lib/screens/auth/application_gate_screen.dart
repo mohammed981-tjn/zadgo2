@@ -15,6 +15,7 @@ import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import 'driver_apply_form.dart';
 import 'restaurant_apply_form.dart';
 
@@ -72,10 +73,12 @@ class _ApplicationGateScreenState extends State<ApplicationGateScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isDriverFlavor ? 'الانضمام ككابتن' : 'تسجيل مطعمك'),
+        title: Text(_isDriverFlavor
+            ? tr('الانضمام ككابتن', 'Join as a captain')
+            : tr('تسجيل مطعمك', 'Register your restaurant')),
         actions: [
           IconButton(
-            tooltip: 'خروج',
+            tooltip: tr('خروج', 'Sign out'),
             icon: const Icon(Icons.logout_rounded),
             onPressed: () => context.read<app_auth.AuthProvider>().logout(),
           ),
@@ -173,15 +176,23 @@ class _WaitingView extends StatelessWidget {
           Icon(Icons.hourglass_top_rounded,
               size: 64, color: AppColors.textGray.withOpacity(0.7)),
           const SizedBox(height: 20),
-          const Text('بانتظار الاعتماد',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(tr('بانتظار الاعتماد', 'Awaiting approval'),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
           Text(
             isDriver
-                ? 'وصل طلبك. لن تستقبل طلبات توصيل قبل أن تعتمده الإدارة '
-                    '— وهذه الشاشة تتغيّر وحدها لحظة اعتماده.'
-                : 'وصل طلبك. لن يظهر مطعمك للعملاء قبل أن تعتمده الإدارة '
-                    '— وهذه الشاشة تتغيّر وحدها لحظة اعتماده.',
+                ? tr(
+                    'وصل طلبك. لن تستقبل طلبات توصيل قبل أن تعتمده الإدارة '
+                        '— وهذه الشاشة تتغيّر وحدها لحظة اعتماده.',
+                    "Your application is in. You won't receive delivery "
+                        'requests until the team approves it — this screen '
+                        'updates on its own the moment that happens.')
+                : tr(
+                    'وصل طلبك. لن يظهر مطعمك للعملاء قبل أن تعتمده الإدارة '
+                        '— وهذه الشاشة تتغيّر وحدها لحظة اعتماده.',
+                    "Your application is in. Your restaurant won't appear to "
+                        'customers until the team approves it — this screen '
+                        'updates on its own the moment that happens.'),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 14, color: AppColors.textGray),
           ),
@@ -197,12 +208,14 @@ class _UnlockingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        CircularProgressIndicator(),
-        SizedBox(height: 16),
-        Text('اعتُمد طلبك ✅ — يُجهَّز حسابك الآن...',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+        const CircularProgressIndicator(),
+        const SizedBox(height: 16),
+        Text(
+            tr('اعتُمد طلبك ✅ — يُجهَّز حسابك الآن...',
+                'Application approved ✅ — setting up your account...'),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
       ]),
     );
   }
@@ -221,8 +234,8 @@ class _RejectedView extends StatelessWidget {
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Icon(Icons.block_rounded, size: 56, color: AppColors.error),
           const SizedBox(height: 16),
-          const Text('لم يُقبل طلبك',
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+          Text(tr('لم يُقبل طلبك', 'Application not accepted'),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
           if (reason.trim().isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
@@ -231,7 +244,7 @@ class _RejectedView extends StatelessWidget {
                 color: AppColors.errorLight,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Text('السبب: $reason',
+              child: Text(tr('السبب: $reason', 'Reason: $reason'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 13.5)),
             ),
@@ -240,7 +253,8 @@ class _RejectedView extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: onReapply,
             icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('عالجت السبب — تقديم من جديد'),
+            label: Text(tr('عالجت السبب — تقديم من جديد',
+                'Issue fixed — apply again')),
           ),
         ]),
       ),

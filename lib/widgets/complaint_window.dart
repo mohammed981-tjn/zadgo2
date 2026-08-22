@@ -12,22 +12,23 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../utils/app_lang.dart';
 
 /// صياغة عربية سليمة للمدة المتبقية (مثنّى وجمع) — «ساعتان» لا «2 ساعة».
 String formatRemaining(Duration left) {
   final hours = left.inHours;
   if (hours >= 1) {
-    if (hours == 1) return 'ساعة واحدة';
-    if (hours == 2) return 'ساعتان';
-    if (hours <= 10) return '$hours ساعات';
-    return '$hours ساعة';
+    if (hours == 1) return tr('ساعة واحدة', '1 hour');
+    if (hours == 2) return tr('ساعتان', '2 hours');
+    if (hours <= 10) return tr('$hours ساعات', '$hours hours');
+    return tr('$hours ساعة', '$hours hours');
   }
   final mins = left.inMinutes;
-  if (mins <= 0) return 'أقل من دقيقة';
-  if (mins == 1) return 'دقيقة واحدة';
-  if (mins == 2) return 'دقيقتان';
-  if (mins <= 10) return '$mins دقائق';
-  return '$mins دقيقة';
+  if (mins <= 0) return tr('أقل من دقيقة', 'under a minute');
+  if (mins == 1) return tr('دقيقة واحدة', '1 minute');
+  if (mins == 2) return tr('دقيقتان', '2 minutes');
+  if (mins <= 10) return tr('$mins دقائق', '$mins minutes');
+  return tr('$mins دقيقة', '$mins minutes');
 }
 
 class ComplaintWindow extends StatefulWidget {

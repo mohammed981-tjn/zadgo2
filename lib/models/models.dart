@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 // قواعد التسعير المعتمدة — يستعملها النموذج في المشتقّات المالية للتقارير.
 // helpers لا يستورد models، فلا دورة استيراد.
 import '../utils/helpers.dart' show Pricing;
+// المترجم المضمَّن tr() — لتسميات العرض فقط؛ القيم المخزَّنة في Firestore
+// (enum .name، kCuisines، الافتراضيات المحفوظة) تبقى كما هي بلا ترجمة.
+import '../utils/app_lang.dart';
 
 // support (موظف الدعم، دفعة 2026-08-20): دورٌ خامس يفتح جزءاً من اللوحة
 // لا كلها — الشكاوى والمتابعة والتواصل بلا مالٍ ولا صلاحيات. القيد
@@ -141,39 +144,40 @@ BroadcastAudience _broadcastAudienceFromString(String? raw) =>
     );
 
 extension UserRoleExt on UserRole {
-  String get label {
-    const map = {
-      UserRole.admin: 'مدير عام',
-      UserRole.customer: 'عميل',
-      UserRole.driver: 'سائق',
-      UserRole.restaurantManager: 'مدير مطعم',
-      UserRole.support: 'موظف دعم',
-      UserRole.fleetOperator: 'مشغّل الأسطول',
-    };
-    return map[this] ?? '';
-  }
+  // switch لا خريطة const: التسميات تمرّ بـ tr() فتُقيَّم بلغة العرض
+  // الحالية عند كل نداء — وconst كان سيجمّدها على العربية.
+  String get label => switch (this) {
+        UserRole.admin => tr('مدير عام', 'Admin'),
+        UserRole.customer => tr('عميل', 'Customer'),
+        UserRole.driver => tr('سائق', 'Driver'),
+        UserRole.restaurantManager => tr('مدير مطعم', 'Restaurant manager'),
+        UserRole.support => tr('موظف دعم', 'Support agent'),
+        UserRole.fleetOperator => tr('مشغّل الأسطول', 'Fleet operator'),
+      };
 }
 
 extension OrderStatusExt on OrderStatus {
-  String get label {
-    const map = {
-      OrderStatus.created: 'تم الإنشاء',
-      OrderStatus.restaurantPending: 'بانتظار موافقة المطعم',
-      OrderStatus.restaurantAccepted: 'تم قبول الطلب',
-      OrderStatus.preparing: 'جاري التحضير',
-      OrderStatus.readyForPickup: 'جاهز للاستلام',
-      OrderStatus.searchingDriver: 'جاري البحث عن سائق',
-      OrderStatus.driverAssigned: 'تم تعيين سائق',
-      OrderStatus.pickedUp: 'تم استلام الطلب من المطعم',
-      OrderStatus.onTheWay: 'في الطريق إليك',
-      OrderStatus.delivered: 'تم التوصيل',
-      OrderStatus.restaurantRejected: 'رفض المطعم الطلب',
-      OrderStatus.noDriverFound: 'تعذر إيجاد سائق',
-      OrderStatus.cancelled: 'ملغى',
-      OrderStatus.refunded: 'تم استرداد المبلغ',
-    };
-    return map[this] ?? '';
-  }
+  // switch لا خريطة const — نفس سبب UserRoleExt.label (تفاعلية tr مع اللغة).
+  String get label => switch (this) {
+        OrderStatus.created => tr('تم الإنشاء', 'Order placed'),
+        OrderStatus.restaurantPending =>
+            tr('بانتظار موافقة المطعم', 'Awaiting restaurant'),
+        OrderStatus.restaurantAccepted => tr('تم قبول الطلب', 'Order accepted'),
+        OrderStatus.preparing => tr('جاري التحضير', 'Preparing'),
+        OrderStatus.readyForPickup => tr('جاهز للاستلام', 'Ready for pickup'),
+        OrderStatus.searchingDriver =>
+            tr('جاري البحث عن سائق', 'Finding a driver'),
+        OrderStatus.driverAssigned => tr('تم تعيين سائق', 'Driver assigned'),
+        OrderStatus.pickedUp =>
+            tr('تم استلام الطلب من المطعم', 'Picked up from restaurant'),
+        OrderStatus.onTheWay => tr('في الطريق إليك', 'On the way'),
+        OrderStatus.delivered => tr('تم التوصيل', 'Delivered'),
+        OrderStatus.restaurantRejected =>
+            tr('رفض المطعم الطلب', 'Rejected by restaurant'),
+        OrderStatus.noDriverFound => tr('تعذر إيجاد سائق', 'No driver found'),
+        OrderStatus.cancelled => tr('ملغى', 'Cancelled'),
+        OrderStatus.refunded => tr('تم استرداد المبلغ', 'Refunded'),
+      };
 
   Color get color {
     const map = {
@@ -233,14 +237,11 @@ extension OrderStatusExt on OrderStatus {
 }
 
 extension PaymentMethodExt on PaymentMethod {
-  String get label {
-    const map = {
-      PaymentMethod.cash: 'نقداً عند الاستلام',
-      PaymentMethod.card: 'بطاقة ائتمان',
-      PaymentMethod.wallet: 'المحفظة الإلكترونية',
-    };
-    return map[this] ?? '';
-  }
+  String get label => switch (this) {
+        PaymentMethod.cash => tr('نقداً عند الاستلام', 'Cash on delivery'),
+        PaymentMethod.card => tr('بطاقة ائتمان', 'Credit card'),
+        PaymentMethod.wallet => tr('المحفظة الإلكترونية', 'Wallet'),
+      };
 
   IconData get icon {
     const map = {
@@ -253,33 +254,43 @@ extension PaymentMethodExt on PaymentMethod {
 }
 
 extension ComplaintTypeExt on ComplaintType {
-  String get label {
-    const map = {
-      // أنواع العميل
-      ComplaintType.lateDelivery: 'تأخر التوصيل',
-      ComplaintType.wrongOrder: 'طلب ناقص أو خاطئ',
-      ComplaintType.badQuality: 'جودة الطعام',
-      ComplaintType.driverBehavior: 'سلوك السائق',
-      ComplaintType.unclearFees: 'رسوم/سعر غير واضح',
-      // أنواع السائق
-      ComplaintType.customerNotResponding: 'عميل لا يرد على الاتصال',
-      ComplaintType.wrongAddress: 'عنوان خاطئ أو غير واضح',
-      ComplaintType.restaurantDelay: 'تأخر المطعم في التحضير',
-      ComplaintType.customerBehavior: 'سلوك العميل عند الاستلام',
-      ComplaintType.orderMismatch: 'طلب غير مطابق لما استُلم',
-      // أنواع المطعم
-      ComplaintType.driverNotPickedUp: 'سائق لم يستلم الطلب في الوقت',
-      ComplaintType.driverLateForPickup: 'سائق تأخر عن الاستلام رغم الجاهزية',
-      ComplaintType.customerCancelledAfterPrep: 'عميل ألغى بعد التحضير',
-      ComplaintType.driverBehaviorAtRestaurant: 'سلوك السائق داخل المطعم',
-      // التذاكر العامة
-      ComplaintType.financial: 'مالية — مستحقّات/محفظة',
-      ComplaintType.dataUpdate: 'تحديث بيانات',
-      ComplaintType.generalInquiry: 'استفسار عام',
-      ComplaintType.other: 'أخرى',
-    };
-    return map[this] ?? '';
-  }
+  String get label => switch (this) {
+        // أنواع العميل
+        ComplaintType.lateDelivery => tr('تأخر التوصيل', 'Late delivery'),
+        ComplaintType.wrongOrder =>
+            tr('طلب ناقص أو خاطئ', 'Missing or wrong order'),
+        ComplaintType.badQuality => tr('جودة الطعام', 'Food quality'),
+        ComplaintType.driverBehavior => tr('سلوك السائق', 'Driver behavior'),
+        ComplaintType.unclearFees =>
+            tr('رسوم/سعر غير واضح', 'Unclear fees or price'),
+        // أنواع السائق
+        ComplaintType.customerNotResponding =>
+            tr('عميل لا يرد على الاتصال', 'Customer not answering calls'),
+        ComplaintType.wrongAddress =>
+            tr('عنوان خاطئ أو غير واضح', 'Wrong or unclear address'),
+        ComplaintType.restaurantDelay =>
+            tr('تأخر المطعم في التحضير', 'Restaurant slow to prepare'),
+        ComplaintType.customerBehavior =>
+            tr('سلوك العميل عند الاستلام', 'Customer behavior at handover'),
+        ComplaintType.orderMismatch =>
+            tr('طلب غير مطابق لما استُلم', 'Order does not match what was received'),
+        // أنواع المطعم
+        ComplaintType.driverNotPickedUp =>
+            tr('سائق لم يستلم الطلب في الوقت', 'Driver did not pick up on time'),
+        ComplaintType.driverLateForPickup => tr(
+            'سائق تأخر عن الاستلام رغم الجاهزية',
+            'Driver late for pickup despite order ready'),
+        ComplaintType.customerCancelledAfterPrep =>
+            tr('عميل ألغى بعد التحضير', 'Customer cancelled after preparation'),
+        ComplaintType.driverBehaviorAtRestaurant =>
+            tr('سلوك السائق داخل المطعم', 'Driver behavior at the restaurant'),
+        // التذاكر العامة
+        ComplaintType.financial =>
+            tr('مالية — مستحقّات/محفظة', 'Financial — payouts/wallet'),
+        ComplaintType.dataUpdate => tr('تحديث بيانات', 'Data update'),
+        ComplaintType.generalInquiry => tr('استفسار عام', 'General inquiry'),
+        ComplaintType.other => tr('أخرى', 'Other'),
+      };
 }
 
 /// أنواع التذاكر العامة — تُفتح بلا ارتباط بطلب، ومتاحة لكل الأدوار.
@@ -370,15 +381,12 @@ extension ComplaintTypeScope on ComplaintType {
 }
 
 extension ComplaintStatusExt on ComplaintStatus {
-  String get label {
-    const map = {
-      ComplaintStatus.open: 'مفتوحة',
-      ComplaintStatus.inProgress: 'قيد المعالجة',
-      ComplaintStatus.resolved: 'تم الحل',
-      ComplaintStatus.closed: 'مغلقة',
-    };
-    return map[this] ?? '';
-  }
+  String get label => switch (this) {
+        ComplaintStatus.open => tr('مفتوحة', 'Open'),
+        ComplaintStatus.inProgress => tr('قيد المعالجة', 'In progress'),
+        ComplaintStatus.resolved => tr('تم الحل', 'Resolved'),
+        ComplaintStatus.closed => tr('مغلقة', 'Closed'),
+      };
 
   Color get color {
     const map = {
@@ -786,25 +794,26 @@ class Restaurant {
   /// نصّ حالة العمل للعميل: «مفتوح» أو «مغلق» أو «مغلق — يفتح 16:00» حين
   /// يكون اليوم له موعد فتحٍ قادم. رسالةٌ تطمئن المنتظِر بدل «مغلق» جافّة.
   String get openStatusLabel {
-    if (isOpenNow) return 'مفتوح';
+    if (isOpenNow) return tr('مفتوح', 'Open');
     // «مشغول» قبل «مغلق»: مطعمٌ أوقف الاستقبال ساعةً ليس مغلقاً —
     // والتسمية الصادقة تُبقي العميل منتظراً بدل أن تطرده لغيره.
     if (isOpen && isPausedNow) {
       final t = pausedUntil!;
       final hh = t.hour.toString().padLeft(2, '0');
       final mm = t.minute.toString().padLeft(2, '0');
-      return 'مشغول مؤقتاً — يستأنف $hh:$mm';
+      return tr('مشغول مؤقتاً — يستأنف $hh:$mm',
+          'Temporarily busy — resumes $hh:$mm');
     }
-    if (!isOpen || openingHours.isEmpty) return 'مغلق';
+    if (!isOpen || openingHours.isEmpty) return tr('مغلق', 'Closed');
     final now = DateTime.now();
     final today = openingHours[now.weekday];
-    if (today == null || today.closed) return 'مغلق اليوم';
+    if (today == null || today.closed) return tr('مغلق اليوم', 'Closed today');
     // «يفتح 09:00» فقط ما دام الموعد أمامنا — بعد إغلاق اليوم كان يَعِد
     // بموعدٍ مضى (23:30 يقول «يفتح 09:00») فيبدو التطبيق مرتبكاً.
     final minutes = now.hour * 60 + now.minute;
     return minutes < DaySchedule._toMinutes(today.open)
-        ? 'مغلق — يفتح ${today.open}'
-        : 'مغلق';
+        ? tr('مغلق — يفتح ${today.open}', 'Closed — opens ${today.open}')
+        : tr('مغلق', 'Closed');
   }
 
   static Map<int, DaySchedule> _parseHours(dynamic raw) {
@@ -1856,16 +1865,17 @@ class IncentiveSettings {
 
   /// أسماء أيام التحدي للعرض.
   String get weekdaysLabel {
-    const names = {
-      DateTime.monday: 'الاثنين',
-      DateTime.tuesday: 'الثلاثاء',
-      DateTime.wednesday: 'الأربعاء',
-      DateTime.thursday: 'الخميس',
-      DateTime.friday: 'الجمعة',
-      DateTime.saturday: 'السبت',
-      DateTime.sunday: 'الأحد',
+    // خريطة غير const عمداً: القيم تمرّ بـ tr() فتتبع لغة العرض الحالية.
+    final names = {
+      DateTime.monday: tr('الاثنين', 'Monday'),
+      DateTime.tuesday: tr('الثلاثاء', 'Tuesday'),
+      DateTime.wednesday: tr('الأربعاء', 'Wednesday'),
+      DateTime.thursday: tr('الخميس', 'Thursday'),
+      DateTime.friday: tr('الجمعة', 'Friday'),
+      DateTime.saturday: tr('السبت', 'Saturday'),
+      DateTime.sunday: tr('الأحد', 'Sunday'),
     };
-    return challengeWeekdays.map((d) => names[d] ?? '').join(' و');
+    return challengeWeekdays.map((d) => names[d] ?? '').join(tr(' و', ' and '));
   }
 }
 
@@ -1986,8 +1996,8 @@ class Coupon {
 
   /// وصف مختصر للعرض: «20% حتى 15 ر.س» أو «10 ر.س».
   String get label => type == CouponType.percentage
-      ? '${value.toStringAsFixed(0)}%${maxDiscount > 0 ? ' حتى ${maxDiscount.toStringAsFixed(0)} ر.س' : ''}'
-      : '${value.toStringAsFixed(0)} ر.س';
+      ? '${value.toStringAsFixed(0)}%${maxDiscount > 0 ? tr(' حتى ${maxDiscount.toStringAsFixed(0)} ر.س', ' up to ${maxDiscount.toStringAsFixed(0)} SAR') : ''}'
+      : tr('${value.toStringAsFixed(0)} ر.س', '${value.toStringAsFixed(0)} SAR');
 
   /// قيمة الخصم على مبلغ معيّن — لا تتجاوز المبلغ نفسه أبداً (فلا يصير
   /// الإجمالي سالباً ولا تدفع المنصّة للعميل).
@@ -2042,9 +2052,9 @@ PayoutRequestStatus _payoutRequestStatusFromString(String? raw) =>
 
 extension PayoutRequestStatusExt on PayoutRequestStatus {
   String get label => switch (this) {
-        PayoutRequestStatus.pending => 'قيد المعالجة',
-        PayoutRequestStatus.paid => 'مصروف',
-        PayoutRequestStatus.rejected => 'مرفوض',
+        PayoutRequestStatus.pending => tr('قيد المعالجة', 'Processing'),
+        PayoutRequestStatus.paid => tr('مصروف', 'Paid'),
+        PayoutRequestStatus.rejected => tr('مرفوض', 'Rejected'),
       };
 }
 
@@ -2133,17 +2143,15 @@ WalletTransactionType _walletTxTypeFromString(String? raw) =>
     );
 
 extension WalletTransactionTypeExt on WalletTransactionType {
-  String get label {
-    const map = {
-      WalletTransactionType.refund: 'استرداد',
-      WalletTransactionType.orderPayment: 'دفع طلب',
-      WalletTransactionType.orderReversal: 'إعادة رصيد طلب ملغى',
-      WalletTransactionType.adjustment: 'تسوية',
-      WalletTransactionType.cashback: 'كاش باك',
-      WalletTransactionType.referral: 'مكافأة إحالة',
-    };
-    return map[this] ?? '';
-  }
+  String get label => switch (this) {
+        WalletTransactionType.refund => tr('استرداد', 'Refund'),
+        WalletTransactionType.orderPayment => tr('دفع طلب', 'Order payment'),
+        WalletTransactionType.orderReversal =>
+            tr('إعادة رصيد طلب ملغى', 'Cancelled-order credit'),
+        WalletTransactionType.adjustment => tr('تسوية', 'Adjustment'),
+        WalletTransactionType.cashback => tr('كاش باك', 'Cashback'),
+        WalletTransactionType.referral => tr('مكافأة إحالة', 'Referral bonus'),
+      };
 
   IconData get icon {
     const map = {
@@ -2252,19 +2260,20 @@ DriverTransactionType _driverTxTypeFromString(String? raw) =>
     );
 
 extension DriverTransactionTypeExt on DriverTransactionType {
-  String get label {
-    const map = {
-      DriverTransactionType.orderCustody: 'عُهدة استلام طلب',
-      DriverTransactionType.custodyReversal: 'ردّ عُهدة (إلغاء)',
-      DriverTransactionType.deliveryCash: 'توصيل نقدي',
-      DriverTransactionType.deliveryOnline: 'توصيل إلكتروني',
-      DriverTransactionType.bonus: 'مكافأة 🎉',
-      DriverTransactionType.deposit: 'شحن / إيداع',
-      DriverTransactionType.payout: 'صرف مستحقّات',
-      DriverTransactionType.adjustment: 'تسوية يدوية',
-    };
-    return map[this] ?? '';
-  }
+  String get label => switch (this) {
+        DriverTransactionType.orderCustody =>
+            tr('عُهدة استلام طلب', 'Order custody'),
+        DriverTransactionType.custodyReversal =>
+            tr('ردّ عُهدة (إلغاء)', 'Custody reversal (cancelled)'),
+        DriverTransactionType.deliveryCash => tr('توصيل نقدي', 'Cash delivery'),
+        DriverTransactionType.deliveryOnline =>
+            tr('توصيل إلكتروني', 'Online delivery'),
+        DriverTransactionType.bonus => tr('مكافأة 🎉', 'Bonus 🎉'),
+        DriverTransactionType.deposit => tr('شحن / إيداع', 'Deposit'),
+        DriverTransactionType.payout => tr('صرف مستحقّات', 'Payout'),
+        DriverTransactionType.adjustment =>
+            tr('تسوية يدوية', 'Manual adjustment'),
+      };
 
   IconData get icon {
     const map = {
@@ -3386,15 +3395,19 @@ class DriverApplication {
   /// المستندات المطلوبة نظاميّاً بأسمائها المعروضة — الترتيب هو ترتيب
   /// المراجعة. وثيقة العمل الحر للسعوديين، وتفويض القيادة لمن ليست
   /// المركبة باسمه، فقد يغيبان بلا خلل.
-  static const docLabels = <String, String>{
-    'id': 'الهوية / الإقامة',
-    'license': 'رخصة القيادة',
-    'registration': 'الاستمارة (رخصة السير)',
-    'insurance': 'وثيقة التأمين',
-    'freelanceDoc': 'وثيقة العمل الحر',
-    'criminalRecord': 'شهادة خلو السوابق',
-    'drivingAuth': 'تفويض القيادة',
-  };
+  // getter لا const: المفاتيح بيانات مخزَّنة، والقيم تسمياتُ عرضٍ تمرّ
+  // بـ tr() فتتبع لغة العرض الحالية.
+  static Map<String, String> get docLabels => {
+        'id': tr('الهوية / الإقامة', 'National ID / Iqama'),
+        'license': tr('رخصة القيادة', 'Driving license'),
+        'registration':
+            tr('الاستمارة (رخصة السير)', 'Vehicle registration'),
+        'insurance': tr('وثيقة التأمين', 'Insurance policy'),
+        'freelanceDoc': tr('وثيقة العمل الحر', 'Freelance certificate'),
+        'criminalRecord':
+            tr('شهادة خلو السوابق', 'Criminal record clearance'),
+        'drivingAuth': tr('تفويض القيادة', 'Driving authorization'),
+      };
 
   /// المستندات الإلزامية على الجميع — نقصها يُعرض تحذيراً للمدير قبل
   /// القبول، ولا يمنعه (قد يقبل بمستند وصل عبر واتساب).
@@ -3445,9 +3458,10 @@ enum DriverApplicationStatus { pending, approved, rejected }
 
 extension DriverApplicationStatusX on DriverApplicationStatus {
   String get label => switch (this) {
-        DriverApplicationStatus.pending => 'بانتظار المراجعة',
-        DriverApplicationStatus.approved => 'مقبول',
-        DriverApplicationStatus.rejected => 'مرفوض',
+        DriverApplicationStatus.pending =>
+            tr('بانتظار المراجعة', 'Awaiting review'),
+        DriverApplicationStatus.approved => tr('مقبول', 'Approved'),
+        DriverApplicationStatus.rejected => tr('مرفوض', 'Rejected'),
       };
 
   Color get color => switch (this) {
@@ -3514,13 +3528,16 @@ class RestaurantApplication {
   /// تجارياً **أو وثيقة عمل حر** (تقبل الأسر المنتجة)، فالحقل الأول يقبل
   /// أيّهما. الشهادة الضريبية لمن هو مسجَّل في ضريبة القيمة المضافة فقط،
   /// والآيبان يلزم قبل أول تسوية لا قبل القبول — فكلاهما اختياري.
-  static const docLabels = <String, String>{
-    'commercialReg': 'السجل التجاري / وثيقة العمل الحر',
-    'ownerId': 'هوية المالك',
-    'municipalLicense': 'رخصة البلدية',
-    'vatCert': 'شهادة ضريبة القيمة المضافة',
-    'bankProof': 'شهادة الآيبان البنكي',
-  };
+  // getter لا const — نفس سبب DriverApplication.docLabels (تفاعلية tr).
+  static Map<String, String> get docLabels => {
+        'commercialReg': tr('السجل التجاري / وثيقة العمل الحر',
+            'Commercial registration / freelance certificate'),
+        'ownerId': tr('هوية المالك', "Owner's ID"),
+        'municipalLicense': tr('رخصة البلدية', 'Municipal license'),
+        'vatCert':
+            tr('شهادة ضريبة القيمة المضافة', 'VAT certificate'),
+        'bankProof': tr('شهادة الآيبان البنكي', 'Bank IBAN certificate'),
+      };
 
   static const requiredDocs = ['commercialReg', 'ownerId'];
 

@@ -8,6 +8,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/driver_proof_flow.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/osm_attribution.dart';
@@ -175,8 +176,10 @@ class _OrderMapScreenState extends State<OrderMapScreen>
 
     if (points.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('خريطة الطلب')),
-        body: const Center(child: Text('لا توجد إحداثيات محفوظة لهذا الطلب')),
+        appBar: AppBar(title: Text(tr('خريطة الطلب', 'Order map'))),
+        body: Center(
+            child: Text(tr('لا توجد إحداثيات محفوظة لهذا الطلب',
+                'No saved coordinates for this order'))),
       );
     }
 
@@ -190,13 +193,13 @@ class _OrderMapScreenState extends State<OrderMapScreen>
         actions: [
           if (!widget.readOnly && order.customerPhone.isNotEmpty)
             IconButton(
-              tooltip: 'الاتصال بالعميل',
+              tooltip: tr('الاتصال بالعميل', 'Call the customer'),
               icon: const Icon(Icons.call_outlined),
               onPressed: () => _call(order.customerPhone),
             ),
           if (liveDriver != null && liveDriver.phone.isNotEmpty)
             IconButton(
-              tooltip: 'الاتصال بالسائق',
+              tooltip: tr('الاتصال بالسائق', 'Call the driver'),
               icon: const Icon(Icons.support_agent_outlined),
               onPressed: () => _call(liveDriver.phone),
             ),
@@ -223,7 +226,9 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'حصّل من العميل ${formatCurrency(order.payableTotal - order.walletUsed + order.driverTip)} نقداً عند التسليم${order.driverTip > 0 ? " (منها إكراميتك " + formatCurrency(order.driverTip) + ")" : ""}',
+                        tr(
+                            'حصّل من العميل ${formatCurrency(order.payableTotal - order.walletUsed + order.driverTip)} نقداً عند التسليم${order.driverTip > 0 ? " (منها إكراميتك " + formatCurrency(order.driverTip) + ")" : ""}',
+                            'Collect ${formatCurrency(order.payableTotal - order.walletUsed + order.driverTip)} in cash from the customer on delivery${order.driverTip > 0 ? " (includes your " + formatCurrency(order.driverTip) + " tip)" : ""}'),
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
@@ -280,7 +285,7 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                         onPressed: () => _openExternalNavigation(
                             targetPoint.latitude, targetPoint.longitude),
                         icon: const Icon(Icons.navigation),
-                        label: const Text('ابدأ الملاحة'),
+                        label: Text(tr('ابدأ الملاحة', 'Start navigation')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -300,7 +305,7 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                             }
                           },
                           icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('استلمت الطلب'),
+                          label: Text(tr('استلمت الطلب', 'Picked up')),
                         ),
                       ),
                     if (_headingToCustomer)
@@ -313,8 +318,10 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                               showSuccess(
                                   context,
                                   order.paymentMethod == PaymentMethod.cash
-                                      ? 'تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته'
-                                      : 'تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك');
+                                      ? tr('تم التوصيل! أجرتك ${order.driverShare.toStringAsFixed(2)} ر.س ضمن المبلغ الذي حصّلته',
+                                          'Delivered! Your ${order.driverShare.toStringAsFixed(2)} SAR fee is part of the cash you collected')
+                                      : tr('تم التوصيل! +${order.driverShare.toStringAsFixed(2)} ر.س أُضيفت لمحفظتك',
+                                          'Delivered! ${order.driverShare.toStringAsFixed(2)} SAR was added to your wallet'));
                               Navigator.pop(context);
                             }
                           },
@@ -323,7 +330,7 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                             side: const BorderSide(color: AppColors.success),
                           ),
                           icon: const Icon(Icons.done_all_rounded),
-                          label: const Text('تم التوصيل'),
+                          label: Text(tr('تم التوصيل', 'Delivered')),
                         ),
                       ),
                     // «تعذّر التسليم» (درع النقد): مخرجُ كابتنٍ على بابٍ
@@ -331,7 +338,7 @@ class _OrderMapScreenState extends State<OrderMapScreen>
                     // لا دعوة ضغط، والحوار يشرح ما سيقع قبل التأكيد.
                     if (_headingToCustomer && !order.deliveryFailed)
                       IconButton(
-                        tooltip: 'تعذّر التسليم',
+                        tooltip: tr('تعذّر التسليم', 'Couldn\'t deliver'),
                         onPressed: () => _reportDeliveryFailure(service),
                         icon: const Icon(Icons.report_problem_outlined,
                             color: AppColors.error),
@@ -356,18 +363,24 @@ class _OrderMapScreenState extends State<OrderMapScreen>
       context: context,
       builder: (sheetCtx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(
-            padding: EdgeInsets.all(14),
-            child: Text('ما الذي منع التسليم؟',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text(tr('ما الذي منع التسليم؟', 'What prevented delivery?'),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 15)),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-                'اتصل بالعميل أولاً. بعد الإبلاغ يبقى الطلب معك حتى '
-                'تقرّر الإدارة (إلغاء أو إعادة محاولة) — لا تتخلص من '
-                'الطلب ولا تغادر منطقتك.',
-                style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+                tr(
+                    'اتصل بالعميل أولاً. بعد الإبلاغ يبقى الطلب معك حتى '
+                    'تقرّر الإدارة (إلغاء أو إعادة محاولة) — لا تتخلص من '
+                    'الطلب ولا تغادر منطقتك.',
+                    'Call the customer first. After reporting, keep the order '
+                    'with you until support decides (cancel or retry) — don\'t '
+                    'dispose of the order or leave your area.'),
+                style:
+                    const TextStyle(fontSize: 12, color: AppColors.textGray)),
           ),
           const SizedBox(height: 6),
           for (final r in reasons)
@@ -384,21 +397,30 @@ class _OrderMapScreenState extends State<OrderMapScreen>
     try {
       await service.markDeliveryFailed(widget.order, chosen);
       if (mounted) {
-        showSuccess(context,
-            'أُبلغت الإدارة — ستقرّر خلال دقائق، وأجرتك محفوظة');
+        showSuccess(
+            context,
+            tr('أُبلغت الإدارة — ستقرّر خلال دقائق، وأجرتك محفوظة',
+                'Support was notified — they\'ll decide within minutes, and your fee is safe'));
       }
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الإبلاغ — حاول مرة أخرى');
+      if (mounted) {
+        showError(context,
+            tr('تعذّر الإبلاغ — حاول مرة أخرى', 'Couldn\'t report — please try again'));
+      }
     }
   }
 
   String _appBarTitle() {
     // ✅ العميل يرى دائماً "متابعة الطلب" بغض النظر عن مرحلة السائق الدقيقة
     // (متوجه للمطعم أو للعميل) — فهو يتابع فقط، لا يحتاج تمييز اتجاه السائق.
-    if (widget.readOnly) return 'متابعة الطلب';
-    if (_headingToRestaurant) return 'التوجه إلى المطعم';
-    if (_headingToCustomer) return 'التوجه إلى العميل';
-    return 'خريطة الطلب';
+    if (widget.readOnly) return tr('متابعة الطلب', 'Track order');
+    if (_headingToRestaurant) {
+      return tr('التوجه إلى المطعم', 'Heading to the restaurant');
+    }
+    if (_headingToCustomer) {
+      return tr('التوجه إلى العميل', 'Heading to the customer');
+    }
+    return tr('خريطة الطلب', 'Order map');
   }
 
   Widget _buildStatusBanner() {
@@ -423,8 +445,16 @@ class _OrderMapScreenState extends State<OrderMapScreen>
           Expanded(
             child: Text(
               widget.readOnly
-                  ? (isRestaurant ? 'السائق في طريقه لاستلام طلبك' : 'السائق في طريقه إليك')
-                  : (isRestaurant ? 'توجّه إلى المطعم لاستلام الطلب' : 'توجّه إلى العميل لتسليم الطلب'),
+                  ? (isRestaurant
+                      ? tr('السائق في طريقه لاستلام طلبك',
+                          'The driver is on the way to pick up your order')
+                      : tr('السائق في طريقه إليك',
+                          'The driver is on the way to you'))
+                  : (isRestaurant
+                      ? tr('توجّه إلى المطعم لاستلام الطلب',
+                          'Head to the restaurant to pick up the order')
+                      : tr('توجّه إلى العميل لتسليم الطلب',
+                          'Head to the customer to deliver the order')),
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ),

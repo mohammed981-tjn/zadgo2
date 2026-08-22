@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../app_flavor.dart';
+import '../../utils/app_lang.dart';
 
 class RegisterWithCodeScreen extends StatefulWidget {
   const RegisterWithCodeScreen({super.key});
@@ -71,7 +72,7 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
     if (ok && auth.user != null) {
       _navigate(auth.user!.role);
     } else {
-      showError(context, auth.error ?? 'فشل التسجيل');
+      showError(context, auth.error ?? tr('فشل التسجيل', 'Registration failed'));
     }
   }
 
@@ -79,54 +80,63 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('تسجيل بكود التسجيل')),
+      appBar: AppBar(
+          title: Text(tr('تسجيل بكود التسجيل', 'Sign up with a code'))),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(20), children: [
-          const Text(
-            'أدخل كود التسجيل الذي أرسله لك المدير العام لتفعيل حسابك تلقائياً.',
-            style: TextStyle(color: AppColors.textGray, fontSize: 13.5),
+          Text(
+            tr('أدخل كود التسجيل الذي أرسله لك المدير العام لتفعيل حسابك تلقائياً.',
+                'Enter the registration code the admin sent you to activate your account automatically.'),
+            style: const TextStyle(color: AppColors.textGray, fontSize: 13.5),
           ),
           const SizedBox(height: 18),
           TextFormField(
             controller: _codeCtrl,
             textDirection: TextDirection.ltr,
             textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
-                labelText: 'كود التسجيل', prefixIcon: Icon(Icons.vpn_key_outlined)),
-            validator: (v) => validateRequired(v, 'كود التسجيل'),
+            decoration: InputDecoration(
+                labelText: tr('كود التسجيل', 'Registration code'),
+                prefixIcon: const Icon(Icons.vpn_key_outlined)),
+            validator: (v) =>
+                validateRequired(v, tr('كود التسجيل', 'Registration code')),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: _nameCtrl,
-            decoration: const InputDecoration(
-                labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person_outline)),
-            validator: (v) => validateRequired(v, 'الاسم'),
+            decoration: InputDecoration(
+                labelText: tr('الاسم الكامل', 'Full name'),
+                prefixIcon: const Icon(Icons.person_outline)),
+            validator: (v) => validateRequired(v, tr('الاسم', 'Name')),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: _nationalIdCtrl,
             keyboardType: TextInputType.number,
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(
-                labelText: 'رقم الإقامة / الهوية', prefixIcon: Icon(Icons.badge_outlined)),
-            validator: (v) => validateRequired(v, 'رقم الإقامة/الهوية'),
+            decoration: InputDecoration(
+                labelText: tr('رقم الإقامة / الهوية', 'National ID / Iqama number'),
+                prefixIcon: const Icon(Icons.badge_outlined)),
+            validator: (v) => validateRequired(
+                v, tr('رقم الإقامة/الهوية', 'ID / Iqama number')),
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
             textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(
-                labelText: 'البريد الإلكتروني', prefixIcon: Icon(Icons.email_outlined)),
+            decoration: InputDecoration(
+                labelText: tr('البريد الإلكتروني', 'Email'),
+                prefixIcon: const Icon(Icons.email_outlined)),
             validator: validateEmail,
           ),
           const SizedBox(height: 14),
           TextFormField(
             controller: _phoneCtrl,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-                labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone_outlined)),
+            decoration: InputDecoration(
+                labelText: tr('رقم الهاتف', 'Phone number'),
+                prefixIcon: const Icon(Icons.phone_outlined)),
             validator: validatePhone,
           ),
           const SizedBox(height: 14),
@@ -135,7 +145,7 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
             obscureText: _obscure,
             textDirection: TextDirection.ltr,
             decoration: InputDecoration(
-              labelText: 'كلمة المرور',
+              labelText: tr('كلمة المرور', 'Password'),
               prefixIcon: const Icon(Icons.lock_outline),
               suffixIcon: IconButton(
                 icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
@@ -153,11 +163,14 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
               controller: _referrerCtrl,
               textDirection: TextDirection.ltr,
               textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(
-                labelText: 'كود الكابتن الذي دعاك (اختياري)',
-                helperText: 'تناله وإياه مكافأة بعد إكمالك عدد التوصيلات المطلوب',
+              decoration: InputDecoration(
+                labelText: tr('كود الكابتن الذي دعاك (اختياري)',
+                    "Referring captain's code (optional)"),
+                helperText: tr(
+                    'تناله وإياه مكافأة بعد إكمالك عدد التوصيلات المطلوب',
+                    'You both earn a bonus once you complete the required deliveries'),
                 helperMaxLines: 2,
-                prefixIcon: Icon(Icons.card_giftcard_outlined),
+                prefixIcon: const Icon(Icons.card_giftcard_outlined),
               ),
             ),
           ],
@@ -172,7 +185,7 @@ class _RegisterWithCodeScreenState extends State<RegisterWithCodeScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('تفعيل الحساب'),
+                  : Text(tr('تفعيل الحساب', 'Activate account')),
             ),
           ),
         ]),

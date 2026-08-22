@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/doc_capture_field.dart';
 
@@ -67,8 +68,8 @@ class _RestaurantApplyFormState extends State<RestaurantApplyForm> {
     if (missing.isNotEmpty) {
       showError(
           context,
-          'مستندات إلزامية ناقصة: '
-          '${missing.map((k) => RestaurantApplication.docLabels[k]).join('، ')}');
+          '${tr('مستندات إلزامية ناقصة:', 'Missing required documents:')} '
+          '${missing.map((k) => RestaurantApplication.docLabels[k]).join(tr('، ', ', '))}');
       return;
     }
 
@@ -90,11 +91,15 @@ class _RestaurantApplyFormState extends State<RestaurantApplyForm> {
         docImages: _docs,
       );
       if (!mounted) return;
-      showSuccess(context, 'وصل طلبك — تراجعه الإدارة');
+      showSuccess(context,
+          tr('وصل طلبك — تراجعه الإدارة', 'Application received — under review'));
       widget.onSubmitted();
     } catch (_) {
       if (mounted) {
-        showError(context, 'تعذّر إرسال الطلب — تحقق من الاتصال وأعد المحاولة');
+        showError(
+            context,
+            tr('تعذّر إرسال الطلب — تحقق من الاتصال وأعد المحاولة',
+                "Couldn't submit — check your connection and try again"));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -106,52 +111,63 @@ class _RestaurantApplyFormState extends State<RestaurantApplyForm> {
     return Form(
       key: _form,
       child: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('بيانات مطعمك',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(tr('بيانات مطعمك', 'Your restaurant details'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        const Text(
-            'تراجعها الإدارة وتتواصل معك قبل تفعيل المطعم وبناء المنيو.',
-            style: TextStyle(fontSize: 13, color: AppColors.textGray)),
+        Text(
+            tr('تراجعها الإدارة وتتواصل معك قبل تفعيل المطعم وبناء المنيو.',
+                'The team reviews them and contacts you before activating '
+                    'the restaurant and building the menu.'),
+            style: const TextStyle(fontSize: 13, color: AppColors.textGray)),
         const SizedBox(height: 16),
         TextFormField(
           controller: _restaurantName,
-          decoration: const InputDecoration(
-              labelText: 'اسم المطعم / النشاط التجاري'),
-          validator: (v) => validateRequired(v, 'اسم المطعم'),
+          decoration: InputDecoration(
+              labelText:
+                  tr('اسم المطعم / النشاط التجاري', 'Restaurant / business name')),
+          validator: (v) =>
+              validateRequired(v, tr('اسم المطعم', 'Restaurant name')),
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _ownerName,
-          decoration: const InputDecoration(labelText: 'اسم المالك'),
-          validator: (v) => validateRequired(v, 'اسم المالك'),
+          decoration:
+              InputDecoration(labelText: tr('اسم المالك', "Owner's name")),
+          validator: (v) =>
+              validateRequired(v, tr('اسم المالك', "Owner's name")),
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _phone,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(labelText: 'رقم الجوال'),
+          decoration:
+              InputDecoration(labelText: tr('رقم الجوال', 'Mobile number')),
           validator: validatePhone,
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _district,
-          decoration: const InputDecoration(
-            labelText: 'الحي / العنوان المختصر',
-            hintText: 'المدينة المنورة — حي العزيزية',
+          decoration: InputDecoration(
+            labelText: tr('الحي / العنوان المختصر', 'District / short address'),
+            hintText: tr('المدينة المنورة — حي العزيزية',
+                'Madinah — Al Aziziyah district'),
           ),
-          validator: (v) => validateRequired(v, 'الحي'),
+          validator: (v) => validateRequired(v, tr('الحي', 'District')),
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _description,
           maxLines: 2,
-          decoration: const InputDecoration(
-            labelText: 'وصف قصير (اختياري)',
-            hintText: 'مأكولات شعبية — أسرة منتجة',
+          decoration: InputDecoration(
+            labelText: tr('وصف قصير (اختياري)', 'Short description (optional)'),
+            hintText: tr('مأكولات شعبية — أسرة منتجة',
+                'Home-style food — family business'),
           ),
         ),
         const SizedBox(height: 20),
-        const SectionHeader(title: 'المستندات — صوّر كل مستند بوضوح'),
+        SectionHeader(
+            title: tr('المستندات — صوّر كل مستند بوضوح',
+                'Documents — photograph each one clearly')),
         ...RestaurantApplication.docLabels.entries.map(
           (e) => DocCaptureField(
             label: e.value,
@@ -177,7 +193,9 @@ class _RestaurantApplyFormState extends State<RestaurantApplyForm> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.send_rounded),
-            label: Text(_submitting ? 'يُرسل...' : 'إرسال الطلب'),
+            label: Text(_submitting
+                ? tr('يُرسل...', 'Submitting...')
+                : tr('إرسال الطلب', 'Submit application')),
           ),
         ),
         const SizedBox(height: 30),

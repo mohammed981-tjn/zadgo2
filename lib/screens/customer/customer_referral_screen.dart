@@ -13,6 +13,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 
 class CustomerReferralScreen extends StatelessWidget {
@@ -21,17 +22,21 @@ class CustomerReferralScreen extends StatelessWidget {
 
   String _shareText(IncentiveSettings s) {
     final reward = s.customerRefereeBonus > 0
-        ? ' واحصل على ${formatCurrency(s.customerRefereeBonus)} في محفظتك'
+        ? tr(' واحصل على ${formatCurrency(s.customerRefereeBonus)} في محفظتك',
+            ' and get ${formatCurrency(s.customerRefereeBonus)} in your wallet')
         : '';
-    return 'حمّل تطبيق زاد جو للتوصيل، وسجّل بكود دعوتي «${user.referralCode}»'
-        '$reward. 🚀';
+    return tr(
+        'حمّل تطبيق زاد جو للتوصيل، وسجّل بكود دعوتي «${user.referralCode}»'
+            '$reward. 🚀',
+        'Download the ZadGo delivery app and sign up with my invite code '
+            '"${user.referralCode}"$reward. 🚀');
   }
 
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
     return Scaffold(
-      appBar: AppBar(title: const Text('ادعُ أصدقاءك')),
+      appBar: AppBar(title: Text(tr('ادعُ أصدقاءك', 'Invite friends'))),
       body: AppStreamBuilder<IncentiveSettings>(
         stream: service.streamIncentiveSettings,
         builder: (ctx, s) {
@@ -52,7 +57,7 @@ class CustomerReferralScreen extends StatelessWidget {
                   const Icon(Icons.card_giftcard_rounded,
                       color: AppColors.dark, size: 40),
                   const SizedBox(height: 10),
-                  Text('كود دعوتك',
+                  Text(tr('كود دعوتك', 'Your invite code'),
                       style: TextStyle(
                           color: AppColors.dark.withOpacity(0.75),
                           fontSize: 13.5)),
@@ -67,14 +72,16 @@ class CustomerReferralScreen extends StatelessWidget {
                   OutlinedButton.icon(
                     icon: const Icon(Icons.copy_rounded,
                         size: 16, color: AppColors.dark),
-                    label: const Text('نسخ الكود',
-                        style: TextStyle(color: AppColors.dark)),
+                    label: Text(tr('نسخ الكود', 'Copy code'),
+                        style: const TextStyle(color: AppColors.dark)),
                     style: OutlinedButton.styleFrom(
                         side: BorderSide(color: AppColors.dark.withOpacity(0.4))),
                     onPressed: () async {
                       await Clipboard.setData(
                           ClipboardData(text: user.referralCode));
-                      if (ctx.mounted) showSuccess(ctx, 'نُسخ الكود');
+                      if (ctx.mounted) {
+                        showSuccess(ctx, tr('نُسخ الكود', 'Code copied'));
+                      }
                     },
                   ),
                 ]),
@@ -83,41 +90,54 @@ class CustomerReferralScreen extends StatelessWidget {
               if (enabled) ...[
                 _StepRow(
                     icon: Icons.share_rounded,
-                    text: 'شارك كودك مع أصدقائك'),
+                    text: tr('شارك كودك مع أصدقائك',
+                        'Share your code with friends')),
                 _StepRow(
                     icon: Icons.person_add_alt_1_rounded,
-                    text: 'يسجّل صديقك ويكتب كودك عند إنشاء حسابه'),
+                    text: tr('يسجّل صديقك ويكتب كودك عند إنشاء حسابه',
+                        'Your friend signs up and enters your code')),
                 _StepRow(
                     icon: Icons.shopping_bag_rounded,
                     text: s.customerReferralOrders > 0
-                        ? 'يُكمل ${s.customerReferralOrders} طلباً خلال '
-                            '${s.customerReferralWindowDays} يوماً'
-                        : 'يطلب من التطبيق'),
+                        ? tr(
+                            'يُكمل ${s.customerReferralOrders} طلباً خلال '
+                                '${s.customerReferralWindowDays} يوماً',
+                            'They complete ${s.customerReferralOrders} orders '
+                                'within ${s.customerReferralWindowDays} days')
+                        : tr('يطلب من التطبيق', 'They order from the app')),
                 _StepRow(
                     icon: Icons.account_balance_wallet_rounded,
                     text: s.customerReferrerBonus > 0
-                        ? 'تحصل على ${formatCurrency(s.customerReferrerBonus)} '
-                            'في محفظتك، وصديقك على '
-                            '${formatCurrency(s.customerRefereeBonus)}'
-                        : 'تحصلان على مكافأة في محفظتيكما'),
+                        ? tr(
+                            'تحصل على ${formatCurrency(s.customerReferrerBonus)} '
+                                'في محفظتك، وصديقك على '
+                                '${formatCurrency(s.customerRefereeBonus)}',
+                            'You get ${formatCurrency(s.customerReferrerBonus)} '
+                                'in your wallet, and your friend gets '
+                                '${formatCurrency(s.customerRefereeBonus)}')
+                        : tr('تحصلان على مكافأة في محفظتيكما',
+                            'You both get a wallet reward')),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
                     icon: const Icon(Icons.share_rounded, size: 18),
-                    label: const Text('شارك الكود'),
+                    label: Text(tr('شارك الكود', 'Share code')),
                     onPressed: () => Share.share(_shareText(s)),
                   ),
                 ),
               ] else
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Text(
-                      'برنامج الدعوة غير مفعّل حالياً — يمكنك مشاركة كودك، '
-                      'وسنطلق المكافآت قريباً.',
+                      tr(
+                          'برنامج الدعوة غير مفعّل حالياً — يمكنك مشاركة كودك، '
+                          'وسنطلق المكافآت قريباً.',
+                          'The referral program isn\'t active yet — you can still '
+                          'share your code, and rewards are coming soon.'),
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 13.5, color: AppColors.textGray)),
+                      style: const TextStyle(
+                          fontSize: 13.5, color: AppColors.textGray)),
                 ),
             ],
           );

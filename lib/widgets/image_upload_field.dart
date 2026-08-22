@@ -13,6 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../providers/storage_service.dart';
+import '../utils/app_lang.dart';
 import '../utils/theme.dart';
 import '../utils/helpers.dart';
 
@@ -65,13 +66,15 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
         contentType: _contentTypeOf(ext),
       );
       widget.onChanged(url);
-      if (mounted) showSuccess(context, 'تم رفع الصورة');
+      if (mounted) showSuccess(context, tr('تم رفع الصورة', 'Image uploaded'));
     } catch (_) {
       // السبب الأغلب حالياً أن Storage غير مفعّل على المشروع، فنوجّه المدير
       // إلى البديل الجاهز (لصق رابط) بدل رسالة خطأ عامة لا تدلّه على شيء.
       if (mounted) {
-        showError(context,
-            'تعذّر الرفع — فعّل Firebase Storage أو استخدم «لصق رابط»');
+        showError(
+            context,
+            tr('تعذّر الرفع — فعّل Firebase Storage أو استخدم «لصق رابط»',
+                'Upload failed — enable Firebase Storage or use "Paste link"'));
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -91,7 +94,7 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('رابط الصورة'),
+        title: Text(tr('رابط الصورة', 'Image link')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -104,18 +107,20 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'الصق رابطاً مباشراً لصورة (ينتهي بـ jpg أو png عادةً).',
-              style: TextStyle(fontSize: 11.5, color: AppColors.textGray),
+            Text(
+              tr('الصق رابطاً مباشراً لصورة (ينتهي بـ jpg أو png عادةً).',
+                  'Paste a direct image link (usually ends in jpg or png).'),
+              style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
             ),
           ],
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('حفظ')),
+              child: Text(tr('حفظ', 'Save'))),
         ],
       ),
     );
@@ -182,19 +187,19 @@ class _ImageUploadFieldState extends State<ImageUploadField> {
                   Wrap(spacing: 8, children: [
                     OutlinedButton.icon(
                       icon: const Icon(Icons.link, size: 18),
-                      label: const Text('لصق رابط'),
+                      label: Text(tr('لصق رابط', 'Paste link')),
                       onPressed: _uploading ? null : _enterUrl,
                     ),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.upload_outlined, size: 18),
-                      label: const Text('رفع من الجهاز'),
+                      label: Text(tr('رفع من الجهاز', 'Upload from device')),
                       onPressed: _uploading ? null : _pick,
                     ),
                   ]),
                   if (hasImage && !_uploading)
                     TextButton.icon(
                       icon: const Icon(Icons.delete_outline, size: 18),
-                      label: const Text('إزالة'),
+                      label: Text(tr('إزالة', 'Remove')),
                       style: TextButton.styleFrom(foregroundColor: AppColors.error),
                       onPressed: () => widget.onChanged(null),
                     ),

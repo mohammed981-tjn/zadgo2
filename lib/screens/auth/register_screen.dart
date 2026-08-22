@@ -10,6 +10,7 @@ import '../../models/models.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../utils/helpers.dart';
 import '../../app_flavor.dart';
+import '../../utils/app_lang.dart';
 
 class RegisterScreen extends StatefulWidget {
   /// عند تفعيلها (التسجيل أثناء إتمام الطلب كزائر) تُغلق الشاشة بعد نجاح
@@ -45,7 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pushAndRemoveUntil(
           context, MaterialPageRoute(builder: (_) => AppFlavorConfig.buildHomeForRole(UserRole.customer)), (_) => false);
     } else {
-      showError(context, auth.error ?? 'فشل التسجيل');
+      showError(context, auth.error ?? tr('فشل التسجيل', 'Registration failed'));
     }
   }
 
@@ -53,22 +54,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<app_auth.AuthProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('حساب جديد')),
+      appBar: AppBar(title: Text(tr('حساب جديد', 'New account'))),
       body: Form(key: _form, child: ListView(padding: const EdgeInsets.all(20), children: [
         TextFormField(controller: _nameCtrl,
-            decoration: const InputDecoration(labelText: 'الاسم الكامل', prefixIcon: Icon(Icons.person_outline)),
-            validator: (v) => validateRequired(v, 'الاسم')),
+            decoration: InputDecoration(labelText: tr('الاسم الكامل', 'Full name'), prefixIcon: const Icon(Icons.person_outline)),
+            validator: (v) => validateRequired(v, tr('الاسم', 'Name'))),
         const SizedBox(height: 14),
         TextFormField(controller: _emailCtrl, keyboardType: TextInputType.emailAddress, textDirection: TextDirection.ltr,
-            decoration: const InputDecoration(labelText: 'البريد الإلكتروني', prefixIcon: Icon(Icons.email_outlined)),
+            decoration: InputDecoration(labelText: tr('البريد الإلكتروني', 'Email'), prefixIcon: const Icon(Icons.email_outlined)),
             validator: validateEmail),
         const SizedBox(height: 14),
         TextFormField(controller: _phoneCtrl, keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(labelText: 'رقم الهاتف', prefixIcon: Icon(Icons.phone_outlined)),
+            decoration: InputDecoration(labelText: tr('رقم الهاتف', 'Phone number'), prefixIcon: const Icon(Icons.phone_outlined)),
             validator: validatePhone),
         const SizedBox(height: 14),
         TextFormField(controller: _passCtrl, obscureText: _obscure, textDirection: TextDirection.ltr,
-            decoration: InputDecoration(labelText: 'كلمة المرور', prefixIcon: const Icon(Icons.lock_outline),
+            decoration: InputDecoration(labelText: tr('كلمة المرور', 'Password'), prefixIcon: const Icon(Icons.lock_outline),
                 suffixIcon: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                     onPressed: () => setState(() => _obscure = !_obscure))),
             validator: validatePassword),
@@ -78,15 +79,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         // سجّل بلا دعوة.
         TextFormField(controller: _refCtrl,
             textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
-                labelText: 'كود دعوة (اختياري)',
-                prefixIcon: Icon(Icons.card_giftcard_outlined))),
+            decoration: InputDecoration(
+                labelText: tr('كود دعوة (اختياري)', 'Invite code (optional)'),
+                prefixIcon: const Icon(Icons.card_giftcard_outlined))),
         const SizedBox(height: 28),
         SizedBox(width: double.infinity, height: 50, child: ElevatedButton(
             onPressed: auth.loading ? null : _register,
             child: auth.loading ? const SizedBox(width: 20, height: 20,
                 child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text('إنشاء الحساب'))),
+              : Text(tr('إنشاء الحساب', 'Create account')))),
       ])),
     );
   }

@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/app_check_service.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -52,7 +53,7 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
       final restaurants = await service.streamRestaurants().first;
       final orders = await service.streamActiveOrders().first;
 
-      buffer.writeln('■ تشخيص زاد جو');
+      buffer.writeln(tr('■ تشخيص زاد جو', '■ ZadGo diagnostics'));
       buffer.writeln(_stamp(DateTime.now()));
       buffer.writeln();
 
@@ -61,53 +62,79 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
       // تسليم بقي العدّاد على قيمته — وكابتنٌ عالقٌ على السقف يُخرج
       // نفسه من كل ترشيح. هذا أول ما يُسأل عنه عند «الطلب لم يصل أحداً».
       final online = drivers.where((d) => d.isOnline).toList();
-      buffer.writeln('● الكباتن (${online.length} متصل من ${drivers.length})');
+      buffer.writeln(
+          tr('● الكباتن (${online.length} متصل من ${drivers.length})',
+              '● Captains (${online.length} online of ${drivers.length})'));
       if (drivers.isEmpty) {
-        buffer.writeln('  — لا كباتن مسجّلون');
+        buffer.writeln(tr('  — لا كباتن مسجّلون', '  — no captains registered'));
       }
       for (final d in drivers) {
         final carrying =
             orders.where((o) => o.driverId == d.id && o.status.isActive).length;
         final mismatch = carrying != d.activeOrders;
         buffer.writeln('  ${d.isOnline ? "🟢" : "⚪"} ${d.name}');
-        buffer.writeln('     عدّاده: ${d.activeOrders} | الفعلي: $carrying'
-            '${mismatch ? "  ⚠️ متعارضان" : ""}');
-        buffer.writeln('     متاح: ${d.isAvailable ? "نعم" : "لا"}'
-            ' | موقع: ${d.lat == null ? "⚠️ غير مسجَّل" : "مسجَّل"}'
-            ' | عنقود: ${d.clusterLat == null ? "—" : "مضبوط"}');
+        buffer.writeln(tr(
+            '     عدّاده: ${d.activeOrders} | الفعلي: $carrying'
+                '${mismatch ? "  ⚠️ متعارضان" : ""}',
+            '     counter: ${d.activeOrders} | actual: $carrying'
+                '${mismatch ? "  ⚠️ mismatch" : ""}'));
+        buffer.writeln(tr(
+            '     متاح: ${d.isAvailable ? "نعم" : "لا"}'
+                ' | موقع: ${d.lat == null ? "⚠️ غير مسجَّل" : "مسجَّل"}'
+                ' | عنقود: ${d.clusterLat == null ? "—" : "مضبوط"}',
+            '     available: ${d.isAvailable ? "yes" : "no"}'
+                ' | location: ${d.lat == null ? "⚠️ not recorded" : "recorded"}'
+                ' | cluster: ${d.clusterLat == null ? "—" : "set"}'));
       }
       buffer.writeln();
 
       // ── المطاعم ─────────────────────────────────────────────────────
       // مطعمٌ بلا إحداثيات كان يُسقط الإسناد صامتاً — وهو أوّل ما
       // انكشف في بلاغ «طلبات الهميلي لم تصل السائق».
-      buffer.writeln('● المطاعم (${restaurants.length})');
+      buffer.writeln(tr('● المطاعم (${restaurants.length})',
+          '● Restaurants (${restaurants.length})'));
       for (final r in restaurants) {
         final noCoords = r.lat == null || r.lng == null;
-        buffer.writeln('  ${r.isOpen ? "🟢" : "🔴"} ${r.name}'
-            '${noCoords ? "  ⚠️ بلا إحداثيات" : ""}');
+        buffer.writeln(tr(
+            '  ${r.isOpen ? "🟢" : "🔴"} ${r.name}'
+                '${noCoords ? "  ⚠️ بلا إحداثيات" : ""}',
+            '  ${r.isOpen ? "🟢" : "🔴"} ${r.name}'
+                '${noCoords ? "  ⚠️ no coordinates" : ""}'));
       }
       buffer.writeln();
 
       // ── الطلبات الجارية ─────────────────────────────────────────────
-      buffer.writeln('● الطلبات الجارية (${orders.length})');
-      if (orders.isEmpty) buffer.writeln('  — لا شيء');
+      buffer.writeln(tr('● الطلبات الجارية (${orders.length})',
+          '● Active orders (${orders.length})'));
+      if (orders.isEmpty) buffer.writeln(tr('  — لا شيء', '  — none'));
       final now = DateTime.now();
       for (final o in orders) {
         final age = now.difference(o.createdAt);
         final stuck = age.inMinutes >= 30;
         final noDriver = (o.driverId ?? '').isEmpty;
         buffer.writeln('  #${o.orderNumber} — ${o.status.label}');
-        buffer.writeln('     ${o.restaurantName} | عمره ${_age(age)}'
-            '${stuck ? "  ⚠️" : ""}');
-        buffer.writeln('     الكابتن: '
-            '${noDriver ? "⚠️ بلا كابتن" : (o.driverName ?? o.driverId)}'
-            '${o.needsDriverAcknowledgement ? " (عرض معلّق)" : ""}');
+        buffer.writeln(tr(
+            '     ${o.restaurantName} | عمره ${_age(age)}'
+                '${stuck ? "  ⚠️" : ""}',
+            '     ${o.restaurantName} | age ${_age(age)}'
+                '${stuck ? "  ⚠️" : ""}'));
+        buffer.writeln(tr(
+            '     الكابتن: '
+                '${noDriver ? "⚠️ بلا كابتن" : (o.driverName ?? o.driverId)}'
+                '${o.needsDriverAcknowledgement ? " (عرض معلّق)" : ""}',
+            '     captain: '
+                '${noDriver ? "⚠️ none" : (o.driverName ?? o.driverId)}'
+                '${o.needsDriverAcknowledgement ? " (offer pending)" : ""}'));
         if (o.status == OrderStatus.readyForPickup) {
-          buffer.writeln('     وصل الكابتن: '
-              '${o.arrivedAtRestaurantAt == null ? "لا" : "نعم"}'
-              ' | ختم المطعم: '
-              '${o.restaurantHandoverAt == null ? "لا" : "نعم"}');
+          buffer.writeln(tr(
+              '     وصل الكابتن: '
+                  '${o.arrivedAtRestaurantAt == null ? "لا" : "نعم"}'
+                  ' | ختم المطعم: '
+                  '${o.restaurantHandoverAt == null ? "لا" : "نعم"}',
+              '     captain arrived: '
+                  '${o.arrivedAtRestaurantAt == null ? "no" : "yes"}'
+                  ' | restaurant handover: '
+                  '${o.restaurantHandoverAt == null ? "no" : "yes"}'));
         }
       }
       buffer.writeln();
@@ -116,16 +143,19 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
       // تُقرأ من `delivery_settings/incentives`؛ وقد مرّت مرحلةٌ كانت
       // فيها في مستندٍ لا يقرؤه تطبيقا المطعم والكابتن، فتعود للقيم
       // الافتراضية أبداً ويصير ضبطها من اللوحة بلا أثر (خلاف بند ج١).
-      buffer.writeln('● الإعدادات التشغيلية');
+      buffer.writeln(tr('● الإعدادات التشغيلية', '● Operational settings'));
       try {
         final s = await service.getIncentiveSettings();
-        buffer.writeln('  سقف الحمولة: ${s.maxOrdersPerDriver}');
-        buffer.writeln('  نطاق العنقود: ${s.stackRadiusKm} كم');
-        buffer.writeln(
-            '  تعويض الإلغاء بعد التحضير: ${s.restaurantCancelCompensationPercent}%');
-        buffer.writeln('  القراءة: ✅ ناجحة');
+        buffer.writeln(tr('  سقف الحمولة: ${s.maxOrdersPerDriver}',
+            '  load cap: ${s.maxOrdersPerDriver}'));
+        buffer.writeln(tr('  نطاق العنقود: ${s.stackRadiusKm} كم',
+            '  cluster radius: ${s.stackRadiusKm} km'));
+        buffer.writeln(tr(
+            '  تعويض الإلغاء بعد التحضير: ${s.restaurantCancelCompensationPercent}%',
+            '  cancel compensation after prep: ${s.restaurantCancelCompensationPercent}%'));
+        buffer.writeln(tr('  القراءة: ✅ ناجحة', '  read: ✅ ok'));
       } catch (e) {
-        buffer.writeln('  ⚠️ تعذّرت القراءة — $e');
+        buffer.writeln(tr('  ⚠️ تعذّرت القراءة — $e', '  ⚠️ read failed — $e'));
       }
 
       setState(() => _report = buffer.toString());
@@ -141,9 +171,11 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   static String _age(Duration d) {
-    if (d.inMinutes < 60) return 'منذ ${d.inMinutes} د';
-    if (d.inHours < 24) return 'منذ ${d.inHours} س';
-    return 'منذ ${d.inDays} يوم';
+    if (d.inMinutes < 60) {
+      return tr('منذ ${d.inMinutes} د', '${d.inMinutes} min ago');
+    }
+    if (d.inHours < 24) return tr('منذ ${d.inHours} س', '${d.inHours} h ago');
+    return tr('منذ ${d.inDays} يوم', '${d.inDays} d ago');
   }
 
   @override
@@ -152,17 +184,22 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        const Text(
-          'لقطة تقنية للحالة التشغيلية. اضغط «افحص»، ثم «انسخ» وأرسل النص '
-          'عند أي عطل — يغني عن اللقطات وجولات الأسئلة.',
-          style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+        Text(
+          tr('لقطة تقنية للحالة التشغيلية. اضغط «افحص»، ثم «انسخ» وأرسل النص '
+                  'عند أي عطل — يغني عن اللقطات وجولات الأسئلة.',
+              'A technical snapshot of the operational state. Tap "Run check", '
+                  'then "Copy" and send the text on any incident — it replaces '
+                  'screenshots and rounds of questions.'),
+          style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
         ),
         const SizedBox(height: 12),
         Row(children: [
           Expanded(
             child: ElevatedButton.icon(
               icon: const Icon(Icons.play_arrow_rounded),
-              label: Text(_running ? 'جارٍ الفحص…' : 'افحص الآن'),
+              label: Text(_running
+                  ? tr('جارٍ الفحص…', 'Checking…')
+                  : tr('افحص الآن', 'Run check')),
               onPressed: _running ? null : _run,
             ),
           ),
@@ -171,10 +208,13 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
             Expanded(
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.copy_rounded),
-                label: const Text('انسخ'),
+                label: Text(tr('انسخ', 'Copy')),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: _report!));
-                  showSuccess(context, 'نُسخ التقرير — الصقه في المحادثة');
+                  showSuccess(
+                      context,
+                      tr('نُسخ التقرير — الصقه في المحادثة',
+                          'Report copied — paste it into the chat'));
                 },
               ),
             ),
@@ -189,18 +229,21 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('مصالحة توافر الكباتن',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              Text(tr('مصالحة توافر الكباتن', 'Captain availability repair'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13.5)),
               const SizedBox(height: 4),
-              const Text(
-                'تُصفّر عدّاد الحمولة لكل كابتن لا طلب جارياً له — استعملها '
-                'إن ظهر أعلاه «عدّاده يخالف الفعلي».',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+              Text(
+                tr('تُصفّر عدّاد الحمولة لكل كابتن لا طلب جارياً له — استعملها '
+                        'إن ظهر أعلاه «عدّاده يخالف الفعلي».',
+                    'Resets the load counter for every captain with no active '
+                        'order — use it if "counter mismatch" shows above.'),
+                style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.healing_outlined),
-                label: const Text('صالِح الآن'),
+                label: Text(tr('صالِح الآن', 'Repair now')),
                 onPressed: () async {
                   try {
                     final n = await service.reconcileDriverAvailability();
@@ -208,12 +251,16 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                       showSuccess(
                           context,
                           n == 0
-                              ? 'لا كابتن عالقاً — الحالة سليمة'
-                              : 'حُرِّر $n كابتن');
+                              ? tr('لا كابتن عالقاً — الحالة سليمة',
+                                  'No stuck captains — all healthy')
+                              : tr('حُرِّر $n كابتن', '$n captains released'));
                     }
                     if (_report != null) _run();
                   } catch (e) {
-                    if (context.mounted) showError(context, 'تعذّرت المصالحة: $e');
+                    if (context.mounted) {
+                      showError(context,
+                          tr('تعذّرت المصالحة: $e', 'Repair failed: $e'));
+                    }
                   }
                 },
               ),
@@ -231,22 +278,27 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
             padding: const EdgeInsets.all(12),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('رمز حماية الذكاء (App Check)',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
+              Text(tr('رمز حماية الذكاء (App Check)', 'AI protection token (App Check)'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 13.5)),
               const SizedBox(height: 4),
-              const Text(
-                'إن ظهر خطأ «App Check token is invalid» عند «اقترح رداً»: '
-                'أظهر الرمز، انسخه، وسجّله مرة واحدة في كونسول فيربيز: '
-                'App Check ← Apps ← Admin ← ⋮ Manage debug tokens ← Add.',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textGray),
+              Text(
+                tr('إن ظهر خطأ «App Check token is invalid» عند «اقترح رداً»: '
+                        'أظهر الرمز، انسخه، وسجّله مرة واحدة في كونسول فيربيز: '
+                        'App Check ← Apps ← Admin ← ⋮ Manage debug tokens ← Add.',
+                    'If "App Check token is invalid" appears on "Suggest a reply": '
+                        'show the token, copy it, and register it once in the '
+                        'Firebase console: App Check → Apps → Admin → '
+                        '⋮ Manage debug tokens → Add.'),
+                style: const TextStyle(fontSize: 12.5, color: AppColors.textGray),
               ),
               const SizedBox(height: 8),
               if (_appCheckToken == null)
                 OutlinedButton.icon(
                   icon: const Icon(Icons.shield_outlined),
                   label: Text(_appCheckLoading
-                      ? 'جارٍ التوليد…'
-                      : 'أظهر رمز هذا الجهاز'),
+                      ? tr('جارٍ التوليد…', 'Generating…')
+                      : tr('أظهر رمز هذا الجهاز', "Show this device's token")),
                   onPressed: _appCheckLoading
                       ? null
                       : () async {
@@ -258,8 +310,10 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                             _appCheckToken = t;
                           });
                           if (t == null) {
-                            showError(context,
-                                'لم يُعثر على الرمز — أعد فتح التطبيق ثم حاول');
+                            showError(
+                                context,
+                                tr('لم يُعثر على الرمز — أعد فتح التطبيق ثم حاول',
+                                    'Token not found — reopen the app and try again'));
                           }
                         },
                 )
@@ -272,10 +326,13 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.copy_rounded, size: 18),
-                    tooltip: 'انسخ',
+                    tooltip: tr('انسخ', 'Copy'),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: _appCheckToken!));
-                      showSuccess(context, 'نُسخ — الصقه في الكونسول');
+                      showSuccess(
+                          context,
+                          tr('نُسخ — الصقه في الكونسول',
+                              'Copied — paste it into the console'));
                     },
                   ),
                 ]),
@@ -286,8 +343,8 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                 OutlinedButton.icon(
                   icon: const Icon(Icons.sync_lock_outlined, size: 17),
                   label: Text(_exchangeResult == null
-                      ? 'افحص التبادل مع جوجل'
-                      : 'أعد فحص التبادل'),
+                      ? tr('افحص التبادل مع جوجل', 'Test the Google exchange')
+                      : tr('أعد فحص التبادل', 'Retest the exchange')),
                   onPressed: () async {
                     final r = await AppCheckService.exchangeStatus();
                     if (mounted) setState(() => _exchangeResult = r);
@@ -321,32 +378,42 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                 return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('فحص الأسعار الخادمي (الذراع ١)',
-                          style: TextStyle(
+                      Text(
+                          tr('فحص الأسعار الخادمي (الذراع ١)',
+                              'Server-side price audit (arm 1)'),
+                          style: const TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 13.5)),
                       const SizedBox(height: 6),
                       if (r == null)
-                        const Text(
-                          'لم يصل تقرير بعد — الذراع الخادمية قيد التفعيل '
-                          '(انظر server/supabase-arm).',
-                          style: TextStyle(
+                        Text(
+                          tr('لم يصل تقرير بعد — الذراع الخادمية قيد التفعيل '
+                                  '(انظر server/supabase-arm).',
+                              'No report yet — the server arm is being enabled '
+                                  '(see server/supabase-arm).'),
+                          style: const TextStyle(
                               fontSize: 12.5, color: AppColors.textGray),
                         )
                       else ...[
                         Text(
-                          'آخر فحص: يوم ${r['day'] ?? '؟'} — فُحص '
-                          '${r['ordersChecked'] ?? '؟'} طلباً',
+                          tr('آخر فحص: يوم ${r['day'] ?? '؟'} — فُحص '
+                                  '${r['ordersChecked'] ?? '؟'} طلباً',
+                              'Last audit: day ${r['day'] ?? '?'} — '
+                                  '${r['ordersChecked'] ?? '?'} orders checked'),
                           style: const TextStyle(fontSize: 12.5),
                         ),
                         const SizedBox(height: 6),
                         if ((r['findingsCount'] ?? 0) == 0)
-                          const Text('✅ كل الطلبات مطابقة — لا مخالفات',
-                              style: TextStyle(
+                          Text(
+                              tr('✅ كل الطلبات مطابقة — لا مخالفات',
+                                  '✅ All orders match — no findings'),
+                              style: const TextStyle(
                                   fontSize: 13,
                                   color: AppColors.success,
                                   fontWeight: FontWeight.bold))
                         else ...[
-                          Text('⚠️ ${r['findingsCount']} مخالفة:',
+                          Text(
+                              tr('⚠️ ${r['findingsCount']} مخالفة:',
+                                  '⚠️ ${r['findingsCount']} findings:'),
                               style: const TextStyle(
                                   fontSize: 13,
                                   color: AppColors.error,
@@ -357,8 +424,10 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
                               .map((f) => Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text(
-                                        '• طلب #${f['orderNumber']}: '
-                                        '${f['detail']}',
+                                        tr('• طلب #${f['orderNumber']}: '
+                                                '${f['detail']}',
+                                            '• order #${f['orderNumber']}: '
+                                                '${f['detail']}'),
                                         style:
                                             const TextStyle(fontSize: 12)),
                                   ))),
@@ -376,7 +445,7 @@ class _AdminDiagnosticsScreenState extends State<AdminDiagnosticsScreen> {
             color: AppColors.errorLight,
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: Text('تعذّر الفحص: $_error',
+              child: Text(tr('تعذّر الفحص: $_error', 'Check failed: $_error'),
                   style: const TextStyle(fontSize: 12.5, color: AppColors.error)),
             ),
           ),

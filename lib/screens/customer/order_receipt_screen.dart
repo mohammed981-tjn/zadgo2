@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 
 class OrderReceiptScreen extends StatelessWidget {
@@ -25,7 +26,7 @@ class OrderReceiptScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final o = order;
     return Scaffold(
-      appBar: AppBar(title: const Text('فاتورة الطلب')),
+      appBar: AppBar(title: Text(tr('فاتورة الطلب', 'Order receipt'))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
         // الترويسة: رقم الطلب والحالة
         Card(
@@ -41,22 +42,30 @@ class OrderReceiptScreen extends StatelessWidget {
                   color: o.status.color,
                   icon: o.status.icon),
               const SizedBox(height: 6),
-              Text('أُنشئ في ${_fmt(o.createdAt)}',
+              Text(
+                  tr('أُنشئ في ${_fmt(o.createdAt)}',
+                      'Placed on ${_fmt(o.createdAt)}'),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textGray)),
               // سلسلة العهدة موثّقة بطرفيها: وصول الكابتن للمطعم، وإقرار
               // المطعم بالتسليم (ختمٌ يضغطه صاحب المطعم بنفسه) — بهما يُفصل
               // في نزاع «متى خرج الطلب؟» بلا اجتهاد.
               if (o.arrivedAtRestaurantAt != null)
-                Text('وصل الكابتن للمطعم ${_fmt(o.arrivedAtRestaurantAt!)}',
+                Text(
+                    tr('وصل الكابتن للمطعم ${_fmt(o.arrivedAtRestaurantAt!)}',
+                        'Captain arrived at the restaurant ${_fmt(o.arrivedAtRestaurantAt!)}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.textGray)),
               if (o.restaurantHandoverAt != null)
-                Text('أقرّ المطعم بالتسليم ${_fmt(o.restaurantHandoverAt!)}',
+                Text(
+                    tr('أقرّ المطعم بالتسليم ${_fmt(o.restaurantHandoverAt!)}',
+                        'Restaurant confirmed handover ${_fmt(o.restaurantHandoverAt!)}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.textGray)),
               if (o.status == OrderStatus.delivered && o.statusChangedAt != null)
-                Text('سُلّم في ${_fmt(o.statusChangedAt!)}',
+                Text(
+                    tr('سُلّم في ${_fmt(o.statusChangedAt!)}',
+                        'Delivered on ${_fmt(o.statusChangedAt!)}'),
                     style: const TextStyle(
                         fontSize: 12.5, color: AppColors.success)),
             ]),
@@ -69,8 +78,9 @@ class OrderReceiptScreen extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('الأصناف',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+              Text(tr('الأصناف', 'Items'),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14.5)),
               const SizedBox(height: 8),
               ...o.items.map((i) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -108,25 +118,32 @@ class OrderReceiptScreen extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(children: [
-              PriceRow(label: 'الوجبات', value: formatCurrency(o.itemsTotal)),
+              PriceRow(
+                  label: tr('الوجبات', 'Food'),
+                  value: formatCurrency(o.itemsTotal)),
               // التوصيل سطر واحد شامل (أجرة السائق + الرسم الثابت) — قاعدة
               // المالك، ومطابق حرفياً لسطر ملخص الدفع فلا مفاجأة في الفاتورة.
-              PriceRow(label: 'التوصيل', value: formatCurrency(o.deliveryFee)),
+              PriceRow(
+                  label: tr('التوصيل', 'Delivery'),
+                  value: formatCurrency(o.deliveryFee)),
               if (o.driverTip > 0)
                 PriceRow(
-                    label: 'إكرامية الكابتن (تصله كاملة)',
+                    label: tr('إكرامية الكابتن (تصله كاملة)',
+                        'Captain tip (goes to them in full)'),
                     value: formatCurrency(o.driverTip)),
               if (o.discountAmount > 0)
                 PriceRow(
-                    label: 'خصم الكود ${o.couponCode ?? ''}'.trim(),
+                    label: tr('خصم الكود ${o.couponCode ?? ''}',
+                            'Promo code ${o.couponCode ?? ''}')
+                        .trim(),
                     value: '- ${formatCurrency(o.discountAmount)}'),
               if (o.walletUsed > 0)
                 PriceRow(
-                    label: 'خصم من المحفظة',
+                    label: tr('خصم من المحفظة', 'Wallet credit'),
                     value: '- ${formatCurrency(o.walletUsed)}'),
               const Divider(),
               PriceRow(
-                  label: 'الإجمالي',
+                  label: tr('الإجمالي', 'Total'),
                   value: formatCurrency(o.payableTotal),
                   bold: true),
               Padding(
@@ -134,8 +151,8 @@ class OrderReceiptScreen extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('شامل ضريبة القيمة المضافة (15٪)',
-                        style: TextStyle(
+                    Text(tr('شامل ضريبة القيمة المضافة (15٪)', 'Includes 15% VAT'),
+                        style: const TextStyle(
                             fontSize: 11.5, color: AppColors.textGray)),
                     Text(formatCurrency(Pricing.vatIncludedIn(o.payableTotal)),
                         style: const TextStyle(
@@ -145,8 +162,8 @@ class OrderReceiptScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('طريقة الدفع',
-                    style: TextStyle(fontSize: 12.5)),
+                Text(tr('طريقة الدفع', 'Payment method'),
+                    style: const TextStyle(fontSize: 12.5)),
                 Row(children: [
                   Icon(
                       o.paymentMethod == PaymentMethod.cash
@@ -160,7 +177,8 @@ class OrderReceiptScreen extends StatelessWidget {
                           fontSize: 12.5, fontWeight: FontWeight.w600)),
                   if (o.isPaid) ...[
                     const SizedBox(width: 6),
-                    const StatusChip(label: 'مدفوع', color: AppColors.success),
+                    StatusChip(
+                        label: tr('مدفوع', 'Paid'), color: AppColors.success),
                   ],
                 ]),
               ]),
@@ -179,9 +197,11 @@ class OrderReceiptScreen extends StatelessWidget {
               if ((o.driverName ?? '').isNotEmpty)
                 InfoRow(
                     icon: Icons.sports_motorsports_outlined,
-                    text: 'السائق: ${o.driverName}'),
+                    text: tr('السائق: ${o.driverName}', 'Driver: ${o.driverName}')),
               if ((o.notes ?? '').trim().isNotEmpty)
-                InfoRow(icon: Icons.sticky_note_2_outlined, text: 'ملاحظاتك: ${o.notes}'),
+                InfoRow(
+                    icon: Icons.sticky_note_2_outlined,
+                    text: tr('ملاحظاتك: ${o.notes}', 'Your notes: ${o.notes}')),
             ]),
           ),
         ),

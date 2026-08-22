@@ -48,6 +48,14 @@ class AppFlavorConfig {
   /// رسالة الرفض حين يحاول حساب من دور آخر الدخول على نكهة مقيّدة بدور واحد.
   static String restrictedMessage = 'هذا التطبيق غير مخصص لهذا الحساب';
 
+  // نظائر إنجليزية لنصوص النكهة (دفعة «اللغة الثانية»): هذه الحقول تُضبط
+  // مرّة عند الإقلاع في main_X.dart فلا يقلبها tr() — لذلك نصّان يُختار
+  // بينهما في **موضع العرض** لحظة البناء، فينقلبان مع تبديل اللغة.
+  static String restrictedMessageEn = 'This app is not for this account type';
+  static String? flavorLabelEn;
+  static String flavorTaglineEn = 'Everything you need, delivered';
+  static String? flavorLoginTitleEn;
+
   /// يسمح بتصفح الضيف (بلا تسجيل دخول) مباشرة كعميل — نكهة العميل فقط.
   static bool allowGuestBrowsing = false;
 

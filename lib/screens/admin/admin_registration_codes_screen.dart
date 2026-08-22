@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -23,10 +24,11 @@ class AdminRegistrationCodesScreen extends StatelessWidget {
       stream: () => service.streamAllRegistrationCodes(),
       builder: (ctx, codes) {
         if (codes.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
               emoji: '🔑',
-              title: 'لا توجد أكواد تسجيل',
-              subtitle: 'ولّدها من شاشة المستخدمين — زر «توليد كود تسجيل»');
+              title: tr('لا توجد أكواد تسجيل', 'No registration codes'),
+              subtitle: tr('ولّدها من شاشة المستخدمين — زر «توليد كود تسجيل»',
+                  'Generate them from the users screen — "Generate registration code" button'));
         }
         final available =
             codes.where((c) => !c.isUsed && !c.isExpired).toList();
@@ -35,12 +37,14 @@ class AdminRegistrationCodesScreen extends StatelessWidget {
 
         return ListView(padding: const EdgeInsets.all(12), children: [
           if (available.isNotEmpty) ...[
-            SectionHeader(title: 'متاحة (${available.length})'),
+            SectionHeader(
+                title: tr('متاحة (${available.length})',
+                    'Available (${available.length})')),
             ...available.map((c) => _CodeCard(code: c)),
             const SizedBox(height: 12),
           ],
           if (finished.isNotEmpty) ...[
-            const SectionHeader(title: 'السجلّ'),
+            SectionHeader(title: tr('السجلّ', 'History')),
             ...finished.map((c) => _CodeCard(code: c)),
           ],
         ]);
@@ -61,10 +65,10 @@ class _CodeCard extends StatelessWidget {
     final c = code;
     final service = context.read<FirebaseService>();
     final (statusLabel, statusColor) = c.isUsed
-        ? ('مستخدَم', AppColors.textGray)
+        ? (tr('مستخدَم', 'Used'), AppColors.textGray)
         : c.isExpired
-            ? ('منتهٍ', AppColors.error)
-            : ('متاح', AppColors.success);
+            ? (tr('منتهٍ', 'Expired'), AppColors.error)
+            : (tr('متاح', 'Available'), AppColors.success);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -95,12 +99,16 @@ class _CodeCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             [
-              if (c.restaurantName.isNotEmpty) 'مطعم: ${c.restaurantName}',
-              'أُنشئ ${_fmt(c.createdAt)}',
+              if (c.restaurantName.isNotEmpty)
+                tr('مطعم: ${c.restaurantName}',
+                    'Restaurant: ${c.restaurantName}'),
+              tr('أُنشئ ${_fmt(c.createdAt)}',
+                  'Created ${_fmt(c.createdAt)}'),
               if (c.expiresAt != null)
-                '${c.isExpired ? 'انتهى' : 'ينتهي'} ${_fmt(c.expiresAt!)}',
+                tr('${c.isExpired ? 'انتهى' : 'ينتهي'} ${_fmt(c.expiresAt!)}',
+                    '${c.isExpired ? 'Expired' : 'Expires'} ${_fmt(c.expiresAt!)}'),
               if (c.isUsed && (c.usedByName ?? '').isNotEmpty)
-                'استخدمه: ${c.usedByName}',
+                tr('استخدمه: ${c.usedByName}', 'Used by: ${c.usedByName}'),
             ].join(' • '),
             style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
           ),
@@ -111,27 +119,34 @@ class _CodeCard extends StatelessWidget {
                 TextButton.icon(
                   onPressed: () async {
                     await Clipboard.setData(ClipboardData(text: c.code));
-                    if (context.mounted) showSuccess(context, 'نُسخ الكود');
+                    if (context.mounted) {
+                      showSuccess(context, tr('نُسخ الكود', 'Code copied'));
+                    }
                   },
                   icon: const Icon(Icons.copy_outlined, size: 15),
-                  label: const Text('نسخ', style: TextStyle(fontSize: 12.5)),
+                  label: Text(tr('نسخ', 'Copy'),
+                      style: const TextStyle(fontSize: 12.5)),
                 ),
               TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: AppColors.error),
                 onPressed: () async {
                   final ok = await showConfirmDialog(context,
-                      title: 'إلغاء الكود',
-                      content:
+                      title: tr('إلغاء الكود', 'Revoke code'),
+                      content: tr(
                           'حذف ${c.code} نهائياً؟ لن يستطيع أحد استخدامه بعدها.',
-                      confirmLabel: 'إلغاء الكود',
+                          'Permanently delete ${c.code}? No one will be able to use it afterwards.'),
+                      confirmLabel: tr('إلغاء الكود', 'Revoke code'),
                       confirmColor: AppColors.error);
                   if (ok == true) {
                     await service.revokeRegistrationCode(c.code);
-                    if (context.mounted) showSuccess(context, 'أُلغي الكود');
+                    if (context.mounted) {
+                      showSuccess(context, tr('أُلغي الكود', 'Code revoked'));
+                    }
                   }
                 },
                 icon: const Icon(Icons.delete_outline, size: 15),
-                label: const Text('إلغاء', style: TextStyle(fontSize: 12.5)),
+                label: Text(tr('إلغاء', 'Revoke'),
+                    style: const TextStyle(fontSize: 12.5)),
               ),
             ]),
           ],

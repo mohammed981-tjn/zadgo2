@@ -6,6 +6,7 @@ import '../../providers/firebase_service.dart';
 import '../../providers/cart_provider.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/food_visuals.dart';
 import '../../widgets/common_widgets.dart';
 import 'cart_screen.dart';
@@ -66,9 +67,9 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
             Expanded(
               child: Wrap(spacing: 12, runSpacing: 4, children: [
                 if (restaurant.isNewlyListed)
-                  const _InfoChip(
+                  _InfoChip(
                       icon: Icons.fiber_new_rounded,
-                      label: 'جديد',
+                      label: tr('جديد', 'New'),
                       color: AppColors.secondary)
                 else
                   _InfoChip(
@@ -77,7 +78,8 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                       color: AppColors.warning),
                 _InfoChip(
                     icon: Icons.timer_outlined,
-                    label: '${restaurant.estimatedTimeMin} دقيقة',
+                    label: tr('${restaurant.estimatedTimeMin} دقيقة',
+                        '${restaurant.estimatedTimeMin} min'),
                     color: AppColors.textGray),
                 _InfoChip(
                     icon: Icons.delivery_dining_outlined,
@@ -88,7 +90,8 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                     // بالمجانية.
                     label: restaurant.deliveryFee > 0
                         ? formatCurrency(restaurant.deliveryFee)
-                        : 'التوصيل يُحتسب عند الطلب',
+                        : tr('التوصيل يُحتسب عند الطلب',
+                            'Delivery calculated at checkout'),
                     color: AppColors.textGray),
               ]),
             ),
@@ -103,7 +106,7 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
             // التطبيق (بحث المطاعم في الرئيسية وبحث الصنف) على ارتفاع الثيم
             // الموحّد — كان هذا الحقل وحده مضغوطاً فيبدو دخيلاً (§٧).
             decoration: InputDecoration(
-              hintText: 'ابحث في المنيو…',
+              hintText: tr('ابحث في المنيو…', 'Search the menu…'),
               prefixIcon: const Icon(Icons.search, size: 20),
               suffixIcon: _menuQuery.isEmpty
                   ? null
@@ -127,7 +130,8 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                 // التطوير — العميل لا يرى نص Firestore الخام.
                 return AppError(
                   error: catSnap.error,
-                  message: 'تعذّر تحميل قائمة المطعم',
+                  message: tr('تعذّر تحميل قائمة المطعم',
+                      'Couldn\'t load the restaurant\'s menu'),
                 );
               }
               if (!catSnap.hasData) {
@@ -141,7 +145,8 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                   if (itemSnap.hasError) {
                     return AppError(
                       error: itemSnap.error,
-                      message: 'تعذّر تحميل أصناف المطعم',
+                      message: tr('تعذّر تحميل أصناف المطعم',
+                          'Couldn\'t load the restaurant\'s dishes'),
                     );
                   }
                   if (!itemSnap.hasData) {
@@ -158,9 +163,10 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                           margin: const EdgeInsets.only(bottom: 12),
                           child: ListTile(
                             leading: const CircleAvatar(radius: 26),
-                            title: Text('اسم صنف للتحميل'),
-                            subtitle: Text('وصف مؤقت يشغل سطراً كاملاً هنا'),
-                            trailing: Text('00.0 ر.س'),
+                            title: Text(tr('اسم صنف للتحميل', 'Loading item name')),
+                            subtitle: Text(tr('وصف مؤقت يشغل سطراً كاملاً هنا',
+                                'Placeholder line filling a full row here')),
+                            trailing: Text(tr('00.0 ر.س', '00.0 SAR')),
                           ),
                         ),
                       ),
@@ -196,15 +202,19 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                         padding: const EdgeInsets.all(32),
                         child: Text(
                             q.isEmpty
-                                ? 'لا توجد أصناف متاحة حالياً'
-                                : 'لا نتائج لـ«$q» في هذا المنيو',
+                                ? tr('لا توجد أصناف متاحة حالياً',
+                                    'No items available right now')
+                                : tr('لا نتائج لـ«$q» في هذا المنيو',
+                                    'No results for "$q" in this menu'),
                             style: const TextStyle(fontSize: 17)),
                       ),
                     );
                   }
 
-                  const otherCategory = MenuCategory(
-                      id: '__other__', restaurantId: '', name: 'أصناف أخرى');
+                  final otherCategory = MenuCategory(
+                      id: '__other__',
+                      restaurantId: '',
+                      name: tr('أصناف أخرى', 'Other items'));
 
                   return ListView(
                     padding: const EdgeInsets.only(bottom: 24),
@@ -269,8 +279,9 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                       MaterialPageRoute(builder: (_) => const CartScreen())),
                   // الإجمالي في الشريط (نمط كيتا): يعرف كم جمّع قبل فتح
                   // السلة — طمأنة تدفع للإضافة لا للتوقف.
-                  child: Text(
-                      'السلة (${cart.itemCount}) — ${formatCurrency(cart.itemsTotal)}'),
+                  child: Text(tr(
+                      'السلة (${cart.itemCount}) — ${formatCurrency(cart.itemsTotal)}',
+                      'Cart (${cart.itemCount}) — ${formatCurrency(cart.itemsTotal)}')),
                 ),
               ),
             )
@@ -335,7 +346,9 @@ class _ItemTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    item.name.trim().isEmpty ? '(بلا اسم)' : item.name,
+                    item.name.trim().isEmpty
+                        ? tr('(بلا اسم)', '(unnamed)')
+                        : item.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -361,7 +374,7 @@ class _ItemTile extends StatelessWidget {
                       const Icon(Icons.local_fire_department_outlined,
                           size: 13, color: AppColors.textGray),
                       const SizedBox(width: 3),
-                      Text('${item.kcal} سعرة حرارية',
+                      Text(tr('${item.kcal} سعرة حرارية', '${item.kcal} kcal'),
                           style: const TextStyle(
                               fontSize: 11.5, color: AppColors.textGray)),
                     ]),
@@ -387,8 +400,10 @@ class _ItemTile extends StatelessWidget {
                           size: 13, color: AppColors.warning),
                       const SizedBox(width: 4),
                       Flexible(
-                        child: Text('بيانات الصنف غير مكتملة',
-                            style: TextStyle(
+                        child: Text(
+                            tr('بيانات الصنف غير مكتملة',
+                                'Item details incomplete'),
+                            style: const TextStyle(
                                 fontSize: 11.5,
                                 color: AppColors.warning,
                                 fontWeight: FontWeight.w600)),
@@ -426,11 +441,15 @@ class _AddOrCounter extends StatelessWidget {
       if (!cart.isEmpty && cart.restaurantId != restaurant.id) {
         final ok = await showConfirmDialog(
           context,
-          title: 'سلة من مطعم آخر',
-          content: 'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} '
-              '— الطلب الواحد من مطعم واحد.\nإفراغها والبدء من '
-              '${restaurant.name}؟',
-          confirmLabel: 'إفراغ والبدء هنا',
+          title: tr('سلة من مطعم آخر', 'Cart from another restaurant'),
+          content: tr(
+              'سلتك تحوي أصنافاً من ${cart.restaurantName ?? 'مطعم آخر'} '
+                  '— الطلب الواحد من مطعم واحد.\nإفراغها والبدء من '
+                  '${restaurant.name}؟',
+              'Your cart has items from ${cart.restaurantName ?? 'another restaurant'} '
+                  '— each order is from one restaurant.\nEmpty it and start '
+                  'from ${restaurant.name}?'),
+          confirmLabel: tr('إفراغ والبدء هنا', 'Empty and start here'),
         );
         if (ok != true || !context.mounted) return;
       }
@@ -451,8 +470,10 @@ class _AddOrCounter extends StatelessWidget {
         // «السلة» الدائم بالأسفل يقول الباقي.
         if (context.mounted && !_addHintShown) {
           _addHintShown = true;
-          showSuccess(context,
-              'أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «السلة» بالأسفل');
+          showSuccess(
+              context,
+              tr('أُضيف ✓ أكمل اختيارك — الدفع مرة واحدة من «السلة» بالأسفل',
+                  'Added ✓ Keep browsing — check out once from "Cart" below'));
         }
       }
     }
@@ -477,7 +498,8 @@ class _AddOrCounter extends StatelessWidget {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
           onPressed: addToCart,
-          child: Text(item.hasOptions ? 'أضف +' : 'أضف',
+          child: Text(
+              item.hasOptions ? tr('أضف +', 'Add +') : tr('أضف', 'Add'),
               style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
         ),
       );
@@ -592,8 +614,8 @@ void _showOptionsSheet(
                             const SizedBox(width: 6),
                             Text(
                                 item.optionGroups[g].multiSelect
-                                    ? 'اختياري'
-                                    : 'إلزامي',
+                                    ? tr('اختياري', 'Optional')
+                                    : tr('إلزامي', 'Required'),
                                 style: TextStyle(
                                     fontSize: 11.5,
                                     color: item.optionGroups[g].multiSelect
@@ -649,7 +671,8 @@ void _showOptionsSheet(
                           );
                       Navigator.pop(sheetCtx);
                     },
-                    child: Text('أضف للسلة — ${formatCurrency(unitPrice)}'),
+                    child: Text(tr('أضف للسلة — ${formatCurrency(unitPrice)}',
+                        'Add to cart — ${formatCurrency(unitPrice)}')),
                   ),
                 ),
               ],

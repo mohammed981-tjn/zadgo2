@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -43,9 +44,9 @@ class _BroadcastTabState extends State<BroadcastTab> with SingleTickerProviderSt
           child: TabBar(
             controller: _tabController,
             labelColor: AppColors.primary,
-            tabs: const [
-              Tab(text: 'رسالة لكل السائقين'),
-              Tab(text: 'رسالة لكل العملاء'),
+            tabs: [
+              Tab(text: tr('رسالة لكل السائقين', 'Message all drivers')),
+              Tab(text: tr('رسالة لكل العملاء', 'Message all customers')),
             ],
           ),
         ),
@@ -85,7 +86,8 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
 
   Future<void> _send() async {
     if (_titleCtrl.text.trim().isEmpty || _bodyCtrl.text.trim().isEmpty) {
-      showError(context, 'يرجى إدخال العنوان ونص الرسالة');
+      showError(context, tr('يرجى إدخال العنوان ونص الرسالة',
+          'Please enter a title and message body'));
       return;
     }
     setState(() => _sending = true);
@@ -104,29 +106,35 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
     _bodyCtrl.clear();
     if (mounted) {
       setState(() => _sending = false);
-      showSuccess(context, 'تم إرسال البث بنجاح');
+      showSuccess(context, tr('تم إرسال البث بنجاح', 'Broadcast sent'));
     }
   }
 
   Future<void> _delete(BroadcastMessage m) async {
     final ok = await showConfirmDialog(context,
-        title: 'حذف الرسالة',
-        content: 'سيختفي هذا البثّ عن كل من وُجّه إليهم. متأكد؟',
-        confirmLabel: 'حذف',
+        title: tr('حذف الرسالة', 'Delete message'),
+        content: tr('سيختفي هذا البثّ عن كل من وُجّه إليهم. متأكد؟',
+            'This broadcast will disappear for everyone it was sent to. Are you sure?'),
+        confirmLabel: tr('حذف', 'Delete'),
         confirmColor: AppColors.error);
     if (ok != true || !mounted) return;
     try {
       await context.read<FirebaseService>().deleteBroadcast(m);
-      if (mounted) showSuccess(context, 'حُذفت الرسالة');
+      if (mounted) showSuccess(context, tr('حُذفت الرسالة', 'Message deleted'));
     } catch (_) {
-      if (mounted) showError(context, 'تعذّر الحذف — حاول مجدداً');
+      if (mounted) {
+        showError(context, tr('تعذّر الحذف — حاول مجدداً',
+            'Could not delete — try again'));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final service = context.read<FirebaseService>();
-    final audienceLabel = widget.audience == BroadcastAudience.drivers ? 'السائقين' : 'العملاء';
+    final audienceLabel = widget.audience == BroadcastAudience.drivers
+        ? tr('السائقين', 'drivers')
+        : tr('العملاء', 'customers');
     return Column(
       children: [
         Padding(
@@ -134,17 +142,20 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('إرسال رسالة جماعية لكل $audienceLabel',
+              Text(tr('إرسال رسالة جماعية لكل $audienceLabel',
+                      'Send a broadcast to all $audienceLabel'),
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
               const SizedBox(height: 12),
               TextField(
                 controller: _titleCtrl,
-                decoration: const InputDecoration(labelText: 'عنوان الرسالة'),
+                decoration: InputDecoration(
+                    labelText: tr('عنوان الرسالة', 'Message title')),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: _bodyCtrl,
-                decoration: const InputDecoration(labelText: 'نص الرسالة'),
+                decoration: InputDecoration(
+                    labelText: tr('نص الرسالة', 'Message body')),
                 maxLines: 3,
               ),
               const SizedBox(height: 12),
@@ -154,7 +165,10 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
                 child: ElevatedButton.icon(
                   onPressed: _sending ? null : _send,
                   icon: const Icon(Icons.campaign_outlined),
-                  label: Text(_sending ? 'جارٍ الإرسال...' : 'إرسال لكل $audienceLabel'),
+                  label: Text(_sending
+                      ? tr('جارٍ الإرسال...', 'Sending...')
+                      : tr('إرسال لكل $audienceLabel',
+                          'Send to all $audienceLabel')),
                 ),
               ),
             ],
@@ -166,7 +180,9 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
             stream: () => service.streamBroadcasts(widget.audience),
             builder: (ctx, list) {
               if (list.isEmpty) {
-                return const AppEmpty(emoji: '📢', title: 'لا يوجد رسائل بث سابقة');
+                return AppEmpty(
+                    emoji: '📢',
+                    title: tr('لا يوجد رسائل بث سابقة', 'No past broadcasts'));
               }
               return ListView.builder(
                 padding: const EdgeInsets.all(12),
@@ -188,7 +204,7 @@ class _BroadcastPanelState extends State<_BroadcastPanel> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline, color: AppColors.error),
-                          tooltip: 'حذف',
+                          tooltip: tr('حذف', 'Delete'),
                           onPressed: () => _delete(m),
                         ),
                       ]),

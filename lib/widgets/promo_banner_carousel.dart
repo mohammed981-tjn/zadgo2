@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/firebase_service.dart';
+import '../utils/app_lang.dart';
 import '../utils/theme.dart';
 import '../screens/customer/restaurant_detail_screen.dart';
 
@@ -229,17 +230,21 @@ class _DefaultPromoBanner extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('زادقو يوصّلك أشهى المطاعم 🍽️',
+                  children: [
+                    Text(
+                        tr('زادقو يوصّلك أشهى المطاعم 🍽️',
+                            'ZadGo brings you the tastiest restaurants 🍽️'),
                         maxLines: 2,
-                        style: TextStyle(
+                        style: const TextStyle(
                             color: Colors.white,
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
                             height: 1.3)),
-                    SizedBox(height: 6),
-                    Text('اطلب الآن — ويصلك سريعاً إلى بابك',
-                        style: TextStyle(
+                    const SizedBox(height: 6),
+                    Text(
+                        tr('اطلب الآن — ويصلك سريعاً إلى بابك',
+                            'Order now — delivered fast to your door'),
+                        style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600)),

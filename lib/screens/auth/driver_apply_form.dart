@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/firebase_service.dart';
 import '../../utils/helpers.dart';
 import '../../utils/theme.dart';
+import '../../utils/app_lang.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/doc_capture_field.dart';
 
@@ -41,6 +42,7 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
   bool _submitting = false;
 
   static const _vehicleSides = ['أمامية', 'خلفية', 'يمين', 'يسار'];
+  static const _vehicleSidesEn = ['Front', 'Back', 'Right', 'Left'];
 
   @override
   void initState() {
@@ -71,8 +73,8 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
     if (missing.isNotEmpty) {
       showError(
           context,
-          'مستندات إلزامية ناقصة: '
-          '${missing.map((k) => DriverApplication.docLabels[k]).join('، ')}');
+          '${tr('مستندات إلزامية ناقصة:', 'Missing required documents:')} '
+          '${missing.map((k) => DriverApplication.docLabels[k]).join(tr('، ', ', '))}');
       return;
     }
 
@@ -96,11 +98,15 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
         vehiclePhotos: _vehiclePhotos,
       );
       if (!mounted) return;
-      showSuccess(context, 'وصل طلبك — تراجعه الإدارة');
+      showSuccess(context,
+          tr('وصل طلبك — تراجعه الإدارة', 'Application received — under review'));
       widget.onSubmitted();
     } catch (_) {
       if (mounted) {
-        showError(context, 'تعذّر إرسال الطلب — تحقق من الاتصال وأعد المحاولة');
+        showError(
+            context,
+            tr('تعذّر إرسال الطلب — تحقق من الاتصال وأعد المحاولة',
+                "Couldn't submit — check your connection and try again"));
       }
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -112,59 +118,72 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
     return Form(
       key: _form,
       child: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('بياناتك ومركبتك',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(tr('بياناتك ومركبتك', 'Your details and vehicle'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        const Text('تراجعها الإدارة قبل أن تستقبل أول طلب.',
-            style: TextStyle(fontSize: 13, color: AppColors.textGray)),
+        Text(
+            tr('تراجعها الإدارة قبل أن تستقبل أول طلب.',
+                'The team reviews them before you receive your first order.'),
+            style: const TextStyle(fontSize: 13, color: AppColors.textGray)),
         const SizedBox(height: 16),
         TextFormField(
           controller: _name,
-          decoration: const InputDecoration(
-              labelText: 'الاسم الكامل — كما في الهوية'),
-          validator: (v) => validateRequired(v, 'الاسم'),
+          decoration: InputDecoration(
+              labelText:
+                  tr('الاسم الكامل — كما في الهوية', 'Full name — as on your ID')),
+          validator: (v) => validateRequired(v, tr('الاسم', 'Name')),
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _phone,
           keyboardType: TextInputType.phone,
-          decoration: const InputDecoration(labelText: 'رقم الجوال'),
+          decoration:
+              InputDecoration(labelText: tr('رقم الجوال', 'Mobile number')),
           validator: validatePhone,
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _nationalId,
           keyboardType: TextInputType.number,
-          decoration:
-              const InputDecoration(labelText: 'رقم الهوية / الإقامة'),
-          validator: (v) => validateRequired(v, 'رقم الهوية'),
+          decoration: InputDecoration(
+              labelText: tr('رقم الهوية / الإقامة', 'National ID / Iqama number')),
+          validator: (v) => validateRequired(v, tr('رقم الهوية', 'ID number')),
         ),
         const SizedBox(height: 14),
         DropdownButtonFormField<String>(
           value: _vehicleType,
-          decoration: const InputDecoration(labelText: 'نوع المركبة'),
-          items: const [
-            DropdownMenuItem(value: 'دراجة نارية', child: Text('دراجة نارية')),
-            DropdownMenuItem(value: 'سيارة', child: Text('سيارة')),
+          decoration:
+              InputDecoration(labelText: tr('نوع المركبة', 'Vehicle type')),
+          // قيمتا value تُحفظان في Firestore فتبقيان عربيتين؛ النص المعروض
+          // وحده يُترجم.
+          items: [
+            DropdownMenuItem(
+                value: 'دراجة نارية',
+                child: Text(tr('دراجة نارية', 'Motorcycle'))),
+            DropdownMenuItem(value: 'سيارة', child: Text(tr('سيارة', 'Car'))),
           ],
           onChanged: (v) => setState(() => _vehicleType = v ?? 'دراجة نارية'),
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _plate,
-          decoration: const InputDecoration(labelText: 'رقم اللوحة'),
-          validator: (v) => validateRequired(v, 'رقم اللوحة'),
+          decoration: InputDecoration(labelText: tr('رقم اللوحة', 'Plate number')),
+          validator: (v) => validateRequired(v, tr('رقم اللوحة', 'Plate number')),
         ),
         const SizedBox(height: 10),
         TextFormField(
           controller: _referrer,
-          decoration: const InputDecoration(
-            labelText: 'كود الكابتن الداعي (اختياري)',
-            helperText: 'إن دعاك كابتن — يُصرف له ولك حافز الإحالة',
+          decoration: InputDecoration(
+            labelText: tr('كود الكابتن الداعي (اختياري)',
+                "Referring captain's code (optional)"),
+            helperText: tr('إن دعاك كابتن — يُصرف له ولك حافز الإحالة',
+                'If a captain invited you, you both get the referral bonus'),
           ),
         ),
         const SizedBox(height: 20),
-        const SectionHeader(title: 'المستندات — صوّر كل مستند بوضوح'),
+        SectionHeader(
+            title: tr('المستندات — صوّر كل مستند بوضوح',
+                'Documents — photograph each one clearly')),
         ...DriverApplication.docLabels.entries.map(
           (e) => DocCaptureField(
             label: e.value,
@@ -180,11 +199,13 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
           ),
         ),
         const SizedBox(height: 12),
-        const SectionHeader(title: 'صور المركبة — أربع جهات'),
+        SectionHeader(
+            title: tr('صور المركبة — أربع جهات',
+                'Vehicle photos — all four sides')),
         ...List.generate(_vehicleSides.length, (i) {
           final has = i < _vehiclePhotos.length;
           return DocCaptureField(
-            label: 'جهة ${_vehicleSides[i]}',
+            label: tr('جهة ${_vehicleSides[i]}', '${_vehicleSidesEn[i]} side'),
             value: has ? _vehiclePhotos[i] : null,
             onChanged: (bytes) => setState(() {
               if (bytes == null) {
@@ -208,7 +229,9 @@ class _DriverApplyFormState extends State<DriverApplyForm> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.send_rounded),
-            label: Text(_submitting ? 'يُرسل...' : 'إرسال الطلب'),
+            label: Text(_submitting
+                ? tr('يُرسل...', 'Submitting...')
+                : tr('إرسال الطلب', 'Submit application')),
           ),
         ),
         const SizedBox(height: 30),

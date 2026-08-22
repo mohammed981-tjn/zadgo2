@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -108,9 +109,11 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
         if (sold.isEmpty) {
           return Column(children: [
             filters,
-            const Expanded(
+            Expanded(
               child: AppEmpty(
-                  emoji: '📊', title: 'لا توجد طلبات مكتملة ضمن هذا النطاق'),
+                  emoji: '📊',
+                  title: tr('لا توجد طلبات مكتملة ضمن هذا النطاق',
+                      'No completed orders in this range')),
             ),
           ]);
         }
@@ -171,16 +174,17 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
           ..sort((a, b) => b.meals.compareTo(a.meals));
 
         final scopeLabel = _restaurantFilter.isEmpty
-            ? 'كل المطاعم'
-            : (restaurantNames[_restaurantFilter] ?? 'مطعم');
+            ? tr('كل المطاعم', 'All restaurants')
+            : (restaurantNames[_restaurantFilter] ?? tr('مطعم', 'Restaurant'));
         // «منذ البداية» تُكتب فقط حين تكون صادقة (النافذة استوعبت كل
         // التاريخ) — وإلا سُمّيت النافذة باسمها، ويمرّ الاسم الصادق نفسه
         // إلى ملفَّي PDF وExcel فلا يرث التصدير ادّعاءً كاذباً.
         final periodLabel = _periodDays != null
-            ? 'آخر $_periodDays يوم'
+            ? tr('آخر $_periodDays يوم', 'Last $_periodDays days')
             : windowCapped
-                ? 'أحدث ٥٠٠ طلب${_trueTotal != null ? ' من أصل $_trueTotal' : ''}'
-                : 'منذ البداية';
+                ? tr('أحدث ٥٠٠ طلب${_trueTotal != null ? ' من أصل $_trueTotal' : ''}',
+                    'Latest 500 orders${_trueTotal != null ? ' of $_trueTotal' : ''}')
+                : tr('منذ البداية', 'All time');
 
         return Column(children: [
           filters,
@@ -200,7 +204,8 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('إجمالي مبيعات الوجبات — $scopeLabel',
+                  Text(tr('إجمالي مبيعات الوجبات — $scopeLabel',
+                          'Total meal sales — $scopeLabel'),
                       style: const TextStyle(color: Colors.white70)),
                   Text(formatCurrency(totalMeals),
                       style: const TextStyle(
@@ -209,7 +214,8 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
                   Text(
-                      '${sold.length} طلب مكتمل • ${restaurants.length} مطعم • $periodLabel',
+                      tr('${sold.length} طلب مكتمل • ${restaurants.length} مطعم • $periodLabel',
+                          '${sold.length} completed orders • ${restaurants.length} restaurants • $periodLabel'),
                       style:
                           const TextStyle(color: Colors.white70, fontSize: 12.5)),
                 ],
@@ -231,7 +237,7 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                         .toList(),
                   ),
                   icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                  label: const Text('تقرير PDF'),
+                  label: Text(tr('تقرير PDF', 'PDF report')),
                 ),
               ),
               const SizedBox(width: 10),
@@ -252,56 +258,66 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
             const SizedBox(height: 12),
 
             // معادلة الدورة المالية — من دفع العميل حتى استقرار كل ريال.
-            const SectionHeader(title: 'الدورة المالية الكاملة'),
+            SectionHeader(title: tr('الدورة المالية الكاملة', 'Full financial cycle')),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(children: [
                   PriceRow(
-                      label: 'دفعه العملاء (شامل التوصيل والرسوم)',
+                      label: tr('دفعه العملاء (شامل التوصيل والرسوم)',
+                          'Paid by customers (incl. delivery and fees)'),
                       value: formatCurrency(totalRevenue),
                       bold: true),
                   const Divider(),
                   PriceRow(
-                      label: '← صافي مستحقّات المطاعم',
+                      label: tr('← صافي مستحقّات المطاعم',
+                          '← Net owed to restaurants'),
                       value: formatCurrency(restaurantsNet - totalChargebacks)),
                   if (totalChargebacks > 0)
                     PriceRow(
-                        label: '   منها خصومات شكاوى جودة لصالح العملاء',
+                        label: tr('   منها خصومات شكاوى جودة لصالح العملاء',
+                            '   incl. quality-complaint deductions for customers'),
                         value: '- ${formatCurrency(totalChargebacks)}'),
                   PriceRow(
-                      label: '← أجرة السائقين',
+                      label: tr('← أجرة السائقين', '← Driver fees'),
                       value: formatCurrency(totalDelivery)),
                   if (totalDiscounts > 0 || totalCompensations > 0) ...[
                     PriceRow(
-                        label: '← دخل المنصّة قبل الخصومات',
+                        label: tr('← دخل المنصّة قبل الخصومات',
+                            '← Platform income before deductions'),
                         value: formatCurrency(totalCommission)),
                     if (totalDiscounts > 0)
                       PriceRow(
-                          label: '← خصومات الكوبونات (تتحمّلها المنصّة)',
+                          label: tr('← خصومات الكوبونات (تتحمّلها المنصّة)',
+                              '← Coupon discounts (borne by the platform)'),
                           value: '- ${formatCurrency(totalDiscounts)}'),
                     if (totalCompensations > 0)
                       PriceRow(
-                          label: '← تعويض مطاعم عن إلغاء بعد التحضير',
+                          label: tr('← تعويض مطاعم عن إلغاء بعد التحضير',
+                              '← Restaurant compensation for post-prep cancellations'),
                           value: '- ${formatCurrency(totalCompensations)}'),
                     PriceRow(
-                        label: '← صافي دخل المنصّة',
+                        label: tr('← صافي دخل المنصّة', '← Platform net income'),
                         value: formatCurrency(platformNet),
                         bold: true),
                   ] else
                     PriceRow(
-                        label: '← دخل المنصّة (عمولة 15% + الرسم الثابت)',
+                        label: tr('← دخل المنصّة (عمولة 15% + الرسم الثابت)',
+                            '← Platform income (15% commission + flat fee)'),
                         value: formatCurrency(totalCommission)),
                   const Divider(),
                   PriceRow(
-                      label: 'حصّله السائقون نقداً من العملاء',
+                      label: tr('حصّله السائقون نقداً من العملاء',
+                          'Collected in cash by drivers from customers'),
                       value: formatCurrency(cashCollected)),
                   PriceRow(
-                      label: 'قبضته المنصّة (بطاقات + محافظ)',
+                      label: tr('قبضته المنصّة (بطاقات + محافظ)',
+                          'Received by the platform (cards + wallets)'),
                       value: formatCurrency(totalRevenue - cashCollected)),
                   if (totalWalletUsed > 0)
                     PriceRow(
-                        label: 'منها مدفوع من أرصدة المحافظ',
+                        label: tr('منها مدفوع من أرصدة المحافظ',
+                            'incl. paid from wallet balances'),
                         value: formatCurrency(totalWalletUsed)),
                 ]),
               ),
@@ -330,15 +346,17 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('أرصدة السائقين الآن',
-                              style: TextStyle(
+                          Text(tr('أرصدة السائقين الآن', 'Driver balances now'),
+                              style: const TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 13.5)),
                           const SizedBox(height: 6),
                           PriceRow(
-                              label: 'نقد بيد السائقين (عُهد لم تُسوَّ)',
+                              label: tr('نقد بيد السائقين (عُهد لم تُسوَّ)',
+                                  'Cash held by drivers (unsettled custody)'),
                               value: formatCurrency(custodyHeld)),
                           PriceRow(
-                              label: 'مستحقّات للسائقين على المنصّة',
+                              label: tr('مستحقّات للسائقين على المنصّة',
+                                  'Owed to drivers by the platform'),
                               value: formatCurrency(duesToDrivers)),
                         ]),
                   ),
@@ -347,26 +365,30 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
             ),
             const SizedBox(height: 16),
 
-            const SectionHeader(title: 'الإيرادات والعمولات'),
+            SectionHeader(title: tr('الإيرادات والعمولات', 'Revenue and commissions')),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Column(children: [
                   PriceRow(
-                      label: 'مبيعات الوجبات', value: formatCurrency(totalMeals)),
+                      label: tr('مبيعات الوجبات', 'Meal sales'),
+                      value: formatCurrency(totalMeals)),
                   PriceRow(
-                      label: 'قيمة التوصيل (حصّة السائقين)',
+                      label: tr('قيمة التوصيل (حصّة السائقين)',
+                          'Delivery value (drivers\' share)'),
                       value: formatCurrency(totalDelivery)),
                   const Divider(),
                   PriceRow(
-                      label: 'عمولة الوجبات (15% من المطاعم)',
+                      label: tr('عمولة الوجبات (15% من المطاعم)',
+                          'Meal commission (15% from restaurants)'),
                       value: formatCurrency(mealsCommission)),
                   PriceRow(
-                      label: 'عمولة التوصيل (رسم ثابت)',
+                      label: tr('عمولة التوصيل (رسم ثابت)',
+                          'Delivery commission (flat fee)'),
                       value: formatCurrency(deliveryCommission)),
                   const Divider(),
                   PriceRow(
-                      label: 'إجمالي عمولات التطبيق',
+                      label: tr('إجمالي عمولات التطبيق', 'Total app commissions'),
                       value: formatCurrency(totalCommission),
                       bold: true),
                 ]),
@@ -383,14 +405,18 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     PriceRow(
-                        label: 'ضريبة القيمة المضافة ضمن المبيعات (15%)',
+                        label: tr('ضريبة القيمة المضافة ضمن المبيعات (15%)',
+                            'VAT included in sales (15%)'),
                         value: formatCurrency(vatInMeals),
                         bold: true),
                     const SizedBox(height: 4),
-                    const Text(
-                      'الأسعار المعروضة للعميل شاملة الضريبة، وهذه قيمتها '
-                      'المستخرجة منها للأغراض المحاسبية.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textGray),
+                    Text(
+                      tr(
+                          'الأسعار المعروضة للعميل شاملة الضريبة، وهذه قيمتها '
+                          'المستخرجة منها للأغراض المحاسبية.',
+                          'Prices shown to the customer include VAT; this is the amount '
+                          'extracted from them for accounting purposes.'),
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.textGray),
                     ),
                   ],
                 ),
@@ -398,7 +424,7 @@ class _AdminReportsTabState extends State<AdminReportsTab> {
             ),
             const SizedBox(height: 16),
 
-            const SectionHeader(title: 'تفصيل المبيعات لكل مطعم'),
+            SectionHeader(title: tr('تفصيل المبيعات لكل مطعم', 'Sales breakdown per restaurant')),
             ...restaurants.map((r) => _RestaurantReportCard(
                   totals: r,
                   ordersOfRestaurant:
@@ -440,13 +466,13 @@ class _FilterBar extends StatelessWidget {
         DropdownButtonFormField<String>(
           value: selectedRestaurant.isEmpty ? '' : selectedRestaurant,
           isExpanded: true,
-          decoration: const InputDecoration(
-            labelText: 'المطعم',
-            prefixIcon: Icon(Icons.storefront_outlined),
+          decoration: InputDecoration(
+            labelText: tr('المطعم', 'Restaurant'),
+            prefixIcon: const Icon(Icons.storefront_outlined),
             isDense: true,
           ),
           items: [
-            const DropdownMenuItem(value: '', child: Text('كل المطاعم')),
+            DropdownMenuItem(value: '', child: Text(tr('كل المطاعم', 'All restaurants'))),
             ...restaurantNames.entries.map(
                 (e) => DropdownMenuItem(value: e.key, child: Text(e.value))),
           ],
@@ -456,11 +482,11 @@ class _FilterBar extends StatelessWidget {
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
-            for (final (label, days) in const [
-              ('اليوم', 1),
-              ('٧ أيام', 7),
-              ('٣٠ يوماً', 30),
-              ('الكل', 0),
+            for (final (label, days) in [
+              (tr('اليوم', 'Today'), 1),
+              (tr('٧ أيام', '7 days'), 7),
+              (tr('٣٠ يوماً', '30 days'), 30),
+              (tr('الكل', 'All'), 0),
             ])
               Padding(
                 padding: const EdgeInsetsDirectional.only(end: 8),
@@ -523,25 +549,28 @@ class _RestaurantReportCard extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dCtx) => AlertDialog(
-        title: Text('تسجيل دفعة — ${totals.name}'),
+        title: Text(tr('تسجيل دفعة — ${totals.name}',
+            'Record payment — ${totals.name}')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: amountCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'المبلغ المسلَّم (ر.س)'),
+            decoration: InputDecoration(
+                labelText: tr('المبلغ المسلَّم (ر.س)', 'Amount handed over (SAR)')),
           ),
           TextField(
             controller: methodCtrl,
-            decoration: const InputDecoration(labelText: 'طريقة السداد'),
+            decoration: InputDecoration(
+                labelText: tr('طريقة السداد', 'Payment method')),
           ),
         ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(dCtx, false),
-              child: const Text('إلغاء')),
+              child: Text(tr('إلغاء', 'Cancel'))),
           ElevatedButton(
               onPressed: () => Navigator.pop(dCtx, true),
-              child: const Text('تسجيل')),
+              child: Text(tr('تسجيل', 'Record'))),
         ],
       ),
     );
@@ -553,7 +582,10 @@ class _RestaurantReportCard extends StatelessWidget {
         amount: double.tryParse(amountCtrl.text.trim()) ?? 0,
         method: methodCtrl.text,
       );
-      if (context.mounted) showSuccess(context, 'سُجّلت الدفعة في دفتر المطعم');
+      if (context.mounted) {
+        showSuccess(context, tr('سُجّلت الدفعة في دفتر المطعم',
+            'Payment recorded in the restaurant ledger'));
+      }
     } catch (e) {
       if (context.mounted) {
         showError(context, e.toString().replaceFirst('Exception: ', ''));
@@ -579,19 +611,20 @@ class _RestaurantReportCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis),
               ),
-              Text('${totals.orders} طلب',
+              Text(tr('${totals.orders} طلب', '${totals.orders} orders'),
                   style: const TextStyle(
                       fontSize: 12.5, color: AppColors.textGray)),
             ]),
             const SizedBox(height: 8),
             PriceRow(
-                label: 'مبيعات الوجبات', value: formatCurrency(totals.meals)),
+                label: tr('مبيعات الوجبات', 'Meal sales'),
+                value: formatCurrency(totals.meals)),
             PriceRow(
-                label: 'عمولة التطبيق',
+                label: tr('عمولة التطبيق', 'App commission'),
                 value: '- ${formatCurrency(totals.commission)}'),
             const Divider(),
             PriceRow(
-                label: 'صافي مستحقّات المطعم',
+                label: tr('صافي مستحقّات المطعم', 'Restaurant net dues'),
                 value: formatCurrency(totals.net),
                 bold: true),
             // الدفتر: المستحق ناقص ما سُلّم فعلاً — الرقم الذي يهم عند
@@ -624,10 +657,12 @@ class _RestaurantReportCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 2),
                   child: Column(children: [
                     PriceRow(
-                        label: 'سُلّم للمطعم (كل التاريخ)',
+                        label: tr('سُلّم للمطعم (كل التاريخ)',
+                            'Handed to the restaurant (all time)'),
                         value: '- ${formatCurrency(led.paid)}'),
                     PriceRow(
-                        label: 'المتبقّي في الدفتر (كل التاريخ)',
+                        label: tr('المتبقّي في الدفتر (كل التاريخ)',
+                            'Remaining in the ledger (all time)'),
                         value: formatCurrency(fullNet - led.paid),
                         bold: true),
                   ]),
@@ -643,14 +678,14 @@ class _RestaurantReportCard extends StatelessWidget {
                   orders: ordersOfRestaurant,
                 ),
                 icon: const Icon(Icons.receipt_long_outlined, size: 16),
-                label: const Text('فاتورة PDF',
-                    style: TextStyle(fontSize: 12.5)),
+                label: Text(tr('فاتورة PDF', 'PDF invoice'),
+                    style: const TextStyle(fontSize: 12.5)),
               ),
               TextButton.icon(
                 onPressed: () => _recordSettlement(context),
                 icon: const Icon(Icons.price_check_rounded, size: 16),
-                label: const Text('تسجيل دفعة',
-                    style: TextStyle(fontSize: 12.5)),
+                label: Text(tr('تسجيل دفعة', 'Record payment'),
+                    style: const TextStyle(fontSize: 12.5)),
               ),
             ]),
           ],

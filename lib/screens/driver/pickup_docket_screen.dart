@@ -19,6 +19,7 @@ import '../../models/models.dart';
 import '../../providers/firebase_service.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/driver_proof_flow.dart';
 import 'scan_pickup_screen.dart';
 import '../../utils/location_guard.dart';
@@ -88,7 +89,9 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
   String _orderTimeLabel(DateTime t) {
     final clock =
         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-    return '${t.day}/${t.month} — $clock (منذ ${formatRemaining(DateTime.now().difference(t))})';
+    return tr(
+        '${t.day}/${t.month} — $clock (منذ ${formatRemaining(DateTime.now().difference(t))})',
+        '${t.day}/${t.month} — $clock (${formatRemaining(DateTime.now().difference(t))} ago)');
   }
 
   @override
@@ -97,7 +100,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
     final fc = context.flavorColors;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('مذكرة الاستلام')),
+      appBar: AppBar(title: Text(tr('مذكرة الاستلام', 'Pickup memo'))),
       // متابعة حيّة للطلب: لو ألغته الإدارة أو تغيّرت حالته وهو أمام
       // المطعم، تتحدث المذكرة فوراً بدل أن يستلم طلباً أُلغي.
       body: StreamBuilder<Order?>(
@@ -108,13 +111,15 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
           }
           final o = snap.data;
           if (o == null) {
-            return const AppEmpty(emoji: '❓', title: 'الطلب غير موجود');
+            return AppEmpty(
+                emoji: '❓', title: tr('الطلب غير موجود', 'Order not found'));
           }
           if (!o.status.isActive) {
             return AppEmpty(
                 emoji: '⚠️',
-                title: 'الطلب لم يعد نشطاً',
-                subtitle: 'حالته الآن: ${o.status.label}');
+                title: tr('الطلب لم يعد نشطاً', 'Order is no longer active'),
+                subtitle: tr('حالته الآن: ${o.status.label}',
+                    'Current status: ${o.status.label}'));
           }
 
           _maybeRefreshRestaurantCoords(service, o);
@@ -151,9 +156,11 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                     Row(children: [
                       Icon(Icons.storefront_rounded, size: 18, color: fc.primary),
                       const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text('اعرض هذه الشاشة لموظف المطعم لمطابقة الطلب',
-                            style: TextStyle(fontSize: 12.5)),
+                      Expanded(
+                        child: Text(
+                            tr('اعرض هذه الشاشة لموظف المطعم لمطابقة الطلب',
+                                'Show this screen to the restaurant staff to match the order'),
+                            style: const TextStyle(fontSize: 12.5)),
                       ),
                     ]),
                     const SizedBox(height: 6),
@@ -162,10 +169,11 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                     Row(children: [
                       Icon(Icons.qr_code_2_rounded, size: 18, color: fc.primary),
                       const SizedBox(width: 8),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                            'طابق رقم الطلب على ملصق الكيس مع الرقم أدناه قبل المغادرة',
-                            style: TextStyle(
+                            tr('طابق رقم الطلب على ملصق الكيس مع الرقم أدناه قبل المغادرة',
+                                'Match the order number on the bag label with the number below before leaving'),
+                            style: const TextStyle(
                                 fontSize: 12.5, fontWeight: FontWeight.w700)),
                       ),
                     ]),
@@ -178,8 +186,8 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     child: Column(children: [
-                      const Text('رقم الطلب',
-                          style: TextStyle(
+                      Text(tr('رقم الطلب', 'Order number'),
+                          style: const TextStyle(
                               fontSize: 12.5, color: AppColors.textGray)),
                       Text('#${o.orderNumber}',
                           style: TextStyle(
@@ -234,8 +242,10 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                           children: [
                             Text(
                                 isCash
-                                    ? 'نقدي — حصّل من العميل ${formatCurrency(collectAmount)}${o.driverTip > 0 ? " (منها إكراميتك ${formatCurrency(o.driverTip)} 🎁)" : ""}'
-                                    : 'مدفوع — لا تحصيل من أحد',
+                                    ? tr('نقدي — حصّل من العميل ${formatCurrency(collectAmount)}${o.driverTip > 0 ? " (منها إكراميتك ${formatCurrency(o.driverTip)} 🎁)" : ""}',
+                                        'Cash — collect ${formatCurrency(collectAmount)} from the customer${o.driverTip > 0 ? " (includes your ${formatCurrency(o.driverTip)} tip 🎁)" : ""}')
+                                    : tr('مدفوع — لا تحصيل من أحد',
+                                        'Paid — nothing to collect'),
                                 style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 14.5,
@@ -244,7 +254,8 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                         : AppColors.success)),
                             if (isCash && o.custodyAmount > 0)
                               Text(
-                                  'ستُقيَّد عُهدة ${formatCurrency(o.custodyAmount)} على محفظتك عند الاستلام',
+                                  tr('ستُقيَّد عُهدة ${formatCurrency(o.custodyAmount)} على محفظتك عند الاستلام',
+                                      '${formatCurrency(o.custodyAmount)} of cash in hand will be charged to your wallet at pickup'),
                                   style: const TextStyle(fontSize: 11.5)),
                           ]),
                     ),
@@ -260,11 +271,13 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            const Text('الأصناف',
-                                style: TextStyle(
+                            Text(tr('الأصناف', 'Items'),
+                                style: const TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 14.5)),
                             const Spacer(),
-                            Text('${o.items.fold<int>(0, (s, i) => s + i.quantity)} قطعة',
+                            Text(
+                                tr('${o.items.fold<int>(0, (s, i) => s + i.quantity)} قطعة',
+                                    '${o.items.fold<int>(0, (s, i) => s + i.quantity)} pcs'),
                                 style: const TextStyle(
                                     fontSize: 12.5, color: AppColors.textGray)),
                           ]),
@@ -319,7 +332,9 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                       size: 16, color: AppColors.warning),
                                   const SizedBox(width: 6),
                                   Expanded(
-                                    child: Text('ملاحظة العميل: ${o.notes}',
+                                    child: Text(
+                                        tr('ملاحظة العميل: ${o.notes}',
+                                            'Customer note: ${o.notes}'),
                                         style: const TextStyle(fontSize: 12.5)),
                                   ),
                                 ]),
@@ -336,7 +351,8 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                                   size: 16, color: AppColors.primaryDark),
                               const SizedBox(width: 6),
                               Text(
-                                  'المطعم قدّر التحضير: نحو ${o.prepMinutes} دقيقة',
+                                  tr('المطعم قدّر التحضير: نحو ${o.prepMinutes} دقيقة',
+                                      'Restaurant prep estimate: about ${o.prepMinutes} min'),
                                   style: const TextStyle(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w600)),
@@ -383,7 +399,8 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                     // اختصار طريق لا تجاوز حراسة.
                     OutlinedButton.icon(
                       icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-                      label: const Text('امسح رمز المطعم للاستلام'),
+                      label: Text(tr('امسح رمز المطعم للاستلام',
+                          "Scan the restaurant's code to pick up")),
                       onPressed: () async {
                         final matched = await Navigator.push<bool>(
                           context,
@@ -413,7 +430,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                     ),
                     const SizedBox(height: 8),
                     ZadGradientButton(
-                      label: 'استلمت الطلب — في الطريق',
+                      label: tr('استلمت الطلب — في الطريق', 'Picked up — on my way'),
                       icon: Icons.delivery_dining,
                       onPressed: () async {
                         final done =
@@ -437,7 +454,7 @@ class _PickupDocketScreenState extends State<PickupDocketScreen> {
                     ),
                   ] else
                     ZadGradientButton(
-                      label: 'متابعة الرحلة على الخريطة',
+                      label: tr('متابعة الرحلة على الخريطة', 'Track the trip on the map'),
                       icon: Icons.map_outlined,
                       onPressed: () => Navigator.pushReplacement(
                         context,
@@ -485,8 +502,9 @@ class _ApproachButton extends StatelessWidget {
     final distanceLabel = meters == null
         ? ''
         : meters >= 1000
-            ? ' — ${(meters / 1000).toStringAsFixed(1)} كم'
-            : ' — ${meters.round()} م';
+            ? tr(' — ${(meters / 1000).toStringAsFixed(1)} كم',
+                ' — ${(meters / 1000).toStringAsFixed(1)} km')
+            : tr(' — ${meters.round()} م', ' — ${meters.round()} m');
 
     // زر واحد يتحوّل (قرار المالك النهائي ٢٠٢٦-٠٨-١١ بعد تجربة الصيغتين):
     // «توجه للمطعم — X» ما دام بعيداً، ويصير «وصلتُ المطعم» داخل النطاق.
@@ -502,7 +520,8 @@ class _ApproachButton extends StatelessWidget {
                 builder: (_) => OrderMapScreen(order: order, readOnly: false)),
           ),
           icon: const Icon(Icons.navigation_outlined),
-          label: Text('توجه للمطعم$distanceLabel'),
+          label: Text(
+              tr('توجه للمطعم$distanceLabel', 'Head to restaurant$distanceLabel')),
         ),
       );
     }
@@ -511,7 +530,7 @@ class _ApproachButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: () => DriverProofFlow.recordArrival(context, service, order),
         icon: const Icon(Icons.where_to_vote_outlined),
-        label: const Text('وصلتُ المطعم'),
+        label: Text(tr('وصلتُ المطعم', 'Arrived at restaurant')),
       ),
     );
   }

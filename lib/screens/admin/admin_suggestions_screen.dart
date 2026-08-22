@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/firebase_service.dart';
 import '../../models/models.dart';
+import '../../utils/app_lang.dart';
 import '../../utils/theme.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -21,10 +22,11 @@ class AdminSuggestionsScreen extends StatelessWidget {
       stream: () => service.streamSuggestions(),
       builder: (ctx, items) {
         if (items.isEmpty) {
-          return const AppEmpty(
+          return AppEmpty(
               emoji: '💡',
-              title: 'لا اقتراحات بعد',
-              subtitle: 'ما يكتبه الزوّار من اقتراحات ونصائح يظهر هنا.');
+              title: tr('لا اقتراحات بعد', 'No suggestions yet'),
+              subtitle: tr('ما يكتبه الزوّار من اقتراحات ونصائح يظهر هنا.',
+                  'Suggestions and tips written by visitors show up here.'));
         }
         return ListView.separated(
           padding: const EdgeInsets.all(12),
@@ -60,13 +62,14 @@ class _SuggestionCard extends StatelessWidget {
                       fontSize: 11, color: AppColors.textGray)),
             ),
             IconButton(
-              tooltip: 'حذف',
+              tooltip: tr('حذف', 'Delete'),
               icon: const Icon(Icons.delete_outline, size: 20),
               onPressed: () async {
                 final ok = await showConfirmDialog(context,
-                    title: 'حذف الاقتراح؟',
-                    content: 'يُحذف نهائياً من السجلّ.',
-                    confirmLabel: 'حذف',
+                    title: tr('حذف الاقتراح؟', 'Delete this suggestion?'),
+                    content: tr('يُحذف نهائياً من السجلّ.',
+                        'It will be permanently removed from the log.'),
+                    confirmLabel: tr('حذف', 'Delete'),
                     confirmColor: AppColors.error);
                 if (ok == true && context.mounted) {
                   await context

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/models.dart';
 import 'firebase_service.dart';
 import 'push_service.dart';
+import '../utils/app_lang.dart';
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseService _service;
@@ -37,7 +38,7 @@ class AuthProvider extends ChangeNotifier {
         if (fetched != null && !fetched.isActive) {
           await _service.signOut();
           _user = null;
-          _error = 'تم تعطيل هذا الحساب، يرجى مراجعة الإدارة';
+          _error = tr('تم تعطيل هذا الحساب، يرجى مراجعة الإدارة', 'This account has been disabled — contact support');
         } else {
           _user = fetched;
           // تسجيل الجهاز لإشعارات FCM بعد اكتمال بيانات المستخدم — هنا
@@ -118,7 +119,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       if (!userReady) {
-        _error = 'تعذّر تحميل بيانات الحساب، حاول مرة أخرى';
+        _error = tr('تعذّر تحميل بيانات الحساب، حاول مرة أخرى', 'Couldn\'t load account data, please try again');
         return false;
       }
       return true;
@@ -126,7 +127,7 @@ class AuthProvider extends ChangeNotifier {
       _error = _mapError(e.code); _loading = false; notifyListeners();
       return false;
     } catch (e) {
-      _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      _error = tr('خطأ غير متوقع', 'Unexpected error'); _loading = false; notifyListeners();
       return false;
     }
   }
@@ -148,7 +149,7 @@ class AuthProvider extends ChangeNotifier {
       final fbUser = FirebaseAuth.instance.currentUser;
       final email = fbUser?.email;
       if (fbUser == null || email == null) {
-        _error = 'سجّل الدخول أولاً';
+        _error = tr('سجّل الدخول أولاً', 'Sign in first');
         _loading = false; notifyListeners();
         return false;
       }
@@ -161,15 +162,15 @@ class AuthProvider extends ChangeNotifier {
     } on FirebaseAuthException catch (e) {
       _error = switch (e.code) {
         'wrong-password' || 'invalid-credential' =>
-          'كلمة المرور الحالية غير صحيحة',
-        'weak-password' => 'كلمة المرور الجديدة ضعيفة (٦ أحرف فأكثر)',
-        'requires-recent-login' => 'أعد تسجيل الدخول ثم حاول مجدداً',
+          tr('كلمة المرور الحالية غير صحيحة', 'Current password is incorrect'),
+        'weak-password' => tr('كلمة المرور الجديدة ضعيفة (٦ أحرف فأكثر)', 'New password is too weak (6+ characters)'),
+        'requires-recent-login' => tr('أعد تسجيل الدخول ثم حاول مجدداً', 'Sign in again and retry'),
         _ => _mapError(e.code),
       };
       _loading = false; notifyListeners();
       return false;
     } catch (_) {
-      _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      _error = tr('خطأ غير متوقع', 'Unexpected error'); _loading = false; notifyListeners();
       return false;
     }
   }
@@ -202,7 +203,7 @@ class AuthProvider extends ChangeNotifier {
       _error = _mapError(e.code); _loading = false; notifyListeners();
       return false;
     } catch (e) {
-      _error = 'خطأ غير متوقع'; _loading = false; notifyListeners();
+      _error = tr('خطأ غير متوقع', 'Unexpected error'); _loading = false; notifyListeners();
       return false;
     }
   }
@@ -256,12 +257,12 @@ class AuthProvider extends ChangeNotifier {
 
   String _mapError(String code) {
     switch (code) {
-      case 'user-not-found': return 'البريد الإلكتروني غير مسجل';
-      case 'wrong-password': return 'كلمة المرور غير صحيحة';
-      case 'invalid-credential': return 'البريد أو كلمة المرور غير صحيحة';
-      case 'email-already-in-use': return 'البريد الإلكتروني مستخدم بالفعل';
-      case 'weak-password': return 'كلمة المرور ضعيفة جداً';
-      default: return 'خطأ ($code)';
+      case 'user-not-found': return tr('البريد الإلكتروني غير مسجل', 'Email not registered');
+      case 'wrong-password': return tr('كلمة المرور غير صحيحة', 'Incorrect password');
+      case 'invalid-credential': return tr('البريد أو كلمة المرور غير صحيحة', 'Incorrect email or password');
+      case 'email-already-in-use': return tr('البريد الإلكتروني مستخدم بالفعل', 'Email already in use');
+      case 'weak-password': return tr('كلمة المرور ضعيفة جداً', 'Password is too weak');
+      default: return tr('خطأ ($code)', 'Error ($code)');
     }
   }
 }
