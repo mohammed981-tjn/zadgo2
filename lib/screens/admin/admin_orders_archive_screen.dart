@@ -396,7 +396,9 @@ class _ArchiveCard extends StatelessWidget {
                   if (o.items.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
-                      o.items.map((i) => '${i.name} ×${i.quantity}').join('، '),
+                      o.items
+                          .map((i) => '${i.name} ×${i.quantity}')
+                          .join(tr('، ', ', ')),
                       style: const TextStyle(
                           fontSize: 12.5, color: AppColors.textGray, height: 1.5),
                       maxLines: 2,
